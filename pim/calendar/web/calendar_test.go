@@ -388,7 +388,8 @@ func TestACalendarWithAnUnreadableObjectStillShowsTheRest(t *testing.T) {
 		"cut.ics":     "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//test//EN\r\nBEGIN:VEVENT\r\nUID:cut\r\nSUMMARY:Cut\r\n",
 		"cuttodo.ics": "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//test//EN\r\nBEGIN:VTODO\r\nUID:cuttodo\r\nSUMMARY:Cut\r\n",
 	}
-	served := func(opts ...Option) (*Client, string) {
+	// served is the rig with the objects on a DAV server, and the cut event's path as pages hold it.
+	served := func(opts ...Option) (*Client, string, string) {
 		personal := DAVHome + "personal/"
 		davOpts := []DAVOption{Calendar(personal, "Personal")}
 		for _, objects := range []map[string]string{readable, unreadable, cut} {
@@ -396,14 +397,15 @@ func TestACalendarWithAnUnreadableObjectStillShowsTheRest(t *testing.T) {
 				davOpts = append(davOpts, Object(personal+name, body))
 			}
 		}
-		a := Alborz(t, append(opts, WithDAV(DAV(t, davOpts...)))...)
-		return a.SignIn(t, User), "Personal"
+		d := DAV(t, davOpts...)
+		a := Alborz(t, append(opts, WithDAV(d))...)
+		return a.SignIn(t, User), "Personal", d.At() + personal + "cut.ics"
 	}
 	for _, tc := range []struct {
 		name  string
-		setup func() (*Client, string)
+		setup func() (*Client, string, string)
 	}{
-		{"on alborz", func() (*Client, string) {
+		{"on alborz", func() (*Client, string, string) {
 			a := Alborz(t)
 			c := a.SignIn(t, User)
 			coll := c.CreateCalendar(t, "Plans", "events tasks")
@@ -412,13 +414,13 @@ func TestACalendarWithAnUnreadableObjectStillShowsTheRest(t *testing.T) {
 					a.Put(t, coll+name, "text/calendar", body)
 				}
 			}
-			return c, "Plans"
+			return c, "Plans", ""
 		}},
-		{"on a server, through the mirror", func() (*Client, string) { return served() }},
-		{"on a server, asked directly", func() (*Client, string) { return served(NoCache()) }},
+		{"on a server, through the mirror", func() (*Client, string, string) { return served() }},
+		{"on a server, asked directly", func() (*Client, string, string) { return served(NoCache()) }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			c, calendar := tc.setup()
+			c, calendar, cutEvent := tc.setup()
 			for _, page := range []struct {
 				route string
 				query url.Values
@@ -444,6 +446,18 @@ func TestACalendarWithAnUnreadableObjectStillShowsTheRest(t *testing.T) {
 			}
 			if resp := c.Get(t, "core.status", "calendar"); resp.StatusCode != http.StatusOK {
 				t.Errorf("the calendar segment answered %s", resp.Status)
+			}
+			if cutEvent == "" {
+				return
+			}
+			for _, route := range []string{"calendar.event", "calendar.event.update"} {
+				resp := c.Get(t, route, cutEvent)
+				if resp.StatusCode != http.StatusBadGateway || !strings.Contains(resp.Text, "cannot be read") {
+					t.Errorf("%s of the cut event answered %s, want 502 saying it cannot be read", route, resp.Status)
+				}
+			}
+			if resp := c.Post(t, "calendar.event.delete", nil, cutEvent); resp.StatusCode != http.StatusFound {
+				t.Errorf("deleting the cut event answered %s", resp.Status)
 			}
 		})
 	}

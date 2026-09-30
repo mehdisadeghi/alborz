@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"net"
 	"net/http"
 	"net/url"
 	"slices"
@@ -19,6 +20,7 @@ import (
 	"git.mehdix.org/alborz/pim/store"
 	"github.com/alborzmail/go-recur"
 	"github.com/emersion/go-ical"
+	"github.com/emersion/go-webdav"
 	"github.com/emersion/go-webdav/caldav"
 )
 
@@ -355,10 +357,21 @@ func EventQuery(start, end time.Time) caldav.CalendarQuery {
 	}
 }
 
+// GetObject is the object at p, or alborz.ErrUnreadable for an answer that does not parse.
+func GetObject(ctx context.Context, c *caldav.Client, p string) (*caldav.CalendarObject, error) {
+	co, err := c.GetCalendarObject(ctx, p)
+	// What is neither the server's status nor the transport's failure, a *url.Error, is the answer.
+	var transport net.Error
+	if _, answered := webdav.HTTPErrorCode(err); err != nil && !answered && !errors.As(err, &transport) && ctx.Err() == nil {
+		return nil, fmt.Errorf("%w: %s: %v", alborz.ErrUnreadable, p, err)
+	}
+	return co, err
+}
+
 func ChangeComponent(ctx context.Context, ref pim.Ref[*caldav.Client], comp func(*ical.Calendar) *ical.Component, change func(*ical.Component)) (*caldav.CalendarObject, error) {
-	co, err := ref.Client.GetCalendarObject(ctx, ref.Path)
+	co, err := GetObject(ctx, ref.Client, ref.Path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get object: %v", err)
+		return nil, fmt.Errorf("failed to get object: %w", err)
 	}
 	target := comp(co.Data)
 	if target == nil {

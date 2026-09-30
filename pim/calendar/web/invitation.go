@@ -10,6 +10,7 @@ import (
 	"time"
 	"uuid"
 
+	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/calendar"
@@ -113,12 +114,16 @@ func sendScheduling(ctx *web.Context, msg *ical.Calendar, to []string) error {
 
 // A meeting this account organizes is withdrawn from its attendees as it goes.
 func (p *plugin) deleteEvent(ctx *web.Context, ref pim.Ref[*caldav.Client]) error {
-	co, err := ref.Client.GetCalendarObject(ctx.Request().Context(), ref.Path)
-	if err != nil {
+	co, err := calendar.GetObject(ctx.Request().Context(), ref.Client, ref.Path)
+	// An event that does not read has no attendees to tell, and is still the reader's to delete.
+	if err != nil && !errors.Is(err, alborz.ErrUnreadable) {
 		return err
 	}
 	if err := ref.Client.RemoveAll(ctx.Request().Context(), ref.Path); err != nil {
 		return err
+	}
+	if co == nil {
+		return nil
 	}
 	series := itip.Series(co.Data)
 	if series == nil || series.Props.Get(ical.PropOrganizer) == nil {
@@ -200,7 +205,7 @@ func (p *plugin) applyInvitation(ctx *web.Context) error {
 	}
 	var stored *caldav.CalendarObject
 	if at := p.FindByUID(ctx.Request().Context(), ctx.Login, groups, inv.UID); at != "" {
-		if stored, err = c.GetCalendarObject(ctx.Request().Context(), at); err != nil {
+		if stored, err = calendar.GetObject(ctx.Request().Context(), c, at); err != nil {
 			return err
 		}
 	}

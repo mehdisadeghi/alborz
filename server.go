@@ -247,6 +247,10 @@ func (s *Server) Domains() []string {
 	return names
 }
 
+// ErrUnreadable marks data a server sent that does not parse: expected
+// input, which a page names rather than failing on (502).
+var ErrUnreadable = errors.New("the server sent data that does not parse")
+
 // ErrNotFound marks errors the HTTP layer answers with 404.
 var ErrNotFound = errors.New("not found")
 

@@ -453,9 +453,9 @@ func (p *plugin) move(ctx *web.Context) error {
 			if path.Dir(ref.Path)+"/" == target.Path {
 				return nil
 			}
-			co, err := ref.Client.GetCalendarObject(ctx.Request().Context(), ref.Path)
+			co, err := calendar.GetObject(ctx.Request().Context(), ref.Client, ref.Path)
 			if err != nil {
-				return fmt.Errorf("failed to get task: %v", err)
+				return fmt.Errorf("failed to get task: %w", err)
 			}
 			made, err := target.Client.PutCalendarObject(ctx.Request().Context(), target.Path+path.Base(ref.Path), co.Data,
 				&caldav.PutCalendarObjectOptions{IfNoneMatch: dav.IfNew})

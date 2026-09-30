@@ -32,6 +32,8 @@ func status(err error) int {
 		return refused.Code
 	case errors.Is(err, alborz.ErrNotFound):
 		return http.StatusNotFound
+	case errors.Is(err, alborz.ErrUnreadable):
+		return http.StatusBadGateway
 	case errors.Is(err, alborz.ErrIMAPQueueFull):
 		return http.StatusServiceUnavailable
 	}
@@ -48,6 +50,13 @@ func (s *Server) fail(ctx *Context, err error) {
 			message = ctx.Tf(missing.Key, missing.Args...)
 		}
 		if err := renderInfo(ctx, code, message); err == nil {
+			return
+		}
+	}
+
+	if errors.Is(err, alborz.ErrUnreadable) {
+		s.Logger().Printf("%s %s: %v", ctx.Request().Method, ctx.Request().URL.Path, err)
+		if err := renderInfo(ctx, code, ctx.T("unreadable")); err == nil {
 			return
 		}
 	}

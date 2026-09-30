@@ -87,7 +87,7 @@ func (p *plugin) task(ctx *web.Context) error {
 	}
 	task := &tasks[0]
 	if task.Data == nil {
-		return web.NewError(http.StatusBadGateway, ctx.T("calendar.unreadable"))
+		return fmt.Errorf("%w: %s", alborz.ErrUnreadable, path)
 	}
 	todo := calendar.FirstTodo(task.Data)
 	if todo == nil {
@@ -132,12 +132,12 @@ func (p *plugin) updateTask(ctx *web.Context) error {
 		if err != nil {
 			return err
 		}
-		co, err = c.GetCalendarObject(ctx.Request().Context(), taskPath)
+		co, err = calendar.GetObject(ctx.Request().Context(), c, taskPath)
 		if err != nil {
 			if code, _ := webdav.HTTPErrorCode(err); code == http.StatusNotFound {
 				return alborz.NotFound("notfound.task")
 			}
-			return fmt.Errorf("failed to get task: %v", err)
+			return fmt.Errorf("failed to get task: %w", err)
 		}
 		todo = calendar.FirstTodo(co.Data)
 		if todo == nil {

@@ -1,17 +1,12 @@
 package mail
 
 import (
-	"context"
-	"maps"
 	"net/http"
 	"net/url"
-	"slices"
 
 	"git.mehdix.org/alborz"
-	"git.mehdix.org/alborz/mail/search"
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2"
-	"github.com/emersion/go-imap/v2/imapclient"
 )
 
 // A bulk form's "everything" means the whole list its next URL names, asked again.
@@ -30,28 +25,6 @@ func wholeView(form url.Values) (query, view string, whole bool) {
 		view = ""
 	}
 	return next.Query().Get("query"), view, true
-}
-
-func viewUIDs(c *imapclient.Client, settings *Settings, query, view string) ([]imap.UID, error) {
-	criteria := listCriteria(c, settings, query, view)
-	if criteria == nil {
-		criteria = &imap.SearchCriteria{}
-	}
-	data, err := c.UIDSearch(criteria, nil).Wait()
-	if err != nil {
-		return nil, err
-	}
-	uids := data.AllUIDs()
-	// The list drops what the envelope contradicts (carried), so the selection must too.
-	q := search.Parse(query)
-	if len(uids) == 0 || !q.Addressed() {
-		return uids, nil
-	}
-	kept, err := carried(c, q, imap.UIDSetNum(uids...))
-	if err != nil {
-		return nil, err
-	}
-	return slices.Collect(maps.Keys(kept)), nil
 }
 
 func selection(ctx *web.Context, mboxName string, form url.Values) ([]imap.UID, error) {
@@ -75,24 +48,6 @@ func folderSelection(ctx *web.Context) (mboxName string, form url.Values, uids [
 	}
 	uids, err = selection(ctx, mboxName, form)
 	return mboxName, form, uids, err
-}
-
-// folderViewUIDs lists what a folder's view holds, off the connection the reader's clicks wait on.
-func folderViewUIDs(ctx context.Context, login *alborz.Login, mboxName, query, view string) ([]imap.UID, error) {
-	settings, err := LoadSettings(ctx, login.Store())
-	if err != nil {
-		return nil, err
-	}
-	var uids []imap.UID
-	err = login.DoIMAPWork(ctx, alborz.IMAPScan, alborz.ScanTimeout, func(c *imapclient.Client) error {
-		if err := ensureMailboxSelected(c, mboxName); err != nil {
-			return err
-		}
-		var err error
-		uids, err = viewUIDs(c, settings, query, view)
-		return err
-	})
-	return uids, err
 }
 
 func (p *plugin) mergedSelection(ctx *web.Context, role string, form url.Values) ([]rowRef, error) {
@@ -131,41 +86,4 @@ func (p *plugin) mergedSelection(ctx *web.Context, role string, form url.Values)
 		refs = append(refs, found...)
 	}
 	return refs, nil
-}
-
-// viewRefs are what a merged view holds on one account: its role's folder, or every folder a search spans.
-func (p *plugin) viewRefs(ctx context.Context, s *alborz.Login, role string, spanning bool, settings *Settings, query, view string) ([]rowRef, error) {
-	var folders []string
-	if spanning {
-		sb, err := p.sidebarFor(s)
-		if err != nil {
-			return nil, err
-		}
-		folders = searchFolders(sb.mailboxes, search.Parse(query))
-	}
-	var refs []rowRef
-	err := s.DoIMAPWork(ctx, alborz.IMAPScan, alborz.ScanTimeout, func(c *imapclient.Client) error {
-		if !spanning {
-			folder, err := p.resolveRole(c, s.Username(), role)
-			if err != nil || folder == "" {
-				return err
-			}
-			folders = []string{folder}
-		}
-		for _, folder := range folders {
-			if err := ensureMailboxSelected(c, folder); err != nil {
-				return err
-			}
-			uids, err := viewUIDs(c, settings, query, view)
-			if err != nil {
-				return err
-			}
-			for _, uid := range uids {
-				refs = append(refs, rowRef{account: s.Username(), mailbox: folder, uid: uid})
-			}
-		}
-		return nil
-	})
-	return refs, err
-
 }

@@ -17,6 +17,7 @@ import (
 	"git.mehdix.org/alborz/pim/calendar"
 	"git.mehdix.org/alborz/pim/dav"
 	pimweb "git.mehdix.org/alborz/pim/web"
+	"git.mehdix.org/alborz/search"
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-webdav/caldav"
@@ -159,78 +160,18 @@ type TaskList struct {
 }
 
 func (p *plugin) taskList(ctx *web.Context) (TaskList, error) {
-	var rows []TaskRow
-	loc := web.UserLocation(ctx)
-	only := pimweb.Only(ctx, "cal")
-	accounts, err := p.pooledCalendars(ctx)
-	if err != nil {
-		return TaskList{}, err
-	}
-
-	calendarInfos, sites, err := calendar.Visible(ctx.Request().Context(), accounts, ctx.URLAccount(), only, calendar.SupportsTodo, calendar.TaskVisibility)
-	if err != nil {
-		return TaskList{}, err
-	}
-	search := ctx.QueryParam("query")
+	text := ctx.QueryParam("query")
 	// A star is a view, as in the mail rail; open tasks are the list with no view.
 	view := ctx.QueryParam("view")
 	if view != viewCompleted && view != viewAll && view != viewHigh && !validStarView(view) {
 		return TaskList{}, web.NewError(http.StatusBadRequest, "no such view")
 	}
-	star := view
-	withCompleted := view == viewCompleted || view == viewAll
-	if withCompleted || view == viewHigh {
-		star = ""
-	}
 	params := pimweb.RowParams(ctx, ctx.Path("calendar.tasks"), pimweb.ListParams(ctx, taskListParams...))
-
-	query := calendar.TaskQuery()
-	var unread []pim.Unread
-
-	for _, result := range pim.Present(p.DAV, dav.Across(ctx.Request().Context(), sites, pim.Site[*caldav.Client].Account, func(ctx context.Context, site pim.Site[*caldav.Client]) ([]caldav.CalendarObject, error) {
-		return site.Client.QueryCalendar(ctx, site.Collection.Path, &query)
-	})) {
-		if result.Err != nil {
-			unread = append(unread, pim.Unread{Collection: result.Site.Collection.Name, Err: result.Err})
-			continue
-		}
-
-		for _, task := range result.Value {
-			if task.Data == nil {
-				unread = append(unread, calendar.Unparsed(result.Site.Collection.Name, &task))
-				continue
-			}
-			todo := calendar.FirstTodo(task.Data)
-			if todo == nil {
-				continue
-			}
-			status, _ := todo.Props.Text("STATUS")
-			// The page hides completed tasks even when a server ignores the STATUS filter.
-			completed := status == "COMPLETED"
-			if completed != (view == viewCompleted) && view != viewAll {
-				continue
-			}
-			if !web.StarMatches(calendar.ComponentColor(todo), star) {
-				continue
-			}
-			if view == viewHigh && calendar.PriorityBand(todo) != calendar.PriorityHigh {
-				continue
-			}
-			if search != "" {
-				summary, _ := todo.Props.Text("SUMMARY")
-				description, _ := todo.Props.Text("DESCRIPTION")
-				haystack := strings.ToLower(summary + "\n" + description)
-				if !strings.Contains(haystack, strings.ToLower(search)) {
-					continue
-				}
-			}
-			rows = append(rows, taskRow(ctx, &task, result.Site.Collection, loc, params))
-		}
+	rows, calendarInfos, unread, err := p.shownTasks(ctx, pimweb.Only(ctx, "cal"), view, search.Parse(text), params)
+	if err != nil {
+		return TaskList{}, err
 	}
-
-	sorting, err := pimweb.Sort(ctx, rows, taskColumns, func(row TaskRow) string {
-		return strings.ToLower(row.Task.Account + "\x00" + row.Calendar.Name + "\x00" + row.Summary)
-	}, taskListParams...)
+	sorting, err := pimweb.Sort(ctx, rows, taskColumns, taskTie, taskListParams...)
 	if err != nil {
 		return TaskList{}, err
 	}
@@ -242,11 +183,77 @@ func (p *plugin) taskList(ctx *web.Context) (TaskList, error) {
 		Rows:      rows,
 		Items:     items,
 		Calendars: calendarInfos,
-		Query:     search,
+		Query:     text,
 		View:      view,
 		Sorting:   sorting,
 		Unread:    unread,
 	}, nil
+}
+
+// shownTasks are the rows of the tasks on the list a view and a query make, from the lists in the
+// request's scope, and every list for the rail, with the lists and tasks it could not read;
+// params go into each row's link.
+func (p *plugin) shownTasks(ctx *web.Context, only map[string]bool, view string, q search.Query, params url.Values) ([]TaskRow, []dav.Collection, []pim.Unread, error) {
+	accounts, err := p.pooledCalendars(ctx)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	calendarInfos, sites, err := calendar.Visible(ctx.Request().Context(), accounts, ctx.URLAccount(), only, calendar.SupportsTodo, calendar.TaskVisibility)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	loc := web.UserLocation(ctx)
+	query := calendar.TaskQuery()
+	var rows []TaskRow
+	var unread []pim.Unread
+	for _, result := range pim.Present(p.DAV, dav.Across(ctx.Request().Context(), sites, pim.Site[*caldav.Client].Account, func(ctx context.Context, site pim.Site[*caldav.Client]) ([]caldav.CalendarObject, error) {
+		return site.Client.QueryCalendar(ctx, site.Collection.Path, &query)
+	})) {
+		if result.Err != nil {
+			unread = append(unread, pim.Unread{Collection: result.Site.Collection.Name, Err: result.Err})
+			continue
+		}
+		for _, task := range result.Value {
+			if task.Data == nil {
+				unread = append(unread, calendar.Unparsed(result.Site.Collection.Name, &task))
+				continue
+			}
+			if taskShown(calendar.FirstTodo(task.Data), view, q) {
+				rows = append(rows, taskRow(ctx, &task, result.Site.Collection, loc, params))
+			}
+		}
+	}
+	return rows, calendarInfos, unread, nil
+}
+
+func taskTie(row TaskRow) string {
+	return strings.ToLower(row.Task.Account + "\x00" + row.Calendar.Name + "\x00" + row.Summary)
+}
+
+// taskShown says whether a to-do is on the list a view and a query make: open ones unless the view
+// says otherwise, the star the view names, the words in its summary or description.
+func taskShown(todo *ical.Component, view string, q search.Query) bool {
+	if todo == nil {
+		return false
+	}
+	status, _ := todo.Props.Text("STATUS")
+	// The page hides completed tasks even when a server ignores the STATUS filter.
+	if (status == "COMPLETED") != (view == viewCompleted) && view != viewAll {
+		return false
+	}
+	star := view
+	if view == viewCompleted || view == viewAll || view == viewHigh {
+		star = ""
+	}
+	if !web.StarMatches(calendar.ComponentColor(todo), star) {
+		return false
+	}
+	if view == viewHigh && calendar.PriorityBand(todo) != calendar.PriorityHigh {
+		return false
+	}
+	summary, _ := todo.Props.Text("SUMMARY")
+	description, _ := todo.Props.Text("DESCRIPTION")
+	return pim.Matches(q, summary, description)
 }
 
 var taskColumns = []pim.Column[TaskRow]{

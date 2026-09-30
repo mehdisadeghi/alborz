@@ -318,6 +318,10 @@ func redirectToLogin(ctx *Context) error {
 	if ctx.Request().Method == http.MethodGet && path != ctx.Path("mail.home") && path != to {
 		to += "?next=" + QueryValue(ctx.Request().URL.String())
 	}
+	// Signing in takes the window; followed by htmx, it would land inside the piece asked for.
+	if ctx.Fragment() {
+		return ctx.Relocate(to)
+	}
 	return ctx.Redirect(http.StatusFound, to)
 }
 

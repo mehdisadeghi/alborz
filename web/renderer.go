@@ -424,7 +424,12 @@ func (r *renderer) Render(w io.Writer, name string, data interface{}, ctx *Conte
 	start := time.Now()
 	var err error
 	if page, ok := r.pages[name]; ok {
-		err = page.ExecuteTemplate(w, "layout", data)
+		// A swap into main takes the page's own main block, not a second page inside the first (ADR 13).
+		block := "layout"
+		if ctx.PartialFor("main") {
+			block = "main"
+		}
+		err = page.ExecuteTemplate(w, block, data)
 	} else {
 		err = r.partials.ExecuteTemplate(w, name, data)
 	}

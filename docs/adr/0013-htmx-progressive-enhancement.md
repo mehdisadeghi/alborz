@@ -38,6 +38,10 @@ blank page per navigation.
 7. Fragments are used only where a whole page is the wrong answer: a
    mark on one row, a list swapped into `#main` under an unchanged
    toolbar, and lazily loaded pieces (signature check, status bar).
+   A page asked for by a swap into `#main` answers its `main` block.
+   Signing in and unlocking take the window: a piece asked for then is
+   answered with `HX-Redirect`. An error keeps its status, which htmx
+   does not swap, so the page stays and the failed notice shows.
 8. Compose, import and file uploads post without htmx.
 9. What serves only a page with scripting, or only one without, is
    shown or hidden by CSS under `@media (scripting: enabled)` or
@@ -58,5 +62,6 @@ blank page per navigation.
 - Media Queries Level 5 (`scripting`)
 - ADR 14, ADR 41
 - `templates/layout.html` (`htmx-config`, `body hx-boost`),
-  `web/htmx.go` (`Partial`, `PartialFor`), `web/middleware.go` (CSP),
-  `templates/partials/form.html`, `templates/assets/VENDOR.toml`
+  `web/htmx.go` (`Partial`, `PartialFor`), `web/renderer.go`,
+  `web/middleware.go` (CSP), `templates/partials/form.html`,
+  `templates/assets/VENDOR.toml`

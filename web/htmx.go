@@ -7,6 +7,11 @@ func (ctx *Context) Partial() bool {
 	return h.Get("HX-Request") == "true" && h.Get("HX-History-Restore-Request") != "true"
 }
 
+// Fragment reports whether htmx asked for a piece to swap into the page, not for a boosted page.
+func (ctx *Context) Fragment() bool {
+	return ctx.Partial() && ctx.Request().Header.Get("HX-Boosted") != "true"
+}
+
 // PartialFor reports whether htmx asked for the piece swapped into id.
 func (ctx *Context) PartialFor(id string) bool {
 	return ctx.Partial() && ctx.Request().Header.Get("HX-Target") == id

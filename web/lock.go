@@ -104,6 +104,10 @@ func redirectToUnlock(ctx *Context) error {
 	if ctx.Request().Method == http.MethodGet {
 		to += "?next=" + QueryValue(ctx.Request().URL.RequestURI())
 	}
+	// Unlocking takes the window; followed by htmx, it would land inside the piece asked for.
+	if ctx.Fragment() {
+		return ctx.Relocate(to)
+	}
 	return ctx.Redirect(http.StatusSeeOther, to)
 }
 

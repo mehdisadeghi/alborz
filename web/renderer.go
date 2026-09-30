@@ -280,6 +280,11 @@ func NewBaseRenderData(ctx *Context) *BaseRenderData {
 	}
 	// A notice belongs to the session, not to a login.
 	global.Notice = ctx.popNotice()
+	for _, l := range ctx.Logins() {
+		if global.Notice == nil && l.Misread() {
+			global.Notice = &Notice{Kind: NoticeWarning, Text: locale.T(lang, "notice.misread")}
+		}
+	}
 
 	if ctx.Login != nil {
 		global.LoggedIn = true

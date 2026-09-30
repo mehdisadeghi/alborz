@@ -106,6 +106,12 @@ type Login struct {
 
 	sieveLocker sync.Mutex
 	sieveConn   SieveClient // protected by sieveLocker, can be nil
+
+	// misreadKeys are the stored entries that did not decode, each logged once; unwarned says the reader
+	// has not been told of them yet, which happens once a login.
+	misreadLocker sync.Mutex
+	misreadKeys   map[string]bool // protected by misreadLocker
+	unwarned      bool            // protected by misreadLocker
 }
 
 // Done closes when the login ends.
@@ -455,6 +461,30 @@ func (l *Login) forgetHTTPPassword() {
 	l.httpLocker.Lock()
 	l.httpLoaded, l.httpSealed = false, false
 	l.httpLocker.Unlock()
+}
+
+// misread notes a stored entry that did not decode and was read as far as it did: another version or
+// another program wrote it, and the defaults stand in for the rest until the reader saves it again.
+func (l *Login) misread(key string, err error) {
+	l.misreadLocker.Lock()
+	defer l.misreadLocker.Unlock()
+	if l.misreadKeys[key] {
+		return
+	}
+	if l.misreadKeys == nil {
+		l.misreadKeys, l.unwarned = map[string]bool{}, true
+	}
+	l.misreadKeys[key] = true
+	l.manager.logger.Printf("%s: the stored %s did not decode and is read as far as it does: %v", l.username, key, err)
+}
+
+// Misread reports, once a login, that a stored entry did not decode.
+func (l *Login) Misread() bool {
+	l.misreadLocker.Lock()
+	defer l.misreadLocker.Unlock()
+	was := l.unwarned
+	l.unwarned = false
+	return was
 }
 
 // Store returns the account's settings store.

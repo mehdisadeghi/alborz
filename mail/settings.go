@@ -2,7 +2,6 @@ package mail
 
 import (
 	"context"
-	"fmt"
 
 	"git.mehdix.org/alborz"
 )
@@ -45,9 +44,6 @@ func LoadSettings(ctx context.Context, s alborz.Store) (*Settings, error) {
 	settings := &Settings{}
 	if err := s.Get(ctx, settingsKey, settings); err != nil && err != alborz.ErrNoStoreEntry {
 		return nil, err
-	}
-	if key, limit := settings.Check(); key != "" {
-		return nil, fmt.Errorf("stored settings break %s (%d)", key, limit)
 	}
 	return settings, nil
 }

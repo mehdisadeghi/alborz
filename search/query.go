@@ -88,6 +88,15 @@ func (q Query) Words() Query {
 	return words
 }
 
+// String is the query as it would be typed.
+func (q Query) String() string {
+	out := make([]string, len(q))
+	for i, term := range q {
+		out[i] = term.String()
+	}
+	return strings.Join(out, " ")
+}
+
 // Without is the query less the terms of one key.
 func (q Query) Without(key string) string {
 	out := make([]string, 0, len(q))

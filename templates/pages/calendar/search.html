@@ -1,0 +1,36 @@
+{{ define "rail" }}
+  {{ template "calendar-rail" (dict "g" $ "keep" "" "path" (url "calendar.month") "action" (url "calendar.month") "views" (dict "path" (url "calendar.search") "view" .View "account" .GlobalData.URLAccount)) }}
+{{ end }}
+
+{{ define "before-main" }}
+    {{ template "next-form" (dict "id" "events-form" "next" $.GlobalData.URL.RequestURI) }}
+{{ end }}
+
+{{ define "main-class" }} class="list"{{ end }}
+
+{{ define "main" }}
+        {{ template "toolbar-head" (dict "g" . "title" ($.T "search.title") "selectall" true "newhref" (url "calendar.event.create") "back" .GlobalData.URL.RequestURI "newlabel" ($.T "calendar.new")) }}
+          <span class="icon-group">
+            {{ template "action-icon" (dict "icon" "trash" "label" ($.T "common.delete") "class" "icon-danger" "form" "events-form" "formaction" (url "calendar.events.delete") "priority" 11) }}
+          </span>
+        {{ template "toolbar-end" }}
+            {{ template "toolbar-search" (dict "account" $.GlobalData.URLAccount "query" .Query "placeholder" ($.T "calendar.searchph") "button" ($.T "mailbox.search")) }}
+            {{ template "list-pager" (dict "g" $ "pager" .Pager) }}
+            {{ template "filter-menu" (dict "id" "menu-filter" "icon" "list-filter" "title" ($.T "filter.menu") "rows" .FilterRows "priority" 25 "class" "filter-overflow") }}
+        {{ template "toolbar-foot" }}
+
+      {{ template "section-crumb" (dict "g" $ "section" ($.T "nav.calendar") "home" (url "calendar.month") "field" "cal" "items" .Calendars "collection" "" "path" "") }}
+
+      {{ template "filter-chips" (dict "filters" .Filters "remove" ($.T "filter.remove")) }}
+
+      <section class="events">
+        <div class="event-grid list-grid event-grid-select" role="table">
+          {{ if .Found }}
+          {{ template "event-grid-header" (dict "starred" ($.T "sort.starred") "form" .SelectForm "date" ($.T "sort.date") "time" ($.T "calendar.time") "event" ($.T "calendar.event") "calendar" ($.T "common.calendar")) }}
+          {{ template "event-rows" (dict "events" .Found "base" $ "dated" true) }}
+          {{ else }}
+          <p class="empty-list">{{ if .Query }}{{ printf ($.T "common.noresults") .Query }}{{ else }}{{ $.T "search.none" }}{{ end }}</p>
+          {{ end }}
+        </div>
+      </section>
+{{ end }}

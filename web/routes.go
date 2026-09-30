@@ -16,6 +16,7 @@ func PublicRoutes(g *Group) {
 	s := g.s
 	// Generated so the name under the icon is BrandName.
 	g.GET("manifest", "/manifest.webmanifest", func(ctx *Context) error {
+		worker := ctx.Path("core.worker")
 		icon := func(name, purpose string) map[string]string {
 			out := map[string]string{"src": s.AssetURL(name), "sizes": "512x512", "type": "image/png"}
 			if strings.HasSuffix(name, "192.png") {
@@ -30,8 +31,8 @@ func PublicRoutes(g *Group) {
 		return ctx.JSON(http.StatusOK, map[string]any{
 			"name":             alborz.BrandName,
 			"short_name":       alborz.BrandName,
-			"start_url":        "/",
-			"scope":            "/",
+			"start_url":        ctx.Path("mail.home"),
+			"scope":            strings.TrimSuffix(worker, path.Base(worker)),
 			"display":          "minimal-ui",
 			"background_color": brandBackground,
 			"theme_color":      brandColor,

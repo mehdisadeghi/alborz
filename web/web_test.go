@@ -91,13 +91,17 @@ func TestDownloadsSentAsTheyAre(t *testing.T) {
 	}
 }
 
-// An installed app opens its home, and its worker serves every page under the scope.
+// An installed app opens its home, its worker serves every page under the scope, and what it is
+// shared lands on a page of alborz.
 func TestManifestScopesTheApp(t *testing.T) {
 	a := Alborz(t)
 	c := a.SignIn(t, User)
 	var manifest struct {
-		StartURL string `json:"start_url"`
-		Scope    string
+		StartURL    string `json:"start_url"`
+		Scope       string
+		ShareTarget struct {
+			Action, Method, Enctype string
+		} `json:"share_target"`
 	}
 	if err := json.Unmarshal([]byte(c.Get(t, "core.manifest").Text), &manifest); err != nil {
 		t.Fatal(err)
@@ -107,6 +111,9 @@ func TestManifestScopesTheApp(t *testing.T) {
 	}
 	if worker := a.Path("core.worker"); !strings.HasSuffix(manifest.Scope, "/") || !strings.HasPrefix(worker, manifest.Scope) || strings.Contains(worker[len(manifest.Scope):], "/") {
 		t.Errorf("the manifest's scope %q is not the directory of the worker at %q", manifest.Scope, worker)
+	}
+	if st := manifest.ShareTarget; st.Action != a.Path("mail.share") || st.Method != "POST" || st.Enctype != "multipart/form-data" {
+		t.Errorf("the share target is %+v, not a multipart POST to %s", st, a.Path("mail.share"))
 	}
 }
 

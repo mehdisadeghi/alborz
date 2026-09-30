@@ -51,6 +51,7 @@ func (p *plugin) registerRoutes(g *web.Group) {
 	g.GET("compose", "/compose", p.handleComposeNew)
 	g.Upload("compose", "/compose", composeBodySize, p.handleComposeNew, composeTooLarge)
 
+	g.Stream("share", "/share", web.MaxAttachmentSize+web.FormFieldsSize, handleShare)
 	g.Stream("attachment.add", "/compose/attachment", web.MaxAttachmentSize+web.FormFieldsSize, handleComposeAttachment)
 	g.GET("attachment", "/compose/attachment/{uuid}", handleGetAttachment)
 	g.POST("attachment.remove", "/compose/attachment/{uuid}/remove", handleCancelAttachment)

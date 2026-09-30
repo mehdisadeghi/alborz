@@ -114,7 +114,7 @@
             {{end}}
           </div>
 
-          <input type="hidden" id="attachment-uuids" name="attachment-uuids" value="" />
+          <input type="hidden" id="attachment-uuids" name="attachment-uuids" value="{{range $i, $u := .Uploads}}{{if $i}},{{end}}{{$u.ID}}{{end}}" />
         </div>
 
         <div class="text">

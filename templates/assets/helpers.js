@@ -39,10 +39,6 @@ const once = (el, key) => {
 const fits = new WeakMap();
 
 const enhance = () => {
-	// The row stars' chevrons need this script to open the colours menu.
-	for (const chevron of document.querySelectorAll("[data-row-colors][hidden]")) {
-		chevron.hidden = false;
-	}
 	// Set here because the page CSP allows no inline script.
 	const tz_input = document.getElementById("timezone");
 	if (tz_input && !tz_input.value) {
@@ -184,10 +180,6 @@ const enhance = () => {
 		submit_on_change[i].addEventListener("change", ev => {
 			ev.currentTarget.form.requestSubmit();
 		});
-		const button = submit_on_change[i].form.querySelector("button");
-		if (button) {
-			button.style.display = "none";
-		}
 	}
 
 	// The reply is written above the quote or below it; data-caret says which end.

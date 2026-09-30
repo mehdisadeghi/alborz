@@ -3,7 +3,6 @@
 // A block, for the reason compose.js is one.
 {
 const print = document.getElementById("print");
-print.style.display = "inherit";
 print.addEventListener("click", e => {
 	e.preventDefault();
 	window.print();

@@ -12,7 +12,7 @@
         <input type="hidden" name="in_reply_to" value="{{.Message.InReplyTo}}">
         <input type="hidden" name="references" value="{{.Message.References}}">
 
-        <div class="headers no-js">
+        <div class="headers">
           <label for="from">{{$.T "compose.from"}}</label>
           {{ $selected := .SelectedFrom }}
           {{ $multi := gt (len .Identities) 1 }}
@@ -85,12 +85,7 @@
           <label for="attachments">{{$.T "message.attachments"}}</label>
           <input type="file" name="attachments" id="attachments" multiple>
 
-          <div
-            id="attachment-list"
-            {{ if .Message.Attachments }}
-            style="display: none;"
-            {{ end }}
-          >
+          <div id="attachment-list">
             <div class="help">{{$.T "compose.dragdrop"}}</div>
             {{range .Attached}}
             <div class="upload">
@@ -123,7 +118,7 @@
         </div>
 
         <div class="text">
-          <div class="editor-toolbar" hidden role="toolbar" aria-label="{{$.T "editor.toolbar"}}">
+          <div class="editor-toolbar" role="toolbar" aria-label="{{$.T "editor.toolbar"}}">
             <button type="button" class="icon-button" data-editor-toggle title="{{$.T "editor.richtext"}}" aria-label="{{$.T "editor.richtext"}}" aria-pressed="false">{{ template "icon" "richtext" }}<span class="label">{{$.T "editor.richtext"}}</span></button>
             {{ range tuple (tuple "bold" "editor.bold") (tuple "italic" "editor.italic") (tuple "list" "editor.list") (tuple "quote" "editor.quote") (tuple "link" "editor.link") (tuple "rtl" "editor.rtl") (tuple "ltr" "editor.ltr") (tuple "clear" "editor.clear") }}
             <button type="button" class="icon-button" data-act="{{ index . 0 }}"{{ if eq (index . 0) "link" }} data-prompt="{{$.T "editor.linkprompt"}}"{{ end }} title="{{$.T (index . 1)}}" aria-label="{{$.T (index . 1)}}" aria-pressed="false">{{ template "icon" (index . 0) }}</button>

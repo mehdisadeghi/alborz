@@ -748,3 +748,31 @@ func TestAMalformedContentTypeIsReadAsTheServerHasIt(t *testing.T) {
 		}
 	}
 }
+
+// A text part whose base64 breaks off is shown and quoted as far as it decodes, and the page says it is damaged.
+func TestADamagedPartShowsWhatDecodes(t *testing.T) {
+	head := "From: <eve@example.org>\r\nTo: <" + User + ">\r\nSubject: Damaged\r\nMIME-Version: 1.0\r\n"
+	good := base64.StdEncoding.EncodeToString([]byte("The first line decodes.\n"))
+	a := Alborz(t)
+	c := a.SignIn(t, User)
+	damaged := a.IMAP.Append(t, "INBOX", head+"Content-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: base64\r\n\r\n"+
+		good+"\r\nVGhl!!!!IHJlc3Q=\r\n")
+	whole := a.IMAP.Append(t, "INBOX", head+"Content-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: base64\r\n\r\n"+good+"\r\n")
+
+	note := "This message part is damaged."
+	for _, route := range []string{"mail.message", "mail.message.reply", "mail.message.forward"} {
+		resp := c.Get(t, route, "INBOX", damaged, url.Values{"part": {"1"}})
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("%s: %s", route, resp.Status)
+		}
+		if !strings.Contains(resp.Text, "The first line decodes.") {
+			t.Errorf("%s does not show what decoded", route)
+		}
+	}
+	if page := c.Page(t, "mail.message", "INBOX", damaged, url.Values{"part": {"1"}}); !strings.Contains(page, note) {
+		t.Error("the damaged part carries no note")
+	}
+	if page := c.Page(t, "mail.message", "INBOX", whole, url.Values{"part": {"1"}}); !strings.Contains(page, "The first line decodes.") || strings.Contains(page, note) {
+		t.Error("a whole part is not shown plainly")
+	}
+}

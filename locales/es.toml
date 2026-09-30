@@ -214,6 +214,7 @@
 "message.remote" = "Este mensaje contiene contenido remoto, como imágenes externas."
 "message.loadremote" = "Cargar contenido remoto"
 "message.cut" = "El resto de esta parte no se muestra."
+"message.damaged" = "Esta parte del mensaje está dañada."
 "message.downloadpart" = "Descargar la parte completa"
 "compose.from" = "De"
 "compose.to" = "Para"

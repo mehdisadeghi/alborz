@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -232,6 +233,8 @@ type IMAPMessage struct {
 	Alias string
 	// DeliveredTo is every address the delivery path recorded, topmost first.
 	DeliveredTo []string
+	// Damaged says why the part read did not decode whole; what did is read.
+	Damaged error
 }
 
 // Date is the sender's Date, or INTERNALDATE when that did not parse.
@@ -1665,15 +1668,14 @@ func messagePart(msg *imapclient.FetchMessageBuffer, mboxName string, uid imap.U
 	}
 
 	node := out.PartByPath(partPath)
-	part, err := readPart(h, bodyBuf, node, cut && node != nil && node.Cut())
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create message reader: %v", err)
-	}
+	part, damaged := readPart(h, bodyBuf, node, cut && node != nil && node.Cut())
+	out.Damaged = damaged
 	return out, part, nil
 }
 
 // readPart reads a part's body under its header. A cut body ends at its last
-// line break, where a transfer encoding can end, and on a whole rune.
+// line break, where a transfer encoding can end, and on a whole rune. The part
+// holds what decoded; the error says why that is not the whole body.
 func readPart(h textproto.Header, body []byte, node *IMAPPartNode, cut bool) (*message.Entity, error) {
 	if i := bytes.LastIndexByte(body, '\n'); cut && i >= 0 {
 		body = body[:i+1]
@@ -1685,14 +1687,16 @@ func readPart(h textproto.Header, body []byte, node *IMAPPartNode, cut bool) (*m
 	}
 	// An unknown charset or transfer encoding, its only errors, leaves the part as its bytes, as the download does.
 	part, _ := message.New(header, bytes.NewReader(body))
+	text, err := io.ReadAll(part.Body)
 	if cut {
-		text, err := io.ReadAll(part.Body)
-		if err != nil {
-			return nil, err
+		text = wholeRunes(text)
+		// The cut, not the sender, may end a line mid-quantum.
+		if errors.Is(err, io.ErrUnexpectedEOF) {
+			err = nil
 		}
-		part.Body = bytes.NewReader(wholeRunes(text))
 	}
-	return part, nil
+	part.Body = bytes.NewReader(text)
+	return part, err
 }
 
 // wholeRunes drops the start of a rune the cut split.

@@ -8,7 +8,6 @@ import (
 	"io"
 	"io/fs"
 	"mime"
-	"mime/multipart"
 	"slices"
 	"strings"
 	"time"
@@ -171,33 +170,30 @@ type Attachment interface {
 	io.WriterTo
 }
 
-// ID names an upload the session holds, which a refused send puts back on the form.
+// FormAttachment is a file a form carried; ID names an upload the session holds, which a refused send
+// puts back on the form.
 type FormAttachment struct {
-	*multipart.FileHeader
-	ID string
+	Name string
+	// ContentType is what the browser named it.
+	ContentType string
+	Body        *seal.Spool
+	ID          string
 }
 
 func (att *FormAttachment) SizeString() string {
-	return FormatSize(att.FileHeader.Size)
+	return FormatSize(att.Body.Size())
 }
 
-func (att *FormAttachment) WriteTo(w io.Writer) (int64, error) {
-	f, err := att.FileHeader.Open()
-	if err != nil {
-		return 0, err
-	}
-	defer f.Close()
-	return io.Copy(w, f)
-}
+func (att *FormAttachment) WriteTo(w io.Writer) (int64, error) { return io.Copy(w, att.Body.Open()) }
 
 func (att *FormAttachment) MIMEType() string {
 	// TODO: retain params, e.g. "charset"?
-	t, _, _ := mime.ParseMediaType(att.FileHeader.Header.Get("Content-Type"))
+	t, _, _ := mime.ParseMediaType(att.ContentType)
 	return t
 }
 
 func (att *FormAttachment) Filename() string {
-	return att.FileHeader.Filename
+	return att.Name
 }
 
 // IMAPAttachment is a part of a message on the server, sent again as it is.

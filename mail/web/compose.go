@@ -240,7 +240,7 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *mail.OutgoingMessage, opti
 			if err == nil {
 				for _, id := range uploads {
 					if a := ctx.PopAttachment(id); a != nil {
-						a.Form.RemoveAll()
+						a.Close()
 					}
 				}
 			}
@@ -337,8 +337,8 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *mail.OutgoingMessage, opti
 			return fmt.Errorf("previous attachments specified but no original message available")
 		}
 
-		for _, fh := range form.File["attachments"] {
-			msg.Attachments = append(msg.Attachments, &mail.FormAttachment{FileHeader: fh})
+		for _, f := range form.File["attachments"] {
+			msg.Attachments = append(msg.Attachments, formAttachment(f, ""))
 		}
 
 		uuids := ctx.FormValue("attachment-uuids")
@@ -351,8 +351,7 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *mail.OutgoingMessage, opti
 			if attachment == nil {
 				return fmt.Errorf("Unable to retrieve message attachment %s from session", uuid)
 			}
-			msg.Attachments = append(msg.Attachments,
-				&mail.FormAttachment{FileHeader: attachment.File, ID: uuid})
+			msg.Attachments = append(msg.Attachments, formAttachment(attachment, uuid))
 			uploads = append(uploads, uuid)
 		}
 
@@ -457,13 +456,17 @@ func handleComposeAttachment(ctx *web.Context) error {
 	if err != nil {
 		return ctx.JSON(http.StatusBadRequest, map[string]string{"error": ctx.T("attach.invalid")})
 	}
-	form, err := reader.ReadForm(web.MaxAttachmentSize)
+	form, err := web.ReadForm(reader)
 	var over *http.MaxBytesError
 	if errors.As(err, &over) {
 		return ctx.JSON(http.StatusRequestEntityTooLarge, map[string]string{"error": ctx.T("attach.toolarge")})
 	} else if err != nil {
 		return ctx.JSON(http.StatusBadRequest, map[string]string{"error": ctx.T("attach.invalid")})
 	}
+	// The session holds the uploads it takes; the rest go with the request.
+	files := form.File["attachments"]
+	delete(form.File, "attachments")
+	defer form.Close()
 
 	// Each upload's addresses go with it, so the page names no path of its own.
 	type upload struct {
@@ -472,13 +475,16 @@ func handleComposeAttachment(ctx *web.Context) error {
 		Remove string `json:"remove"`
 	}
 	var uploads []upload
-	for _, fh := range form.File["attachments"] {
-		uuid, err := ctx.PutAttachment(fh, form)
+	for i, f := range files {
+		uuid, err := ctx.PutAttachment(f)
+		if err != nil {
+			for _, f := range files[i:] {
+				f.Close()
+			}
+		}
 		if err == web.ErrAttachmentCacheSize {
-			form.RemoveAll()
 			return ctx.JSON(http.StatusBadRequest, map[string]string{"error": ctx.T("attach.toolarge")})
 		} else if err != nil {
-			form.RemoveAll()
 			ctx.Logger().Printf("PutAttachment: %v\n", err)
 			return ctx.JSON(http.StatusBadRequest, map[string]string{"error": ctx.T("attach.failed")})
 		}
@@ -488,11 +494,15 @@ func handleComposeAttachment(ctx *web.Context) error {
 	return ctx.JSON(http.StatusOK, &uploads)
 }
 
+func formAttachment(f *web.File, id string) *mail.FormAttachment {
+	return &mail.FormAttachment{Name: f.Filename, ContentType: f.Header.Get("Content-Type"), Body: f.Spool, ID: id}
+}
+
 func handleCancelAttachment(ctx *web.Context) error {
 	uuid := ctx.Param("uuid")
 	a := ctx.PopAttachment(uuid)
 	if a != nil {
-		a.Form.RemoveAll()
+		a.Close()
 	}
 	return ctx.JSON(http.StatusOK, nil)
 }

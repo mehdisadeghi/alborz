@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"mime/multipart"
 	"net/http"
 	"net/url"
 	"path"
@@ -289,14 +288,14 @@ func (pg Page) HandleImport(p *dav.Provider) func(*web.Context) error {
 		}
 		back := ctx.NextOr(pg.pageOf(ctx, collPath))
 		file, err := ctx.FormFile("file")
-		if err == nil && file.Size > pim.MaxImportSize {
+		if err == nil && file.Size() > pim.MaxImportSize {
 			ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: importTooLarge(ctx)})
 			return ctx.Redirect(http.StatusFound, back)
 		}
 		if err != nil {
 			return web.NewError(http.StatusBadRequest, "no file was sent")
 		}
-		raw, err := readUpload(file)
+		raw, err := io.ReadAll(file.Open())
 		if err != nil {
 			return err
 		}
@@ -308,15 +307,6 @@ func (pg Page) HandleImport(p *dav.Provider) func(*web.Context) error {
 		}
 		return ctx.Redirect(http.StatusFound, back)
 	}
-}
-
-func readUpload(file *multipart.FileHeader) ([]byte, error) {
-	f, err := file.Open()
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	return io.ReadAll(f)
 }
 
 // fetchAddress reads a calendar from an address once, unlike a subscription; webcal: is https:.
@@ -619,11 +609,11 @@ func (pg Page) HandleImportPage(p *dav.Provider, list, section, title, hint, key
 				data.Refused(ctx.T("form.fileneeded"))
 				return ctx.Render(http.StatusUnprocessableEntity, "pim/import", data)
 			}
-			if file.Size > pim.MaxImportSize {
+			if file.Size() > pim.MaxImportSize {
 				data.Refused(importTooLarge(ctx))
 				return ctx.Render(http.StatusUnprocessableEntity, "pim/import", data)
 			}
-			if raw, err = readUpload(file); err != nil {
+			if raw, err = io.ReadAll(file.Open()); err != nil {
 				return err
 			}
 			name = file.Filename

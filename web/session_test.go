@@ -1,18 +1,28 @@
 package web
 
 import (
-	"mime/multipart"
+	"io"
 	"testing"
 	"time"
+
+	"git.mehdix.org/alborz/internal/seal"
 )
 
 func TestFullAttachmentCacheStaysUsable(t *testing.T) {
 	s, _ := newSession()
-	big := &multipart.FileHeader{Size: MaxAttachmentSize}
-	if _, err := s.putAttachment(big, nil); err != nil {
+	body, err := seal.NewSpool(func(w io.Writer) error {
+		_, err := w.Write(make([]byte, MaxAttachmentSize))
+		return err
+	})
+	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.putAttachment(big, nil); err != ErrAttachmentCacheSize {
+	defer body.Close()
+	big := &File{Spool: body}
+	if _, err := s.putAttachment(big); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.putAttachment(big); err != ErrAttachmentCacheSize {
 		t.Fatalf("a second full-size attachment was taken: %v", err)
 	}
 	done := make(chan struct{})

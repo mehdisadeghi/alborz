@@ -104,11 +104,11 @@ func (g *Group) bounded(method string, limit int64, h, over HandlerFunc) Handler
 		if method != http.MethodPost || over == nil {
 			return h(ctx)
 		}
-		err := req.ParseMultipartForm(formMemory)
+		err := ctx.parseForm()
 		var tooLarge *http.MaxBytesError
 		if errors.As(err, &tooLarge) {
 			return over(ctx)
-		} else if err != nil && !errors.Is(err, http.ErrNotMultipart) {
+		} else if err != nil {
 			return NewError(http.StatusBadRequest, err)
 		}
 		return h(ctx)
@@ -174,6 +174,7 @@ func handle(mux *http.ServeMux, pattern string, h http.Handler) (err error) {
 func (s *Server) serve(h HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		ctx := &Context{Server: s, request: req, response: &Response{ResponseWriter: w}}
+		defer func() { ctx.form.Close() }()
 		if s.Options.Debug {
 			// Arrivals too, so a request that never finishes names its URI.
 			s.Logger().Printf("-> %s %s", req.Method, req.RequestURI)

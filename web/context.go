@@ -44,10 +44,10 @@ type Context struct {
 	timing *alborz.Timing
 
 	urlAccount string
-}
 
-// formMemory is what a parsed form holds in memory before files go to disk.
-const formMemory = 32 << 20
+	// form is the multipart form read, whose files go with the request.
+	form *Form
+}
 
 func (ctx *Context) Request() *http.Request { return ctx.request }
 
@@ -74,32 +74,63 @@ func (ctx *Context) QueryParams() url.Values {
 	return ctx.query
 }
 
-func (ctx *Context) FormValue(name string) string { return ctx.request.FormValue(name) }
+// FormValue is as net/http's, a form that does not parse reading as empty.
+func (ctx *Context) FormValue(name string) string {
+	ctx.parseForm()
+	return ctx.request.FormValue(name)
+}
 
 // FormParams are the fields of a form, multipart or not, and the query.
 func (ctx *Context) FormParams() (url.Values, error) {
-	if strings.HasPrefix(ctx.request.Header.Get("Content-Type"), "multipart/form-data") {
-		if err := ctx.request.ParseMultipartForm(formMemory); err != nil {
-			return nil, err
-		}
-	} else if err := ctx.request.ParseForm(); err != nil {
+	if err := ctx.parseForm(); err != nil {
 		return nil, err
 	}
 	return ctx.request.Form, nil
 }
 
-func (ctx *Context) FormFile(name string) (*multipart.FileHeader, error) {
-	f, fh, err := ctx.request.FormFile(name)
-	if err != nil {
+func (ctx *Context) FormFile(name string) (*File, error) {
+	if err := ctx.parseForm(); err != nil {
 		return nil, err
 	}
-	f.Close()
-	return fh, nil
+	if ctx.form == nil || len(ctx.form.File[name]) == 0 {
+		return nil, http.ErrMissingFile
+	}
+	return ctx.form.File[name][0], nil
 }
 
-func (ctx *Context) MultipartForm() (*multipart.Form, error) {
-	err := ctx.request.ParseMultipartForm(formMemory)
-	return ctx.request.MultipartForm, err
+func (ctx *Context) MultipartForm() (*Form, error) {
+	if err := ctx.parseForm(); err != nil {
+		return nil, err
+	}
+	if ctx.form == nil {
+		return nil, http.ErrNotMultipart
+	}
+	return ctx.form, nil
+}
+
+// parseForm reads the form once, a multipart one by ReadForm: net/http's own parse would spill its
+// files unsealed to disk (ADR 65). The request then answers for its fields as if it had parsed them.
+func (ctx *Context) parseForm() error {
+	req := ctx.request
+	if err := req.ParseForm(); err != nil || req.MultipartForm != nil ||
+		!strings.HasPrefix(req.Header.Get("Content-Type"), "multipart/form-data") {
+		return err
+	}
+	reader, err := req.MultipartReader()
+	if err != nil {
+		return err
+	}
+	form, err := ReadForm(reader)
+	if err != nil {
+		return err
+	}
+	ctx.form = form
+	req.PostForm = form.Value
+	for k, vs := range form.Value {
+		req.Form[k] = append(req.Form[k], vs...)
+	}
+	req.MultipartForm = &multipart.Form{Value: form.Value}
+	return nil
 }
 
 func (ctx *Context) Cookie(name string) (*http.Cookie, error) { return ctx.request.Cookie(name) }

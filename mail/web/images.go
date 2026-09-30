@@ -23,18 +23,13 @@ func handleGetAttachment(ctx *web.Context) error {
 	if held == nil {
 		return web.NewError(http.StatusNotFound)
 	}
-	f, err := held.File.Open()
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	mimeType, _, _ := mime.ParseMediaType(held.File.Header.Get("Content-Type"))
+	mimeType, _, _ := mime.ParseMediaType(held.Header.Get("Content-Type"))
 	if !shownTypes[mimeType] {
 		mimeType = "application/octet-stream"
 		ctx.Response().Header().Set("Content-Disposition",
-			mime.FormatMediaType("attachment", map[string]string{"filename": held.File.Filename}))
+			mime.FormatMediaType("attachment", map[string]string{"filename": held.Filename}))
 	}
-	return ctx.Stream(http.StatusOK, mimeType, f)
+	return ctx.Stream(http.StatusOK, mimeType, held.Open())
 }
 
 // imageSource opens an image the composed HTML shows: an upload the session holds, or a part of a message.
@@ -54,7 +49,7 @@ func imageSource(ctx *web.Context, held *[]string) func(src string) (mail.Attach
 				return nil, fmt.Errorf("the image %s is no longer held", id)
 			}
 			*held = append(*held, id)
-			return &mail.FormAttachment{FileHeader: upload.File, ID: id}, nil
+			return formAttachment(upload, id), nil
 		case "mail.message.raw":
 			uid, err := mail.ParseUID(values["uid"])
 			if err != nil {

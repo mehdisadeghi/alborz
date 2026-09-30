@@ -230,29 +230,84 @@ func Occurrences(obj CalendarObject, loc *time.Location, start, end time.Time) (
 			instances, err = series.Between(start, end)
 		}
 		if err != nil {
-			// A series not read here shows each component once, at its own start: a wrong instance is worse than a missing one.
 			errs = append(errs, fmt.Errorf("%s: %w", obj.Path, err))
-			for _, event := range obj.Data.Events() {
-				if id, _ := event.Props.Text(ical.PropUID); id == uid {
-					first, err := event.DateTimeStart(loc)
-					if err != nil {
-						continue
-					}
-					// An end that does not read leaves the event at its start.
-					last, _ := event.DateTimeEnd(loc)
-					out = append(out, Occurrence{CalendarObject: obj, Event: &event, Start: first, End: last})
-				}
-			}
+			out = append(out, ownStarts(obj, uid, loc)...)
 			continue
 		}
 		for inst := range instances {
-			out = append(out, Occurrence{
-				CalendarObject: obj, Event: &ical.Event{Component: series.Component(inst)},
-				Start: inst.Start, End: inst.End,
-			})
+			out = append(out, instance(obj, series, inst))
 		}
 	}
 	return out, errors.Join(errs...)
+}
+
+// lastDay is the last a DATE can name (RFC 5545 3.3.4): a search across all time ends there.
+var lastDay = time.Date(9999, time.December, 31, 0, 0, 0, 0, time.UTC)
+
+// Shown is each event of an object at the occurrence a list across all time shows: the one under way
+// or next at now, else the last. The error names each series not read, as Occurrences does.
+func Shown(obj CalendarObject, loc *time.Location, now time.Time) ([]Occurrence, error) {
+	var out []Occurrence
+	var errs []error
+	seen := make(map[string]bool)
+	for _, event := range obj.Data.Events() {
+		uid, _ := event.Props.Text(ical.PropUID)
+		if seen[uid] {
+			continue
+		}
+		seen[uid] = true
+		series, err := obj.Data.Series(uid, loc)
+		var ahead, behind iter.Seq[recur.Instance]
+		if err == nil {
+			ahead, err = series.Between(now, lastDay)
+		}
+		if err == nil {
+			behind, err = series.Between(time.Time{}, now)
+		}
+		if err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", obj.Path, err))
+			out = append(out, ownStarts(obj, uid, loc)...)
+			continue
+		}
+		var shown *recur.Instance
+		for inst := range ahead {
+			shown = &inst
+			break
+		}
+		if shown == nil {
+			for inst := range behind {
+				shown = &inst
+			}
+		}
+		if shown != nil {
+			out = append(out, instance(obj, series, *shown))
+		}
+	}
+	return out, errors.Join(errs...)
+}
+
+func instance(obj CalendarObject, series *ical.Series, inst recur.Instance) Occurrence {
+	return Occurrence{
+		CalendarObject: obj, Event: &ical.Event{Component: series.Component(inst)},
+		Start: inst.Start, End: inst.End,
+	}
+}
+
+// A series not read here shows each component once, at its own start: a wrong instance is worse than a missing one.
+func ownStarts(obj CalendarObject, uid string, loc *time.Location) []Occurrence {
+	var out []Occurrence
+	for _, event := range obj.Data.Events() {
+		if id, _ := event.Props.Text(ical.PropUID); id == uid {
+			first, err := event.DateTimeStart(loc)
+			if err != nil {
+				continue
+			}
+			// An end that does not read leaves the event at its start.
+			last, _ := event.DateTimeEnd(loc)
+			out = append(out, Occurrence{CalendarObject: obj, Event: &event, Start: first, End: last})
+		}
+	}
+	return out
 }
 
 // AllDay reports whether the object's start is a bare date.
@@ -360,6 +415,21 @@ func GetObject(ctx context.Context, c *caldav.Client, p string) (*caldav.Calenda
 		return nil, fmt.Errorf("%w: %s: %v", alborz.ErrUnreadable, p, err)
 	}
 	return co, err
+}
+
+// SeriesQuery asks for every event whole and unexpanded, for a list across all time.
+func SeriesQuery() caldav.CalendarQuery {
+	return caldav.CalendarQuery{
+		CompRequest: caldav.CalendarCompRequest{
+			Name:  "VCALENDAR",
+			Props: []string{"VERSION"},
+			Comps: []caldav.CalendarCompRequest{{Name: "VEVENT", AllProps: true, AllComps: true}},
+		},
+		CompFilter: caldav.CompFilter{
+			Name:  "VCALENDAR",
+			Comps: []caldav.CompFilter{{Name: "VEVENT"}},
+		},
+	}
 }
 
 func ChangeComponent(ctx context.Context, ref pim.Ref[*caldav.Client], comp func(*ical.Calendar) *ical.Component, change func(*ical.Component)) (*caldav.CalendarObject, error) {

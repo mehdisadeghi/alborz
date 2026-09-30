@@ -33,6 +33,9 @@ func TestQueryKeysAndWords(t *testing.T) {
 	if got, want := q.Words(), (Query{{Value: "report"}, {Value: "a plan", Quoted: true}}); !slices.Equal(got, want) {
 		t.Errorf("words: got %+v, want %+v", got, want)
 	}
+	if got, want := q.String(), `report from:eve -from:bob "a plan" is:starred`; got != want {
+		t.Errorf("written back: got %q, want %q", got, want)
+	}
 	if got, want := q.Without("from"), `report "a plan" is:starred`; got != want {
 		t.Errorf("without from: got %q, want %q", got, want)
 	}

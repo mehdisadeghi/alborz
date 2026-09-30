@@ -15,6 +15,7 @@ import (
 	"git.mehdix.org/alborz/pim/calendar"
 	"git.mehdix.org/alborz/pim/dav"
 	pimweb "git.mehdix.org/alborz/pim/web"
+	"git.mehdix.org/alborz/search"
 	"git.mehdix.org/alborz/web"
 	"github.com/alborzmail/go-itip"
 	"github.com/emersion/go-ical"
@@ -22,7 +23,7 @@ import (
 	"github.com/emersion/go-webdav/caldav"
 )
 
-var eventListParams = []string{"account", "cal", "month", "date", "view", "span"}
+var eventListParams = []string{"account", "cal", "month", "date", "view", "span", "query"}
 
 type EventRenderData struct {
 	web.BaseRenderData
@@ -121,12 +122,19 @@ func (p *plugin) eventItems(ctx *web.Context) ([]pimweb.Item, error) {
 			return nil, err
 		}
 		shown = dv.events
-	case ctx.QueryParam("view") != "":
+	case ctx.QueryParam("month") != "" && ctx.QueryParam("view") != "":
 		mv, err := p.monthView(ctx)
 		if err != nil {
 			return nil, err
 		}
 		shown = mv.shown()
+	// A list with no month is a search across all time.
+	case ctx.QueryParam("query") != "" || ctx.QueryParam("view") != "":
+		found, err := p.eventSearch(ctx, pimweb.Only(ctx, "cal"), ctx.QueryParam("view"), search.Parse(ctx.QueryParam("query")))
+		if err != nil {
+			return nil, err
+		}
+		shown = found.Found
 	default:
 		return nil, nil
 	}

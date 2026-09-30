@@ -54,6 +54,7 @@ func walkedKinds() []walked {
 				{"calendar.month", url.Values{"view": {"list"}, "span": {"month"}}},
 				{"calendar.month", url.Values{"view": {"list"}, "span": {"month"}, "group": {"day"}}},
 				{"calendar.day", url.Values{"date": {today}}},
+				{"calendar.search", url.Values{"query": {"walked"}}},
 			},
 			collField: "cal", collection: CalendarsOf(User) + "plans/", collName: "Plans", ext: ".ics", mime: "text/calendar", body: eventToday,
 			titleField: "summary", destField: "calendar", form: url.Values{"start": {noon}, "end": {noon}, "start-calendar": {"gregorian"}, "end-calendar": {"gregorian"}},

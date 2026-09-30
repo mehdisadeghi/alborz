@@ -67,8 +67,8 @@ replace github.com/emersion/go-vcard => github.com/alborzmail/go-vcard v0.0.0-20
 // matched by RFC 4791 9.9 for recurring events, to-dos, journals and
 // moved instances, Solar Hijri rules by their instances, and a rule it
 // cannot read keeps its object; the calendar scales it expands advertised
-// (RFC 7529 supported-rscale-set).
-replace github.com/emersion/go-webdav => github.com/alborzmail/go-webdav v0.0.0-20260929134702-aa2ea5b738c4
+// (RFC 7529 supported-rscale-set), and text matched by its collation.
+replace github.com/emersion/go-webdav => github.com/alborzmail/go-webdav v0.0.0-20260930060610-e3d53ab601e0
 
 // Our fork of go-msgauth carries the authres parser rework upstream has
 // not merged (emersion/go-msgauth#53): quoted values and comments, and

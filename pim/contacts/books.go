@@ -62,7 +62,7 @@ func Import(ctx context.Context, client *carddav.Client, bookPath string, raw []
 func cardPathByUID(ctx context.Context, client *carddav.Client, bookPath, uid string) string {
 	objects, err := client.QueryAddressBook(ctx, bookPath, &carddav.AddressBookQuery{
 		DataRequest: carddav.AddressDataRequest{Props: []string{vcard.FieldUID}},
-		PropFilters: []carddav.PropFilter{{Name: vcard.FieldUID, TextMatches: []carddav.TextMatch{{Text: uid, MatchType: carddav.MatchEquals}}}},
+		PropFilters: []carddav.PropFilter{{Name: vcard.FieldUID, TextMatches: []carddav.TextMatch{{Text: uid, MatchType: carddav.MatchEquals, Collation: carddav.CollationOctet}}}},
 	})
 	if err != nil || len(objects) == 0 {
 		return ""

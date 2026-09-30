@@ -1,9 +1,18 @@
 package contacts
 
 import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"path/filepath"
 	"testing"
+	"time"
 
+	"git.mehdix.org/alborz/internal/kv/bolt"
+	"git.mehdix.org/alborz/internal/seal"
+	"git.mehdix.org/alborz/pim/store"
 	"github.com/emersion/go-vcard"
+	"github.com/emersion/go-webdav/carddav"
 )
 
 func TestWithValuesKeepsTheParametersOfEditedFields(t *testing.T) {
@@ -20,5 +29,54 @@ func TestWithValuesKeepsTheParametersOfEditedFields(t *testing.T) {
 	}
 	if got := WithValues([]*vcard.Field{work}, []string{" "}); got != nil {
 		t.Errorf("blank input kept a field: %v", got)
+	}
+}
+
+func TestAUIDIsMatchedExactlyAndANameRegardlessOfCase(t *testing.T) {
+	db, err := bolt.Open(filepath.Join(t.TempDir(), "alborz.db"), time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	root, err := seal.ParseRoot("YLZFnivEgqo-9cIJcqU6wOS7LhhCrXtgxRvYHoQ6NmA=")
+	if err != nil {
+		t.Fatal(err)
+	}
+	const account = "u@example.org"
+	h := store.New(db, root).Handler()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.ServeHTTP(w, r.WithContext(store.As(r.Context(), account)))
+	}))
+	t.Cleanup(srv.Close)
+	client, err := carddav.NewClient(srv.Client(), srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	book := store.HomePath(store.AddressBook, account) + "b/"
+	if err := client.CreateAddressBook(ctx, &carddav.AddressBook{Path: book}); err != nil {
+		t.Fatal(err)
+	}
+	card := vcard.Card{}
+	card.SetValue(vcard.FieldVersion, "4.0")
+	card.SetValue(vcard.FieldUID, "Card-1")
+	card.SetValue(vcard.FieldFormattedName, "Alice Example")
+	if _, err := client.PutAddressObject(ctx, book+"c.vcf", card, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := cardPathByUID(ctx, client, book, "Card-1"); got != book+"c.vcf" {
+		t.Errorf("the UID found %q, want %q", got, book+"c.vcf")
+	}
+	if got := cardPathByUID(ctx, client, book, "card-1"); got != "" {
+		t.Errorf("a UID differing in case found %q", got)
+	}
+	query := Query("ALICE")
+	found, err := client.QueryAddressBook(ctx, book, &query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(found) != 1 {
+		t.Errorf("a search in another case found %d cards, want 1", len(found))
 	}
 }

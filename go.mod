@@ -69,7 +69,7 @@ replace github.com/emersion/go-vcard => github.com/alborzmail/go-vcard v0.0.0-20
 // whose times it cannot read kept; an object a report holds that does not
 // parse handed over unparsed; the calendar scales it expands advertised
 // (RFC 7529 supported-rscale-set), and text matched by its collation.
-replace github.com/emersion/go-webdav => github.com/alborzmail/go-webdav v0.0.0-20260930175655-2b3a5b003a75
+replace github.com/emersion/go-webdav => github.com/alborzmail/go-webdav v0.0.0-20260930185152-f4b868747ac6
 
 // Our fork of go-msgauth carries the authres parser rework upstream has
 // not merged (emersion/go-msgauth#53): quoted values and comments, and

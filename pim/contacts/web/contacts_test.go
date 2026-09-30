@@ -102,3 +102,47 @@ func TestAddToContactsWritesTheChosenBook(t *testing.T) {
 		t.Errorf("a book not chosen got the card:\n%s", cards)
 	}
 }
+
+// A card alborz cannot read costs the page only itself and a notice naming its book, and a book its
+// server cannot serve costs only itself; the card's own page says it cannot be read, and nothing is
+// written over it.
+func TestABookWithAnUnreadableCardStillShowsTheRest(t *testing.T) {
+	ada := "BEGIN:VCARD\r\nVERSION:4.0\r\nUID:ada\r\nFN:Ada Lovelace\r\nEND:VCARD\r\n"
+	cut := "BEGIN:VCARD\r\nVERSION:4.0\r\nUID:cut\r\nFN:Cut Short\r\n"
+	friends, family := DAVBooks+"friends/", DAVBooks+"family/"
+	served := func(opts ...Option) (*Client, string, string) {
+		d := DAV(t, Book(friends, "Friends"), Book(family, "Family"), Failing(family),
+			Object(friends+"ada.vcf", ada), Object(friends+"cut.vcf", cut))
+		return Alborz(t, append(opts, WithDAV(d))...).SignIn(t, User), d.At() + friends + "cut.vcf", "Family"
+	}
+	for _, tc := range []struct {
+		name  string
+		setup func() (*Client, string, string)
+	}{
+		{"on a server, through the mirror", func() (*Client, string, string) { return served() }},
+		{"on a server, asked directly", func() (*Client, string, string) { return served(NoCache()) }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c, cutCard, failing := tc.setup()
+			// A search the server runs leaves the cut card out itself.
+			for query, books := range map[string][]string{"": {"Friends", failing}, "Ada": {failing}} {
+				resp := c.Get(t, "contacts.list", url.Values{"query": {query}})
+				text := html.UnescapeString(resp.Text)
+				if resp.StatusCode != http.StatusOK || !strings.Contains(text, "Ada Lovelace") || strings.Contains(text, "Cut Short") {
+					t.Fatalf("the list for %q answered %s, want 200 with Ada alone", query, resp.Status)
+				}
+				bar := NoticeBar(resp.Text)
+				for _, book := range books {
+					if !strings.Contains(bar, book) || !strings.Contains(bar, "could not be read") {
+						t.Errorf("the list for %q does not name %s as read in part:\n%s", query, book, bar)
+					}
+				}
+			}
+			for _, route := range []string{"contacts.contact", "contacts.contact.edit"} {
+				if resp := c.Get(t, route, cutCard); resp.StatusCode != http.StatusBadGateway || !strings.Contains(resp.Text, "cannot be read") {
+					t.Errorf("%s of the cut card answered %s, want 502 saying it cannot be read", route, resp.Status)
+				}
+			}
+		})
+	}
+}

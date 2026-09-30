@@ -110,6 +110,9 @@ func (p *plugin) contact(ctx *web.Context) error {
 		return fmt.Errorf("expected exactly one address object with path %q, got %v", path, len(aos))
 	}
 	ao := &aos[0]
+	if ao.Card == nil {
+		return fmt.Errorf("%w: %s", alborz.ErrUnreadable, path)
+	}
 
 	rail, err := p.bookRail(ctx)
 	if err != nil {
@@ -162,12 +165,12 @@ func (p *plugin) updateContact(ctx *web.Context) error {
 		if err != nil {
 			return err
 		}
-		ao, err = c.GetAddressObject(ctx.Request().Context(), addressObjectPath)
+		ao, err = contacts.GetObject(ctx.Request().Context(), c, addressObjectPath)
 		if err != nil {
 			if code, _ := webdav.HTTPErrorCode(err); code == http.StatusNotFound {
 				return alborz.NotFound("notfound.contact")
 			}
-			return fmt.Errorf("failed to query CardDAV address: %v", err)
+			return fmt.Errorf("failed to query CardDAV address: %w", err)
 		}
 		card = ao.Card
 		currentAddressBook = dav.Holding(addressBooks, "", ao.Path)

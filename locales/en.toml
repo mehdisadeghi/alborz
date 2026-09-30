@@ -1088,7 +1088,7 @@ other = "%[1]d more folders"
 one = "The calendar and contacts server for %[2]s refused the password. Enter it again."
 other = "The calendar and contacts servers for %[2]s refused the passwords. Enter them again."
 
-["notice.calendarunread"]
+["notice.unread"]
 one = "Part of %[2]s could not be read."
 other = "Parts of %[2]s could not be read."
 

@@ -266,14 +266,11 @@ func (b books) GetAddressObject(_ context.Context, p string, _ *carddav.AddressD
 	return &b.objects[i], nil
 }
 
-// QueryAddressObjects parses only for a filter, as the store does.
+// QueryAddressObjects parses only for a filter, as the store does, and keeps a card that does not parse.
 func (b books) QueryAddressObjects(_ context.Context, _ string, query *carddav.AddressBookQuery) ([]carddav.AddressObject, error) {
 	if len(query.PropFilters) > 0 {
 		for i := range b.objects {
-			var err error
-			if b.objects[i].Card, err = vcard.NewDecoder(bytes.NewReader(b.objects[i].Raw)).Decode(); err != nil {
-				return nil, err
-			}
+			b.objects[i].Card, _ = vcard.NewDecoder(bytes.NewReader(b.objects[i].Raw)).Decode()
 		}
 	}
 	return carddav.Filter(query, b.objects)

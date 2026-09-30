@@ -167,11 +167,11 @@ func Selected[C any](ctx *web.Context, refs []string, client func(context.Contex
 	return out, nil
 }
 
-// WarnUnread logs what a page left out and names the calendars it leaves incomplete.
+// WarnUnread logs what a page left out and names the collections it leaves incomplete.
 func WarnUnread(ctx *web.Context, unread []pim.Unread) {
 	var names, marked []string
 	for _, u := range unread {
-		ctx.Logger().Printf("calendar: %s: %v", u.Collection, u.Err)
+		ctx.Logger().Printf("%s: %v", u.Collection, u.Err)
 		if !slices.Contains(names, u.Collection) {
 			names = append(names, u.Collection)
 			marked = append(marked, web.NoticeName(u.Collection))
@@ -181,6 +181,6 @@ func WarnUnread(ctx *web.Context, unread []pim.Unread) {
 		return
 	}
 	ctx.Notify(web.Notice{Kind: web.NoticeWarning,
-		Text:   ctx.Tf("notice.calendarunread", len(names), strings.Join(names, ", ")),
-		Markup: template.HTML(ctx.Tf("notice.calendarunread", len(names), strings.Join(marked, ", ")))})
+		Text:   ctx.Tf("notice.unread", len(names), strings.Join(names, ", ")),
+		Markup: template.HTML(ctx.Tf("notice.unread", len(names), strings.Join(marked, ", ")))})
 }

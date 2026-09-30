@@ -2,7 +2,6 @@ package web
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"slices"
 	"sort"
@@ -58,6 +57,8 @@ type ContactList struct {
 	Items []pimweb.Item
 	// Groups are the group cards, offered as filters and never listed as contacts.
 	Groups []contacts.AddressObject
+	// Unread is what of the books could not be read.
+	Unread []pim.Unread
 	// Categories are the words in use across what was read, sorted.
 	Categories []string
 	Query      string
@@ -92,13 +93,20 @@ func (p *plugin) contactList(ctx *web.Context) (ContactList, error) {
 	query := contacts.Query(queryText)
 
 	var aos, groups []contacts.AddressObject
+	var unread []pim.Unread
 	for _, result := range pim.Present(p.DAV, dav.Across(ctx.Request().Context(), sites, pim.Site[*carddav.Client].Account, func(ctx context.Context, site pim.Site[*carddav.Client]) ([]carddav.AddressObject, error) {
 		return site.Client.QueryAddressBook(ctx, site.Collection.Path, &query)
 	})) {
+		name := result.Site.Collection.Name
 		if result.Err != nil {
-			return ContactList{}, fmt.Errorf("failed to query address book %s: %v", result.Site.Collection.Name, result.Err)
+			unread = append(unread, pim.Unread{Collection: name, Err: result.Err})
+			continue
 		}
 		for i := range result.Value {
+			if result.Value[i].Card == nil {
+				unread = append(unread, contacts.Unparsed(name, &result.Value[i]))
+				continue
+			}
 			ao := contacts.AddressObject{AddressObject: &result.Value[i], Account: result.Site.Collection.Account}
 			// A group is a card and arrives with the contacts, but is not a person.
 			if ao.IsGroup() {
@@ -176,6 +184,7 @@ func (p *plugin) contactList(ctx *web.Context) (ContactList, error) {
 		Group:      group,
 		Category:   category,
 		Sorting:    sorting,
+		Unread:     unread,
 	}, nil
 }
 
@@ -201,6 +210,7 @@ func (p *plugin) contacts(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
+	pimweb.WarnUnread(ctx, list.Unread)
 	addressBookInfos := list.Books
 	hrefs := make(map[string]string, len(list.Items))
 	for _, item := range list.Items {

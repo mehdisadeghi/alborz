@@ -93,10 +93,18 @@ func Export(ctx context.Context, client *carddav.Client, bookPath string) ([]byt
 	}
 	var buf bytes.Buffer
 	enc := vcard.NewEncoder(&buf)
+	var left []error
 	for _, obj := range objects {
+		if obj.Card == nil {
+			left = append(left, Unparsed("", &obj).Err)
+			continue
+		}
 		if err := enc.Encode(obj.Card); err != nil {
 			return nil, fmt.Errorf("failed to write a card: %v", err)
 		}
+	}
+	if len(left) > 0 {
+		return buf.Bytes(), &pim.LeftOutError{Left: len(left), Err: errors.Join(left...)}
 	}
 	return buf.Bytes(), nil
 }

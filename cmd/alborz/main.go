@@ -17,6 +17,9 @@ import (
 	"strings"
 	"syscall"
 	"time"
+	// Calendars name zones the host may not hold, such as US/Central on
+	// a system without tzdata-legacy; the host's database still comes first.
+	_ "time/tzdata"
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/cmd/alborz/app"

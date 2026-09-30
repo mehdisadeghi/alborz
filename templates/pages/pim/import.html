@@ -5,7 +5,7 @@
 {{ define "main-class" }} class="create-update"{{ end }}
 
 {{ define "main" }}
-      <form method="POST" enctype="multipart/form-data">
+      <form method="POST" enctype="multipart/form-data" hx-boost="false">
         {{ template "section-crumb" (dict "g" $ "section" .Section "home" .Rail.Path "field" "" "collection" "" "path" "" "chooses" true) }}
         <h1>{{ .Title }}</h1>
         {{ template "collection-picker" (dict "label" ($.T "common.saveto") "name" "collection" "key" .Key "groups" .Groups "account" .Account "path" .Path "multi" (gt (len .GlobalData.Accounts) 1)) }}

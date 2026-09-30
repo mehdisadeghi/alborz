@@ -3,6 +3,7 @@ package alborz_test
 import (
 	"fmt"
 	"net/url"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -136,5 +137,30 @@ func TestCachingOffServesEveryPage(t *testing.T) {
 	}
 	if !strings.Contains(c.Page(t, "calendar.month"), "Personal") {
 		t.Error("the calendar page does not show the server's calendar")
+	}
+}
+
+// ADR 13: compose, imports and file uploads post as plain forms, never through htmx.
+func TestUploadFormsAreNotBoosted(t *testing.T) {
+	a := Alborz(t, WithSieve(Sieve(t)))
+	c := a.SignIn(t, User)
+	book := c.CreateBook(t, "Friends")
+	pages := [][]any{
+		{"mail.compose"}, {"mail.import"}, {"filters.import"}, {"settings.data"},
+		{"calendar.import"}, {"calendar.tasks.import"}, {"contacts.import"},
+		{"contacts.contact.create"}, {"contacts.book", Here + book},
+	}
+	upload := regexp.MustCompile(`<form[^>]*multipart/form-data[^>]*>`)
+	for _, p := range pages {
+		path := a.Path(p[0].(string), p[1:]...)
+		forms := upload.FindAllString(c.Follow(t, path), -1)
+		if len(forms) == 0 {
+			t.Errorf("%s has no upload form", path)
+		}
+		for _, form := range forms {
+			if !strings.Contains(form, `hx-boost="false"`) {
+				t.Errorf("%s has a boosted upload form: %s", path, form)
+			}
+		}
 	}
 }

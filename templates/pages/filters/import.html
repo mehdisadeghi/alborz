@@ -6,7 +6,7 @@
 
 {{ define "main" }}
   {{ $aq := .GlobalData.AccountQuery }}
-      <form method="post" enctype="multipart/form-data" action="{{url "filters.import"}}{{$aq}}">
+      <form method="post" enctype="multipart/form-data" hx-boost="false" action="{{url "filters.import"}}{{$aq}}">
         {{ template "filters-crumb" (dict "g" $ "chooses" (gt (len .Accounts) 1)) }}
         <h1>{{$.T "filters.import"}}</h1>
         {{ if gt (len .Accounts) 1 }}

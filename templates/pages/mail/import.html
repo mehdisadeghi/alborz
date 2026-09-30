@@ -7,7 +7,7 @@
 {{ define "main" }}
       {{/* The file is the last field: the form is read as a stream and the
            folder is settled before the file begins. */}}
-      <form method="POST" enctype="multipart/form-data">
+      <form method="POST" enctype="multipart/form-data" hx-boost="false">
         {{ $acct := .GlobalData.AccountQuery }}
         {{ template "mail-crumb" $ }}
         <h1>{{$.T "folder.import"}}</h1>

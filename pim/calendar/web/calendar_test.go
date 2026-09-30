@@ -366,3 +366,85 @@ func TestAnExceptionHidesOneSolarHijriYear(t *testing.T) {
 		t.Errorf("the year after the exception does not show the event")
 	}
 }
+
+// Objects alborz cannot read, whatever holds them: a zone no database names, a start that is
+// no date, and, where a server sends it, a file cut off inside its component. Each costs the
+// page only itself and a notice naming the calendar, never the page.
+func TestACalendarWithAnUnreadableObjectStillShowsTheRest(t *testing.T) {
+	object := func(comp, uid, summary, start string) string {
+		return "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//test//EN\r\nBEGIN:" + comp + "\r\nUID:" + uid +
+			"\r\nDTSTAMP:20260901T080000Z\r\n" + start + "\r\nSUMMARY:" + summary + "\r\nEND:" + comp + "\r\nEND:VCALENDAR\r\n"
+	}
+	readable := map[string]string{
+		"good.ics":  Event("good", "Standup"),
+		"water.ics": Todo("water", "Water the ferns"),
+	}
+	unreadable := map[string]string{
+		"zone.ics":  object("VEVENT", "zone", "Olympus", "DTSTART;TZID=Mars/Olympus:20260916T100000"),
+		"start.ics": object("VEVENT", "start", "Nowhen", "DTSTART:2026091XT100000Z"),
+		"due.ics":   object("VTODO", "due", "Someday", "DUE:someday"),
+	}
+	cut := map[string]string{
+		"cut.ics":     "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//test//EN\r\nBEGIN:VEVENT\r\nUID:cut\r\nSUMMARY:Cut\r\n",
+		"cuttodo.ics": "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//test//EN\r\nBEGIN:VTODO\r\nUID:cuttodo\r\nSUMMARY:Cut\r\n",
+	}
+	served := func(opts ...Option) (*Client, string) {
+		personal := DAVHome + "personal/"
+		davOpts := []DAVOption{Calendar(personal, "Personal")}
+		for _, objects := range []map[string]string{readable, unreadable, cut} {
+			for name, body := range objects {
+				davOpts = append(davOpts, Object(personal+name, body))
+			}
+		}
+		a := Alborz(t, append(opts, WithDAV(DAV(t, davOpts...)))...)
+		return a.SignIn(t, User), "Personal"
+	}
+	for _, tc := range []struct {
+		name  string
+		setup func() (*Client, string)
+	}{
+		{"on alborz", func() (*Client, string) {
+			a := Alborz(t)
+			c := a.SignIn(t, User)
+			coll := c.CreateCalendar(t, "Plans", "events tasks")
+			for _, objects := range []map[string]string{readable, unreadable} {
+				for name, body := range objects {
+					a.Put(t, coll+name, "text/calendar", body)
+				}
+			}
+			return c, "Plans"
+		}},
+		{"on a server, through the mirror", func() (*Client, string) { return served() }},
+		{"on a server, asked directly", func() (*Client, string) { return served(NoCache()) }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c, calendar := tc.setup()
+			for _, page := range []struct {
+				route string
+				query url.Values
+				shows string
+			}{
+				{"calendar.month", url.Values{"month": {"2026-09"}}, "Standup"},
+				{"calendar.month", url.Values{"month": {"2026-09"}, "view": {"list"}, "span": {"month"}}, "Standup"},
+				{"calendar.day", url.Values{"date": {"2026-09-15"}}, "Standup"},
+				{"calendar.tasks", url.Values{"view": {"all"}}, "Water the ferns"},
+			} {
+				resp := c.Get(t, page.route, page.query)
+				text := html.UnescapeString(resp.Text)
+				if resp.StatusCode != http.StatusOK || !strings.Contains(text, page.shows) {
+					t.Errorf("%s %v answered %s, want 200 with %q:\n%s", page.route, page.query, resp.Status, page.shows, text)
+				}
+				if strings.Contains(text, "Nowhen") {
+					t.Errorf("%s %v shows the event whose start is no date", page.route, page.query)
+				}
+			}
+			said := regexp.MustCompile(`Part of <span class="notice-name">` + calendar + `</span> could not be read\.`)
+			if resp := c.Get(t, "calendar.day", url.Values{"date": {"2026-09-15"}}); !said.MatchString(resp.Text) {
+				t.Errorf("the day page does not say %s was read in part", calendar)
+			}
+			if resp := c.Get(t, "core.status", "calendar"); resp.StatusCode != http.StatusOK {
+				t.Errorf("the calendar segment answered %s", resp.Status)
+			}
+		})
+	}
+}

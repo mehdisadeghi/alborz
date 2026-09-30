@@ -113,6 +113,7 @@
 "filter.view" = "Ansicht"
 "list.groupby" = "Gruppieren nach"
 "calendar.groupday" = "Tag"
+"calendar.unreadable" = "Der Server hat diesen Eintrag in einer Form geschickt, die nicht gelesen werden kann."
 "filter.category" = "Kategorie"
 "filter.group" = "Gruppe"
 "aside.groups" = "Gruppen"
@@ -1074,6 +1075,10 @@ other = "%[1]d weitere Ordner"
 ["notice.davrefused"]
 one = "Der Kalender- und Kontakteserver für %[2]s hat das Passwort abgelehnt. Bitte erneut eingeben."
 other = "Die Kalender- und Kontakteserver für %[2]s haben die Passwörter abgelehnt. Bitte erneut eingeben."
+
+["notice.calendarunread"]
+one = "Ein Teil von %[2]s konnte nicht gelesen werden."
+other = "Teile von %[2]s konnten nicht gelesen werden."
 
 ["notice.unreachable"]
 one = "Der Server für %[2]s hat nicht geantwortet."

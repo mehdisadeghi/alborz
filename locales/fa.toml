@@ -113,6 +113,7 @@
 "filter.view" = "نما"
 "list.groupby" = "گروه‌بندی بر اساس"
 "calendar.groupday" = "روز"
+"calendar.unreadable" = "سرور این مورد را به شکلی فرستاد که خوانده نمی‌شود."
 "filter.category" = "دسته"
 "filter.group" = "گروه"
 "aside.groups" = "گروه‌ها"
@@ -1074,6 +1075,10 @@ other = "%[1]d پوشهٔ دیگر"
 ["notice.davrefused"]
 one = "سرور تقویم و مخاطبان %[2]s گذرواژه را نپذیرفت. آن را دوباره وارد کنید."
 other = "سرورهای تقویم و مخاطبان %[2]s گذرواژه‌ها را نپذیرفتند. آن‌ها را دوباره وارد کنید."
+
+["notice.calendarunread"]
+one = "بخشی از %[2]s خوانده نشد."
+other = "بخش‌هایی از %[2]s خوانده نشد."
 
 ["notice.unreachable"]
 one = "سرور %[2]s پاسخ نداد."

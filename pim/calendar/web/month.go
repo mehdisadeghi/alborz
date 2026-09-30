@@ -74,6 +74,7 @@ type monthView struct {
 	dates     []time.Time
 	on        map[time.Time][]calendar.Occurrence
 	day       func(time.Time) time.Time
+	unread    []calendar.Unread
 }
 
 func (mv monthView) shown() []calendar.Occurrence {
@@ -92,6 +93,7 @@ func (p *plugin) month(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
+	warnUnread(ctx, mv.unread)
 	template := "calendar/month"
 	if mv.view != "" {
 		template = "calendar/list"
@@ -217,10 +219,7 @@ func (p *plugin) monthView(ctx *web.Context) (monthView, error) {
 	}
 	query := calendar.EventQuery(queryStart, queryEnd)
 
-	events, err := p.QuerySites(ctx.Request().Context(), sites, &query)
-	if err != nil {
-		return monthView{}, err
-	}
+	events, unread := p.QuerySites(ctx.Request().Context(), sites, &query)
 
 	dates := make([]time.Time, rows*7)
 	d := gridStart
@@ -242,7 +241,11 @@ func (p *plugin) monthView(ctx *web.Context) (monthView, error) {
 	gridEnd := gridStart.AddDate(0, 0, rows*7)
 	eventMap := make(map[time.Time][]calendar.Occurrence)
 	for _, ev := range events {
-		for _, oc := range calendar.Occurrences(ev, loc, queryStart, queryEnd) {
+		occurrences, err := calendar.Occurrences(ev, loc, queryStart, queryEnd)
+		if err != nil {
+			unread = append(unread, calendar.Unread{Calendar: ev.Calendar, Err: err})
+		}
+		for _, oc := range occurrences {
 			if view != "list" && !web.StarMatches(oc.Star(), view) {
 				continue
 			}
@@ -296,6 +299,7 @@ func (p *plugin) monthView(ctx *web.Context) (monthView, error) {
 		dates:     dates,
 		on:        eventMap,
 		day:       day,
+		unread:    unread,
 	}, nil
 }
 

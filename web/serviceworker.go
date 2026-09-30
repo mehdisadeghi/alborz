@@ -24,8 +24,12 @@ const PAGES_DAYS = 7;
 // a dead connection does not fail a request, it lets it hang.
 const NETWORK_WAIT = 5000;
 const SAVED_AT = "X-Alborz-Saved";
-// What the server sends as a file rather than a page.
-const DOWNLOADS = ["/raw", "/eml", "/attachments.zip", "/export"];
+// What the server sends as a file rather than a page, as patterns of paths.
+const DOWNLOADS = %[3]s.map(pattern => new RegExp(pattern));
+// Where signing in or out is posted, and the sign-in page; where the shell's files are.
+const SIGNINGS = %[4]s;
+const SIGN_IN = %[5]s;
+const ASSETS = %[6]s;
 
 self.addEventListener("install", event => {
 	event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -116,7 +120,7 @@ const page = async (event, ask) => {
 		// keeps nothing, and what it kept before it had a lock goes.
 		if ((answer.headers.get("Cache-Control") || "").includes("no-store")) {
 			event.waitUntil(caches.delete(PAGES));
-		} else if (answer.ok && new URL(event.request.url).pathname !== "/login" &&
+		} else if (answer.ok && new URL(event.request.url).pathname !== SIGN_IN &&
 			(answer.headers.get("Content-Type") || "").startsWith("text/html")) {
 			event.waitUntil(savePage(key, answer.clone()));
 		}
@@ -142,7 +146,7 @@ self.addEventListener("fetch", event => {
 	// page of browsers signed in is among them because it signs this
 	// one out too, and a POST's answer is a redirect the worker cannot
 	// read to tell which browser it was.
-	if (request.method === "POST" && ["/login", "/logout", "/unlock/leave", "/settings/sessions"].includes(url.pathname)) {
+	if (request.method === "POST" && SIGNINGS.includes(url.pathname)) {
 		event.waitUntil(caches.delete(PAGES));
 		return;
 	}
@@ -151,7 +155,7 @@ self.addEventListener("fetch", event => {
 	}
 	// The shell is stamped with a digest, so a hit is the right file by
 	// construction and a miss fetches and keeps the new one.
-	if (url.pathname.startsWith("/assets/")) {
+	if (url.pathname.startsWith(ASSETS)) {
 		event.respondWith(caches.match(request).then(hit => hit || fetch(request).then(answer => {
 			if (answer.ok) {
 				const copy = answer.clone();
@@ -170,7 +174,7 @@ self.addEventListener("fetch", event => {
 	// a worker in the middle of one leaves an installed window loading
 	// for ever: nothing is shown, nothing is saved. These answer as
 	// themselves, straight from the network.
-	if (DOWNLOADS.some(part => url.pathname.endsWith(part))) {
+	if (DOWNLOADS.some(pattern => pattern.test(url.pathname))) {
 		return;
 	}
 	if (request.mode === "navigate") {

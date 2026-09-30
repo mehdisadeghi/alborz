@@ -20,6 +20,7 @@ func registerRoutes(p *plugin, g *web.Group) {
 	}
 	GET := func(name, path string, h func(*web.Context) error) { g.GET(name, path, guard(h)) }
 	POST := func(name, path string, h func(*web.Context) error) { g.POST(name, path, guard(h)) }
+	download := func(name, path string, h func(*web.Context) error) { g.Download(name, path, guard(h)) }
 	upload := func(name, path string, limit int64, h, over func(*web.Context) error) {
 		g.Upload(name, path, limit, guard(h), guard(over))
 	}
@@ -30,7 +31,7 @@ func registerRoutes(p *plugin, g *web.Group) {
 	POST("refresh", "/contacts/refresh", pimweb.HandleRefresh(p.DAV, "contacts.list"))
 	GET("contact", "/contacts/{path}", p.contact)
 
-	GET("contact.raw", "/contacts/{path}/raw", func(ctx *web.Context) error { return pimweb.Raw(ctx, p.Client) })
+	download("contact.raw", "/contacts/{path}/raw", func(ctx *web.Context) error { return pimweb.Raw(ctx, p.Client) })
 	page := p.collectionPage()
 	GET("books.create", "/address-books/create", page.HandleCreate(p.DAV, p.createForm))
 	POST("books.create", "/address-books/create", page.HandleCreate(p.DAV, p.createForm))
@@ -42,7 +43,7 @@ func registerRoutes(p *plugin, g *web.Group) {
 	POST("book", "/address-books/{path}", page.Handle(p.DAV))
 	POST("book.delete", "/address-books/{path}/delete", page.HandleDelete(p.DAV))
 	upload("book.import", "/address-books/{path}/import", pimweb.ImportBodySize, page.HandleImport(p.DAV), page.HandleImportTooLarge)
-	GET("book.export", "/address-books/{path}/export", page.HandleExport(p.DAV))
+	download("book.export", "/address-books/{path}/export", page.HandleExport(p.DAV))
 	POST("book.share", "/address-books/{path}/share", page.HandleShare(p.DAV))
 	POST("book.unshare", "/address-books/{path}/unshare", page.HandleUnshare(p.DAV))
 	POST("book.access", "/address-books/{path}/access", page.HandleAccess(p.DAV))

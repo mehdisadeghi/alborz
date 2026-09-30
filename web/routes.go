@@ -46,7 +46,13 @@ func PublicRoutes(g *Group) {
 	// Served here rather than under /assets/: a worker's scope is the path it is served from.
 	g.GET("worker", "/sw.js", func(ctx *Context) error {
 		urls, version := s.shell()
-		body := fmt.Sprintf(serviceWorker, version, mustJSON(urls))
+		var downloads []string
+		for _, pattern := range s.routes.downloads {
+			downloads = append(downloads, pathRegexp(pattern))
+		}
+		body := fmt.Sprintf(serviceWorker, version, mustJSON(urls), mustJSON(downloads),
+			mustJSON([]string{ctx.Path("auth.login"), ctx.Path("auth.logout"), ctx.Path("auth.unlock.leave"), ctx.Path("settings.sessions")}),
+			mustJSON(ctx.Path("auth.login")), mustJSON(ctx.Path("core.asset", "")))
 		return ctx.Blob(http.StatusOK, "text/javascript; charset=utf-8", []byte(body))
 	})
 

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"html"
 	"io"
+	"maps"
 	"mime/multipart"
 	"net/http"
 	"net/url"
@@ -380,7 +381,6 @@ func TestACalendarWithAnUnreadableObjectStillShowsTheRest(t *testing.T) {
 		"water.ics": Todo("water", "Water the ferns"),
 	}
 	unreadable := map[string]string{
-		"zone.ics":  object("VEVENT", "zone", "Olympus", "DTSTART;TZID=Mars/Olympus:20260916T100000"),
 		"start.ics": object("VEVENT", "start", "Nowhen", "DTSTART:2026091XT100000Z"),
 		"due.ics":   object("VTODO", "due", "Someday", "DUE:someday"),
 	}
@@ -458,6 +458,62 @@ func TestACalendarWithAnUnreadableObjectStillShowsTheRest(t *testing.T) {
 			}
 			if resp := c.Post(t, "calendar.event.delete", nil, cutEvent); resp.StatusCode != http.StatusFound {
 				t.Errorf("deleting the cut event answered %s", resp.Status)
+			}
+		})
+	}
+}
+
+// A TZID names the VTIMEZONE of its own object (RFC 5545 3.2.19), as Outlook's zones must be read; one
+// defined nowhere is floating, the wall clock it states read in the reader's zone.
+func TestAnEventIsReadInTheZoneItsObjectDefines(t *testing.T) {
+	objects := map[string]string{
+		"outlook.ics": "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//test//EN\r\n" +
+			"BEGIN:VTIMEZONE\r\nTZID:Central Standard Time\r\n" +
+			"BEGIN:STANDARD\r\nDTSTART:16010101T020000\r\nTZOFFSETFROM:-0500\r\nTZOFFSETTO:-0600\r\n" +
+			"RRULE:FREQ=YEARLY;INTERVAL=1;BYDAY=1SU;BYMONTH=11\r\nEND:STANDARD\r\n" +
+			"BEGIN:DAYLIGHT\r\nDTSTART:16010101T020000\r\nTZOFFSETFROM:-0600\r\nTZOFFSETTO:-0500\r\n" +
+			"RRULE:FREQ=YEARLY;INTERVAL=1;BYDAY=2SU;BYMONTH=3\r\nEND:DAYLIGHT\r\nEND:VTIMEZONE\r\n" +
+			"BEGIN:VEVENT\r\nUID:outlook\r\nDTSTAMP:20260901T080000Z\r\n" +
+			"DTSTART;TZID=Central Standard Time:20260915T100000\r\nDTEND;TZID=Central Standard Time:20260915T103000\r\n" +
+			"SUMMARY:Planning\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+		"olympus.ics": "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//test//EN\r\nBEGIN:VEVENT\r\nUID:olympus\r\n" +
+			"DTSTAMP:20260901T080000Z\r\nDTSTART;TZID=Mars/Olympus:20260915T120000\r\nSUMMARY:Olympus\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+	}
+	for _, tc := range []struct {
+		name  string
+		setup func() *Client
+	}{
+		{"on alborz", func() *Client {
+			a := Alborz(t)
+			c := a.SignIn(t, User)
+			coll := c.CreateCalendar(t, "Plans", "")
+			for name, body := range objects {
+				a.Put(t, coll+name, "text/calendar", body)
+			}
+			return c
+		}},
+		{"on a server, through the mirror", func() *Client {
+			opts := []DAVOption{Calendar(DAVHome+"personal/", "Personal")}
+			for name, body := range objects {
+				opts = append(opts, Object(DAVHome+"personal/"+name, body))
+			}
+			return Alborz(t, WithDAV(DAV(t, opts...))).SignIn(t, User)
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := tc.setup()
+			c.Post(t, "settings.profile", url.Values{"timezone": {"Asia/Tehran"}})
+			at := map[string]string{}
+			time := regexp.MustCompile(`data-label="Time">([^<]*)<`)
+			summary := regexp.MustCompile(`dir="auto">([^<]*)</a>`)
+			for _, row := range strings.Split(c.Page(t, "calendar.day", url.Values{"date": {"2026-09-15"}}), `class="event-row`)[1:] {
+				if tm, sm := time.FindStringSubmatch(row), summary.FindStringSubmatch(row); tm != nil && sm != nil {
+					at[sm[1]] = tm[1]
+				}
+			}
+			// 10:00 CDT is 15:00 UTC, 18:30 in Tehran.
+			if want := map[string]string{"Planning": "18:30", "Olympus": "12:00"}; !maps.Equal(at, want) {
+				t.Errorf("the day shows %v, want %v", at, want)
 			}
 		})
 	}

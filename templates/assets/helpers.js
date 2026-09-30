@@ -519,6 +519,11 @@ const railPlace = href => {
 	const u = new URL(href, location.href);
 	return u.pathname + "|" + (u.searchParams.get("account") || "") + "|" + (u.searchParams.get("view") || "");
 };
+// A swap that keeps the place, as a page or a sort does, keeps the mark the server drew.
+let placeBefore = "";
+document.addEventListener("htmx:beforeRequest", () => {
+	placeBefore = railPlace(location.href);
+});
 document.addEventListener("htmx:afterSwap", ev => {
 	if (!ev.target || ev.target.id !== "main") {
 		return;
@@ -530,6 +535,9 @@ document.addEventListener("htmx:afterSwap", ev => {
 		drawer.checked = false;
 	}
 	const here = railPlace(location.href);
+	if (here === placeBefore) {
+		return;
+	}
 	for (const marked of document.querySelectorAll("aside li.active, aside summary.active")) {
 		marked.classList.remove("active");
 	}

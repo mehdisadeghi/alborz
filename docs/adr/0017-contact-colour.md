@@ -1,59 +1,41 @@
-# 17. Where a contact's colour lives
+# ADR 17: Contact colour
 
 Status: accepted.
 
 ## Context
 
-Mail rows carry the seven colours Apple's clients write, and those
-colours live on the server: three IMAP keywords beside `\Flagged`,
-which every client sees and no browser owns. Contacts are to have the
-same seven (TODO 141), and the same question has a different answer
-available, because a vCard is a document and alborz has a store of its
-own.
-
-Two candidates. An extension property on the card travels: it is in the
-object the server holds, every client that round-trips a card keeps
-properties it does not understand, and a second alborz on another
-machine sees it. A per-account map in alborz's own store cannot be
-wrong about anything - no server refuses it, no other client mangles it
-- and is invisible to everything else, including the reader's phone.
-
-There is also a wrong answer worth naming: CATEGORIES. It is the
-reader's own filing (TODO 140), shared with groups, and shown by every
-other client as words on the contact. A colour written there would turn
-up in Apple Contacts as a category called "red".
+Messages carry seven colours as IMAP keywords (`$MailFlagBit0-2`
+beside `\Flagged`), stored on the server. Contacts get the same seven.
+A colour can live on the vCard or in alborz's own store; CATEGORIES is
+the reader's own filing and other clients show it as text.
 
 ## Decision
 
-The colour is a property of the card: `X-ALBORZ-COLOR`, holding one of
-the seven names.
-
-- **It matches mail.** A mark the reader sets is on the object, not in
-  the browser that set it. A new browser, a second instance and a
-  restart all see the same colours, which is what the mail side already
-  promises.
-- **The loss it risks is trivial and visible.** A client that drops
-  unknown properties on save loses the colour of that one card. That is
-  a colour, not data; the alternative loses every colour the moment a
-  card is moved between books, because the path it was keyed by has
-  changed.
-- **Writing it is a write the reader asked for.** Setting a colour is a
-  PUT of the card with a new REV, the same as any other edit here, and
-  it goes through the same refusal path (a server's no is an answer,
-  never a 500).
-- **Reading it costs nothing.** The listing already fetches whole
-  cards, so the colour is in hand wherever a row is drawn.
-
-The name is alborz's own, spelled once in the code, the way
-`/private/vendor/alborz` is on the IMAP side.
+1. A contact's colour MUST be stored on the vCard as the extension
+   property `X-ALBORZ-COLOR`, whose value is one of the seven colour
+   names (`alborz.FlagColors`). Any other value reads as no colour.
+2. The colour MUST NOT be stored in CATEGORIES or in alborz's store.
+3. Setting or clearing a colour is a PUT of the card with a new REV,
+   like any other edit; a server refusal is reported as a refusal
+   (ADR 42).
+4. The colour is read from the cards the listing already fetches; no
+   extra request.
 
 ## Consequences
 
-A contact carries a colour that other clients ignore but keep. The rail
-filters by it the way mail's does, the toolbar sets it the way mail's
-does, and the row shows the contact's own colour where there is one and
-its address book's where there is not.
+- The colour follows the card to every browser and alborz instance.
+- A client that drops unknown properties on save loses that card's
+  colour; moving a card between books keeps it.
+- The list filters by colour and sets it from the star menu, as mail
+  does. The star cell shows the contact's colour; the book cell shows
+  the address book's.
 
-If a server or a client is ever found that drops the property, the
-answer is not a local map: it is to say so on the Servers page, beside
-everything else that is claimed and not kept.
+## References
+
+- RFC 6350 section 6.7.4 (REV), 6.7.1 (CATEGORIES), 6.10 (extension
+  properties); RFC 6352 (CardDAV)
+- ADR 42
+- `pim/contacts/carddav.go` (`colorField`, `CardColor`, `SetColor`,
+  `ChangeCard`), `pim/contacts/web/contact.go` (`color`),
+  `pim/web/act.go` (`Star`, `Refused`),
+  `pim/contacts/web/contacts.go`, `imap.go` (`FlagColors`)

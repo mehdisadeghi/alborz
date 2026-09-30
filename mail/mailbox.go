@@ -1415,7 +1415,7 @@ func parseRefs(values []string) ([]rowRef, error) {
 		if len(parts) < 3 {
 			return nil, fmt.Errorf("not a message reference: %q", v)
 		}
-		uid, err := parseUid(parts[2])
+		uid, err := ParseUID(parts[2])
 		if err != nil {
 			return nil, err
 		}

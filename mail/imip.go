@@ -1,9 +1,10 @@
 package mail
 
 import (
+	"context"
 	"strings"
 
-	"git.mehdix.org/alborz/web"
+	"git.mehdix.org/alborz"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-imap/v2"
 )
@@ -30,49 +31,49 @@ func invitationPart(msg *IMAPMessage) *IMAPPartNode {
 }
 
 // SendCalendarMessage posts an iCalendar object as mail (iMIP).
-func SendCalendarMessage(ctx *web.Context, to []string, subject string, cal *ical.Calendar) error {
+func SendCalendarMessage(ctx context.Context, login *alborz.Login, to []string, subject string, cal *ical.Calendar) error {
 	if len(to) == 0 {
 		return nil
 	}
-	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
+	settings, err := LoadSettings(ctx, login.Store())
 	if err != nil {
 		return err
 	}
 	msg := &OutgoingMessage{
-		From:      fromAddress(settings, ctx.Login.Username()),
+		From:      fromAddress(settings, login.Username()),
 		To:        to,
 		Subject:   subject,
 		MessageID: newMessageID(),
 		Calendar:  cal,
-		Mailer:    mailerName(ctx),
+		Mailer:    mailerName(),
 	}
-	return send(ctx, msg)
+	return send(login, msg)
 }
 
 // ShareHeader names the share invitation a mail stands for.
 const ShareHeader = "X-Alborz-Share"
 
 // SendText posts a short plain message from the login's account.
-func SendText(ctx *web.Context, to []string, subject, text string, headers map[string]string) error {
-	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
+func SendText(ctx context.Context, login *alborz.Login, to []string, subject, text string, headers map[string]string) error {
+	settings, err := LoadSettings(ctx, login.Store())
 	if err != nil {
 		return err
 	}
 	msg := &OutgoingMessage{
-		From:      fromAddress(settings, ctx.Login.Username()),
+		From:      fromAddress(settings, login.Username()),
 		To:        to,
 		Subject:   subject,
 		MessageID: newMessageID(),
 		Text:      text,
-		Mailer:    mailerName(ctx),
+		Mailer:    mailerName(),
 		Headers:   headers,
 	}
-	return send(ctx, msg)
+	return send(login, msg)
 }
 
 // send posts a message no folder keeps.
-func send(ctx *web.Context, msg *OutgoingMessage) error {
-	body, err := deliver(ctx.Login, msg)
+func send(login *alborz.Login, msg *OutgoingMessage) error {
+	body, err := deliver(login, msg)
 	if err != nil {
 		return err
 	}

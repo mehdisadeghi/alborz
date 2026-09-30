@@ -209,7 +209,7 @@ func (pg Page) HandleShare(p *dav.Provider) func(*web.Context) error {
 			}
 			subject, text := pg.offerMail(ctx, p, c, share)
 			headers := map[string]string{mail.ShareHeader: p.PathOf(share.To, *c)}
-			if err := mail.SendText(ctx, []string{share.To}, subject, text, headers); err != nil {
+			if err := mail.SendText(ctx.Request().Context(), ctx.Login, []string{share.To}, subject, text, headers); err != nil {
 				ctx.Logger().Printf("dav: failed to mail the invitation to %s: %v", share.To, err)
 				notice = web.Notice{Kind: web.NoticeWarning, Text: fmt.Sprintf(ctx.T("notice.sharednomail"), share.To)}
 			}

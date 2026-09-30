@@ -41,7 +41,7 @@ func localImages(body, raw string, msg *IMAPMessage, account string) string {
 		case strings.HasPrefix(strings.ToLower(src), "cid:"):
 			part = msg.PartByID(src[len("cid:"):])
 		case strings.HasPrefix(src, "part:"):
-			if path, err := parsePartPath(src[len("part:"):]); err == nil {
+			if path, err := ParsePartPath(src[len("part:"):]); err == nil {
 				part = msg.PartByPath(path)
 			}
 		}
@@ -102,7 +102,7 @@ func fetchPartImage(ctx *web.Context, src string) (*imapAttachment, error) {
 	if err != nil {
 		return nil, err
 	}
-	path, err := parsePartPath(u.Query().Get("part"))
+	path, err := ParsePartPath(u.Query().Get("part"))
 	if err != nil {
 		return nil, err
 	}

@@ -30,6 +30,7 @@ var TemplateFuncs = template.FuncMap{
 		return template.URL("data:image/jpeg;base64," + data)
 	},
 	"humansize": FormatSize,
+	"partquery": partQuery,
 	"sub":       func(a, b int) int { return a - b },
 	// A theme's name is a proper noun, so it is not a locale string.
 	"themename": web.ThemeName,
@@ -142,4 +143,13 @@ var TemplateFuncs = template.FuncMap{
 		}
 	},
 	"join": strings.Join,
+}
+
+// partQuery picks the part out of its message's page or download; without the account the first signed-in one serves it.
+func partQuery(node IMAPPartNode, account string) string {
+	q := url.Values{"part": {node.PathString()}}
+	if account != "" {
+		q.Set("account", account)
+	}
+	return "?" + web.Query(q)
 }

@@ -95,7 +95,7 @@
             {{else}}
             {{/* Built in one piece: the escaper cannot follow a URL whose query grows across branches. */}}
             {{$link := ""}}{{$sep := "?"}}
-            {{ $open := .PreferredPart $.PreferHTML }}{{if $open}}{{$link = printf "%s%s" (url "mail.message" .Mailbox .UID) ($open.Query "")}}{{$sep = "&"}}{{else}}{{$link = url "mail.message" .Mailbox .UID}}{{end}}
+            {{ $open := .PreferredPart $.PreferHTML }}{{if $open}}{{$link = printf "%s%s" (url "mail.message" .Mailbox .UID) (partquery $open "")}}{{$sep = "&"}}{{else}}{{$link = url "mail.message" .Mailbox .UID}}{{end}}
             {{with $.ListView}}{{$link = printf "%s%sview=%s" $link $sep .}}{{$sep = "&"}}{{end}}{{with $.Query}}{{$link = printf "%s%squery=%s" $link $sep (. | qv)}}{{$sep = "&"}}{{end}}
             {{with $.Sort}}{{$link = printf "%s%ssort=%s&dir=%s" $link $sep . $.SortDir}}{{$sep = "&"}}{{end}}
             {{with $.GlobalData.URLAccount}}{{$link = printf "%s%saccount=%s" $link $sep (. | qv)}}{{end}}
@@ -114,7 +114,7 @@
             <span class="attach-line">
               {{ range $i, $a := . }}{{ if lt $i 3 }}
               {{ $name := $a.Filename }}{{ if eq $name "" }}{{ $name = $.T "mailbox.attachment" }}{{ end }}
-              <a hx-boost="false" class="attach-chip" href="{{ localhref (printf "%s%s" (url "mail.message.raw" $a.Message.Mailbox $a.Message.UID) ($a.Query $owner)) }}"
+              <a hx-boost="false" class="attach-chip" href="{{ localhref (printf "%s%s" (url "mail.message.raw" $a.Message.Mailbox $a.Message.UID) (partquery $a $owner)) }}"
                  title="{{$name}} ({{$a.SizeString}})">{{ template "ltr" $name }}</a>
               {{ end }}{{ end }}
               {{ if gt (len .) 3 }}

@@ -143,7 +143,7 @@ func (san *sanitizer) sanitizeImageURL(src string) string {
 		if part == nil || !strings.HasPrefix(part.MIMEType, "image/") {
 			return "about:blank"
 		}
-		return san.raw + part.Query(san.account)
+		return san.raw + partQuery(*part, san.account)
 	// TODO: mid support?
 	case "cid":
 		if san.msg == nil {
@@ -155,7 +155,7 @@ func (san *sanitizer) sanitizeImageURL(src string) string {
 			return "about:blank"
 		}
 
-		return san.raw + part.Query(san.account)
+		return san.raw + partQuery(*part, san.account)
 	case "https":
 		san.hasRemoteResources = true
 

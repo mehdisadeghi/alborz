@@ -79,54 +79,12 @@ func (p *plugin) contactList(ctx *web.Context) (ContactList, error) {
 	group, category := ctx.QueryParam("group"), ctx.QueryParam("category")
 	params := pimweb.RowParams(ctx, ctx.Path("contacts.list"), pimweb.ListParams(ctx, contactListParams...))
 
-	only := pimweb.Only(ctx, "book")
-	accounts, err := p.pooledBooks(ctx)
+	aos, groups, addressBookInfos, unread, err := p.shownCards(ctx, pimweb.Only(ctx, "book"), view, queryText)
 	if err != nil {
 		return ContactList{}, err
 	}
 
-	addressBookInfos, sites, err := contacts.Visible(ctx.Request().Context(), accounts, ctx.URLAccount(), only)
-	if err != nil {
-		return ContactList{}, err
-	}
-
-	query := contacts.Query(queryText)
-
-	var aos, groups []contacts.AddressObject
-	var unread []pim.Unread
-	for _, result := range pim.Present(p.DAV, dav.Across(ctx.Request().Context(), sites, pim.Site[*carddav.Client].Account, func(ctx context.Context, site pim.Site[*carddav.Client]) ([]carddav.AddressObject, error) {
-		return site.Client.QueryAddressBook(ctx, site.Collection.Path, &query)
-	})) {
-		name := result.Site.Collection.Name
-		if result.Err != nil {
-			unread = append(unread, pim.Unread{Collection: name, Err: result.Err})
-			continue
-		}
-		for i := range result.Value {
-			if result.Value[i].Card == nil {
-				unread = append(unread, contacts.Unparsed(name, &result.Value[i]))
-				continue
-			}
-			ao := contacts.AddressObject{AddressObject: &result.Value[i], Account: result.Site.Collection.Account}
-			// A group is a card and arrives with the contacts, but is not a person.
-			if ao.IsGroup() {
-				groups = append(groups, ao)
-				continue
-			}
-			// A colour is a view, as in the mail rail; starred is any colour.
-			if view == alborz.ViewStarred && ao.Color() == "" {
-				continue
-			}
-			if view != "" && view != alborz.ViewStarred && ao.Color() != view {
-				continue
-			}
-			aos = append(aos, ao)
-		}
-	}
-
-	sorting, err := pimweb.Sort(ctx, aos, contactColumns(addressBookInfos), func(ao contacts.AddressObject) string {
-		return strings.ToLower(ao.DisplayName())
-	}, contactListParams...)
+	sorting, err := pimweb.Sort(ctx, aos, contactColumns(addressBookInfos), cardTie, contactListParams...)
 	if err != nil {
 		return ContactList{}, err
 	}
@@ -187,6 +145,48 @@ func (p *plugin) contactList(ctx *web.Context) (ContactList, error) {
 		Unread:     unread,
 	}, nil
 }
+
+// shownCards are the contacts a query and a view find in the address books in the request's scope,
+// the groups beside them, every book for the rail, and what of the books could not be read.
+func (p *plugin) shownCards(ctx *web.Context, only map[string]bool, view, queryText string) (aos, groups []contacts.AddressObject, books []dav.Collection, unread []pim.Unread, err error) {
+	accounts, err := p.pooledBooks(ctx)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	books, sites, err := contacts.Visible(ctx.Request().Context(), accounts, ctx.URLAccount(), only)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	query := contacts.Query(queryText)
+	for _, result := range pim.Present(p.DAV, dav.Across(ctx.Request().Context(), sites, pim.Site[*carddav.Client].Account, func(ctx context.Context, site pim.Site[*carddav.Client]) ([]carddav.AddressObject, error) {
+		return site.Client.QueryAddressBook(ctx, site.Collection.Path, &query)
+	})) {
+		name := result.Site.Collection.Name
+		if result.Err != nil {
+			unread = append(unread, pim.Unread{Collection: name, Err: result.Err})
+			continue
+		}
+		for i := range result.Value {
+			if result.Value[i].Card == nil {
+				unread = append(unread, contacts.Unparsed(name, &result.Value[i]))
+				continue
+			}
+			ao := contacts.AddressObject{AddressObject: &result.Value[i], Account: result.Site.Collection.Account}
+			// A group is a card and arrives with the contacts, but is not a person.
+			if ao.IsGroup() {
+				groups = append(groups, ao)
+				continue
+			}
+			// A colour is a view, as in the mail rail; starred is any colour.
+			if web.StarMatches(ao.Color(), view) {
+				aos = append(aos, ao)
+			}
+		}
+	}
+	return aos, groups, books, unread, nil
+}
+
+func cardTie(ao contacts.AddressObject) string { return strings.ToLower(ao.DisplayName()) }
 
 func contactColumns(books []dav.Collection) []pim.Column[contacts.AddressObject] {
 	return []pim.Column[contacts.AddressObject]{

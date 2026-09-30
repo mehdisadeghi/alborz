@@ -1008,6 +1008,8 @@
 "status.label" = "Status bar"
 "settings.status" = "Status bar"
 "mail.status" = "Unread mail"
+"calendar.status" = "Today's events"
+"calendar.status.none" = "No events today"
 "date-gregorian.status" = "Gregorian date"
 "date-shcal.status" = "Solar Hijri date"
 
@@ -1192,3 +1194,11 @@ other = "The public links of %[2]s were not kept: they serve other calendars her
 ["mail.status.unread"]
 one = "%d unread"
 other = "%d unread"
+
+["calendar.status.today"]
+one = "Today"
+other = "%d events today"
+
+["calendar.status.next"]
+one = "%[2]s"
+other = "Next at %[2]s"

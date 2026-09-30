@@ -31,7 +31,7 @@ func (e *UnreadableError) Error() string { return "failed to read the file: " + 
 
 func (e *UnreadableError) Unwrap() error { return e.Err }
 
-// PartlySavedError is an import stopped after Saved of Total objects were written; those stay written.
+// PartlySavedError is an import that wrote Saved of Total objects; Err says why the rest were not.
 type PartlySavedError struct {
 	Saved, Total int
 	Err          error
@@ -57,6 +57,20 @@ func ReadImport(r io.Reader) ([]byte, error) {
 		return nil, ErrTooLarge
 	}
 	return raw, err
+}
+
+// ObjectRefused says the file or the server turned one object of an import away, so the rest go on.
+func ObjectRefused(err error) bool {
+	var unreadable *UnreadableError
+	return errors.As(err, &unreadable) || dav.ServerRefused(err)
+}
+
+// Saved ends an import that wrote n of total objects; refused says why each of the others was not.
+func Saved(n, total int, refused []error) (int, error) {
+	if len(refused) == 0 {
+		return n, nil
+	}
+	return n, &PartlySavedError{Saved: n, Total: total, Err: errors.Join(refused...)}
 }
 
 // ImportAnswered says whether an import stopped on the reader's file or the server's answer, rather than alborz failing.

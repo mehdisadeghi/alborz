@@ -840,7 +840,7 @@
 "import.bundlevcf" = "Adressbücher: %s, hinzugefügte Kontakte: %s."
 "import.notkind" = "%s ist keine %s-Datei."
 "import.unreadable" = "Die Datei konnte nicht gelesen werden: %s"
-"import.partly" = "%d von %d gespeichert; den Rest hat der Server abgelehnt: %s"
+"import.partly" = "%d von %d gespeichert. Nicht gespeichert: %s"
 "import.notzip" = "Die ZIP-Datei konnte nicht geöffnet werden: %s"
 "import.zipentry" = "%s in der ZIP-Datei konnte nicht gelesen werden: %s"
 "import.zipfiles" = "Die ZIP-Datei enthält mehr als %d Dateien."

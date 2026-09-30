@@ -34,7 +34,24 @@ func Import(ctx context.Context, client *carddav.Client, bookPath string, raw []
 		}
 		cards = append(cards, card)
 	}
+	put := func(uid string, card vcard.Card) error {
+		// What go-vcard will not write is the file's fault, not the server's.
+		if err := vcard.NewEncoder(io.Discard).Encode(card); err != nil {
+			return &pim.UnreadableError{Err: err}
+		}
+		_, err := client.PutAddressObject(ctx, path.Join(bookPath, dav.SafeObjectName(uid)+".vcf"), card, nil)
+		if err == nil {
+			return nil
+		}
+		existing := cardPathByUID(ctx, client, bookPath, uid)
+		if existing == "" {
+			return err
+		}
+		_, err = client.PutAddressObject(ctx, existing, card, nil)
+		return err
+	}
 	n := 0
+	var refused []error
 	for _, card := range cards {
 		if _, ok := card[vcard.FieldVersion]; !ok {
 			card.SetValue(vcard.FieldVersion, "4.0")
@@ -44,19 +61,16 @@ func Import(ctx context.Context, client *carddav.Client, bookPath string, raw []
 			uid = UIDPrefix + uuid.New().String()
 			card.SetValue(vcard.FieldUID, uid)
 		}
-		target := path.Join(bookPath, dav.SafeObjectName(uid)+".vcf")
-		if _, err := client.PutAddressObject(ctx, target, card, nil); err != nil {
-			existing := cardPathByUID(ctx, client, bookPath, uid)
-			if existing == "" {
-				return n, &pim.PartlySavedError{Saved: n, Total: len(cards), Err: fmt.Errorf("failed to write %s: %w", uid, err)}
-			}
-			if _, err := client.PutAddressObject(ctx, existing, card, nil); err != nil {
-				return n, &pim.PartlySavedError{Saved: n, Total: len(cards), Err: fmt.Errorf("failed to write %s: %w", uid, err)}
-			}
+		err := put(uid, card)
+		if pim.ObjectRefused(err) {
+			refused = append(refused, fmt.Errorf("%s: %w", uid, err))
+			continue
+		} else if err != nil {
+			return n, &pim.PartlySavedError{Saved: n, Total: len(cards), Err: fmt.Errorf("failed to write %s: %w", uid, err)}
 		}
 		n++
 	}
-	return n, nil
+	return pim.Saved(n, len(cards), refused)
 }
 
 func cardPathByUID(ctx context.Context, client *carddav.Client, bookPath, uid string) string {

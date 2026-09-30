@@ -86,7 +86,7 @@ func TestAnImportTheServerRefusesSetsANotice(t *testing.T) {
 		if resp.StatusCode != http.StatusFound {
 			t.Fatalf("the partly refused import answered %s, want a redirect", resp.Status)
 		}
-		if page := c.Follow(t, resp.Header.Get("Location")); !strings.Contains(page, "1 of 2 saved; the server refused the rest:") || !strings.Contains(page, "read-only collection") {
+		if page := c.Follow(t, resp.Header.Get("Location")); !strings.Contains(page, "1 of 2 saved. Not saved:") || !strings.Contains(page, "read-only collection") {
 			t.Errorf("the page after the partly refused import does not say how much was saved, and why the rest was not")
 		}
 		if !strings.Contains(strings.Join(d.Puts(), ""), "UID:ada") {
@@ -118,4 +118,38 @@ func TestAnImportTheServerRefusesSetsANotice(t *testing.T) {
 			t.Errorf("the import no server answered gave %s, want 500", resp.Status)
 		}
 	})
+}
+
+// An event without DTSTAMP is stamped as a feed's is; one go-ical will not write is left out with its
+// reason, and the rest of the file is saved.
+func TestAnImportSkipsTheEventItCannotWrite(t *testing.T) {
+	personal := DAVHome + "personal/"
+	d := DAV(t, Calendar(personal, "Personal"))
+	a := Alborz(t, NoCache(), WithDAV(d))
+	c := a.SignIn(t, User)
+	personal = d.At() + personal
+	event := func(uid, props string) string {
+		return "BEGIN:VEVENT\r\nUID:" + uid + "\r\nDTSTART:20260915T100000Z\r\n" + props + "END:VEVENT\r\n"
+	}
+	ics := "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//test//EN\r\n" +
+		event("unstamped", "SUMMARY:Unstamped\r\n") +
+		event("twice", "DTSTAMP:20260901T080000Z\r\nSUMMARY:One\r\nSUMMARY:Two\r\n") +
+		event("plain", "DTSTAMP:20260901T080000Z\r\nSUMMARY:Plain\r\n") +
+		"END:VCALENDAR\r\n"
+	resp := c.Upload(t, "calendar.collection.import", nil, []File{{Field: "file", Name: "plan.ics", Body: strings.NewReader(ics)}}, personal)
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("the import answered %s, want a redirect", resp.Status)
+	}
+	if page := c.Follow(t, resp.Header.Get("Location")); !strings.Contains(page, "2 of 3 saved. Not saved: twice:") || !strings.Contains(page, "SUMMARY") {
+		t.Errorf("the page after the import does not say which event was left out, and why")
+	}
+	puts := strings.Join(d.Puts(), "")
+	for _, want := range []string{"UID:unstamped", "DTSTAMP:19700101T000000Z", "UID:plain"} {
+		if !strings.Contains(puts, want) {
+			t.Errorf("the saved events lack %s", want)
+		}
+	}
+	if strings.Contains(puts, "UID:twice") {
+		t.Error("the event go-ical refused was written")
+	}
 }

@@ -70,7 +70,8 @@ func discoverSieve(domain string) (*url.URL, string, error) {
 }
 
 // discoverSMTP discovers the submission server via DNS (RFC 6186 section 3.1),
-// including the implicit-TLS submissions service of RFC 8314.
+// including the implicit-TLS submissions service of RFC 8314; a missing record
+// is no URL and no error.
 func discoverSMTP(domain string) (*url.URL, string, error) {
 	smtpsHost, err := discoverTCP("submissions", domain)
 	if err != nil {
@@ -88,5 +89,5 @@ func discoverSMTP(domain string) (*url.URL, string, error) {
 		return &url.URL{Scheme: "smtp", Host: smtpHost}, srvName("submission", domain), nil
 	}
 
-	return nil, "", fmt.Errorf("SMTP service discovery not configured for domain %q", domain)
+	return nil, "", nil
 }

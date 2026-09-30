@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -529,7 +530,11 @@ func domainURL(srv *alborz.Server, kind Kind, domain string) (*url.URL, string, 
 		defer cancel()
 		s, err := kind.Discover(ctx, u.Host)
 		if err != nil {
-			srv.Logger().Printf("%s: domain %q: failed to discover %s server: %v", kind.Name, domain, kind.Label, err)
+			if !unpublished(ctx, kind.Name+"s", u.Host) {
+				srv.Logger().Printf("%s: domain %q: failed to discover %s server: %v", kind.Name, domain, kind.Label, err)
+			} else if srv.Options.Debug {
+				srv.Logger().Printf("%s: domain %q: publishes no %s server", kind.Name, domain, kind.Label)
+			}
 			return nil, "", nil
 		}
 		u, err = url.Parse(s)
@@ -547,4 +552,15 @@ func domainURL(srv *alborz.Server, kind Kind, domain string) (*url.URL, string, 
 		srv.Logger().Printf("Domain %q: configured upstream %s server: %v", domain, kind.Label, u)
 	}
 	return u, record, nil
+}
+
+// unpublished tells a domain that offers no such service, by an absent SRV record or the
+// target "." (RFC 2782), from a lookup that failed: the discovery's error does not say which.
+func unpublished(ctx context.Context, service, domain string) bool {
+	_, addrs, err := net.DefaultResolver.LookupSRV(ctx, service, "tcp", domain)
+	var dnsErr *net.DNSError
+	if err != nil && !(errors.As(err, &dnsErr) && dnsErr.IsNotFound) {
+		return false
+	}
+	return len(addrs) == 0 || len(addrs) == 1 && addrs[0].Target == "."
 }

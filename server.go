@@ -384,6 +384,12 @@ func (s *Server) parseSMTPUpstream(domain string) error {
 			s.log.Printf("Domain %q: failed to discover SMTP server: %v", domain, err)
 			return nil
 		}
+		if u == nil {
+			if s.Options.Debug {
+				s.log.Printf("Domain %q: publishes no SMTP server", domain)
+			}
+			return nil
+		}
 	}
 
 	switch u.Scheme {

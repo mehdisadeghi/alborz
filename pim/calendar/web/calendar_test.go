@@ -192,6 +192,52 @@ func TestAPagedTaskListSwapsOnlyItsMain(t *testing.T) {
 	}
 }
 
+// A tick redraws the list and the rail's rows in place, whole or narrowed, so the rail and its scroll stay and the mark moves.
+func TestARailTickSwapsTheListAndItsRows(t *testing.T) {
+	a := Alborz(t)
+	c := a.SignIn(t, User)
+	c.CreateCalendar(t, "Chores", "tasks")
+	list := a.Path("calendar.tasks", url.Values{"account": {User}})
+	whole := c.Follow(t, list)
+	only := regexp.MustCompile(`<a class="filter-name [^"]*" href="([^"]+)" title="Chores"`).FindStringSubmatch(whole)
+	tick := regexp.MustCompile(`<input type="checkbox" id="[^"]*" name="cal" value="([^"]+)"`).FindStringSubmatch(whole)
+	if only == nil || tick == nil {
+		t.Fatal("the rail has no link narrowing the list to Chores, or no tick")
+	}
+	form := regexp.MustCompile(`<form id="rail-[^"]*" method="post" action="([^"]+)" class="aside-filter" hx-post="[^"]+" hx-target="#main" hx-swap="innerHTML show:none" hx-replace-url="true" hx-disinherit="hx-replace-url"( hx-swap-oob="innerHTML")?>`)
+	for _, tc := range []struct{ name, page string }{
+		{"whole list", list},
+		{"narrowed", html.UnescapeString(only[1])},
+	} {
+		f := form.FindStringSubmatch(c.Follow(t, tc.page))
+		if f == nil || f[2] != "" {
+			t.Fatalf("%s: the rail has no tick form swapping into main", tc.name)
+		}
+		req, _ := http.NewRequest(http.MethodPost, a.URL+html.UnescapeString(f[1]), strings.NewReader(url.Values{"next": {tc.page}, "cal": {tick[1]}}.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("HX-Request", "true")
+		req.Header.Set("HX-Target", "main")
+		resp := c.Do(t, req)
+		if to := resp.Header.Get("Location"); resp.StatusCode != http.StatusFound || to != list {
+			t.Fatalf("%s: the tick answered %s to %q, want the whole list", tc.name, resp.Status, to)
+		}
+		swap := swapIntoMain(t, a, c, list).Text
+		if !strings.Contains(swap, `formaction="`+a.Path("calendar.tasks.complete")+`"`) {
+			t.Errorf("%s: the answer holds no task list", tc.name)
+		}
+		if strings.Contains(swap, "<nav") || strings.Contains(swap, "<aside") {
+			t.Errorf("%s: the answer carries the page's nav or rail", tc.name)
+		}
+		rows := form.FindStringSubmatch(swap)
+		if rows == nil || rows[2] == "" {
+			t.Fatalf("%s: the answer carries no rail rows out of band", tc.name)
+		}
+		if strings.Contains(swap, `title="Chores" aria-current`) {
+			t.Errorf("%s: the widened list still marks Chores", tc.name)
+		}
+	}
+}
+
 // swapIntoMain asks for path as the pager does.
 func swapIntoMain(t *testing.T, a *App, c *Client, path string) *Response {
 	t.Helper()

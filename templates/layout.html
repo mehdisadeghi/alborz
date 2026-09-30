@@ -53,3 +53,6 @@
   </body>
 </html>
 {{ end }}
+
+{{/* A swap into main: the page's main block, and out of band what of its rail the swap moves (ADR 13). */}}
+{{ define "swap" }}{{ template "main" . }}{{ template "rail" . }}{{ end }}

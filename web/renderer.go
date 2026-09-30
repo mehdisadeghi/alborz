@@ -92,6 +92,9 @@ type GlobalRenderData struct {
 	StatusSeconds          int
 
 	Lang string
+
+	// Swap says the page answers a swap into main: its main block, and the rail rows it moves (ADR 13).
+	Swap bool
 }
 
 // Dir is the writing direction of the UI language.
@@ -238,6 +241,7 @@ func NewBaseRenderData(ctx *Context) *BaseRenderData {
 		URL:            ctx.Request().URL,
 		FirstDayOfWeek: alborz.Reading{}.WeekStart(),
 		Lang:           lang,
+		Swap:           ctx.PartialFor("main"),
 
 		Asset: ctx.Server.AssetURL,
 	}
@@ -431,8 +435,8 @@ func (r *renderer) Render(w io.Writer, name string, data interface{}, ctx *Conte
 	if page, ok := r.pages[name]; ok {
 		// A swap into main takes the page's own main block, not a second page inside the first (ADR 13).
 		block := "layout"
-		if ctx.PartialFor("main") {
-			block = "main"
+		if renderData.Global().Swap {
+			block = "swap"
 		}
 		err = page.ExecuteTemplate(w, block, data)
 	} else {

@@ -131,13 +131,18 @@ func HandleChoose(list, field string, keep func(ctx context.Context, store albor
 		if err != nil {
 			return err
 		}
+		to := Widened(ctx.NextOr(ctx.Path(list)), field)
 		if err := keep(ctx.Request().Context(), ctx.Login.Store(), params[field]); err != nil {
 			ctx.Notify(Refused(ctx, err))
+			// A swap into main carries no notice; the page does.
+			if ctx.Fragment() {
+				return ctx.Relocate(to)
+			}
 		} else {
 			// The list comes back holding what was chosen.
 			ctx.Quiet()
 		}
-		return ctx.Redirect(http.StatusFound, Widened(ctx.NextOr(ctx.Path(list)), field))
+		return ctx.Redirect(http.StatusFound, to)
 	}
 }
 

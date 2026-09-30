@@ -3,9 +3,11 @@
 {{ $aq := .g.GlobalData.AccountQuery }}
 {{ $new := dict "href" (printf "%s%s" (url "filters.create") $aq) "label" (.g.T "filters.new") "active" .newactive }}{{ if .nonew }}{{ $new = false }}{{ end }}
 {{ $import := false }}{{ if .import }}{{ $import = dict "href" (printf "%s%s" (url "filters.import") $aq) "label" (.g.T "filters.import") "active" .importactive }}{{ end }}
+{{ if not .g.GlobalData.Swap }}
 <aside>
   {{ template "scope-rail" (dict "g" .g "kind" "rows" "path" (url "filters.list") "urlaccount" .g.GlobalData.URLAccount "accounts" .accounts "data" (dict "rows" .g.Rail) "all" (.g.T "nav.allaccounts") "new" $new "import" $import) }}
 </aside>
+{{ end }}
 {{ end }}
 
 {{/* dict: g [collection path chooses heading]. */}}

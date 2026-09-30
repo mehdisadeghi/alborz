@@ -26,7 +26,7 @@ func Mount(dav, app *web.Group) (*store.Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	st := store.New(db)
+	st := store.New(db, srv.LoginKey)
 	serveOwn(dav, srv, st)
 	app.GET("server", "/settings/servers/"+web.ServerDAV, web.Scoped(handleServer))
 	app.POST("server", "/settings/servers/"+web.ServerDAV, web.Scoped(handleServer))

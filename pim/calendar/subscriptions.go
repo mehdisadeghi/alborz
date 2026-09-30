@@ -3,9 +3,7 @@ package calendar
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -54,12 +52,6 @@ func LoadSubscriptions(ctx context.Context, settings alborz.Store) ([]Subscripti
 		return nil, err
 	}
 	return subs, nil
-}
-
-// feedCalendar names a subscription's calendar by its address, so two pages making it at once make one.
-func feedCalendar(account, url string) store.Ref {
-	sum := sha256.Sum256([]byte(url))
-	return store.Ref{Owner: strings.ToLower(account), ID: "feed-" + hex.EncodeToString(sum[:8])}
 }
 
 func NormalizeFeedURL(raw string) string {
@@ -334,7 +326,7 @@ func reconcile(ctx context.Context, st *store.Store, account string, settings al
 		delete(held, sub.URL)
 		switch {
 		case !ok:
-			ref := feedCalendar(account, sub.URL)
+			ref := st.FeedRef(account, sub.URL)
 			c, err := st.Create(store.Collection{ID: ref.ID, Owner: ref.Owner, Kind: store.Calendar,
 				Components: []string{ical.CompEvent}, Name: sub.Name, Color: sub.Color,
 				Feed: &store.Feed{URL: sub.URL, Named: sub.Changed}})

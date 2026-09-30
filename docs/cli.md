@@ -62,7 +62,7 @@ clients; scheme and host only. Can also be given as `LBRZ_PUBLIC_URL`
 (default: unset, each request's own)
 
 **-login-key**: required key sealing what alborz keeps: remembered
-logins, settings and the cache. Can also be given as the `LBRZ_LOGIN_KEY`
+logins, settings, the calendars and address books kept here, and the cache. Can also be given as the `LBRZ_LOGIN_KEY`
 environment variable, which keeps it out of the process list.
 
 **-cache**: keep what the servers answered in the user cache directory

@@ -46,6 +46,7 @@ type imapConfig struct {
 	cut            int64
 	sorting        bool
 	metadata       bool
+	refuseAppend   string
 }
 
 type IMAPOption func(*imapConfig)
@@ -86,6 +87,10 @@ func Sorting() IMAPOption { return func(c *imapConfig) { c.sorting = true } }
 // keeps each account's server entries under /private and answers GETMETADATA and SETMETADATA.
 func Metadata() IMAPOption { return func(c *imapConfig) { c.metadata = true } }
 
+// RefuseAppend has APPEND answer NO to a message holding marker, as a server with a size limit or a
+// filter does.
+func RefuseAppend(marker string) IMAPOption { return func(c *imapConfig) { c.refuseAppend = marker } }
+
 // IMAP serves User, User2 and Elsewhere, with the rig's folders and messages.
 func IMAP(t *testing.T, opts ...IMAPOption) *IMAPServer {
 	t.Helper()
@@ -110,6 +115,9 @@ func IMAP(t *testing.T, opts ...IMAPOption) *IMAPServer {
 			sess := changedPasswords{mem.NewSession().(imapserver.SessionIMAP4rev2), s}
 			if c.failWholeFetch {
 				return wholeFetchFails{sess}, nil, nil
+			}
+			if c.refuseAppend != "" {
+				return appendRefused{sess, c.refuseAppend}, nil, nil
 			}
 			return sess, nil, nil
 		},
@@ -315,6 +323,22 @@ func (s wholeFetchFails) Fetch(w *imapserver.FetchWriter, numSet imap.NumSet, op
 		}
 	}
 	return s.Session.Fetch(w, numSet, options)
+}
+
+type appendRefused struct {
+	imapserver.SessionIMAP4rev2
+	marker string
+}
+
+func (s appendRefused) Append(mailbox string, r imap.LiteralReader, options *imap.AppendOptions) (*imap.AppendData, error) {
+	b, err := io.ReadAll(r)
+	if err != nil {
+		return nil, err
+	}
+	if strings.Contains(string(b), s.marker) {
+		return nil, &imap.Error{Type: imap.StatusResponseTypeNo, Text: "the message is refused"}
+	}
+	return s.SessionIMAP4rev2.Append(mailbox, literal{strings.NewReader(string(b)), int64(len(b))}, options)
 }
 
 type counter struct{ n *atomic.Int64 }

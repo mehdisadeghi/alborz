@@ -674,3 +674,25 @@ func TestNeighboursOnTheThirdPageOfASortedList(t *testing.T) {
 		t.Errorf("listing and opening sent %d SORTs, want the one", n)
 	}
 }
+
+// A message the server refuses is counted, and the ones after it are imported.
+func TestADroppedMessageTheServerRefusesIsCounted(t *testing.T) {
+	a := Alborz(t, WithIMAP(IMAP(t, RefuseAppend("Subject: refused"))))
+	c := a.SignIn(t, User)
+	message := func(subject string) string {
+		return "From ann@example.org Mon Sep 28 10:00:00 2026\nFrom: ann@example.org\nTo: " + User + "\nSubject: " + subject +
+			"\nMessage-ID: <" + subject + "@test>\n\nBody.\n\n"
+	}
+	mbox := message("first") + message("refused") + message("last")
+	resp := c.Upload(t, "mail.mailbox.import", nil, []File{{Field: "file", Name: "three.mbox", Body: strings.NewReader(mbox)}}, "Archive")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("drop: %s", resp.Status)
+	}
+	page := c.Page(t, "mail.mailbox", "Archive")
+	if n := len(MessageUIDs(page)); n != 2 {
+		t.Errorf("Archive holds %d, want the 2 the server took", n)
+	}
+	if bar := NoticeBar(page); !strings.Contains(bar, "The server refused one.") {
+		t.Errorf("the notice does not count the refused message:\n%s", bar)
+	}
+}

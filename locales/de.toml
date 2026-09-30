@@ -1055,6 +1055,7 @@
 "settings.status" = "Statusleiste"
 "mail.status" = "Ungelesene E-Mails"
 "calendar.status" = "Heutige Termine"
+"mail.status.none" = "Keine ungelesenen Nachrichten"
 "calendar.status.none" = "Heute keine Termine"
 "date-gregorian.status" = "Gregorianisches Datum"
 "date-shcal.status" = "Sonnen-Hidschri-Datum"
@@ -1255,8 +1256,8 @@ one = "Der Mailserver hat die Einstellung %[2]s nicht gespeichert."
 other = "Der Mailserver hat die Einstellungen %[2]s nicht gespeichert."
 
 ["mail.status.unread"]
-one = "%d ungelesen"
-other = "%d ungelesen"
+one = "Eine ungelesene Nachricht"
+other = "%d ungelesene Nachrichten"
 
 ["calendar.status.today"]
 one = "Heute"

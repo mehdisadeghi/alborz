@@ -21,8 +21,13 @@ func (p *plugin) showUnread(ctx *web.Context) (web.Shown, error) {
 			unread += int(*in.NumUnseen)
 		}
 	}
+	// Zero has its own words: Persian's plural rule would put it in the one form.
+	says := ctx.T("mail.status.none")
+	if unread > 0 {
+		says = ctx.Tf("mail.status.unread", unread)
+	}
 	return web.Shown{
-		Parts: []string{ctx.Tf("mail.status.unread", unread)},
+		Parts: []string{says},
 		Link:  ctx.AccountPath(ctx.Path("mail.mailbox", "INBOX") + "?view=" + alborz.ViewUnread),
 	}, nil
 }

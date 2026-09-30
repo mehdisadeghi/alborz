@@ -1055,6 +1055,7 @@
 "settings.status" = "نوار وضعیت"
 "mail.status" = "نامه‌های خوانده‌نشده"
 "calendar.status" = "رویدادهای امروز"
+"mail.status.none" = "نامهٔ خوانده‌نشده‌ای نیست"
 "calendar.status.none" = "امروز رویدادی نیست"
 "date-gregorian.status" = "تاریخ میلادی"
 "date-shcal.status" = "تاریخ هجری شمسی"
@@ -1254,8 +1255,8 @@ one = "سرور ایمیل تنظیم %[2]s را نگه نداشت."
 other = "سرور ایمیل تنظیمات %[2]s را نگه نداشت."
 
 ["mail.status.unread"]
-one = "%d خوانده‌نشده"
-other = "%d خوانده‌نشده"
+one = "یک نامهٔ خوانده‌نشده"
+other = "%d نامهٔ خوانده‌نشده"
 
 ["calendar.status.today"]
 one = "امروز"

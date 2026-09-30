@@ -10,7 +10,6 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"slices"
 	"strings"
 )
 
@@ -18,9 +17,6 @@ const (
 	module = "git.mehdix.org/alborz"
 	core   = module + "/web"
 )
-
-// allowed are the imports the feature split has yet to remove; each goes with its step of #220.
-var allowed = []string{}
 
 func isWeb(path string) bool {
 	return path == core || strings.HasPrefix(path, module+"/") && strings.HasSuffix(path, "/web")
@@ -40,7 +36,7 @@ func breaks(pkg, imp string) bool {
 }
 
 func main() {
-	var found []string
+	failed := false
 	packages := 0
 	lines := bufio.NewScanner(os.Stdin)
 	for lines.Scan() {
@@ -51,7 +47,8 @@ func main() {
 		packages++
 		for _, imp := range fields[1:] {
 			if breaks(fields[0], imp) {
-				found = append(found, fields[0]+" "+imp)
+				fmt.Printf("import rule: %s imports %s\n", fields[0], imp)
+				failed = true
 			}
 		}
 	}
@@ -63,20 +60,6 @@ func main() {
 	if packages == 0 {
 		fmt.Println("import rule: no packages listed")
 		os.Exit(1)
-	}
-	failed := false
-	for _, f := range found {
-		if !slices.Contains(allowed, f) {
-			pkg, imp, _ := strings.Cut(f, " ")
-			fmt.Printf("import rule: %s imports %s\n", pkg, imp)
-			failed = true
-		}
-	}
-	for _, a := range allowed {
-		if !slices.Contains(found, a) {
-			fmt.Printf("import rule: %s is allowed but no longer there; drop it\n", a)
-			failed = true
-		}
 	}
 	if failed {
 		os.Exit(1)

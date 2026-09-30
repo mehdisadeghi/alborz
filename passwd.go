@@ -64,7 +64,9 @@ func (s *Server) parsePasswdUpstream(domain string) error {
 		p.local = true
 	}
 	s.domains[domain].passwd = p
-	s.log.Printf("Domain %q: configured password server: %v", domain, u)
+	if s.Options.Debug {
+		s.log.Printf("Domain %q: configured password server: %v", domain, u)
+	}
 	return nil
 }
 

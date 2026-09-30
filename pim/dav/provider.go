@@ -475,6 +475,7 @@ func (p *Provider) CountObjects(ctx context.Context, login *alborz.Login, coll s
 // Refresh asks each login's servers again.
 func (p *Provider) Refresh(ctx context.Context, logins []*alborz.Login) {
 	for _, s := range logins {
+		p.Forget(s.Username())
 		who, err := principal(ctx, s)
 		if err == nil {
 			err = p.mirror.Refresh(ctx, who, p.router(p.Sources(ctx, s), s))

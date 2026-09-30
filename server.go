@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"net/url"
 	"path/filepath"
 	"runtime/debug"
@@ -119,6 +120,9 @@ type domainUpstreams struct {
 func New(log *log.Logger, options Options) (*Server, error) {
 	s := &Server{log: log, Options: &options,
 		Changes: newChanges(), Outgoing: NewOutgoing(), Schedule: newSchedule(), signInRefused: newRefusals(signInTries, signInWindow)}
+	if options.Guarded != nil {
+		s.Outgoing.Guarded = options.Guarded
+	}
 	if options.LoginKey == "" {
 		return nil, errors.New("no login key: make one with `go run github.com/fernet/fernet-go/cmd/fernet-keygen`")
 	}
@@ -422,6 +426,8 @@ type Options struct {
 	// PublicURL is where readers reach alborz, scheme and host, for links in mail and for other clients;
 	// empty takes each request's own.
 	PublicURL string
+	// Guarded carries the requests to servers outsiders name; nil dials public addresses only.
+	Guarded http.RoundTripper
 }
 
 // CacheFor is how long a cache keeps what it holds: d, or zero with caching off.

@@ -1,6 +1,9 @@
 package app
 
 import (
+	"log"
+	"net/http"
+
 	authweb "git.mehdix.org/alborz/auth/web"
 	filtersweb "git.mehdix.org/alborz/filters/web"
 	mailweb "git.mehdix.org/alborz/mail/web"
@@ -45,4 +48,22 @@ func Mount(s *web.Server) error {
 	filtersweb.Mount(app.Group("/filters", "filters"))
 	web.Fallback(app)
 	return nil
+}
+
+// New serves alborz with its features mounted.
+func New(logger *log.Logger, options web.Options) (*web.Server, http.Handler, error) {
+	s, err := web.New(logger, options, mailweb.TemplateFuncs)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := Mount(s); err != nil {
+		s.Close()
+		return nil, nil, err
+	}
+	h, err := s.Handler()
+	if err != nil {
+		s.Close()
+		return nil, nil, err
+	}
+	return s, h, nil
 }

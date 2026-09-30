@@ -2,6 +2,7 @@ package web_test
 
 import (
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -47,5 +48,22 @@ func TestASecondObjectWithATakenUIDIsRefused(t *testing.T) {
 	}
 	if kept := a.DAV(t, http.MethodGet, cal+"review.ics", nil, "").Text; !strings.Contains(kept, "Review, moved") {
 		t.Errorf("the rewrite did not stick: %s", kept)
+	}
+}
+
+// Force refresh lists what another client added on a remote server.
+func TestACalendarCreatedElsewhereIsListedOnRefresh(t *testing.T) {
+	d := DAV(t, Calendar(DAVHome+"personal/", "Personal"))
+	c := Alborz(t, WithDAV(d)).SignIn(t, User)
+	work := d.At() + DAVHome + "work/"
+	if rail := c.Page(t, "calendar.calendars.create"); strings.Contains(rail, work) {
+		t.Fatalf("%s is listed before it is made", work)
+	}
+	d.Apply(Calendar(DAVHome+"work/", "Work"))
+	if resp := c.Post(t, "calendar.refresh", url.Values{}); resp.StatusCode != http.StatusFound {
+		t.Fatalf("refreshing answered %s", resp.Status)
+	}
+	if rail := c.Page(t, "calendar.calendars.create"); !strings.Contains(rail, work) {
+		t.Errorf("%s is not listed after asking the server again", work)
 	}
 }

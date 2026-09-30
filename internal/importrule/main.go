@@ -1,6 +1,7 @@
-// Importrule holds the packages to ADR 66: only web packages and cmd import
-// alborz/web, no logic package imports a web package, and no web package
-// imports another feature's, save the pages of the feature it is part of.
+// Importrule holds the packages to ADR 66: only web packages, cmd and test
+// support (named as httptest is) import alborz/web, no logic package imports
+// a web package, and no web package imports another feature's, save the
+// pages of the feature it is part of.
 // It reads what go list prints:
 //
 //	go list -f '{{.ImportPath}}{{range .Imports}} {{.}}{{end}}' ./... | go run ./internal/importrule
@@ -25,7 +26,7 @@ func isWeb(path string) bool {
 // breaks reports whether pkg may not import imp.
 func breaks(pkg, imp string) bool {
 	switch {
-	case !isWeb(imp) || strings.HasPrefix(pkg, module+"/cmd/"):
+	case !isWeb(imp) || strings.HasPrefix(pkg, module+"/cmd/") || strings.HasSuffix(pkg, "test"):
 		return false
 	case !isWeb(pkg):
 		return true

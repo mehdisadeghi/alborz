@@ -20,7 +20,6 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/cmd/alborz/app"
-	mailweb "git.mehdix.org/alborz/mail/web"
 	"git.mehdix.org/alborz/web"
 )
 
@@ -132,18 +131,11 @@ upstreams are given as repeated domain=url arguments, e.g.:
 	}
 
 	logger := log.New(os.Stderr, "", log.LstdFlags)
-	s, err := web.New(logger, options, mailweb.TemplateFuncs)
+	s, handler, err := app.New(logger, options)
 	if err != nil {
 		return err
 	}
 	defer s.Close()
-	if err := app.Mount(s); err != nil {
-		return err
-	}
-	handler, err := s.Handler()
-	if err != nil {
-		return err
-	}
 
 	// Bind before announcing, so the prologue is true.
 	ln, err := net.Listen("tcp", addr)

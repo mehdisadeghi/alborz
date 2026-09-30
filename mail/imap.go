@@ -39,49 +39,6 @@ type MailboxInfo struct {
 	Label string
 }
 
-// CrumbLink is one step of the path a page shows above itself.
-type CrumbLink struct {
-	Label   string
-	URL     string
-	Address bool // reads left to right whatever the page does
-}
-
-// Steps are named by path segment: a custom folder's Label is its whole wire name. folder is a folder's address.
-func mailboxCrumb(mailboxes []MailboxInfo, name, account string, folder func(string) string) []CrumbLink {
-	crumb := []CrumbLink{{Label: account, URL: folder("INBOX"), Address: true}}
-	if name == "" {
-		return crumb
-	}
-
-	byName := make(map[string]*MailboxInfo, len(mailboxes))
-	delim := rune(0)
-	for i := range mailboxes {
-		byName[mailboxes[i].Name()] = &mailboxes[i]
-		if delim == 0 {
-			delim = mailboxes[i].Delim
-		}
-	}
-
-	parts := []string{name}
-	if delim != 0 {
-		parts = strings.Split(name, string(delim))
-	}
-	for i := range parts {
-		step := CrumbLink{Label: parts[i]}
-		path := strings.Join(parts[:i+1], string(delim))
-		if mbox, ok := byName[path]; ok {
-			if mbox.role() != "" {
-				step.Label = mbox.Label
-			}
-			if !slices.Contains(mbox.Attrs, imap.MailboxAttrNoSelect) {
-				step.URL = folder(mbox.Name())
-			}
-		}
-		crumb = append(crumb, step)
-	}
-	return crumb
-}
-
 func (mbox *MailboxInfo) role() string {
 	name := mbox.Mailbox
 	switch {
@@ -492,39 +449,6 @@ func (msg *IMAPMessage) setListHeaders(h textproto.Header) {
 func (msg *IMAPMessage) ListDetails() bool {
 	return msg.ListPost != "" || msg.ListHelp != "" || msg.ListSubscribe != "" ||
 		msg.ListOwner != "" || msg.ListArchive != ""
-}
-
-func neighbours(ctx *web.Context, mboxName string, place listPlace) web.Neighbours {
-	account := ctx.QueryParam("account")
-	return web.Neighbours{
-		PrevURL:  neighbourHref(ctx, account, mboxName, place.newer),
-		NextURL:  neighbourHref(ctx, account, mboxName, place.older),
-		Position: place.position, Total: place.total,
-	}
-}
-
-// Without the narrowing and order, one step sideways lands in the plain folder.
-func neighbourHref(ctx *web.Context, account, mboxName string, uid imap.UID) string {
-	if uid == 0 {
-		return ""
-	}
-	kept := url.Values{}
-	for _, name := range []string{"query", "view", "sort", "dir", "ipp", "all", "thread"} {
-		if value := ctx.QueryParam(name); value != "" {
-			kept.Set(name, value)
-		}
-	}
-	if account != "" {
-		kept.Set("account", account)
-	}
-	if from := ctx.From(); from != "" {
-		kept.Set("from", from)
-	}
-	href := ctx.Path("mail.message", mboxName, uid)
-	if q := web.Query(kept); q != "" {
-		href += "?" + q
-	}
-	return href
 }
 
 func newIMAPPartNode(msg *IMAPMessage, path []int, part imap.BodyStructure) *IMAPPartNode {

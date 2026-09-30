@@ -7,7 +7,6 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/mail/search"
-	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 )
@@ -20,14 +19,6 @@ func KnownView(view string) bool {
 // StarView says whether a view is a mark the reader put on a message.
 func StarView(view string) bool {
 	return view == alborz.ViewStarred || slices.Contains(alborz.FlagColors[:], view)
-}
-
-// ViewLabel names a view for a page heading.
-func ViewLabel(ctx *web.Context, view string) string {
-	if view == alborz.ViewStarred {
-		return ctx.T("mailbox.starred")
-	}
-	return ctx.T("color." + view)
 }
 
 // ViewCriteria is the search a view is, nil for the whole folder.

@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
-	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 )
@@ -25,14 +24,6 @@ const (
 	// sweepWindow paces the folder sweep on a server without NOTIFY (ADR 45).
 	sweepWindow = 2 * time.Minute
 )
-
-func (p *plugin) watchAccount(ctx *web.Context, s *alborz.Login) {
-	p.Watch(s, ctx.Logger(), ctx.Server.Changes)
-}
-
-func (p *plugin) warmAccount(_ *web.Context, s *alborz.Login) {
-	p.Warm(s)
-}
 
 // Warm reads ahead what an account's first pages need: its senders, its authserv-id and its inbox.
 func (p *plugin) Warm(s *alborz.Login) {

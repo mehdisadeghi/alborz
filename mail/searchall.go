@@ -1,18 +1,15 @@
 package mail
 
 import (
-	"context"
 	"fmt"
 	"html/template"
 	"net/http"
-	"slices"
 	"strings"
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/mail/search"
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2"
-	"github.com/emersion/go-imap/v2/imapclient"
 )
 
 // The inbox's action set is the one offering archive, junk and trash.
@@ -20,36 +17,6 @@ const searchRole = "INBOX"
 
 // folderTrackMax caps the folder column; long nested paths truncate.
 const folderTrackMax = 16
-
-func searchFolders(mailboxes []MailboxInfo, q search.Query) []string {
-	named, everywhere := q.Scope()
-	excluded := q.Excluded()
-	var out []string
-	for i := range mailboxes {
-		mbox := &mailboxes[i]
-		if mbox.IsInternal() || slices.ContainsFunc(excluded, func(name string) bool { return folderNamed(mbox, name) }) {
-			continue
-		}
-		role := mbox.role()
-		switch {
-		case named != "":
-			if !folderNamed(mbox, named) {
-				continue
-			}
-		case !everywhere && (role == "junk" || role == "trash"):
-			continue
-		}
-		out = append(out, mbox.Name())
-	}
-	return out
-}
-
-func folderNamed(mbox *MailboxInfo, named string) bool {
-	role := mbox.role()
-	last := mbox.Name()[strings.LastIndex(mbox.Name(), string(mbox.Delim))+1:]
-	return strings.EqualFold(named, role) || strings.EqualFold(named, mbox.Name()) || strings.EqualFold(named, last) ||
-		(role == "junk" && strings.EqualFold(named, "spam"))
-}
 
 func (p *plugin) handleSearch(ctx *web.Context) error {
 	ask, err := readListAsk(ctx, "account")
@@ -112,27 +79,10 @@ func (p *plugin) handleSearch(ctx *web.Context) error {
 	return ctx.Render(http.StatusOK, listTemplate(ctx), data)
 }
 
-// searchWindow is a search's rows up to the page asked, from every folder it spans, merged as its page is.
-func (p *plugin) searchWindow(ctx context.Context, logins []*alborz.Login, ask listAsk, settings *Settings) (*listingEntry, []string, error) {
-	spec := ask.spec
-	q := search.Parse(spec.query)
-	class, bound := listingBudget(spec)
-	return p.gather(ctx, logins, spec, func(s *alborz.Login) (*listingEntry, error) {
-		sb, err := p.sidebarFor(s)
-		if err != nil {
-			return nil, err
-		}
-		// One turn per folder, so the account's other pages are served between them.
-		found := &listingEntry{sortSupported: true}
-		for _, folder := range searchFolders(sb.mailboxes, q) {
-			e, err := readOn(s, class, bound, func(c *imapclient.Client) (*listingEntry, error) {
-				return p.fetchUnifiedAccount(c, s.Username(), folder, spec, settings, ask.page.Window(), listFetchOptions, false)
-			})(ctx)
-			if err != nil {
-				return nil, err
-			}
-			found.absorb(e)
-		}
-		return found, nil
-	})
+// ViewLabel names a view for a page heading.
+func ViewLabel(ctx *web.Context, view string) string {
+	if view == alborz.ViewStarred {
+		return ctx.T("mailbox.starred")
+	}
+	return ctx.T("color." + view)
 }

@@ -1,10 +1,13 @@
 package web
 
 import (
+	"errors"
 	"fmt"
 	"html/template"
 	"net/url"
 	"strings"
+
+	"git.mehdix.org/alborz"
 )
 
 // Notice is what the next page tells the reader about the request that
@@ -78,5 +81,8 @@ func (ctx *Context) Made(sentence, name, href, again string) {
 
 // SaveRefusal is the alert for a settings write the store did not keep.
 func (ctx *Context) SaveRefusal(err error) string {
+	if errors.Is(err, alborz.ErrLocked) {
+		return ctx.T("form.savelocked")
+	}
 	return fmt.Sprintf(ctx.T("form.saverefused"), err)
 }

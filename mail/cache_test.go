@@ -32,7 +32,7 @@ func TestStatusUnchangedNeedsEveryField(t *testing.T) {
 }
 
 func TestListingCacheStates(t *testing.T) {
-	lc := newListingCache(listingKeepFor, memo.NewBackground[sidebar](listingFreshFor), newBodyCache(bodyKeepFor))
+	lc := newListingCache(listingKeepFor, memo.NewBackground[Rail](listingFreshFor), newBodyCache(bodyKeepFor))
 	lc.storeAt("u", "INBOX", &listingEntry{perPage: 25, total: 3}, lc.epoch("u"))
 	lc.storeAt("u", listingView("INBOX", "hello", "", "", ""), &listingEntry{perPage: 25}, lc.epoch("u"))
 	lc.storeAt("u", "Sent", &listingEntry{perPage: 25}, lc.epoch("u"))
@@ -71,7 +71,7 @@ func TestListingCacheStates(t *testing.T) {
 }
 
 func TestListingCacheStaysBounded(t *testing.T) {
-	lc := newListingCache(listingKeepFor, memo.NewBackground[sidebar](listingFreshFor), newBodyCache(bodyKeepFor))
+	lc := newListingCache(listingKeepFor, memo.NewBackground[Rail](listingFreshFor), newBodyCache(bodyKeepFor))
 	for i := 0; i < maxListingEntries+10; i++ {
 		lc.storeAt("u", listingView("INBOX", fmt.Sprint("q", i), "", "", ""), &listingEntry{perPage: 25}, lc.epoch("u"))
 	}
@@ -81,10 +81,10 @@ func TestListingCacheStaysBounded(t *testing.T) {
 }
 
 func TestListingTakesFlagsInPlace(t *testing.T) {
-	lc := newListingCache(listingKeepFor, memo.NewBackground[sidebar](listingFreshFor), newBodyCache(bodyKeepFor))
+	lc := newListingCache(listingKeepFor, memo.NewBackground[Rail](listingFreshFor), newBodyCache(bodyKeepFor))
 	unseen := uint32(2)
 	status := &MailboxStatus{StatusData: &imap.StatusData{Mailbox: "INBOX", NumUnseen: &unseen}}
-	sb := sidebar{statuses: map[string]*MailboxStatus{"INBOX": status}, active: status, inbox: status}
+	sb := Rail{Statuses: map[string]*MailboxStatus{"INBOX": status}, Active: status, Inbox: status}
 	row := func(uid imap.UID, seq uint32) IMAPMessage {
 		return IMAPMessage{Mailbox: "INBOX", FetchMessageBuffer: &imapclient.FetchMessageBuffer{UID: uid, SeqNum: seq}}
 	}
@@ -95,7 +95,7 @@ func TestListingTakesFlagsInPlace(t *testing.T) {
 	if !e.msgs[0].HasFlag(imap.FlagSeen) || e.msgs[1].HasFlag(imap.FlagSeen) {
 		t.Errorf("reading uid 7 marked the wrong row: %v %v", e.msgs[0].Flags, e.msgs[1].Flags)
 	}
-	if n := *e.sb.statuses["INBOX"].NumUnseen; n != 1 {
+	if n := *e.sb.Statuses["INBOX"].NumUnseen; n != 1 {
 		t.Errorf("unseen after one read: %d", n)
 	}
 
@@ -104,7 +104,7 @@ func TestListingTakesFlagsInPlace(t *testing.T) {
 	if !e.msgs[1].HasFlag(imap.FlagFlagged) || !e.msgs[1].HasFlag(imap.FlagSeen) {
 		t.Errorf("the announced flags did not land on seq 2: %v", e.msgs[1].Flags)
 	}
-	if n := *e.sb.active.NumUnseen; n != 0 {
+	if n := *e.sb.Active.NumUnseen; n != 0 {
 		t.Errorf("unseen after the server read seq 2: %d", n)
 	}
 

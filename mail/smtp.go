@@ -467,7 +467,7 @@ func fetchOriginals(msg *OutgoingMessage) (local *OutgoingMessage, done func(), 
 			if errors.As(err, new(*fs.PathError)) {
 				return fetched{}, err
 			}
-			return fetched{}, refused{"form.originalunreadable", err}
+			return fetched{}, Refused{"form.originalunreadable", err}
 		}
 		return fetched{att, f}, nil
 	}
@@ -561,7 +561,7 @@ func deliver(sender *alborz.Login, msg *OutgoingMessage) (*os.File, error) {
 		if _, ok := err.(alborz.AuthError); ok {
 			return nil, err
 		}
-		return nil, refused{"form.sendrefused", err}
+		return nil, Refused{"form.sendrefused", err}
 	}
 	return body, nil
 }

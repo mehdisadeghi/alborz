@@ -2,6 +2,7 @@ package mail
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -13,23 +14,25 @@ import (
 	"github.com/emersion/go-imap/v2/imapclient"
 )
 
-type mailAct struct {
-	announce func(key rowRef, uids []imap.UID)
-	do       func(c *imapclient.Client, key rowRef, uids []imap.UID) error
+// Act is a change made to rows, account by account and folder by folder.
+type Act struct {
+	announce func(key Ref, uids []imap.UID)
+	do       func(c *imapclient.Client, key Ref, uids []imap.UID) error
 }
 
-// err is nil where the account is not signed in.
-type actFailure struct {
-	account string
-	err     error
+// Failure is an account that did not take an act; Err is nil where it is not signed in.
+type Failure struct {
+	Account string
+	Err     error
 }
 
-// actOn acts on each account's rows among logins, the accounts signed in.
-func actOn(logins []*alborz.Login, refs []rowRef, act mailAct) (done int, failed []actFailure) {
+// ActOn makes the act on each account's rows among logins, the accounts signed in. Where no server
+// answered, the first failure stands for all as err.
+func ActOn(logins []*alborz.Login, refs []Ref, act Act) (done int, failed []Failure, err error) {
 	for key, uids := range grouped(refs) {
-		i := slices.IndexFunc(logins, func(s *alborz.Login) bool { return s.Username() == key.account })
+		i := slices.IndexFunc(logins, func(s *alborz.Login) bool { return s.Username() == key.Account })
 		if i < 0 {
-			failed = append(failed, actFailure{account: key.account})
+			failed = append(failed, Failure{Account: key.Account})
 			continue
 		}
 		if act.announce != nil {
@@ -37,51 +40,74 @@ func actOn(logins []*alborz.Login, refs []rowRef, act mailAct) (done int, failed
 		}
 		err := logins[i].DoIMAP(func(c *imapclient.Client) error { return act.do(c, key, uids) })
 		if err != nil {
-			failed = append(failed, actFailure{key.account, err})
+			failed = append(failed, Failure{key.Account, err})
 			continue
 		}
 		done += len(uids)
 	}
-	return done, failed
+	down := 0
+	for _, f := range failed {
+		var upstream alborz.UpstreamError
+		if errors.As(f.Err, &upstream) {
+			down++
+		}
+	}
+	if down > 0 && down == len(grouped(refs)) {
+		return done, failed, failed[0].Err
+	}
+	return done, failed, nil
 }
 
-func (p *plugin) leaving(key rowRef, uids []imap.UID) {
-	p.messagesLeaving(key.account, key.mailbox, uids)
+func (p *plugin) leaving(key Ref, uids []imap.UID) {
+	p.messagesLeaving(key.Account, key.Mailbox, uids)
 }
 
-// landed takes what the server says it put where (COPYUID, RFC 4315), for an undo.
-func (p *plugin) moveAct(to func(*imapclient.Client, rowRef) (string, error), landed *[]rowRef) mailAct {
-	return mailAct{
+// Move moves rows to a folder; landed takes what the server says it put where (COPYUID, RFC 4315), for an undo.
+func (p *plugin) Move(folder string, landed *[]Ref) Act {
+	return p.moveAct(func(*imapclient.Client, Ref) (string, error) { return folder, nil }, landed)
+}
+
+// MoveToRole moves rows to each account's folder of a merged role, as Move does.
+func (p *plugin) MoveToRole(role string, landed *[]Ref) Act {
+	return p.moveAct(func(c *imapclient.Client, key Ref) (string, error) {
+		return p.resolveRole(c, key.Account, role)
+	}, landed)
+}
+
+func (p *plugin) moveAct(to func(*imapclient.Client, Ref) (string, error), landed *[]Ref) Act {
+	return Act{
 		announce: p.leaving,
-		do: func(c *imapclient.Client, key rowRef, uids []imap.UID) error {
-			dest := key.origin
+		do: func(c *imapclient.Client, key Ref, uids []imap.UID) error {
+			dest := key.Origin
 			if dest == "" {
 				var err error
 				if dest, err = to(c, key); err != nil {
 					return err
 				}
 			}
-			moved, err := p.moveMessages(c, key.account, key.mailbox, dest, uids)
+			moved, err := p.moveMessages(c, key.Account, key.Mailbox, dest, uids)
 			for _, uid := range uidNums(moved) {
-				*landed = append(*landed, rowRef{account: key.account, mailbox: dest, uid: uid, origin: key.mailbox})
+				*landed = append(*landed, Ref{Account: key.Account, Mailbox: dest, UID: uid, Origin: key.Mailbox})
 			}
 			return err
 		},
 	}
 }
 
-func (p *plugin) flagAct(op imap.StoreFlagsOp, flags []imap.Flag) mailAct {
-	return mailAct{
-		announce: func(key rowRef, uids []imap.UID) { p.flagWriteStarting(key.account, key.mailbox, uids, op, flags) },
-		do: func(c *imapclient.Client, key rowRef, uids []imap.UID) error {
-			return p.writeFlags(c, key.account, key.mailbox, uids, op, flags)
+// Flag sets, adds or removes flags on rows.
+func (p *plugin) Flag(op imap.StoreFlagsOp, flags []imap.Flag) Act {
+	return Act{
+		announce: func(key Ref, uids []imap.UID) { p.flagWriteStarting(key.Account, key.Mailbox, uids, op, flags) },
+		do: func(c *imapclient.Client, key Ref, uids []imap.UID) error {
+			return p.writeFlags(c, key.Account, key.Mailbox, uids, op, flags)
 		},
 	}
 }
 
-func (p *plugin) colourAct(add, del []imap.Flag) mailAct {
-	return mailAct{do: func(c *imapclient.Client, key rowRef, uids []imap.UID) error {
-		return p.writeColour(c, key.account, key.mailbox, uids, add, del)
+// Colour marks rows with the flag bits of a colour (FlagColorFlags).
+func (p *plugin) Colour(add, del []imap.Flag) Act {
+	return Act{do: func(c *imapclient.Client, key Ref, uids []imap.UID) error {
+		return p.writeColour(c, key.Account, key.Mailbox, uids, add, del)
 	}}
 }
 
@@ -132,7 +158,17 @@ func uidNums(moved *imapclient.MoveData) []imap.UID {
 	return nums
 }
 
-// empty deletes everything in a folder and says how many it deleted.
+// Empty deletes everything in a folder and says how many it deleted.
+func (p *plugin) Empty(ctx context.Context, s *alborz.Login, mboxName string) (int, error) {
+	var removed int
+	err := s.DoIMAPContext(ctx, alborz.RoundTripTimeout, func(c *imapclient.Client) error {
+		var err error
+		removed, err = p.empty(c, s.Username(), mboxName)
+		return err
+	})
+	return removed, err
+}
+
 func (p *plugin) empty(c *imapclient.Client, account, mboxName string) (int, error) {
 	n, err := emptyMailbox(c, mboxName)
 	// Expunge can also remove messages already marked deleted elsewhere.
@@ -140,8 +176,8 @@ func (p *plugin) empty(c *imapclient.Client, account, mboxName string) (int, err
 	return n, err
 }
 
-// emptyRole empties an account's folder of a merged role.
-func (p *plugin) emptyRole(s *alborz.Login, role string) (int, error) {
+// EmptyRole empties an account's folder of a merged role.
+func (p *plugin) EmptyRole(s *alborz.Login, role string) (int, error) {
 	var removed int
 	err := s.DoIMAP(func(c *imapclient.Client) error {
 		folder, err := p.resolveRole(c, s.Username(), role)
@@ -176,23 +212,23 @@ func emptyMailbox(c *imapclient.Client, mboxName string) (int, error) {
 }
 
 // A merged view spans accounts, so a selection names each row by account, folder and UID.
-type rowRef struct {
-	account, mailbox string
-	uid              imap.UID
-	// origin is the folder a moved message came from, carried only by an undo's reference.
-	origin string
+type Ref struct {
+	Account, Mailbox string
+	UID              imap.UID
+	// Origin is the folder a moved message came from, carried only by an undo's reference.
+	Origin string
 }
 
-// String is the form parseRefs reads: what a row's checkbox carries.
-func (r rowRef) String() string {
-	if r.origin != "" {
-		return fmt.Sprintf("%s|%s|%d|%s", r.account, r.mailbox, r.uid, r.origin)
+// String is the form ParseRefs reads: what a row's checkbox carries.
+func (r Ref) String() string {
+	if r.Origin != "" {
+		return fmt.Sprintf("%s|%s|%d|%s", r.Account, r.Mailbox, r.UID, r.Origin)
 	}
-	return fmt.Sprintf("%s|%s|%d", r.account, r.mailbox, r.uid)
+	return fmt.Sprintf("%s|%s|%d", r.Account, r.Mailbox, r.UID)
 }
 
-func parseRefs(values []string) ([]rowRef, error) {
-	var refs []rowRef
+func ParseRefs(values []string) ([]Ref, error) {
+	var refs []Ref
 	for _, v := range values {
 		parts := strings.SplitN(v, "|", 4)
 		if len(parts) < 3 {
@@ -202,46 +238,98 @@ func parseRefs(values []string) ([]rowRef, error) {
 		if err != nil {
 			return nil, err
 		}
-		ref := rowRef{account: parts[0], mailbox: parts[1], uid: uid}
+		ref := Ref{Account: parts[0], Mailbox: parts[1], UID: uid}
 		if len(parts) == 4 {
-			ref.origin = parts[3]
+			ref.Origin = parts[3]
 		}
 		refs = append(refs, ref)
 	}
 	return refs, nil
 }
 
-func grouped(refs []rowRef) map[rowRef][]imap.UID {
-	out := map[rowRef][]imap.UID{}
+func grouped(refs []Ref) map[Ref][]imap.UID {
+	out := map[Ref][]imap.UID{}
 	for _, r := range refs {
-		key := rowRef{account: r.account, mailbox: r.mailbox, origin: r.origin}
-		out[key] = append(out[key], r.uid)
+		key := Ref{Account: r.Account, Mailbox: r.Mailbox, Origin: r.Origin}
+		out[key] = append(out[key], r.UID)
 	}
 	return out
 }
 
-func createFolder(s *alborz.Login, name string) error {
-	return s.DoIMAP(func(c *imapclient.Client) error {
+// CreateFolder creates a folder by its full name.
+func (p *plugin) CreateFolder(s *alborz.Login, name string) error {
+	err := s.DoIMAP(func(c *imapclient.Client) error {
 		return c.Create(name, nil).Wait()
+	})
+	if err == nil {
+		p.mailboxCreated(s.Username())
+	}
+	return err
+}
+
+// DeleteFolder deletes a folder and what it holds.
+func (p *plugin) DeleteFolder(ctx context.Context, s *alborz.Login, name string) error {
+	return s.DoIMAPContext(ctx, alborz.RoundTripTimeout, func(c *imapclient.Client) error {
+		if err := c.Delete(name).Wait(); err != nil {
+			return err
+		}
+		p.mailboxDeleted(s.Username(), name)
+		return nil
 	})
 }
 
-func (p *plugin) deleteFolder(c *imapclient.Client, account, name string) error {
-	if err := c.Delete(name).Wait(); err != nil {
-		return err
+// RenameFolder gives a folder another full name.
+func (p *plugin) RenameFolder(ctx context.Context, s *alborz.Login, old, name string) error {
+	err := s.DoIMAPContext(ctx, alborz.RoundTripTimeout, func(c *imapclient.Client) error {
+		return c.Rename(old, name, nil).Wait()
+	})
+	if err == nil {
+		p.mailboxDeleted(s.Username(), old)
 	}
-	p.mailboxDeleted(account, name)
-	return nil
+	return err
 }
 
-func renameFolder(c *imapclient.Client, old, name string) error {
-	return c.Rename(old, name, nil).Wait()
+// Reload drops what is held of a folder's list and the account's counts, so the next page asks the server.
+func (p *plugin) Reload(account, folder string) {
+	p.viewForgotten(account, folder)
+}
+
+// ReloadRole is Reload for an account's part of a merged role.
+func (p *plugin) ReloadRole(account, role string) {
+	p.viewForgotten(account, "#"+role)
+}
+
+// Changed drops what is held of an account's lists, after a change they depend on.
+func (p *plugin) Changed(account string) {
+	p.accountChanged(account)
+}
+
+// Delete deletes rows; left takes how many their folder still holds.
+func (p *plugin) Delete(left *int) Act {
+	return Act{
+		announce: p.leaving,
+		do: func(c *imapclient.Client, key Ref, uids []imap.UID) error {
+			var err error
+			*left, err = p.removeMessages(c, key, uids)
+			return err
+		},
+	}
+}
+
+// Changing tells each account its lists changed as the act is made on it, for a view that spans them.
+func (p *plugin) Changing(act Act) Act {
+	each := act.do
+	act.do = func(c *imapclient.Client, key Ref, uids []imap.UID) error {
+		defer p.accountChanged(key.Account)
+		return each(c, key, uids)
+	}
+	return act
 }
 
 // removeMessages deletes a folder's messages and says how many it still holds.
-func (p *plugin) removeMessages(c *imapclient.Client, key rowRef, uids []imap.UID) (int, error) {
-	defer p.messagesRemoved(key.account, key.mailbox)
-	if err := deleteMessages(c, key.mailbox, imap.UIDSetNum(uids...)); err != nil {
+func (p *plugin) removeMessages(c *imapclient.Client, key Ref, uids []imap.UID) (int, error) {
+	defer p.messagesRemoved(key.Account, key.Mailbox)
+	if err := deleteMessages(c, key.Mailbox, imap.UIDSetNum(uids...)); err != nil {
 		return 0, err
 	}
 	return int(c.Mailbox().NumMessages), nil
@@ -288,16 +376,16 @@ func folderViewUIDs(ctx context.Context, login *alborz.Login, mboxName, query, v
 }
 
 // viewRefs are what a merged view holds on one account: its role's folder, or every folder a search spans.
-func (p *plugin) viewRefs(ctx context.Context, s *alborz.Login, role string, spanning bool, settings *Settings, query, view string) ([]rowRef, error) {
+func (p *plugin) viewRefs(ctx context.Context, s *alborz.Login, role string, spanning bool, settings *Settings, query, view string) ([]Ref, error) {
 	var folders []string
 	if spanning {
-		sb, err := p.sidebarFor(s)
+		sb, err := p.Rail(s)
 		if err != nil {
 			return nil, err
 		}
-		folders = searchFolders(sb.mailboxes, search.Parse(query))
+		folders = searchFolders(sb.Mailboxes, search.Parse(query))
 	}
-	var refs []rowRef
+	var refs []Ref
 	err := s.DoIMAPWork(ctx, alborz.IMAPScan, alborz.ScanTimeout, func(c *imapclient.Client) error {
 		if !spanning {
 			folder, err := p.resolveRole(c, s.Username(), role)
@@ -315,7 +403,7 @@ func (p *plugin) viewRefs(ctx context.Context, s *alborz.Login, role string, spa
 				return err
 			}
 			for _, uid := range uids {
-				refs = append(refs, rowRef{account: s.Username(), mailbox: folder, uid: uid})
+				refs = append(refs, Ref{Account: s.Username(), Mailbox: folder, UID: uid})
 			}
 		}
 		return nil
@@ -324,10 +412,10 @@ func (p *plugin) viewRefs(ctx context.Context, s *alborz.Login, role string, spa
 
 }
 
-func folderRefs(account, mailbox string, uids []imap.UID) []rowRef {
-	refs := make([]rowRef, len(uids))
+func FolderRefs(account, mailbox string, uids []imap.UID) []Ref {
+	refs := make([]Ref, len(uids))
 	for i, uid := range uids {
-		refs[i] = rowRef{account: account, mailbox: mailbox, uid: uid}
+		refs[i] = Ref{Account: account, Mailbox: mailbox, UID: uid}
 	}
 	return refs
 }

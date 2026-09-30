@@ -50,10 +50,10 @@ func folderSelection(ctx *web.Context) (mboxName string, form url.Values, uids [
 	return mboxName, form, uids, err
 }
 
-func (p *plugin) mergedSelection(ctx *web.Context, role string, form url.Values) ([]rowRef, error) {
+func (p *plugin) mergedSelection(ctx *web.Context, role string, form url.Values) ([]Ref, error) {
 	query, view, whole := wholeView(form)
 	if !whole {
-		refs, err := parseRefs(form["refs"])
+		refs, err := ParseRefs(form["refs"])
 		if err != nil {
 			return nil, web.NewError(http.StatusBadRequest, err)
 		}
@@ -77,7 +77,7 @@ func (p *plugin) mergedSelection(ctx *web.Context, role string, form url.Values)
 		}
 		logins = []*alborz.Login{s}
 	}
-	var refs []rowRef
+	var refs []Ref
 	for _, s := range logins {
 		found, err := p.viewRefs(ctx.Request().Context(), s, role, spanning, settings, query, view)
 		if err != nil {

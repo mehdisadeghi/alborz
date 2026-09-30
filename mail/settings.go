@@ -52,6 +52,11 @@ func LoadSettings(ctx context.Context, s alborz.Store) (*Settings, error) {
 	return settings, nil
 }
 
+// SaveSettings writes an account's settings to its store.
+func SaveSettings(ctx context.Context, s alborz.Store, settings *Settings) error {
+	return s.Put(ctx, settingsKey, settings)
+}
+
 func (s *Settings) check() (string, int) {
 	switch {
 	case len(s.Signatures) > maxSignatures:

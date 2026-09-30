@@ -12,7 +12,7 @@ type plugin struct {
 	server          *alborz.Server
 	listings        *listingCache
 	bodies          *bodyCache
-	accountSidebars *memo.Memo[sidebar]
+	accountSidebars *memo.Memo[Rail]
 	unifiedFolders  *memo.Memo[map[string]string]
 	senderBooks     *memo.Memo[*senderBook]
 	authServGuesses *memo.Memo[string]
@@ -25,7 +25,7 @@ type plugin struct {
 func newPlugin(s *alborz.Server) *plugin {
 	o := s.Options
 	bodies := newBodyCache(o.CacheFor(bodyKeepFor))
-	sidebars := memo.NewBackground[sidebar](o.CacheFor(listingFreshFor))
+	sidebars := memo.NewBackground[Rail](o.CacheFor(listingFreshFor))
 	p := &plugin{
 		server:          s,
 		listings:        newListingCache(o.CacheFor(listingKeepFor), sidebars, bodies),

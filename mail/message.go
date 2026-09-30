@@ -6,6 +6,7 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 
@@ -84,7 +85,7 @@ func handleDownloadMessage(ctx *web.Context, plain bool) error {
 	if err != nil {
 		return err
 	}
-	return streamed(ctx, streamMessage(ctx.Request().Context(), ctx.Login, mboxName, uid, func(env *imap.Envelope, lit imap.LiteralReader) error {
+	return streamed(ctx, StreamMessage(ctx.Request().Context(), ctx.Login, mboxName, uid, func(env *imap.Envelope, lit imap.LiteralReader) error {
 		ctx.Response().Header().Set("Content-Length", fmt.Sprint(lit.Size()))
 		if plain {
 			// No charset can be right for a whole message whose parts each name their own.
@@ -110,7 +111,7 @@ func handleDownloadAttachments(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	return streamed(ctx, zipAttachments(ctx.Request().Context(), ctx.Login, mboxName, uid, func(env *imap.Envelope) io.Writer {
+	return streamed(ctx, ZipAttachments(ctx.Request().Context(), ctx.Login, mboxName, uid, func(env *imap.Envelope) io.Writer {
 		ctx.Response().Header().Set("Content-Disposition", downloadName(env.Subject, fmt.Sprint(uid), ".zip"))
 		ctx.Response().Header().Set("Content-Type", "application/zip")
 		ctx.Response().WriteHeader(http.StatusOK)
@@ -120,7 +121,7 @@ func handleDownloadAttachments(ctx *web.Context) error {
 
 // handleDownloadPart streams one part, decoded, as it comes from the server.
 func handleDownloadPart(ctx *web.Context, mboxName string, uid imap.UID, partPath []int) error {
-	return streamed(ctx, streamPart(ctx.Request().Context(), ctx.Login, mboxName, uid, partPath, func(part *imap.BodyStructureSinglePart, size int64, body io.Reader) error {
+	return streamed(ctx, StreamPart(ctx.Request().Context(), ctx.Login, mboxName, uid, partPath, func(part *imap.BodyStructureSinglePart, name string, size int64, body io.Reader) error {
 		mimeType := strings.ToLower(part.MediaType())
 		contentType := mimeType
 		if charset := part.Params["charset"]; charset != "" && part.Type == "text" {
@@ -133,7 +134,7 @@ func handleDownloadPart(ctx *web.Context, mboxName string, uid imap.UID, partPat
 		// Never serve text/html and the like inline.
 		if mimeType != "text/plain" || strings.EqualFold(disposition, "attachment") {
 			ctx.Response().Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{
-				"filename": zipEntryName(newIMAPPartNode(nil, partPath, part).Filename, mimeType, map[string]int{}),
+				"filename": name,
 			}))
 		}
 		if size >= 0 {
@@ -187,20 +188,18 @@ func (p *plugin) handleGetPart(ctx *web.Context) error {
 
 	// A list across accounts or folders is read back through its own pages, not this folder's order.
 	merged := mergedOrigin(ctx)
-	shown, err := p.read(ctx.Request().Context(), messageRead{
-		login: ctx.Login, logins: ctx.Logins(), settings: settings,
-		mailbox: mboxName, uid: uid, part: partPath, named: ctx.QueryParam("part") != "",
-		list:    folderList{query, railView, ctx.QueryParam("sort"), ctx.QueryParam("dir")},
-		perPage: messagesPerPage, preferHTML: ctx.Reading().PreferHTML, partial: ctx.Partial(), merged: merged != nil,
-		moneyWords: strings.Split(ctx.T("indicator.moneywords"), ","),
+	shown, err := p.Read(ctx.Request().Context(), ReadAsk{
+		Login: ctx.Login, Logins: ctx.Logins(), Settings: settings,
+		Mailbox: mboxName, UID: uid, Part: partPath, Named: ctx.QueryParam("part") != "",
+		List: ListAsk{Page: alborz.Page{Size: messagesPerPage}, Query: query, View: railView,
+			Sort: ctx.QueryParam("sort"), Dir: ctx.QueryParam("dir")},
+		PreferHTML: ctx.Reading().PreferHTML, Partial: ctx.Partial(), Merged: merged != nil,
+		MoneyWords: strings.Split(ctx.T("indicator.moneywords"), ","),
 	})
 	if err != nil {
 		return err
 	}
-	msg, part, partPath, sb, place := shown.msg, shown.part, shown.partPath, shown.sb, shown.place
-	permanentFlags, authResults, trusted := shown.permanentFlags, shown.authResults, shown.trusted
-	inReplyTo, answers, threadAlgorithm, deferContext := shown.inReplyTo, shown.answers, shown.threadAlgorithm, shown.deferContext
-	warnings, mark := shown.warnings, shown.mark
+	msg, partPath := shown.Message, shown.PartPath
 
 	// The bare envelope has no viewer.
 	if len(partPath) == 0 {
@@ -217,27 +216,9 @@ func (p *plugin) handleGetPart(ctx *web.Context) error {
 			fmt.Sprintf("message %v has no part %v", uid, ctx.QueryParam("part")))
 	}
 
-	mimeType, _, err := part.Header.ContentType()
+	part, asText, err := Body(ctx.Request().Context(), ctx.Login, msg, shown.Part, partPath, ctx.QueryParam("text") == "1")
 	if err != nil {
-		return fmt.Errorf("failed to parse part Content-Type: %v", err)
-	}
-
-	if pieces := msg.HTMLPieces(partPath); pieces != nil {
-		err := ctx.DoIMAP(func(c *imapclient.Client) error {
-			var err error
-			part, err = joinedHTML(c, mboxName, uid, pieces)
-			return err
-		})
-		if err != nil {
-			return err
-		}
-	}
-
-	asText := ctx.QueryParam("text") == "1" && strings.EqualFold(mimeType, "text/html")
-	if asText {
-		if part, err = htmlAsText(part); err != nil {
-			return err
-		}
+		return err
 	}
 
 	view, err := viewMessagePart(ctx, msg, partPath, part)
@@ -249,33 +230,27 @@ func (p *plugin) handleGetPart(ctx *web.Context) error {
 	}
 
 	flags := make(map[imap.Flag]bool)
-	for _, f := range permanentFlags {
+	for _, f := range shown.PermanentFlags {
 		if f == imap.FlagWildcard {
 			continue
 		}
 		flags[f] = msg.HasFlag(f)
 	}
 
-	trust := p.newDeliveryTrust(ctx.Login, settings)
-	// The alias shows only where To and Cc do not already name it.
-	deliveredTo := trust.alias(msg)
-	if addressed(deliveredTo, msg.Envelope.To, msg.Envelope.Cc) {
-		deliveredTo = ""
-	}
-	ibase := assembleIMAPBase(ctx, web.NewBaseRenderData(ctx), mboxName, sb, railView)
+	ibase := assembleIMAPBase(ctx, web.NewBaseRenderData(ctx), mboxName, shown.Rail, railView)
 	ibase.SidebarAccounts = p.sidebarAccounts(ctx)
 	ibase.BaseRenderData.WithTitle(msg.Envelope.Subject).WithItem()
 	mbox := ibase.Mailbox
 
-	nav := neighbours(ctx, mbox.Name(), place)
-	if merged != nil && !deferContext {
+	nav := neighbours(ctx, mbox.Name(), shown.Place)
+	if merged != nil && !shown.DeferContext {
 		if nav, err = p.mergedNeighbours(ctx, settings, merged, mboxName, uid); err != nil {
 			return err
 		}
 	}
 	contextURL := *ctx.Request().URL
 	data := &MessageRenderData{
-		ContextPending:     deferContext,
+		ContextPending:     shown.DeferContext,
 		ContextURL:         template.URL(contextURL.RequestURI()),
 		IMAPBaseRenderData: *ibase,
 		Shown:              Shown{Message: msg},
@@ -286,20 +261,20 @@ func (p *plugin) handleGetPart(ctx *web.Context) error {
 		Flags:              flags,
 		Neighbours:         nav,
 		Query:              query,
-		AuthResults:        authResults,
-		Warnings:           warnings,
-		Mark:               mark,
-		InReplyTo:          inReplyTo,
-		Answers:            answers,
-		ThreadSupported:    threadAlgorithm != "",
-		Crumb:              mailboxCrumb(sb.mailboxes, mboxName, ctx.Login.Username(), folderPath(ctx)),
+		AuthResults:        shown.AuthResults,
+		Warnings:           shown.Warnings,
+		Mark:               shown.Mark,
+		InReplyTo:          shown.InReplyTo,
+		Answers:            shown.Answers,
+		ThreadSupported:    shown.ThreadAlgorithm != "",
+		Crumb:              mailboxCrumb(shown.Rail.Mailboxes, mboxName, ctx.Login.Username(), folderPath(ctx)),
 		PreferHTML:         ctx.Reading().PreferHTML,
-		Unsubscribe:        unsubscribeHref(ctx, settings, trust, msg),
+		Unsubscribe:        unsubscribeHref(ctx, shown.Unsubscribe, msg),
 		List: listLinks{
 			Help: listHref(ctx, msg.ListHelp), Subscribe: listHref(ctx, msg.ListSubscribe), Owner: listHref(ctx, msg.ListOwner),
 		},
-		DeliveredTo: deliveredTo,
-		ForwardedBy: ForwardedBy(msg.rootHeader, trusted, msg.ListID),
+		DeliveredTo: shown.DeliveredTo,
+		ForwardedBy: shown.ForwardedBy,
 
 		HasRemoteResources:     view.Remote,
 		RemoteResourcesAllowed: ctx.QueryParam("allow-remote-resources") == "1",
@@ -318,9 +293,10 @@ func (d *MessageRenderData) UnsubscribeExternal() bool {
 	return d.Unsubscribe != "" && Mailto(d.Message.ListUnsubscribe) == nil
 }
 
-func unsubscribeHref(ctx *web.Context, settings *Settings, trust deliveryTrust, msg *IMAPMessage) string {
-	if q := unsubscribeMail(settings, trust, msg); q != nil {
-		return ctx.Path("mail.compose") + "?" + web.Query(q)
+// unsubscribeHref is where the unsubscribe control sends the reader: the list's page, or compose with mail as its fields.
+func unsubscribeHref(ctx *web.Context, mail url.Values, msg *IMAPMessage) string {
+	if mail != nil {
+		return ctx.Path("mail.compose") + "?" + web.Query(mail)
 	}
 	return msg.ListUnsubscribe
 }
@@ -345,7 +321,7 @@ func (p *plugin) handleUnsubscribe(ctx *web.Context) error {
 	var oneClick string
 	err = ctx.DoIMAP(func(c *imapclient.Client) error {
 		var err error
-		oneClick, err = oneClickURI(c, mboxName, uid)
+		oneClick, err = OneClick(c, mboxName, uid)
 		return err
 	})
 	if err != nil {
@@ -355,7 +331,7 @@ func (p *plugin) handleUnsubscribe(ctx *web.Context) error {
 	if oneClick == "" {
 		return web.NewError(http.StatusBadRequest, "this message offers no one-click unsubscribe")
 	}
-	if err := p.unsubscribe(ctx.Request().Context(), oneClick); err != nil {
+	if err := p.Unsubscribe(ctx.Request().Context(), oneClick); err != nil {
 		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: ctx.T("notice.unsubfailed")})
 		return ctx.Redirect(http.StatusFound, back)
 	}

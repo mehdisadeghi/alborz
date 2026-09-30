@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"html"
 	"html/template"
-	"io"
 	"net/http"
 	"net/url"
 	"slices"
@@ -15,7 +14,6 @@ import (
 	"git.mehdix.org/alborz/internal/lang"
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2"
-	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-message"
 	"jaytaylor.com/html2text"
 )
@@ -85,7 +83,7 @@ func parseAttachedRef(s string) (messagePath, error) {
 	}
 	var p messagePath
 	var err error
-	p.Mailbox, p.Uid, err = parseMboxAndUid(s[:i], s[i+1:])
+	p.Mailbox, p.Uid, err = ParseMessageRef(s[:i], s[i+1:])
 	return p, err
 }
 
@@ -148,42 +146,13 @@ func attachedRef(p messagePath) string {
 }
 
 // The form shows only names; the send fetches the messages.
-func attachedNames(ctx *web.Context, msg *OutgoingMessage, paths []messagePath) error {
-	for _, p := range paths {
-		var env *imap.Envelope
-		err := ctx.DoIMAP(func(c *imapclient.Client) error {
-			var err error
-			env, err = fetchEnvelope(c, p.Mailbox, p.Uid)
-			return err
-		})
-		if err != nil {
-			return err
-		}
-		msg.Attachments = append(msg.Attachments, &messageAttachment{
-			Path: p, Name: attachmentName(env.Subject), transfer: transferOf(ctx.Request().Context(), ctx.Login),
-		})
-	}
-	return nil
-}
-
-type refused struct {
-	key   string
-	cause error
-}
-
-func (err refused) Error() string { return err.cause.Error() }
 
 // The sender is the From account; the draft and the answered message stay on the request's account.
 func (p *plugin) submitCompose(ctx *web.Context, sender *alborz.Login, msg *OutgoingMessage, options *composeOptions) error {
-	sent, sentUID, err := p.submit(ctx.Request().Context(), ctx.Login, sender, msg, options)
+	sent, sentUID, to, err := p.submit(ctx.Request().Context(), ctx.Login, sender, msg, options)
 	if _, ok := err.(alborz.AuthError); ok {
 		return web.NewError(http.StatusForbidden, err)
 	}
-	if err != nil {
-		return err
-	}
-
-	to, err := prepareAddressList(slices.Concat(msg.To, msg.Cc, msg.Bcc))
 	if err != nil {
 		return err
 	}
@@ -257,9 +226,9 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *OutgoingMessage, options *
 		var uploads []string
 		submit := func(f func() error) error {
 			err := f()
-			var no refused
+			var no Refused
 			if errors.As(err, &no) {
-				return render(http.StatusUnprocessableEntity, ctx.FormValue("signature"), fmt.Sprintf(ctx.T(no.key), no.cause))
+				return render(http.StatusUnprocessableEntity, ctx.FormValue("signature"), fmt.Sprintf(ctx.T(no.Key), no.Err))
 			}
 			if err == nil {
 				for _, id := range uploads {
@@ -306,14 +275,12 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *OutgoingMessage, options *
 		msg.SendHTML = msg.HTML == "" && !ctx.Profile().Writing.NoDirectionPart && lang.HasRTL(msg.Text)
 		if msg.SendHTML && options.InReplyTo != nil {
 			toList := false
-			if err := ctx.DoIMAP(func(c *imapclient.Client) error {
-				id, err := messageListID(c, options.InReplyTo.Mailbox, options.InReplyTo.Uid)
-				toList = id != ""
-				return err
-			}); err != nil {
+			if id, err := messageListID(ctx.Request().Context(), ctx.Login, *options.InReplyTo); err != nil {
 				// Unknown counts as a list: plain text to a person is the smaller harm.
 				ctx.Logger().Printf("list check for reply: %v", err)
 				toList = true
+			} else {
+				toList = id != ""
 			}
 			msg.SendHTML = !toList
 		}
@@ -337,7 +304,7 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *OutgoingMessage, options *
 			}
 			attached = append(attached, p)
 		}
-		if err := attachedNames(ctx, msg, attached); err != nil {
+		if err := attachMessages(ctx.Request().Context(), ctx.Login, msg, attached); err != nil {
 			return err
 		}
 		options.Attached = attached
@@ -355,22 +322,9 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *OutgoingMessage, options *
 					return fmt.Errorf("failed to parse original attachment path: %v", err)
 				}
 
-				var part *imap.BodyStructureSinglePart
-				err = ctx.DoIMAP(func(c *imapclient.Client) error {
-					var err error
-					part, err = singlePart(c, original.Mailbox, original.Uid, path)
+				if err := attachPart(ctx.Request().Context(), ctx.Login, msg, *original, path); err != nil {
 					return err
-				})
-				if err != nil {
-					return fmt.Errorf("failed to fetch attachment from original message: %w", err)
 				}
-				msg.Attachments = append(msg.Attachments, &imapAttachment{
-					Mailbox:  original.Mailbox,
-					Uid:      original.Uid,
-					Node:     newIMAPPartNode(nil, path, part),
-					Encoding: part.Encoding,
-					transfer: transferOf(ctx.Request().Context(), ctx.Login),
-				})
 			}
 		} else if len(form.Value["prev_attachments"]) > 0 {
 			return fmt.Errorf("previous attachments specified but no original message available")
@@ -410,31 +364,10 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *OutgoingMessage, options *
 
 		return submit(func() error {
 			if saveAsDraft {
-				// A draft is what was typed; the editor cannot open a multipart/alternative.
-				msg.SendHTML = false
-				local, done, err := fetchOriginals(msg)
+				drafts, uid, err := p.SaveDraft(ctx.Request().Context(), ctx.Login, msg, options.Draft)
 				if err != nil {
 					return err
 				}
-				defer done()
-				body, err := spool(local, imapEightBit)
-				if err != nil {
-					return err
-				}
-				defer body.Close()
-				var (
-					drafts *MailboxInfo
-					uid    imap.UID
-				)
-				err = ctx.Login.DoIMAPTransfer(ctx.Request().Context(), func(c *imapclient.Client) error {
-					var err error
-					drafts, uid, err = fileDraft(c, body, msg.MessageID, options.Draft)
-					return err
-				})
-				if err != nil {
-					return refused{"form.draftrefused", err}
-				}
-				p.accountChanged(ctx.Login.Username())
 				ctx.PutNotice(ctx.T("notice.draftsaved"))
 				return ctx.Redirect(http.StatusFound, ctx.Path("mail.message.edit", drafts.Mailbox, uid)+"?part=1")
 			}
@@ -496,7 +429,7 @@ func (p *plugin) handleComposeNew(ctx *web.Context) error {
 	}
 
 	return p.handleCompose(ctx, &OutgoingMessage{
-		From:      ownIdentity(settings, p.newDeliveryTrust(ctx.Login, settings), ctx.QueryParam("from")),
+		From:      p.ownIdentity(ctx.Login, settings, ctx.QueryParam("from")),
 		To:        strings.Split(ctx.QueryParam("to"), ","),
 		Subject:   ctx.QueryParam("subject"),
 		MessageID: newMessageID(),
@@ -570,34 +503,11 @@ func (p *plugin) handleReply(ctx *web.Context) error {
 
 // A bare link names no part, so the text part shown is fetched instead.
 func quotablePart(ctx *web.Context, path messagePath, partPath []int) (*IMAPMessage, *message.Entity, string, error) {
-	var msg *IMAPMessage
-	var part *message.Entity
-	fetch := func(p []int) error {
-		return ctx.DoIMAP(func(c *imapclient.Client) error {
-			var err error
-			msg, part, err = getShownPart(c, path.Mailbox, path.Uid, p)
-			return err
-		})
+	msg, part, mimeType, err := quotable(ctx.Request().Context(), ctx.Login, path, partPath)
+	if errors.Is(err, errNoText) {
+		return nil, nil, "", web.NewError(http.StatusBadRequest, err)
 	}
-	if len(partPath) == 0 {
-		if err := fetch(nil); err != nil {
-			return nil, nil, "", err
-		}
-		text := msg.TextPart()
-		if text == nil {
-			return nil, nil, "", web.NewError(http.StatusBadRequest,
-				fmt.Errorf("message has no text part to quote"))
-		}
-		partPath = text.Path
-	}
-	if err := fetch(partPath); err != nil {
-		return nil, nil, "", err
-	}
-	mimeType, _, err := part.Header.ContentType()
-	if err != nil {
-		return nil, nil, "", fmt.Errorf("failed to parse part Content-Type: %v", err)
-	}
-	return msg, part, mimeType, nil
+	return msg, part, mimeType, err
 }
 
 func (p *plugin) populateMessageFromOriginalMessage(ctx *web.Context, inReplyToPath messagePath) (OutgoingMessage, error) {
@@ -655,8 +565,7 @@ func (p *plugin) populateMessageFromOriginalMessage(ctx *web.Context, inReplyToP
 	ret.InReplyTo = "<" + inReplyTo.Envelope.MessageID + ">"
 	ret.References = strings.TrimSpace(inReplyTo.References + " " + ret.InReplyTo)
 	// A mail to an identity is answered by that identity; Cc counts too.
-	ret.From = writeAs(settings, p.newDeliveryTrust(ctx.Login, settings),
-		inReplyTo, inReplyTo.Envelope.To, inReplyTo.Envelope.Cc)
+	ret.From = p.replyIdentity(ctx.Login, settings, inReplyTo)
 	replyTo := inReplyTo.Envelope.ReplyTo
 	if len(replyTo) == 0 {
 		replyTo = inReplyTo.Envelope.From
@@ -707,31 +616,14 @@ func forwardHTML(ctx *web.Context, original *IMAPMessage, body string) template.
 }
 
 func (p *plugin) quotedHTML(ctx *web.Context, path messagePath, msg *IMAPMessage) (string, error) {
-	node := msg.HTMLPart()
-	if node == nil {
-		return "", nil
-	}
-	var raw []byte
-	err := ctx.DoIMAP(func(c *imapclient.Client) error {
-		var (
-			part *message.Entity
-			err  error
-		)
-		if pieces := msg.HTMLPieces(node.Path); pieces != nil {
-			part, err = joinedHTML(c, path.Mailbox, path.Uid, pieces)
-		} else {
-			_, part, err = getShownPart(c, path.Mailbox, path.Uid, node.Path)
-		}
-		if err != nil {
-			return err
-		}
-		raw, err = io.ReadAll(part.Body)
-		return err
+	raw := ctx.Path("mail.message.raw", msg.Mailbox, msg.UID)
+	quoted, err := quotedHTML(ctx.Request().Context(), ctx.Login, path, msg, func(part *IMAPPartNode) string {
+		return raw + part.Query(ctx.Login.Username())
 	})
-	if err != nil {
+	if err != nil || quoted == "" {
 		return "", err
 	}
-	return composedHTML(p.composed, localImages(string(raw), ctx.Path("mail.message.raw", msg.Mailbox, msg.UID), msg, ctx.Login.Username())), nil
+	return composedHTML(p.composed, quoted), nil
 }
 
 func addressLine(a imap.Address) string {
@@ -823,7 +715,7 @@ func (p *plugin) handleForwardAttached(ctx *web.Context) error {
 	}
 	var msg OutgoingMessage
 	if ctx.Request().Method == http.MethodGet {
-		if err := attachedNames(ctx, &msg, paths); err != nil {
+		if err := attachMessages(ctx.Request().Context(), ctx.Login, &msg, paths); err != nil {
 			return err
 		}
 		msg.MessageID = newMessageID()

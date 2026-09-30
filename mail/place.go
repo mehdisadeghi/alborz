@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"slices"
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/mail/search"
@@ -14,24 +15,24 @@ import (
 	"github.com/emersion/go-message/textproto"
 )
 
-type listPlace struct {
-	newer, older    imap.UID
-	position, total int
+type Place struct {
+	Newer, Older    imap.UID
+	Position, Total int
 }
 
 // messageList is the order a message's list is cut from, and whether that is the folder's own.
-func messageList(mailbox string, l folderList) (order string, own bool) {
-	if l.sort == threadSort {
-		return orderView(mailbox, l.query, l.view, threadSort, true), false
+func messageList(mailbox string, l ListAsk) (order string, own bool) {
+	if l.Sort == threadSort {
+		return orderView(mailbox, l.Query, l.View, threadSort, true), false
 	}
 	sortKey, reverse := l.order()
-	return orderView(mailbox, l.query, l.view, sortKey, reverse), l.query == "" && l.view == "" && sortKey == "" && reverse
+	return orderView(mailbox, l.Query, l.View, sortKey, reverse), l.Query == "" && l.View == "" && sortKey == "" && reverse
 }
 
 // A narrowed, sorted or threaded list places the message in its held order; the folder's own, in its held pages.
-func (p *plugin) cachedPlace(user, mailbox string, uid imap.UID, l folderList, perPage int) (cached *listingEntry, place listPlace, placed bool) {
+func (p *plugin) cachedPlace(user, mailbox string, uid imap.UID, l ListAsk) (cached *listingEntry, place Place, placed bool) {
 	sortKey, _ := l.order()
-	cached, place, placed = p.listings.message(user, listingView(mailbox, l.query, l.view, sortKey, l.dir), uid, perPage)
+	cached, place, placed = p.listings.message(user, listingView(mailbox, l.Query, l.View, sortKey, l.Dir), uid, l.Page.Size)
 	if order, own := messageList(mailbox, l); !own {
 		if o, ok := p.listings.heldOrder(user, order); ok {
 			return cached, placeIn(o.uids, uid), true
@@ -40,27 +41,27 @@ func (p *plugin) cachedPlace(user, mailbox string, uid imap.UID, l folderList, p
 	return cached, place, placed
 }
 
-func (p *plugin) placeInList(c *imapclient.Client, user string, settings *Settings, mailbox string, uid imap.UID, l folderList) (listPlace, error) {
+func (p *plugin) placeInList(c *imapclient.Client, user string, settings *Settings, mailbox string, uid imap.UID, l ListAsk) (Place, error) {
 	if err := ensureMailboxSelected(c, mailbox); err != nil {
-		return listPlace{}, err
+		return Place{}, err
 	}
 	order, own := messageList(mailbox, l)
 	algorithm := ThreadAlgorithm(c)
-	threaded := l.sort == threadSort
+	threaded := l.Sort == threadSort
 	if own || threaded && algorithm == "" {
 		return folderNeighbors(c, uid)
 	}
 	o, err := p.listings.order(user, order, func() (messageOrder, error) {
-		criteria := listCriteria(c, settings, l.query, l.view)
+		criteria := listCriteria(c, settings, l.Query, l.View)
 		if threaded {
 			return threadOrder(c, algorithm, criteria)
 		}
 		sortKey, reverse := l.order()
-		uids, err := viewOrder(c, search.Parse(l.query), criteria, sortKey, reverse)
+		uids, err := viewOrder(c, search.Parse(l.Query), criteria, sortKey, reverse)
 		return messageOrder{uids: uids}, err
 	})
 	if err != nil {
-		return listPlace{}, err
+		return Place{}, err
 	}
 	return placeIn(o.uids, uid), nil
 }
@@ -80,32 +81,32 @@ func readThread(log *log.Logger, c *imapclient.Client, mailbox, sent string, msg
 	return parent, answers
 }
 
-// messageAround is what a message's navigation shows: the message, its place in its list and its thread.
-type messageAround struct {
-	msg             *IMAPMessage
-	place           listPlace
-	threadSupported bool
-	inReplyTo       *ThreadNeighbour
-	answers         []ThreadNeighbour
+// Around is what a message's navigation shows: the message, its place in its list and its thread.
+type Around struct {
+	Message         *IMAPMessage
+	Place           Place
+	ThreadSupported bool
+	InReplyTo       *ThreadNeighbour
+	Answers         []ThreadNeighbour
 }
 
-// around reads a message's navigation, from the listing held where it can; merged says its list is read
+// Around reads a message's navigation, from the listing held where it can; merged says its list is read
 // elsewhere, and sb gets the folder's counts where it lacks them.
-func (p *plugin) around(ctx context.Context, login *alborz.Login, settings *Settings, sb *sidebar, mailbox string, uid imap.UID, list folderList, perPage int, merged bool) (messageAround, error) {
-	var a messageAround
-	cached, place, placed := p.cachedPlace(login.Username(), mailbox, uid, list, perPage)
+func (p *plugin) Around(ctx context.Context, login *alborz.Login, settings *Settings, sb *Rail, mailbox string, uid imap.UID, list ListAsk, merged bool) (Around, error) {
+	var a Around
+	cached, place, placed := p.cachedPlace(login.Username(), mailbox, uid, list)
 	if merged {
-		place, placed = listPlace{}, true
+		place, placed = Place{}, true
 	}
 	if cached != nil {
-		a.msg = cached.row(uid)
-		a.threadSupported = cached.threadAlgorithm != ""
+		a.Message = cached.row(uid)
+		a.ThreadSupported = cached.threadAlgorithm != ""
 	}
 	err := login.DoIMAPContext(ctx, alborz.RoundTripTimeout, func(c *imapclient.Client) error {
 		if err := ensureMailboxSelected(c, mailbox); err != nil {
 			return err
 		}
-		if a.msg == nil {
+		if a.Message == nil {
 			header := &imap.FetchItemBodySection{Peek: true, Specifier: imap.PartSpecifierHeader,
 				HeaderFields: []string{"References", "List-Id"}}
 			msgs, err := c.Fetch(imap.UIDSetNum(uid), &imap.FetchOptions{UID: true, Envelope: true,
@@ -120,7 +121,7 @@ func (p *plugin) around(ctx context.Context, login *alborz.Login, settings *Sett
 			if h, err := textproto.ReadHeader(bufio.NewReader(bytes.NewReader(msgs[0].FindBodySection(header)))); err == nil {
 				msg.setListHeaders(h)
 			}
-			a.msg = msg
+			a.Message = msg
 		}
 		if !placed {
 			var err error
@@ -128,17 +129,63 @@ func (p *plugin) around(ctx context.Context, login *alborz.Login, settings *Sett
 				return err
 			}
 		}
-		a.threadSupported = ThreadAlgorithm(c) != ""
-		a.inReplyTo, a.answers = readThread(p.server.Logger(), c, mailbox, sentFolder(sb.mailboxes), a.msg)
-		if sb.active == nil {
+		a.ThreadSupported = ThreadAlgorithm(c) != ""
+		a.InReplyTo, a.Answers = readThread(p.server.Logger(), c, mailbox, sentFolder(sb.Mailboxes), a.Message)
+		if sb.Active == nil {
 			st, err := c.Status(mailbox, listingStatusOptions(c)).Wait()
 			if err != nil {
 				return err
 			}
-			sb.active = &MailboxStatus{StatusData: st}
+			sb.Active = &MailboxStatus{StatusData: st}
 		}
 		return nil
 	})
-	a.place = place
+	a.Place = place
 	return a, err
+}
+
+// Origin is a list spanning accounts or folders that a message was opened from: a merged folder, or a search.
+type Origin struct {
+	Role   string
+	Search bool
+	Logins []*alborz.Login
+	Ask    ListAsk
+}
+
+// Beside places a message among the rows of the list it was opened from, reading once a page further
+// where it is the last row read. position counts from one, and is zero where the list lacks the
+// message; down names the accounts whose servers did not answer.
+func (p *plugin) Beside(ctx context.Context, settings *Settings, o Origin, account, mailbox string, uid imap.UID) (prev, next *IMAPMessage, position, total int, down []string, err error) {
+	ask := o.Ask
+	for read := range 2 {
+		var e *listingEntry
+		var more []string
+		if o.Search {
+			e, more, err = p.searchWindow(ctx, o.Logins, ask, settings)
+		} else {
+			e, _, more, err = p.mergedWindow(ctx, o.Logins, o.Role, ask, settings, true)
+		}
+		if err != nil {
+			return nil, nil, 0, 0, down, err
+		}
+		down = append(down, more...)
+		i := slices.IndexFunc(e.msgs, func(r IMAPMessage) bool {
+			return r.Account == account && r.Mailbox == mailbox && r.UID == uid
+		})
+		if i < 0 {
+			return nil, nil, 0, 0, down, nil
+		}
+		prev, next, position, total = nil, nil, i+1, e.total
+		if i > 0 {
+			prev = &e.msgs[i-1]
+		}
+		if i+1 < len(e.msgs) {
+			next = &e.msgs[i+1]
+		}
+		if next != nil || len(e.msgs) >= e.total || read > 0 {
+			break
+		}
+		ask.Page.Number = len(e.msgs) / ask.Page.Size
+	}
+	return prev, next, position, total, down, nil
 }

@@ -3,6 +3,7 @@ package mail
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"sync"
@@ -18,8 +19,8 @@ import (
 // mergedWindow is a merged folder's rows up to the page asked, merged as its
 // page is; found is false where every account answered without the folder.
 // down are the accounts whose servers did not answer.
-func (p *plugin) mergedWindow(ctx context.Context, logins []*alborz.Login, role string, ask listAsk, settings *Settings, cacheable bool) (merged *listingEntry, found bool, down []string, err error) {
-	spec := ask.spec
+func (p *plugin) mergedWindow(ctx context.Context, logins []*alborz.Login, role string, ask ListAsk, settings *Settings, cacheable bool) (merged *listingEntry, found bool, down []string, err error) {
+	spec := ask.spec("")
 	key := listingView("#"+role, spec.query, spec.view, spec.sortKey, spec.sortDir)
 	class, bound := listingBudget(spec)
 	// Every account that answered lacking the folder is a folder that is not there.
@@ -36,7 +37,7 @@ func (p *plugin) mergedWindow(ctx context.Context, logins []*alborz.Login, role 
 		user := s.Username()
 		size := ask.held(p.listings.heldSize(user, key))
 		fields := mergeFetchOptions
-		if size == ask.page.Size {
+		if size == ask.Page.Size {
 			fields = listFetchOptions
 		}
 		folder := func(c *imapclient.Client) (string, error) { return p.resolveRole(c, user, role) }
@@ -60,12 +61,12 @@ func (p *plugin) mergedWindow(ctx context.Context, logins []*alborz.Login, role 
 }
 
 // Rounded up to a power of two so a walk through n pages refetches log n times (ADR 46).
-func (ask listAsk) held(have int) int {
+func (ask ListAsk) held(have int) int {
 	pages := 1
-	for pages < ask.page.Number+1 {
+	for pages < ask.Page.Number+1 {
 		pages *= 2
 	}
-	return max(pages*ask.page.Size, have)
+	return max(pages*ask.Page.Size, have)
 }
 
 // A row that could not be fetched is left off rather than shown without its marks.
@@ -269,23 +270,120 @@ func everywhereQuery(query string) string {
 	return strings.TrimSpace(q.Without(search.In) + " " + search.In + ":" + search.Everywhere)
 }
 
-type listAsk struct {
-	page alborz.Page
-	spec listingSpec
+// ListAsk is the page of a list an address asks for, narrowed and ordered as it says.
+type ListAsk struct {
+	Page                   alborz.Page
+	Query, View, Sort, Dir string
+	// Thread is one conversation of a folder, asked for alone; zero for the whole folder.
+	Thread imap.UID
 }
 
-// folderList is the folder's list a message was opened from, as the message's address names it.
-type folderList struct{ query, view, sort, dir string }
+func (a ListAsk) spec(folder string) listingSpec {
+	return listingSpec{mbox: folder, query: a.Query, view: a.View, sortKey: a.Sort, sortDir: a.Dir, thread: a.Thread}
+}
+
+// Descending says the list runs from its last row: as asked, else as its order runs by default.
+func (a ListAsk) Descending() bool { return a.spec("").reverse() }
+
+// KnownSort says whether a list can be ordered by key.
+func KnownSort(key string) bool {
+	_, ok := sortKeys[key]
+	return ok
+}
+
+// Listing is a page of a list as its page shows it.
+type Listing struct {
+	Rows  []IMAPMessage
+	Page  alborz.Page
+	Total int
+	// HeadersOnly says a search's bare terms reached only the headers.
+	HeadersOnly     bool
+	SortSupported   bool
+	ThreadAlgorithm imap.ThreadAlgorithm
+	// Rail is the account's folders beside a folder's list; empty beside one spanning accounts.
+	Rail Rail
+}
+
+// Folder is one page of a folder's list; cached lets it answer from what is held, and read ahead the
+// bodies of its rows and the next page.
+func (p *plugin) Folder(ctx context.Context, login *alborz.Login, settings *Settings, folder string, ask ListAsk, cached, preferHTML bool) (*Listing, error) {
+	spec := ask.spec(folder)
+	key := listingView(folder, spec.query, spec.view, spec.sortKey, spec.sortDir)
+	if spec.thread != 0 {
+		key = fmt.Sprintf("%s%sthread=%d", key, listingSep, spec.thread)
+	}
+	key = listingPage(key, ask.Page.Number, ask.Page.Size)
+	fetch := func(c *imapclient.Client) (*listingEntry, error) {
+		return p.fetchListing(c, login.Username(), spec, settings, ask.Page)
+	}
+	var e *listingEntry
+	var err error
+	if cached {
+		e, err = p.cachedListing(ctx, login, key, ask.Page.Size, spec,
+			func(*imapclient.Client) (string, error) { return folder, nil }, fetch)
+	} else {
+		e, err = p.loadListing(ctx, login, key, ask.Page.Size, spec, fetch)
+	}
+	if err != nil {
+		return nil, err
+	}
+	sb, msgs := p.railFor(login, folder, e.sb), e.msgs
+	page := alborz.Page{Number: e.page, Size: e.perPage}
+	// Bodies are fetched behind the page, so the next click asks the server nothing.
+	if cached {
+		p.prefetchBodies(login, preferHTML, folder, e.validity(), e.msgs)
+		if spec.sortKey != threadSort && spec.thread == 0 && page.Window() < e.total {
+			p.prefetchPage(login, settings, spec, alborz.Page{Number: page.Number + 1, Size: page.Size})
+		}
+	}
+	trust := p.newDeliveryTrust(login, settings)
+	for i := range msgs {
+		msgs[i].Alias = trust.alias(&msgs[i])
+	}
+	return &Listing{Rows: msgs, Page: page, Total: e.total, HeadersOnly: e.headersOnly, SortSupported: e.sortSupported,
+		ThreadAlgorithm: e.threadAlgorithm, Rail: sb}, nil
+}
+
+// Merged is one page of a merged folder: a role's folder in every account, or a folder by name in the
+// accounts that hold it. found is false where every account answered without it; down names the
+// accounts whose servers did not answer.
+func (p *plugin) Merged(ctx context.Context, logins []*alborz.Login, settings *Settings, role string, ask ListAsk, cached bool) (l *Listing, found bool, down []string, err error) {
+	window, found, down, err := p.mergedWindow(ctx, logins, role, ask, settings, cached)
+	if err != nil || !found {
+		return nil, found, down, err
+	}
+	spec := ask.spec("")
+	class, bound := listingBudget(spec)
+	page, cut := cutPage(window, ask.Page)
+	rows, more, err := p.wholePage(ctx, logins, role, listingView("#"+role, spec.query, spec.view, spec.sortKey, spec.sortDir), cut, class, bound)
+	if err != nil {
+		return nil, true, down, err
+	}
+	return &Listing{Rows: rows, Page: page, Total: window.total, HeadersOnly: window.headersOnly,
+		SortSupported: window.sortSupported}, true, append(down, more...), nil
+}
+
+// Search is one page of a search's rows, from every folder it spans; down names the accounts whose
+// servers did not answer.
+func (p *plugin) Search(ctx context.Context, logins []*alborz.Login, settings *Settings, ask ListAsk) (*Listing, []string, error) {
+	window, down, err := p.searchWindow(ctx, logins, ask, settings)
+	if err != nil {
+		return nil, nil, err
+	}
+	page, rows := cutPage(window, ask.Page)
+	return &Listing{Rows: rows, Page: page, Total: window.total, HeadersOnly: window.headersOnly,
+		SortSupported: window.sortSupported}, down, nil
+}
 
 // An order the server cannot sort by is no order at all here.
-func (l folderList) order() (sortKey string, reverse bool) {
-	sortKey = l.sort
+func (l ListAsk) order() (sortKey string, reverse bool) {
+	sortKey = l.Sort
 	if _, ok := sortKeys[sortKey]; !ok || sortKey == threadSort {
 		return "", true
 	}
 	reverse = sortKeys[sortKey].descends
-	if l.dir != "" {
-		reverse = l.dir == "desc"
+	if l.Dir != "" {
+		reverse = l.Dir == "desc"
 	}
 	return sortKey, reverse
 }
@@ -302,7 +400,7 @@ func (p *plugin) fetchListing(c *imapclient.Client, user string, spec listingSpe
 	if e.sb, err = load.finish(); err != nil {
 		return nil, err
 	}
-	e.snap = e.sb.active.StatusData
+	e.snap = e.sb.Active.StatusData
 	return e, nil
 }
 
@@ -372,7 +470,7 @@ func outgoingFolder(mailboxes []MailboxInfo, name string) bool {
 func folderRole(mailboxes []MailboxInfo, name string) string {
 	for i := range mailboxes {
 		if mailboxes[i].Name() == name {
-			return mailboxes[i].role()
+			return mailboxes[i].Role()
 		}
 	}
 	return ""
@@ -387,7 +485,7 @@ func searchFolders(mailboxes []MailboxInfo, q search.Query) []string {
 		if mbox.IsInternal() || slices.ContainsFunc(excluded, func(name string) bool { return folderNamed(mbox, name) }) {
 			continue
 		}
-		role := mbox.role()
+		role := mbox.Role()
 		switch {
 		case named != "":
 			if !folderNamed(mbox, named) {
@@ -402,27 +500,27 @@ func searchFolders(mailboxes []MailboxInfo, q search.Query) []string {
 }
 
 func folderNamed(mbox *MailboxInfo, named string) bool {
-	role := mbox.role()
+	role := mbox.Role()
 	last := mbox.Name()[strings.LastIndex(mbox.Name(), string(mbox.Delim))+1:]
 	return strings.EqualFold(named, role) || strings.EqualFold(named, mbox.Name()) || strings.EqualFold(named, last) ||
 		(role == "junk" && strings.EqualFold(named, "spam"))
 }
 
 // searchWindow is a search's rows up to the page asked, from every folder it spans, merged as its page is.
-func (p *plugin) searchWindow(ctx context.Context, logins []*alborz.Login, ask listAsk, settings *Settings) (*listingEntry, []string, error) {
-	spec := ask.spec
+func (p *plugin) searchWindow(ctx context.Context, logins []*alborz.Login, ask ListAsk, settings *Settings) (*listingEntry, []string, error) {
+	spec := ask.spec("")
 	q := search.Parse(spec.query)
 	class, bound := listingBudget(spec)
 	return p.gather(ctx, logins, spec, func(s *alborz.Login) (*listingEntry, error) {
-		sb, err := p.sidebarFor(s)
+		sb, err := p.Rail(s)
 		if err != nil {
 			return nil, err
 		}
 		// One turn per folder, so the account's other pages are served between them.
 		found := &listingEntry{sortSupported: true}
-		for _, folder := range searchFolders(sb.mailboxes, q) {
+		for _, folder := range searchFolders(sb.Mailboxes, q) {
 			e, err := readOn(s, class, bound, func(c *imapclient.Client) (*listingEntry, error) {
-				return p.fetchUnifiedAccount(c, s.Username(), folder, spec, settings, ask.page.Window(), listFetchOptions, false)
+				return p.fetchUnifiedAccount(c, s.Username(), folder, spec, settings, ask.Page.Window(), listFetchOptions, false)
 			})(ctx)
 			if err != nil {
 				return nil, err

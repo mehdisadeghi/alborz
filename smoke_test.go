@@ -51,8 +51,7 @@ func TestPagesAnswer(t *testing.T) {
 	var nestedParts []string
 	for _, uid := range nestedUIDs {
 		page := c.Page(t, "mail.message", "INBOX/Lists", uid)
-		nestedParts = append(nestedParts, rawPartHrefs(a, page)...)
-		nestedParts = append(nestedParts, rawPartSrcs(a, page)...)
+		nestedParts = append(nestedParts, a.RawParts(page)...)
 	}
 	if len(nestedParts) == 0 {
 		t.Fatal("no downloadable part in the nested folder; the escaping is unchecked")
@@ -80,26 +79,6 @@ func TestPagesAnswer(t *testing.T) {
 		path := a.Path(p[0].(string), p[1:]...)
 		t.Run(path, func(t *testing.T) { c.Follow(t, path) })
 	}
-}
-
-// The escaping under test is the page's, not the test's.
-func rawPartHrefs(a *App, body string) []string {
-	var out []string
-	for _, m := range regexp.MustCompile(`href="(`+a.Pattern("mail.message.raw", `[^"/]*`, `[^"/]*`)+
-		`\?[^"]*)"`).FindAllStringSubmatch(body, -1) {
-		out = append(out, strings.ReplaceAll(m[1], "&amp;", "&"))
-	}
-	return out
-}
-
-// The srcdoc arrives attribute-escaped.
-func rawPartSrcs(a *App, body string) []string {
-	var out []string
-	for _, m := range regexp.MustCompile(`src="(`+a.Pattern("mail.message.raw", `[^"/]*`, `[^"/]*`)+
-		`\?[^"]*)"`).FindAllStringSubmatch(html.UnescapeString(body), -1) {
-		out = append(out, m[1])
-	}
-	return out
 }
 
 // A sign-in goes on to the page that asked for it, and never off the site.
@@ -469,23 +448,23 @@ func TestSendHTMLFollowsWhatWasWritten(t *testing.T) {
 
 	compose := func() string { return c.Page(t, "mail.compose") }
 
-	sendFrom(t, c, compose(), url.Values{"text": {"Hello."}, "html": {"<p>Hello.</p>"}}, "mail.compose")
+	c.Send(t, compose(), url.Values{"text": {"Hello."}, "html": {"<p>Hello.</p>"}}, "mail.compose")
 	if !strings.Contains(smtp.Last(), "text/html") {
 		t.Errorf("a message written in the editor went out without its HTML:\n%s", headOf(smtp.Last()))
 	}
 
-	sendFrom(t, c, compose(), url.Values{"text": {"Hello.\n\nEnglish only."}}, "mail.compose")
+	c.Send(t, compose(), url.Values{"text": {"Hello.\n\nEnglish only."}}, "mail.compose")
 	if strings.Contains(smtp.Last(), "multipart/alternative") {
 		t.Errorf("left-to-right plain text was sent with an HTML part:\n%s", headOf(smtp.Last()))
 	}
 
-	sendFrom(t, c, compose(), nil, "mail.compose")
+	c.Send(t, compose(), nil, "mail.compose")
 	if !strings.Contains(smtp.Last(), "multipart/alternative") {
 		t.Errorf("right-to-left plain text was sent with no direction:\n%s", headOf(smtp.Last()))
 	}
 
 	reply := []any{"INBOX", listUID, url.Values{"part": {"1"}}}
-	sendFrom(t, c, c.Page(t, "mail.message.reply", reply...), nil, "mail.message.reply", reply...)
+	c.Send(t, c.Page(t, "mail.message.reply", reply...), nil, "mail.message.reply", reply...)
 	if strings.Contains(smtp.Last(), "multipart/alternative") {
 		t.Errorf("a reply to list mail carried an HTML part:\n%s", headOf(smtp.Last()))
 	}
@@ -501,7 +480,7 @@ func TestSendHTMLFollowsWhatWasWritten(t *testing.T) {
 	if strings.Contains(c.Page(t, "settings.profile"), ticked) {
 		t.Fatal("the settings page still shows the direction part on")
 	}
-	sendFrom(t, c, compose(), url.Values{"subject": {"turned off"}}, "mail.compose")
+	c.Send(t, compose(), url.Values{"subject": {"turned off"}}, "mail.compose")
 	if !strings.Contains(smtp.Last(), "Subject: turned off") {
 		t.Fatalf("the message sent with the part turned off never arrived:\n%s", headOf(smtp.Last()))
 	}
@@ -519,7 +498,7 @@ func TestSendingAsAnotherAccountKeepsItsDraft(t *testing.T) {
 
 	first := url.Values{"account": {User}}
 	second := url.Values{"account": {User2}}
-	sendFrom(t, c, c.Page(t, "mail.compose", first), url.Values{"save_as_draft": {"1"}}, "mail.compose", first)
+	c.Send(t, c.Page(t, "mail.compose", first), url.Values{"save_as_draft": {"1"}}, "mail.compose", first)
 	drafts := MessageUIDs(c.Page(t, "mail.mailbox", "Drafts", first))
 	if len(drafts) != 1 {
 		t.Fatalf("the draft was not saved on the first account; found %d", len(drafts))
@@ -529,7 +508,7 @@ func TestSendingAsAnotherAccountKeepsItsDraft(t *testing.T) {
 	}
 
 	edit := []any{"Drafts", drafts[0], url.Values{"part": {"1"}, "account": {User}}}
-	sendFrom(t, c, c.Page(t, "mail.message.edit", edit...), url.Values{"from_account": {User2}}, "mail.message.edit", edit...)
+	c.Send(t, c.Page(t, "mail.message.edit", edit...), url.Values{"from_account": {User2}}, "mail.message.edit", edit...)
 
 	if !strings.Contains(smtp.Last(), "From: <"+User2+">") {
 		t.Errorf("the message did not leave as the chosen account:\n%s", headOf(smtp.Last()))
@@ -548,7 +527,7 @@ func TestSendingAsAnotherAccountKeepsItsDraft(t *testing.T) {
 func TestReopenedDraftKeepsItsLines(t *testing.T) {
 	c := Alborz(t).SignIn(t, User)
 	text := strings.Repeat("A paragraph long enough to be wrapped when saved. ", 4) + "End."
-	sendFrom(t, c, c.Page(t, "mail.compose"), url.Values{"save_as_draft": {"1"}, "text": {text}}, "mail.compose")
+	c.Send(t, c.Page(t, "mail.compose"), url.Values{"save_as_draft": {"1"}, "text": {text}}, "mail.compose")
 	drafts := MessageUIDs(c.Page(t, "mail.mailbox", "Drafts"))
 	if len(drafts) != 1 {
 		t.Fatalf("want one draft, found %d", len(drafts))
@@ -588,13 +567,13 @@ func TestSavingADraftLeavesOthersDeletedMessages(t *testing.T) {
 			}
 			ours := &imap.SearchCriteria{Header: []imap.SearchCriteriaHeaderField{{Key: "Subject", Value: "direction"}}}
 
-			sendFrom(t, c, c.Page(t, "mail.compose"), url.Values{"save_as_draft": {"1"}}, "mail.compose")
+			c.Send(t, c.Page(t, "mail.compose"), url.Values{"save_as_draft": {"1"}}, "mail.compose")
 			first := drafts(ours)
 			if len(first) != 1 {
 				t.Fatalf("want the saved draft, found %d", len(first))
 			}
 			edit := []any{"Drafts", first[0], url.Values{"part": {"1"}}}
-			sendFrom(t, c, c.Page(t, "mail.message.edit", edit...), url.Values{"save_as_draft": {"1"}}, "mail.message.edit", edit...)
+			c.Send(t, c.Page(t, "mail.message.edit", edit...), url.Values{"save_as_draft": {"1"}}, "mail.message.edit", edit...)
 
 			if n := len(drafts(&imap.SearchCriteria{Header: []imap.SearchCriteriaHeaderField{{Key: "Subject", Value: "discarded elsewhere"}}})); n != 1 {
 				t.Errorf("another client's deleted message was expunged")
@@ -691,7 +670,7 @@ func TestRefusedSendKeepsItsUploads(t *testing.T) {
 		t.Fatalf("upload: %s, %v, %v", resp.Status, uploads, err)
 	}
 
-	resp = postCompose(t, c, c.Page(t, "mail.compose"),
+	resp = c.Compose(t, c.Page(t, "mail.compose"),
 		url.Values{"to": {"refused@example.org"}, "subject": {"kept"}, "attachment-uuids": {uploads[0].ID}}, "mail.compose")
 	if resp.StatusCode != http.StatusUnprocessableEntity {
 		t.Fatalf("a refused recipient was answered with %s", resp.Status)
@@ -701,7 +680,7 @@ func TestRefusedSendKeepsItsUploads(t *testing.T) {
 		t.Fatalf("the refused form holds upload %q, want %q", kept, uploads[0].ID)
 	}
 
-	sendFrom(t, c, resp.Text, url.Values{"subject": {"kept"}, "attachment-uuids": {kept}}, "mail.compose")
+	c.Send(t, resp.Text, url.Values{"subject": {"kept"}, "attachment-uuids": {kept}}, "mail.compose")
 	got := smtp.Last()
 	if !strings.Contains(got, "Subject: kept") {
 		t.Fatalf("the retry was not sent:\n%s", headOf(got))
@@ -722,7 +701,7 @@ func TestPastedImageTravelsBesideTheHTML(t *testing.T) {
 		t.Fatalf("upload: %s, %v, %v", resp.Status, uploads, err)
 	}
 
-	sendFrom(t, c, c.Page(t, "mail.compose"), url.Values{"subject": {"pasted"},
+	c.Send(t, c.Page(t, "mail.compose"), url.Values{"subject": {"pasted"},
 		"html": {`<p>Look: <img src="` + uploads[0].Src + `" alt="shot.png"></p>`}}, "mail.compose")
 	got := smtp.Last()
 	if !strings.Contains(got, "Subject: pasted") {
@@ -1259,7 +1238,7 @@ func TestForwardLeavesAsTheSentCopyKeepsIt(t *testing.T) {
 	if !strings.Contains(page, `name="prev_attachments" value="2"`) {
 		t.Fatal("the forward does not offer the original's file")
 	}
-	sendFrom(t, c, page, url.Values{"prev_attachments": {"2"}, "attached_messages": {fmt.Sprintf("INBOX/%d", uid)}},
+	c.Send(t, page, url.Values{"prev_attachments": {"2"}, "attached_messages": {fmt.Sprintf("INBOX/%d", uid)}},
 		"mail.message.forward", forward...)
 	out := smtp.Last()
 	if len(out) < 2*len(file) {
@@ -1359,7 +1338,7 @@ func TestForwardedImageTravelsBesideTheHTML(t *testing.T) {
 	if !strings.HasSuffix(src, "part=2") {
 		t.Fatalf("the forward does not show the original's image: %q", src)
 	}
-	sendFrom(t, c, page, url.Values{"html": {`<p>Look:</p><p><img src="` + html.EscapeString(src) + `"></p>`}},
+	c.Send(t, page, url.Values{"html": {`<p>Look:</p><p><img src="` + html.EscapeString(src) + `"></p>`}},
 		"mail.message.forward", forward...)
 
 	e, err := message.Read(strings.NewReader(smtp.Last()))
@@ -1409,7 +1388,7 @@ func TestAttachedMessageTravelsAsItsBytesAllow(t *testing.T) {
 			a := Alborz(t, WithSMTP(smtp))
 			uid := a.IMAP.Append(t, "INBOX", tc.original)
 			c := a.SignIn(t, User)
-			sendFrom(t, c, c.Page(t, "mail.compose"), url.Values{"attached_messages": {fmt.Sprintf("INBOX/%d", uid)}}, "mail.compose")
+			c.Send(t, c.Page(t, "mail.compose"), url.Values{"attached_messages": {fmt.Sprintf("INBOX/%d", uid)}}, "mail.compose")
 			out := smtp.Last()
 			if out == "" {
 				t.Fatal("nothing left")
@@ -1457,7 +1436,7 @@ func TestUnreadableOriginalIsNotASendRefusal(t *testing.T) {
 	a := Alborz(t, WithIMAP(IMAP(t, Caps(imap.CapIMAP4rev1), FailWholeFetch())), WithSMTP(smtp))
 	uid := a.IMAP.Append(t, "INBOX", "From: <eve@example.org>\r\nSubject: Gone\r\n\r\nBody.\r\n")
 	c := a.SignIn(t, User)
-	resp := postCompose(t, c, c.Page(t, "mail.compose"), url.Values{"attached_messages": {fmt.Sprintf("INBOX/%d", uid)}}, "mail.compose")
+	resp := c.Compose(t, c.Page(t, "mail.compose"), url.Values{"attached_messages": {fmt.Sprintf("INBOX/%d", uid)}}, "mail.compose")
 	if resp.StatusCode != http.StatusUnprocessableEntity {
 		t.Fatalf("an unreadable original answered %s, want 422", resp.Status)
 	}
@@ -1573,38 +1552,11 @@ func TestNextStaysOnTheSite(t *testing.T) {
 	}
 }
 
-// sendFrom sends the compose form page shows to the route, with fields changed; it must be taken.
-func sendFrom(t *testing.T, c *Client, page string, fields url.Values, route string, args ...any) {
-	t.Helper()
-	if resp := postCompose(t, c, page, fields, route, args...); resp.StatusCode >= 400 {
-		t.Fatalf("composing at %s: %s", route, resp.Status)
-	}
-}
-
-// postCompose sends the compose form page shows to the route, with fields changed.
-func postCompose(t *testing.T, c *Client, page string, fields url.Values, route string, args ...any) *Response {
-	t.Helper()
-	mid := strings.NewReplacer("&lt;", "<", "&gt;", ">").Replace(Between(page, `name="message_id" value="`, `"`))
-	if mid == "" {
-		t.Fatalf("the form for %s carries no message id", route)
-	}
-	form := url.Values{
-		"message_id":  {mid},
-		"in_reply_to": {Between(page, `name="in_reply_to" value="`, `"`)},
-		"from":        {User}, "to": {"friend@example.org"},
-		"subject": {"direction"}, "text": {"سلام\n\nEnglish."},
-	}
-	for k, v := range fields {
-		form[k] = v
-	}
-	return c.Upload(t, route, form, nil, args...)
-}
-
 func TestRefusedRecipientComesBackOnTheForm(t *testing.T) {
 	smtp := SMTP(t)
 	c := Alborz(t, WithSMTP(smtp)).SignIn(t, User)
 
-	resp := postCompose(t, c, c.Page(t, "mail.compose"), url.Values{"to": {"refused@example.org"}, "subject": {"kept"}}, "mail.compose")
+	resp := c.Compose(t, c.Page(t, "mail.compose"), url.Values{"to": {"refused@example.org"}, "subject": {"kept"}}, "mail.compose")
 	if resp.StatusCode != http.StatusUnprocessableEntity {
 		t.Fatalf("a refused recipient answered %s, want 422", resp.Status)
 	}
@@ -1885,7 +1837,8 @@ func TestScopeSelectsAccounts(t *testing.T) {
 // A notice filed under an account would turn up later on something unrelated.
 func TestNoticeReachesTheReaderFromAnyScope(t *testing.T) {
 	a := Alborz(t)
-	c := bothAccounts(t, a)
+	c := a.SignIn(t, User)
+	c.SignIn(t, User2)
 	scoped := url.Values{"account": {User2}}
 	uids := MessageUIDs(c.Page(t, "mail.mailbox", "INBOX", scoped))
 	if len(uids) == 0 {
@@ -1928,7 +1881,8 @@ func perPage(t *testing.T, c *Client) string {
 
 func TestProfileReachesEveryAccount(t *testing.T) {
 	a := Alborz(t)
-	c := bothAccounts(t, a)
+	c := a.SignIn(t, User)
+	c.SignIn(t, User2)
 	if resp := c.Post(t, "settings.profile", url.Values{"messages_per_page": {"17"}}); resp.StatusCode != http.StatusFound {
 		t.Fatalf("saving the profile: %s", resp.Status)
 	}
@@ -2044,8 +1998,8 @@ func TestLongPartShowsItsStart(t *testing.T) {
 				t.Error("the page does not say the part is cut")
 			}
 			whole := a.Path("mail.message.raw", "INBOX", uid, url.Values{"part": {"1"}})
-			if !slices.Contains(rawPartHrefs(a, page), whole) {
-				t.Fatalf("no link to the whole part among %q", rawPartHrefs(a, page))
+			if !slices.Contains(a.RawParts(page), whole) {
+				t.Fatalf("no link to the whole part among %q", a.RawParts(page))
 			}
 			if body := c.Follow(t, whole); !strings.HasSuffix(body, "PARTEND\r\n") && !strings.HasSuffix(body, "<p>PARTEND</p>") {
 				t.Error("the download is not the whole part")

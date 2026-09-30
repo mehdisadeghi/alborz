@@ -319,6 +319,13 @@ func CalendarPartAt(ctx context.Context, login *alborz.Login, mboxName string, u
 	return CalendarPart(ctx, login, msg, mboxName, uid)
 }
 
+// CalendarUnreadError is a message whose calendar does not read as a scheduling message alborz handles.
+type CalendarUnreadError struct{ Err error }
+
+func (e *CalendarUnreadError) Error() string { return e.Err.Error() }
+
+func (e *CalendarUnreadError) Unwrap() error { return e.Err }
+
 // CalendarPart reads the scheduling message of a fetched mail; nil for none.
 func CalendarPart(ctx context.Context, login *alborz.Login, msg *IMAPMessage, mboxName string, uid imap.UID) (*ical.Calendar, string, error) {
 	part := invitationPart(msg)
@@ -345,7 +352,10 @@ func CalendarPart(ctx context.Context, login *alborz.Login, msg *IMAPMessage, mb
 		if len(cals) > 0 {
 			cal = cals[0]
 		}
-		return err
+		if err != nil {
+			return &CalendarUnreadError{err}
+		}
+		return nil
 	})
 	if err != nil {
 		return nil, "", err

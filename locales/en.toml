@@ -1016,6 +1016,7 @@
 "invite.superseded" = "A later answer from this attendee is already saved."
 "invite.uninvited" = "This attendee is not invited to the event."
 "invite.noinstance" = "The event has no such occurrence."
+"invite.unreadable" = "The calendar in this message could not be read: %s"
 "indicator.title" = "Warning signs"
 "indicator.twoscanners" = "Spam headers from two scanners, rspamd and SpamAssassin; only one of them is this server's."
 "indicator.score" = "Spam score in the headers: %s."

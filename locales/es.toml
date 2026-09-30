@@ -1016,6 +1016,7 @@
 "invite.superseded" = "Ya se guardó una respuesta posterior de este asistente."
 "invite.uninvited" = "Este asistente no está invitado al evento."
 "invite.noinstance" = "El evento no tiene esa repetición."
+"invite.unreadable" = "No se pudo leer el calendario de este mensaje: %s"
 "indicator.title" = "Señales de alerta"
 "indicator.twoscanners" = "Cabeceras de spam de dos escáneres, rspamd y SpamAssassin; solo uno es este servidor."
 "indicator.score" = "Puntuación de spam en las cabeceras: %s."

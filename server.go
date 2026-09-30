@@ -159,7 +159,7 @@ func New(log *log.Logger, options Options) (*Server, error) {
 	if err := s.SessionRecords.Sweep(time.Now().Add(-credentialCookieLife)); err != nil {
 		return nil, err
 	}
-	settings := openSettingsRecords(s.data, settingsKey)
+	settings := openSettingsRecords(s.data, settingsKey, s.LoginKey.Names())
 
 	s.domains = make(map[string]*domainUpstreams)
 	for _, arg := range options.Upstreams {

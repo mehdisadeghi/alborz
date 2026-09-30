@@ -2,8 +2,6 @@ package dav
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -42,10 +40,12 @@ const (
 // Mirror keeps a copy of each remote collection an account reads, in step with its server (ADR 53).
 // A nil Mirror keeps nothing: every read goes to the server.
 type Mirror struct {
-	db   kv.DB
-	key  *seal.Key
-	wire wire
-	poll time.Duration
+	db  kv.DB
+	key *seal.Key
+	// names turns accounts, principals, collections and objects into the file's keys.
+	names seal.Names
+	wire  wire
+	poll  time.Duration
 	// gone hears of an account's collection its server says is not there, for the listing to follow.
 	gone func(account string)
 
@@ -132,16 +132,13 @@ type object struct {
 	Data       []byte
 }
 
-// Every key part is hashed so the file names nobody.
+// Every key part is a keyed name, so the file names nobody to whoever lacks the login key.
 const owner = "dav.mirror"
 
-func hashed(s string) string {
-	sum := sha256.Sum256([]byte(s))
-	return hex.EncodeToString(sum[:16])
+func (m *Mirror) heldKey(u, coll string) string { return owner + "/held/" + u + "/" + m.names.Of(coll) }
+func (m *Mirror) objectsKey(u, coll string) string {
+	return owner + "/objects/" + u + "/" + m.names.Of(coll) + "/"
 }
-
-func heldKey(u, coll string) string    { return owner + "/held/" + u + "/" + hashed(coll) }
-func objectsKey(u, coll string) string { return owner + "/objects/" + u + "/" + hashed(coll) + "/" }
 
 // OpenMirror opens the kind's copies in dir; round keeps them in step.
 func OpenMirror(dir string, kind Kind, root seal.Root, gone func(account string)) (*Mirror, error) {
@@ -158,7 +155,7 @@ func OpenMirror(dir string, kind Kind, root seal.Root, gone func(account string)
 		return nil, err
 	}
 	key := root.Key(owner)
-	m := &Mirror{db: db, key: key, wire: wireFor(kind.Holds), poll: kind.Poll, gone: gone,
+	m := &Mirror{db: db, key: key, names: root.Names(), wire: wireFor(kind.Holds), poll: kind.Poll, gone: gone,
 		readers: map[string]*reader{}, hot: map[string]*opened{}, hotMax: hotMaxBytes, changed: map[string]uint64{}}
 	if err := alborz.CheckKey(db, file, root, map[string]*seal.Key{owner + "/": key}); err != nil {
 		db.Close()
@@ -211,7 +208,7 @@ func (m *Mirror) held(u, coll string) (mirrored, bool, error) {
 	var h mirrored
 	var ok bool
 	err := m.db.View(func(tx kv.Tx) error {
-		sealed := tx.Get(heldKey(u, coll))
+		sealed := tx.Get(m.heldKey(u, coll))
 		if sealed == nil {
 			return nil
 		}
@@ -227,7 +224,7 @@ func (m *Mirror) heldOf(u string) ([]mirrored, error) {
 
 // objects are the collection's copy, by name; the slice is shared and never changed.
 func (m *Mirror) objects(u, coll string) ([]object, error) {
-	k := objectsKey(u, coll)
+	k := m.objectsKey(u, coll)
 	m.hotMu.Lock()
 	m.uses++
 	h := m.hot[k]
@@ -278,7 +275,7 @@ func (m *Mirror) unhold(k string) {
 
 // change drops the collection's opened objects; the caller changes them on disk inside update.
 func (m *Mirror) change(u, coll string, update func(kv.Tx) error) error {
-	k := objectsKey(u, coll)
+	k := m.objectsKey(u, coll)
 	defer func() {
 		m.hotMu.Lock()
 		m.unhold(k)
@@ -309,7 +306,7 @@ func (m *Mirror) reader(u string) *reader {
 
 func (m *Mirror) note(who Principal, out http.RoundTripper) {
 	m.mu.Lock()
-	r := m.reader(who.key())
+	r := m.reader(m.user(who))
 	r.account, r.out = who.Account, out
 	m.mu.Unlock()
 }
@@ -320,14 +317,14 @@ type Principal struct {
 	Account, Name string
 }
 
-func (p Principal) key() string { return hashed(p.Account) + "/" + hashed(p.Name) }
+func (m *Mirror) user(p Principal) string { return m.names.Of(p.Account) + "/" + m.names.Of(p.Name) }
 
 // Transport answers reads of held collections and passes everything else to next.
 func (m *Mirror) Transport(who Principal, next http.RoundTripper) http.RoundTripper {
 	if m == nil {
 		return next
 	}
-	return tripper{m: m, who: who, user: who.key(), next: next}
+	return tripper{m: m, who: who, user: m.user(who), next: next}
 }
 
 type tripper struct {
@@ -476,23 +473,23 @@ func (m *Mirror) sync(ctx context.Context, r *reader, u string, target *url.URL,
 	}
 	h.Token, h.CTag, h.NoSync, h.Synced = d.token, d.ctag, d.noSync, time.Now()
 	return m.change(u, target.Path, func(tx kv.Tx) error {
-		prefix := objectsKey(u, target.Path)
+		prefix := m.objectsKey(u, target.Path)
 		if d.whole {
 			if err := kv.DeleteUnder(tx, prefix, nil); err != nil {
 				return err
 			}
 		}
 		for _, name := range d.gone {
-			if err := tx.Delete(prefix + hashed(name)); err != nil {
+			if err := tx.Delete(prefix + m.names.Of(name)); err != nil {
 				return err
 			}
 		}
 		for _, o := range d.put {
-			if err := m.put(tx, prefix+hashed(o.Name), o); err != nil {
+			if err := m.put(tx, prefix+m.names.Of(o.Name), o); err != nil {
 				return err
 			}
 		}
-		return m.put(tx, heldKey(u, target.Path), h)
+		return m.put(tx, m.heldKey(u, target.Path), h)
 	})
 }
 
@@ -534,7 +531,7 @@ func (m *Mirror) wrote(u string, req *http.Request, body []byte, resp *http.Resp
 	}
 	etag := resp.Header.Get("ETag")
 	return m.change(u, coll, func(tx kv.Tx) error {
-		k := objectsKey(u, coll) + hashed(name)
+		k := m.objectsKey(u, coll) + m.names.Of(name)
 		var err error
 		switch {
 		case resp.StatusCode >= 300:
@@ -550,16 +547,16 @@ func (m *Mirror) wrote(u string, req *http.Request, body []byte, resp *http.Resp
 		if err != nil {
 			return err
 		}
-		return m.put(tx, heldKey(u, coll), h)
+		return m.put(tx, m.heldKey(u, coll), h)
 	})
 }
 
 func (m *Mirror) drop(u, coll string) error {
 	return m.change(u, coll, func(tx kv.Tx) error {
-		if err := tx.Delete(heldKey(u, coll)); err != nil {
+		if err := tx.Delete(m.heldKey(u, coll)); err != nil {
 			return err
 		}
-		return kv.DeleteUnder(tx, objectsKey(u, coll), nil)
+		return kv.DeleteUnder(tx, m.objectsKey(u, coll), nil)
 	})
 }
 
@@ -570,7 +567,7 @@ func (m *Mirror) Forget(username string) {
 	}
 	m.mu.Lock()
 	for u := range m.readers {
-		if strings.HasPrefix(u, hashed(username)+"/") {
+		if strings.HasPrefix(u, m.names.Of(username)+"/") {
 			delete(m.readers, u)
 		}
 	}
@@ -582,7 +579,7 @@ func (m *Mirror) Refresh(ctx context.Context, who Principal, next http.RoundTrip
 	if m == nil {
 		return nil
 	}
-	u := who.key()
+	u := m.user(who)
 	m.note(who, next)
 	all, err := m.heldOf(u)
 	if err != nil {

@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz/internal/kv"
-	"github.com/fernet/fernet-go"
+	"git.mehdix.org/alborz/internal/seal"
 )
 
 // BrandName is the name a person reads.
@@ -58,7 +58,7 @@ type Server struct {
 	Options *Options
 
 	// LoginKey and PublicURL are the options read.
-	LoginKey  *fernet.Key
+	LoginKey  seal.Root
 	PublicURL *url.URL
 
 	domains map[string]*domainUpstreams
@@ -125,10 +125,10 @@ func New(log *log.Logger, options Options) (*Server, error) {
 		s.Outgoing.Guarded = options.Guarded
 	}
 	if options.LoginKey == "" {
-		return nil, errors.New("no login key: make one with `go run github.com/fernet/fernet-go/cmd/fernet-keygen`")
+		return nil, errors.New("no login key: make one with `openssl rand -base64 32`")
 	}
 	var err error
-	if s.LoginKey, err = fernet.DecodeKey(options.LoginKey); err != nil {
+	if s.LoginKey, err = seal.ParseRoot(options.LoginKey); err != nil {
 		return nil, fmt.Errorf("invalid login key: %v", err)
 	}
 	if options.PublicURL != "" {
@@ -150,14 +150,16 @@ func New(log *log.Logger, options Options) (*Server, error) {
 	if s.data, s.Instance, err = openData(dataDir, version, log.Printf); err != nil {
 		return nil, err
 	}
-	if err := CheckKey(s.data, s.DataPath, s.LoginKey, sessionsOwner+"/", settingsOwner+"/"); err != nil {
+	sessionsKey, settingsKey := s.LoginKey.Key(sessionsOwner), s.LoginKey.Key(settingsOwner)
+	err = CheckKey(s.data, s.DataPath, s.LoginKey, map[string]*seal.Key{sessionsOwner + "/": sessionsKey, settingsOwner + "/": settingsKey})
+	if err != nil {
 		return nil, err
 	}
-	s.SessionRecords = openSessionRecords(s.data, s.LoginKey)
+	s.SessionRecords = openSessionRecords(s.data, sessionsKey)
 	if err := s.SessionRecords.Sweep(time.Now().Add(-credentialCookieLife)); err != nil {
 		return nil, err
 	}
-	settings := openSettingsRecords(s.data, s.LoginKey)
+	settings := openSettingsRecords(s.data, settingsKey)
 
 	s.domains = make(map[string]*domainUpstreams)
 	for _, arg := range options.Upstreams {
@@ -417,7 +419,7 @@ type Options struct {
 	Upstreams []string
 	// Debug logs more, and reads templates and assets from ./templates.
 	Debug bool
-	// LoginKey is the Fernet key, as text, sealing remembered sessions, settings kept here and the cached copies.
+	// LoginKey is the key, as base64 text, every key sealing what alborz keeps is derived from.
 	LoginKey string
 	// Cache keeps what the servers answered.
 	Cache bool

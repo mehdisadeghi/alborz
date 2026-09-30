@@ -18,7 +18,6 @@ require (
 	github.com/emersion/go-smtp v0.25.0
 	github.com/emersion/go-vcard v0.1.0
 	github.com/emersion/go-webdav v0.7.0
-	github.com/fernet/fernet-go v0.0.0-20240119011108-303da6aec611
 	github.com/go-webauthn/webauthn v0.18.2
 	github.com/klauspost/compress v1.20.1
 	github.com/microcosm-cc/bluemonday v1.0.27

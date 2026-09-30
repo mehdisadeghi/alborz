@@ -84,7 +84,7 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout 
 	fs.StringVar(&options.PublicURL, "public-url", getenv("LBRZ_PUBLIC_URL"),
 		"where readers reach alborz, such as https://mail.example.org, for links in mail and addresses shown to other clients (or $LBRZ_PUBLIC_URL); unset uses each request's own")
 	// The environment keeps the key out of the process list.
-	fs.StringVar(&options.LoginKey, "login-key", getenv("LBRZ_LOGIN_KEY"), "Fernet key sealing what alborz keeps (or $LBRZ_LOGIN_KEY); required")
+	fs.StringVar(&options.LoginKey, "login-key", getenv("LBRZ_LOGIN_KEY"), "key sealing what alborz keeps, 32 bytes in base64 (or $LBRZ_LOGIN_KEY); required")
 	fs.BoolVar(&options.Cache, "cache", true,
 		"keep what the servers answered, so pages open without asking again; false asks every time and keeps nothing")
 	fs.StringVar(&options.DataDir, "data-dir", ".",

@@ -4,8 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
+
+	"git.mehdix.org/alborz/internal/kv"
+	"git.mehdix.org/alborz/internal/seal"
 )
 
 func TestExpiryUnlistsTheLogin(t *testing.T) {
@@ -32,10 +37,7 @@ func TestExpiryUnlistsTheLogin(t *testing.T) {
 
 func TestEnvelopeOpensOnlyWithTheMailPassword(t *testing.T) {
 	login := func(password string) *Login { return &Login{password: password} }
-	e, err := login("first").seal("app-password")
-	if err != nil {
-		t.Fatal(err)
-	}
+	e := login("first").seal("app-password")
 	if plain, err := login("first").open(e); err != nil || plain != "app-password" {
 		t.Fatalf("with the password it was sealed under: %q, %v", plain, err)
 	}
@@ -108,5 +110,57 @@ func TestSideBySideTriesAreCountedBeforeTheyAreAnswered(t *testing.T) {
 		if err := accepted.attempt("reader", func() error { return nil }); err != nil {
 			t.Fatalf("an accepted try stayed counted: %v", err)
 		}
+	}
+}
+
+func TestAFileIsRefusedUnderAnotherKeyOrFormat(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, storeFile)
+	root := func(text string) seal.Root {
+		r, err := seal.ParseRoot(text)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return r
+	}
+	sealer, other := root("YLZFnivEgqo-9cIJcqU6wOS7LhhCrXtgxRvYHoQ6NmA="), root("q2cV8ZlWmQ2FQm8m2JbM0m9m8p0v1l9c3Qq0a5pX0kU=")
+	check := func(r seal.Root, change func(kv.Tx) error) error {
+		db, _, err := openData(dir, "test", t.Logf)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer db.Close()
+		if change != nil {
+			if err := db.Update(change); err != nil {
+				t.Fatal(err)
+			}
+		}
+		key := r.Key(sessionsOwner)
+		if err := CheckKey(db, path, r, map[string]*seal.Key{sessionsOwner + "/": key}); err != nil {
+			return err
+		}
+		records := openSessionRecords(db, key)
+		if _, ok := records.Load("kept"); !ok {
+			return records.Save(&SessionRecord{ID: "kept"})
+		}
+		return nil
+	}
+	if err := check(sealer, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := check(other, nil); err == nil || !strings.Contains(err.Error(), path) {
+		t.Fatalf("another key: %v, want a refusal naming %s", err, path)
+	}
+	var kept bool
+	err := check(sealer, func(tx kv.Tx) error {
+		kept = tx.Get(sessionRecordKey("kept")) != nil
+		return nil
+	})
+	if err != nil || !kept {
+		t.Fatalf("the sealing key after a refusal: %v, record kept: %v", err, kept)
+	}
+	fernet := func(tx kv.Tx) error { return tx.Put(keyCheckKey, []byte("gAAAAABnAAAAAAAAAAAAAAAAAAAAAA==")) }
+	if err := check(sealer, fernet); err == nil || !strings.Contains(err.Error(), "earlier alborz") {
+		t.Fatalf("an earlier format: %v, want a refusal saying so", err)
 	}
 }

@@ -21,8 +21,8 @@ import (
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/internal/kv"
 	"git.mehdix.org/alborz/internal/kv/bolt"
+	"git.mehdix.org/alborz/internal/seal"
 	"github.com/emersion/go-webdav"
-	"github.com/fernet/fernet-go"
 )
 
 const (
@@ -43,7 +43,7 @@ const (
 // A nil Mirror keeps nothing: every read goes to the server.
 type Mirror struct {
 	db   kv.DB
-	key  *fernet.Key
+	key  *seal.Key
 	wire wire
 	poll time.Duration
 	// gone hears of an account's collection its server says is not there, for the listing to follow.
@@ -144,7 +144,7 @@ func heldKey(u, coll string) string    { return owner + "/held/" + u + "/" + has
 func objectsKey(u, coll string) string { return owner + "/objects/" + u + "/" + hashed(coll) + "/" }
 
 // OpenMirror opens the kind's copies in dir; round keeps them in step.
-func OpenMirror(dir string, kind Kind, key *fernet.Key, gone func(account string)) (*Mirror, error) {
+func OpenMirror(dir string, kind Kind, root seal.Root, gone func(account string)) (*Mirror, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
@@ -157,9 +157,10 @@ func OpenMirror(dir string, kind Kind, key *fernet.Key, gone func(account string
 	if err != nil {
 		return nil, err
 	}
+	key := root.Key(owner)
 	m := &Mirror{db: db, key: key, wire: wireFor(kind.Holds), poll: kind.Poll, gone: gone,
 		readers: map[string]*reader{}, hot: map[string]*opened{}, hotMax: hotMaxBytes, changed: map[string]uint64{}}
-	if err := alborz.CheckKey(db, file, key, owner+"/"); err != nil {
+	if err := alborz.CheckKey(db, file, root, map[string]*seal.Key{owner + "/": key}); err != nil {
 		db.Close()
 		return nil, err
 	}
@@ -182,15 +183,15 @@ func (m *Mirror) put(tx kv.Tx, k string, v any) error {
 	if err != nil {
 		return err
 	}
-	sealed, err := fernet.EncryptAndSign(raw, m.key)
-	if err != nil {
-		return err
-	}
-	return tx.Put(k, sealed)
+	return tx.Put(k, m.key.Seal(raw))
 }
 
 func (m *Mirror) open(sealed []byte, v any) error {
-	return json.Unmarshal(fernet.VerifyAndDecrypt(sealed, 0, []*fernet.Key{m.key}), v)
+	raw, err := m.key.Open(sealed)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(raw, v)
 }
 
 func scan[T any](m *Mirror, prefix string) ([]T, error) {

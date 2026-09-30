@@ -4,20 +4,21 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"time"
 
 	"git.mehdix.org/alborz/internal/kv"
 	"git.mehdix.org/alborz/internal/record"
-	"github.com/fernet/fernet-go"
+	"git.mehdix.org/alborz/internal/seal"
 )
 
 // The owners of the records kept here, each the prefix of its keys (ADR 51).
 const (
 	sessionsOwner = "alborz.sessions"
 	settingsOwner = "alborz.settings"
-	recordsFormat = 1
+	recordsFormat = 2
 )
 
 func sessionRecordKey(id string) string { return sessionsOwner + "/" + id }
@@ -32,19 +33,16 @@ const openTimeout = 5 * time.Second
 
 type vault struct {
 	db  kv.DB
-	key *fernet.Key
+	key *seal.Key
 }
 
 func (v vault) open(sealed []byte) []byte {
-	return fernet.VerifyAndDecrypt(sealed, 0, []*fernet.Key{v.key})
+	raw, _ := v.key.Open(sealed)
+	return raw
 }
 
 func (v vault) put(tx kv.Tx, k string, raw []byte) error {
-	sealed, err := fernet.EncryptAndSign(raw, v.key)
-	if err != nil {
-		return err
-	}
-	return tx.Put(k, sealed)
+	return tx.Put(k, v.key.Seal(raw))
 }
 
 func (v vault) read(sealed []byte, out any) bool {
@@ -79,42 +77,42 @@ func (v vault) remove(k string) error {
 // under another key is refused instead of read as empty and overwritten.
 const keyCheckKey = "alborz.keycheck"
 
-// CheckKey refuses the file at path unless key opens it. A file without the
-// check gets one once every value under the sealed prefixes opens.
-func CheckKey(db kv.DB, path string, key *fernet.Key, sealed ...string) error {
-	keys := []*fernet.Key{key}
-	wrong := fmt.Errorf("the login key does not open %s: start alborz with the key that sealed it, "+
-		"or move the file aside", path)
+// CheckKey refuses the file at path unless root sealed it. A file without the
+// check gets one once every value under the sealed prefixes opens with its key.
+func CheckKey(db kv.DB, path string, root seal.Root, sealed map[string]*seal.Key) error {
+	refused := func(err error) error {
+		if errors.Is(err, seal.ErrFormat) {
+			return fmt.Errorf("%s was written by an earlier alborz, in a format this one does not read: "+
+				"move the file aside", path)
+		}
+		return fmt.Errorf("the login key does not open %s: start alborz with the key that sealed it, "+
+			"or move the file aside", path)
+	}
+	key := root.Key(keyCheckKey)
 	return db.Update(func(tx kv.Tx) error {
 		if check := tx.Get(keyCheckKey); check != nil {
-			if fernet.VerifyAndDecrypt(check, 0, keys) == nil {
-				return wrong
+			if _, err := key.Open(check); err != nil {
+				return refused(err)
 			}
 			return nil
 		}
-		for _, prefix := range sealed {
+		for prefix, k := range sealed {
 			err := tx.Scan(prefix, func(_ string, v []byte) error {
-				if fernet.VerifyAndDecrypt(v, 0, keys) == nil {
-					return wrong
-				}
-				return nil
+				_, err := k.Open(v)
+				return err
 			})
 			if err != nil {
-				return err
+				return refused(err)
 			}
 		}
-		check, err := fernet.EncryptAndSign([]byte(keyCheckKey), key)
-		if err != nil {
-			return err
-		}
-		return tx.Put(keyCheckKey, check)
+		return tx.Put(keyCheckKey, key.Seal([]byte(keyCheckKey)))
 	})
 }
 
 type records struct{ vault }
 
 // openSessionRecords keeps sessions in the data file.
-func openSessionRecords(db kv.DB, key *fernet.Key) SessionRecords {
+func openSessionRecords(db kv.DB, key *seal.Key) SessionRecords {
 	return &records{vault{db: db, key: key}}
 }
 
@@ -155,7 +153,7 @@ func (r *records) Sweep(before time.Time) error {
 // settingsRecords keeps settings for servers without METADATA, one record per account.
 type settingsRecords struct{ vault }
 
-func openSettingsRecords(db kv.DB, key *fernet.Key) *settingsRecords {
+func openSettingsRecords(db kv.DB, key *seal.Key) *settingsRecords {
 	return &settingsRecords{vault{db: db, key: key}}
 }
 

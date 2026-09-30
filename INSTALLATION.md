@@ -33,8 +33,7 @@ unit for `/etc/systemd/system/alborz.service`:
     [Install]
     WantedBy=multi-user.target
 
-Generate the login key with
-`go run github.com/fernet/fernet-go/cmd/fernet-keygen` and keep it in
+Generate the login key with `openssl rand -base64 32` and keep it in
 `/etc/default/alborz` (mode 600) as `LBRZ_LOGIN_KEY=...`. It is read
 from the environment, so it never appears in the unit or the process
 list.

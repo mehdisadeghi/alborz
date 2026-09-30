@@ -5,12 +5,13 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
-	"git.mehdix.org/alborz/mail/search"
+	"git.mehdix.org/alborz/mail/imapsearch"
+	"git.mehdix.org/alborz/search"
 	"github.com/emersion/go-imap/v2/imapclient"
 )
 
 func listingBudget(spec listingSpec) (alborz.IMAPClass, time.Duration) {
-	if search.WantsText(search.Parse(spec.query)) {
+	if imapsearch.WantsText(search.Parse(spec.query)) {
 		return alborz.IMAPScan, alborz.ScanTimeout
 	}
 	return alborz.IMAPForeground, alborz.RoundTripTimeout

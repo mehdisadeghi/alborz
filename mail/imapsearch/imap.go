@@ -1,4 +1,4 @@
-package search
+package imapsearch
 
 import (
 	"github.com/emersion/go-imap/v2"

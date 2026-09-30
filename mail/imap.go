@@ -20,7 +20,8 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/internal/seal"
-	"git.mehdix.org/alborz/mail/search"
+	"git.mehdix.org/alborz/mail/imapsearch"
+	"git.mehdix.org/alborz/search"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-message"
@@ -1324,7 +1325,7 @@ func envelopeName(from []imap.Address) string {
 // A full-text index matches addresses inside attached messages; only what the
 // envelope contradicts is dropped, over every answer so totals hold.
 func carried(c *imapclient.Client, q search.Query, answers imap.NumSet) (map[imap.UID]bool, error) {
-	wanted := search.Addresses(q)
+	wanted := imapsearch.Addresses(q)
 	kept := map[imap.UID]bool{}
 	cmd := c.Fetch(answers, &imap.FetchOptions{UID: true, Envelope: true})
 	for msg := cmd.Next(); msg != nil; msg = cmd.Next() {
@@ -1480,7 +1481,7 @@ func viewOrder(conn *imapclient.Client, q search.Query, criteria *imap.SearchCri
 			slices.Reverse(uids)
 		}
 	}
-	if !search.Addressed(q) || len(uids) == 0 {
+	if !imapsearch.Addressed(q) || len(uids) == 0 {
 		return uids, nil
 	}
 	kept, err := carried(conn, q, imap.UIDSetNum(uids...))

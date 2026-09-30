@@ -672,6 +672,19 @@ if ("serviceWorker" in navigator) {
 	});
 }
 
+// The installed app's badge follows the rail's count; a page without the mail rail leaves it as it was.
+if (navigator.setAppBadge) {
+	const badge = () => {
+		const rail = document.querySelector("aside[data-unread]");
+		if (rail) {
+			const unread = Number(rail.dataset.unread);
+			(unread ? navigator.setAppBadge(unread) : navigator.clearAppBadge()).catch(() => {});
+		}
+	};
+	document.addEventListener("htmx:load", badge);
+	badge();
+}
+
 if ("serviceWorker" in navigator) {
 	window.addEventListener("load", () => {
 		// Revalidate the worker's script on every registration, so a new shell arrives on the next visit.

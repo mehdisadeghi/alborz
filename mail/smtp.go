@@ -9,13 +9,13 @@ import (
 	"io/fs"
 	"mime"
 	"mime/multipart"
-	"os"
 	"slices"
 	"strings"
 	"time"
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/internal/lang"
+	"git.mehdix.org/alborz/internal/seal"
 	"github.com/alborzmail/go-itip/imip"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-imap/v2"
@@ -437,44 +437,29 @@ func (msg *OutgoingMessage) WriteMessage(w io.Writer) error {
 	return nil
 }
 
-// unlinkedFile is a temporary file no name leads to; it goes with its last
-// descriptor, even if alborz dies (Unix).
-func unlinkedFile() (*os.File, error) {
-	f, err := os.CreateTemp("", "")
-	if err != nil {
-		return nil, err
-	}
-	if err := os.Remove(f.Name()); err != nil {
-		f.Close()
-		return nil, err
-	}
-	return f, nil
-}
-
 // fetchOriginals copies msg with every part the mail server holds fetched
-// into a file of its own, so writing the message reads local disk only; done
-// closes the files. What the server would not hand over is a refusal for the
+// into a spool of its own, so writing the message reads local disk only; done
+// lets the spools go. What the server would not hand over is a refusal for the
 // form; a failing disk is the error it is.
 func fetchOriginals(msg *OutgoingMessage) (local *OutgoingMessage, done func(), err error) {
-	var files []*os.File
+	var spools []*seal.Spool
 	done = func() {
-		for _, f := range files {
-			f.Close()
+		for _, s := range spools {
+			s.Close()
 		}
 	}
 	fetch := func(att Attachment, tee io.Writer) (fetched, error) {
-		f, err := unlinkedFile()
-		if err != nil {
+		s, err := seal.NewSpool(func(w io.Writer) error {
+			_, err := att.WriteTo(io.MultiWriter(w, tee))
+			return err
+		})
+		if errors.As(err, new(*fs.PathError)) {
 			return fetched{}, err
-		}
-		files = append(files, f)
-		if _, err := att.WriteTo(io.MultiWriter(f, tee)); err != nil {
-			if errors.As(err, new(*fs.PathError)) {
-				return fetched{}, err
-			}
+		} else if err != nil {
 			return fetched{}, Refused{"form.originalunreadable", err}
 		}
-		return fetched{att, f}, nil
+		spools = append(spools, s)
+		return fetched{att, s}, nil
 	}
 	out := *msg
 	out.Attachments = slices.Clone(msg.Attachments)
@@ -514,7 +499,7 @@ func fetchOriginals(msg *OutgoingMessage) (local *OutgoingMessage, done func(), 
 // spool writes the message once, so what is sent and what is kept are the same
 // bytes, and IMAP learns their size before the APPEND. eightBit says whether
 // the way out carries 8-bit lines.
-func spool(msg *OutgoingMessage, eightBit bool) (*os.File, error) {
+func spool(msg *OutgoingMessage, eightBit bool) (*seal.Spool, error) {
 	out := *msg
 	out.Attachments = slices.Clone(msg.Attachments)
 	for i, att := range out.Attachments {
@@ -524,15 +509,11 @@ func spool(msg *OutgoingMessage, eightBit bool) (*os.File, error) {
 			out.Attachments[i] = &settled
 		}
 	}
-	f, err := unlinkedFile()
+	s, err := seal.NewSpool(out.WriteMessage)
 	if err != nil {
-		return nil, err
-	}
-	if err := out.WriteMessage(f); err != nil {
-		f.Close()
 		return nil, fmt.Errorf("failed to write outgoing message: %w", err)
 	}
-	return f, nil
+	return s, nil
 }
 
 // IMAP literals carry any octet but NUL (RFC 3501 9, CHAR8).
@@ -541,20 +522,20 @@ const imapEightBit = true
 // deliver sends msg in one SMTP session and returns the bytes sent, for a Sent
 // copy. The originals come off the mail server first, so the session waits
 // only on local disk while the message is written as its EHLO allows.
-func deliver(sender *alborz.Login, msg *OutgoingMessage) (*os.File, error) {
+func deliver(sender *alborz.Login, msg *OutgoingMessage) (*seal.Spool, error) {
 	local, done, err := fetchOriginals(msg)
 	if err != nil {
 		return nil, err
 	}
 	defer done()
-	var body *os.File
+	var body *seal.Spool
 	var spoolErr error
 	err = sender.DoSMTP(func(c *smtp.Client) error {
 		eightBit, _ := c.Extension("8BITMIME")
 		if body, spoolErr = spool(local, eightBit); spoolErr != nil {
 			return spoolErr
 		}
-		return sendMessage(c, msg, body)
+		return sendMessage(c, msg, body.Open())
 	})
 	if spoolErr != nil {
 		return nil, spoolErr

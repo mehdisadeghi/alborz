@@ -9,7 +9,6 @@ import (
 	"mime"
 	"net/mail"
 	"net/url"
-	"os"
 	"regexp"
 	"slices"
 	"sort"
@@ -19,6 +18,7 @@ import (
 	"unicode/utf8"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/internal/seal"
 	"git.mehdix.org/alborz/mail/search"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
@@ -1808,18 +1808,13 @@ func (a *MessageAttachment) WriteTo(w io.Writer) (n int64, err error) {
 
 func (a *MessageAttachment) MIMEType() string { return "message/rfc822" }
 
-// A part of a message on the mail server, fetched into a file.
+// A part of a message on the mail server, fetched into a spool.
 type fetched struct {
 	Attachment
-	body *os.File
+	body *seal.Spool
 }
 
-func (f *fetched) WriteTo(w io.Writer) (int64, error) {
-	if _, err := f.body.Seek(0, io.SeekStart); err != nil {
-		return 0, err
-	}
-	return io.Copy(w, f.body)
-}
+func (f *fetched) WriteTo(w io.Writer) (int64, error) { return io.Copy(w, f.body.Open()) }
 
 // A whole message is never encoded (RFC 2046 5.2.1); one the way out cannot
 // carry as it is goes as a file, base64, keeping its bytes. Binary never

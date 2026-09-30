@@ -2753,7 +2753,9 @@ main.calendar .actions {
 .action-group.choices {
   border: 0;
   padding: 0;
-  margin: 0;
+  /* The block's own end margin stays: it is the gap every other group leaves. */
+  margin-inline: 0;
+  margin-block-start: 0;
 }
 
 .action-group.choices legend {

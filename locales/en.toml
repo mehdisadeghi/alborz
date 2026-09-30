@@ -1007,6 +1007,7 @@
 "settings.textlarger" = "Larger"
 "status.label" = "Status bar"
 "settings.status" = "Status bar"
+"mail.status" = "Unread mail"
 "date-gregorian.status" = "Gregorian date"
 "date-shcal.status" = "Solar Hijri date"
 
@@ -1187,3 +1188,7 @@ other = "%d yrs"
 ["data.unpublished"]
 one = "The public link of %[2]s was not kept: it serves another calendar here."
 other = "The public links of %[2]s were not kept: they serve other calendars here."
+
+["mail.status.unread"]
+one = "%d unread"
+other = "%d unread"

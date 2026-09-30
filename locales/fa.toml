@@ -1007,6 +1007,7 @@
 "settings.textlarger" = "بزرگ‌تر"
 "status.label" = "نوار وضعیت"
 "settings.status" = "نوار وضعیت"
+"mail.status" = "نامه‌های خوانده‌نشده"
 "date-gregorian.status" = "تاریخ میلادی"
 "date-shcal.status" = "تاریخ هجری شمسی"
 
@@ -1187,3 +1188,7 @@ other = "%d سال"
 ["data.unpublished"]
 one = "پیوند عمومی %[2]s نگه داشته نشد: این‌جا به تقویم دیگری تعلق دارد."
 other = "پیوندهای عمومی %[2]s نگه داشته نشدند: این‌جا به تقویم‌های دیگری تعلق دارند."
+
+["mail.status.unread"]
+one = "%d خوانده‌نشده"
+other = "%d خوانده‌نشده"

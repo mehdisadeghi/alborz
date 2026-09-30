@@ -15,6 +15,7 @@ import (
 	"github.com/emersion/go-message/textproto"
 )
 
+// Place is where a message lies in its list, and the messages either side.
 type Place struct {
 	Newer, Older    imap.UID
 	Position, Total int
@@ -22,15 +23,15 @@ type Place struct {
 
 // messageList is the order a message's list is cut from, and whether that is the folder's own.
 func messageList(mailbox string, l ListAsk) (order string, own bool) {
-	if l.Sort == threadSort {
-		return orderView(mailbox, l.Query, l.View, threadSort, true), false
+	if l.Sort == SortThread {
+		return orderView(mailbox, l.Query, l.View, SortThread, true), false
 	}
 	sortKey, reverse := l.order()
 	return orderView(mailbox, l.Query, l.View, sortKey, reverse), l.Query == "" && l.View == "" && sortKey == "" && reverse
 }
 
 // A narrowed, sorted or threaded list places the message in its held order; the folder's own, in its held pages.
-func (p *plugin) cachedPlace(user, mailbox string, uid imap.UID, l ListAsk) (cached *listingEntry, place Place, placed bool) {
+func (p *Mailboxes) cachedPlace(user, mailbox string, uid imap.UID, l ListAsk) (cached *listingEntry, place Place, placed bool) {
 	sortKey, _ := l.order()
 	cached, place, placed = p.listings.message(user, listingView(mailbox, l.Query, l.View, sortKey, l.Dir), uid, l.Page.Size)
 	if order, own := messageList(mailbox, l); !own {
@@ -41,13 +42,13 @@ func (p *plugin) cachedPlace(user, mailbox string, uid imap.UID, l ListAsk) (cac
 	return cached, place, placed
 }
 
-func (p *plugin) placeInList(c *imapclient.Client, user string, settings *Settings, mailbox string, uid imap.UID, l ListAsk) (Place, error) {
+func (p *Mailboxes) placeInList(c *imapclient.Client, user string, settings *Settings, mailbox string, uid imap.UID, l ListAsk) (Place, error) {
 	if err := ensureMailboxSelected(c, mailbox); err != nil {
 		return Place{}, err
 	}
 	order, own := messageList(mailbox, l)
 	algorithm := ThreadAlgorithm(c)
-	threaded := l.Sort == threadSort
+	threaded := l.Sort == SortThread
 	if own || threaded && algorithm == "" {
 		return folderNeighbors(c, uid)
 	}
@@ -92,7 +93,7 @@ type Around struct {
 
 // Around reads a message's navigation, from the listing held where it can; merged says its list is read
 // elsewhere, and sb gets the folder's counts where it lacks them.
-func (p *plugin) Around(ctx context.Context, login *alborz.Login, settings *Settings, sb *Rail, mailbox string, uid imap.UID, list ListAsk, merged bool) (Around, error) {
+func (p *Mailboxes) Around(ctx context.Context, login *alborz.Login, settings *Settings, sb *Rail, mailbox string, uid imap.UID, list ListAsk, merged bool) (Around, error) {
 	var a Around
 	cached, place, placed := p.cachedPlace(login.Username(), mailbox, uid, list)
 	if merged {
@@ -155,7 +156,7 @@ type Origin struct {
 // Beside places a message among the rows of the list it was opened from, reading once a page further
 // where it is the last row read. position counts from one, and is zero where the list lacks the
 // message; down names the accounts whose servers did not answer.
-func (p *plugin) Beside(ctx context.Context, settings *Settings, o Origin, account, mailbox string, uid imap.UID) (prev, next *IMAPMessage, position, total int, down []string, err error) {
+func (p *Mailboxes) Beside(ctx context.Context, settings *Settings, o Origin, account, mailbox string, uid imap.UID) (prev, next *IMAPMessage, position, total int, down []string, err error) {
 	ask := o.Ask
 	for read := range 2 {
 		var e *listingEntry

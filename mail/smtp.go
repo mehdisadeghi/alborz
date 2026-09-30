@@ -108,7 +108,8 @@ func Unflow(text string, delSp bool) string {
 // Deeper quotes are already in the thread.
 const quoteMaxDepth = 2
 
-func quote(r io.Reader) (string, error) {
+// Quote marks text as quoted, down to its signature, leaving out what is quoted too deep already.
+func Quote(r io.Reader) (string, error) {
 	scanner := bufio.NewScanner(r)
 	var lines []string
 	for scanner.Scan() {
@@ -171,16 +172,16 @@ type Attachment interface {
 }
 
 // ID names an upload the session holds, which a refused send puts back on the form.
-type formAttachment struct {
+type FormAttachment struct {
 	*multipart.FileHeader
 	ID string
 }
 
-func (att *formAttachment) SizeString() string {
-	return formatSize(att.FileHeader.Size)
+func (att *FormAttachment) SizeString() string {
+	return FormatSize(att.FileHeader.Size)
 }
 
-func (att *formAttachment) WriteTo(w io.Writer) (int64, error) {
+func (att *FormAttachment) WriteTo(w io.Writer) (int64, error) {
 	f, err := att.FileHeader.Open()
 	if err != nil {
 		return 0, err
@@ -189,17 +190,18 @@ func (att *formAttachment) WriteTo(w io.Writer) (int64, error) {
 	return io.Copy(w, f)
 }
 
-func (att *formAttachment) MIMEType() string {
+func (att *FormAttachment) MIMEType() string {
 	// TODO: retain params, e.g. "charset"?
 	t, _, _ := mime.ParseMediaType(att.FileHeader.Header.Get("Content-Type"))
 	return t
 }
 
-func (att *formAttachment) Filename() string {
+func (att *FormAttachment) Filename() string {
 	return att.FileHeader.Filename
 }
 
-type imapAttachment struct {
+// IMAPAttachment is a part of a message on the server, sent again as it is.
+type IMAPAttachment struct {
 	Mailbox  string
 	Uid      imap.UID
 	Node     *IMAPPartNode
@@ -207,7 +209,7 @@ type imapAttachment struct {
 	transfer transfer
 }
 
-func (att *imapAttachment) WriteTo(w io.Writer) (n int64, err error) {
+func (att *IMAPAttachment) WriteTo(w io.Writer) (n int64, err error) {
 	err = att.transfer(func(c *imapclient.Client) error {
 		n, err = copySection(w, c, att.Mailbox, att.Uid, att.Node.Path, att.Encoding)
 		return err
@@ -215,29 +217,32 @@ func (att *imapAttachment) WriteTo(w io.Writer) (n int64, err error) {
 	return n, err
 }
 
-func (att *imapAttachment) MIMEType() string {
+func (att *IMAPAttachment) MIMEType() string {
 	return att.Node.MIMEType
 }
 
-func (att *imapAttachment) Filename() string {
+func (att *IMAPAttachment) Filename() string {
 	return att.Node.Filename
 }
 
-func newMessageID() string {
+// NewMessageID is a Message-ID for a message written here.
+func NewMessageID() string {
 	var hdr mail.Header
 	hdr.GenerateMessageID()
 	id, _ := hdr.MessageID()
 	return "<" + id + ">"
 }
 
-func mailerName() string {
+// Mailer names alborz and its version in what it sends.
+func Mailer() string {
 	if v, _ := alborz.Build(); v != "" {
 		return alborz.BrandName + "/" + v
 	}
 	return alborz.BrandName
 }
 
-func fromAddress(settings *Settings, address string) string {
+// FromAddress is the account's address under the name it writes as.
+func FromAddress(settings *Settings, address string) string {
 	if settings.From == "" {
 		return address
 	}
@@ -475,14 +480,14 @@ func fetchOriginals(msg *OutgoingMessage) (local *OutgoingMessage, done func(), 
 	out.Attachments = slices.Clone(msg.Attachments)
 	for i, att := range out.Attachments {
 		switch att := att.(type) {
-		case *imapAttachment:
+		case *IMAPAttachment:
 			part, err := fetch(att, io.Discard)
 			if err != nil {
 				done()
 				return nil, nil, err
 			}
 			out.Attachments[i] = &part
-		case *messageAttachment:
+		case *MessageAttachment:
 			var class octetClass
 			part, err := fetch(att, &class)
 			if err != nil {
@@ -494,7 +499,7 @@ func fetchOriginals(msg *OutgoingMessage) (local *OutgoingMessage, done func(), 
 	}
 	out.Inline = slices.Clone(msg.Inline)
 	for i, im := range out.Inline {
-		if att, ok := im.Attachment.(*imapAttachment); ok {
+		if att, ok := im.Attachment.(*IMAPAttachment); ok {
 			part, err := fetch(att, io.Discard)
 			if err != nil {
 				done()

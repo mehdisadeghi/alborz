@@ -636,7 +636,7 @@ func (lc *listingCache) stale(user, folder string) {
 	}
 }
 
-func (p *plugin) revalidate(s *alborz.Login, view string, e *listingEntry, folder func(*imapclient.Client) (string, error), fetch func(*imapclient.Client) (*listingEntry, error)) {
+func (p *Mailboxes) revalidate(s *alborz.Login, view string, e *listingEntry, folder func(*imapclient.Client) (string, error), fetch func(*imapclient.Client) (*listingEntry, error)) {
 	user := s.Username()
 	if !p.listings.claim(user, view) {
 		return

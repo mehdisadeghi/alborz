@@ -53,7 +53,7 @@ func imageSource(ctx *web.Context, held *[]string) func(src string) (Attachment,
 				return nil, fmt.Errorf("the image %s is no longer held", id)
 			}
 			*held = append(*held, id)
-			return &formAttachment{FileHeader: upload.File, ID: id}, nil
+			return &FormAttachment{FileHeader: upload.File, ID: id}, nil
 		case "mail.message.raw":
 			uid, err := ParseUID(values["uid"])
 			if err != nil {
@@ -69,8 +69,8 @@ func imageSource(ctx *web.Context, held *[]string) func(src string) (Attachment,
 					return nil, fmt.Errorf("not signed in to %s", account)
 				}
 			}
-			image, err := partImage(ctx.Request().Context(), login, values["mbox"], uid, path)
-			if errors.Is(err, errNotImage) {
+			image, err := PartImage(ctx.Request().Context(), login, values["mbox"], uid, path)
+			if errors.Is(err, ErrNotImage) {
 				return nil, fmt.Errorf("%s is not an image", src)
 			}
 			if err != nil {

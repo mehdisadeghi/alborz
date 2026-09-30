@@ -15,24 +15,26 @@ import (
 	"github.com/emersion/go-message/mail"
 )
 
-type messagePath struct {
+// MessagePath names a message by its folder and UID.
+type MessagePath struct {
 	Mailbox string
 	Uid     imap.UID
 }
 
-type composeOptions struct {
-	Draft   *messagePath
-	Forward *messagePath
+// ComposeOptions are the messages a composed one stands in for or answers.
+type ComposeOptions struct {
+	Draft   *MessagePath
+	Forward *MessagePath
 	// Attached are whole messages carried as message/rfc822 parts.
-	Attached  []messagePath
-	InReplyTo *messagePath
+	Attached  []MessagePath
+	InReplyTo *MessagePath
 	// Signature names the one already under the body.
 	Signature string
 }
 
-// submit delivers msg from sender and files it in Sent, marking what it answers or forwards and dropping
+// Submit delivers msg from sender and files it in Sent, marking what it answers or forwards and dropping
 // its draft on account; it says where the Sent copy landed, and to whom the message went.
-func (p *plugin) submit(ctx context.Context, account, sender *alborz.Login, msg *OutgoingMessage, options *composeOptions) (*MailboxInfo, imap.UID, []*mail.Address, error) {
+func (p *Mailboxes) Submit(ctx context.Context, account, sender *alborz.Login, msg *OutgoingMessage, options *ComposeOptions) (*MailboxInfo, imap.UID, []*mail.Address, error) {
 	body, err := deliver(sender, msg)
 	if err != nil {
 		return nil, 0, nil, err
@@ -118,7 +120,7 @@ func SentRecipients(s *alborz.Login, n int) ([]*mail.Address, error) {
 }
 
 // The delimiter must start a line, so a quoted "> -- " is not mistaken for the writer's own.
-func withSignature(body, text string) string {
+func WithSignature(body, text string) string {
 	if i := strings.LastIndex(body, "\n-- \n"); i >= 0 {
 		body = body[:i]
 	}
@@ -129,7 +131,8 @@ func withSignature(body, text string) string {
 	return body + "\n\n\n-- \n" + text
 }
 
-func unwrapIMAPAddressList(addrs []imap.Address) []string {
+// AddressStrings writes addresses as a recipient field takes them, a name quoted.
+func AddressStrings(addrs []imap.Address) []string {
 	l := make([]string, len(addrs))
 	for i, addr := range addrs {
 		l[i] = unwrapIMAPAddress(addr)
@@ -145,7 +148,8 @@ func unwrapIMAPAddress(addr imap.Address) string {
 	return address
 }
 
-func readText(part *message.Entity) (string, error) {
+// ReadText reads a text part, a flowed one joined back (RFC 3676).
+func ReadText(part *message.Entity) (string, error) {
 	b, err := io.ReadAll(part.Body)
 	if err != nil {
 		return "", err
@@ -158,7 +162,7 @@ func readText(part *message.Entity) (string, error) {
 }
 
 // fileDraft saves the spooled draft in Drafts in place of the one it replaces, if any, and says where it landed.
-func fileDraft(c *imapclient.Client, body io.ReadSeeker, messageID string, replaces *messagePath) (drafts *MailboxInfo, uid imap.UID, err error) {
+func fileDraft(c *imapclient.Client, body io.ReadSeeker, messageID string, replaces *MessagePath) (drafts *MailboxInfo, uid imap.UID, err error) {
 	drafts, uid, err = appendMessage(c, body, "drafts")
 	if err != nil {
 		return nil, 0, err
@@ -207,7 +211,7 @@ func (err Refused) Error() string { return err.Err.Error() }
 func (err Refused) Unwrap() error { return err.Err }
 
 // SaveDraft files what was typed in Drafts, in place of the draft it replaces, and says where it landed.
-func (p *plugin) SaveDraft(ctx context.Context, login *alborz.Login, msg *OutgoingMessage, replaces *messagePath) (*MailboxInfo, imap.UID, error) {
+func (p *Mailboxes) SaveDraft(ctx context.Context, login *alborz.Login, msg *OutgoingMessage, replaces *MessagePath) (*MailboxInfo, imap.UID, error) {
 	// A draft is what was typed; the editor cannot open a multipart/alternative.
 	msg.SendHTML = false
 	local, done, err := fetchOriginals(msg)
@@ -236,8 +240,8 @@ func (p *plugin) SaveDraft(ctx context.Context, login *alborz.Login, msg *Outgoi
 	return drafts, uid, nil
 }
 
-// attachMessages attaches whole messages to msg, named by their subjects; the send fetches them.
-func attachMessages(ctx context.Context, login *alborz.Login, msg *OutgoingMessage, paths []messagePath) error {
+// AttachMessages attaches whole messages to msg, named by their subjects; the send fetches them.
+func AttachMessages(ctx context.Context, login *alborz.Login, msg *OutgoingMessage, paths []MessagePath) error {
 	for _, p := range paths {
 		var env *imap.Envelope
 		err := login.DoIMAPContext(ctx, alborz.RoundTripTimeout, func(c *imapclient.Client) error {
@@ -248,15 +252,15 @@ func attachMessages(ctx context.Context, login *alborz.Login, msg *OutgoingMessa
 		if err != nil {
 			return err
 		}
-		msg.Attachments = append(msg.Attachments, &messageAttachment{
+		msg.Attachments = append(msg.Attachments, &MessageAttachment{
 			Path: p, Name: attachmentName(env.Subject), transfer: transferOf(ctx, login),
 		})
 	}
 	return nil
 }
 
-// attachPart attaches a part of the message a draft or a forward came from.
-func attachPart(ctx context.Context, login *alborz.Login, msg *OutgoingMessage, from messagePath, path []int) error {
+// AttachPart attaches a part of the message a draft or a forward came from.
+func AttachPart(ctx context.Context, login *alborz.Login, msg *OutgoingMessage, from MessagePath, path []int) error {
 	var part *imap.BodyStructureSinglePart
 	err := login.DoIMAPContext(ctx, alborz.RoundTripTimeout, func(c *imapclient.Client) error {
 		var err error
@@ -266,7 +270,7 @@ func attachPart(ctx context.Context, login *alborz.Login, msg *OutgoingMessage, 
 	if err != nil {
 		return fmt.Errorf("failed to fetch attachment from original message: %w", err)
 	}
-	msg.Attachments = append(msg.Attachments, &imapAttachment{
+	msg.Attachments = append(msg.Attachments, &IMAPAttachment{
 		Mailbox:  from.Mailbox,
 		Uid:      from.Uid,
 		Node:     newIMAPPartNode(nil, path, part),
@@ -276,10 +280,11 @@ func attachPart(ctx context.Context, login *alborz.Login, msg *OutgoingMessage, 
 	return nil
 }
 
-var errNoText = errors.New("message has no text part to quote")
+// ErrNoText is a message with no text to quote.
+var ErrNoText = errors.New("message has no text part to quote")
 
-// quotable is the part a reply or a forward quotes: the one named, else the text part shown.
-func quotable(ctx context.Context, login *alborz.Login, path messagePath, partPath []int) (*IMAPMessage, *message.Entity, string, error) {
+// Quotable is the part a reply or a forward quotes: the one named, else the text part shown.
+func Quotable(ctx context.Context, login *alborz.Login, path MessagePath, partPath []int) (*IMAPMessage, *message.Entity, string, error) {
 	var msg *IMAPMessage
 	var part *message.Entity
 	fetch := func(p []int) error {
@@ -295,7 +300,7 @@ func quotable(ctx context.Context, login *alborz.Login, path messagePath, partPa
 		}
 		text := msg.TextPart()
 		if text == nil {
-			return nil, nil, "", errNoText
+			return nil, nil, "", ErrNoText
 		}
 		partPath = text.Path
 	}
@@ -309,8 +314,8 @@ func quotable(ctx context.Context, login *alborz.Login, path messagePath, partPa
 	return msg, part, mimeType, nil
 }
 
-// quotedHTML is the HTML of msg a reply or a forward quotes, its own images at what href names; "" where it has none.
-func quotedHTML(ctx context.Context, login *alborz.Login, path messagePath, msg *IMAPMessage, href func(*IMAPPartNode) string) (string, error) {
+// QuotedHTML is the HTML of msg a reply or a forward quotes, its own images at what href names; "" where it has none.
+func QuotedHTML(ctx context.Context, login *alborz.Login, path MessagePath, msg *IMAPMessage, href func(*IMAPPartNode) string) (string, error) {
 	node := msg.HTMLPart()
 	if node == nil {
 		return "", nil
@@ -338,8 +343,8 @@ func quotedHTML(ctx context.Context, login *alborz.Login, path messagePath, msg 
 	return localImages(string(raw), msg, href), nil
 }
 
-// messageListID is the list a message came through, "" for none.
-func messageListID(ctx context.Context, login *alborz.Login, path messagePath) (string, error) {
+// MessageListID is the list a message came through, "" for none.
+func MessageListID(ctx context.Context, login *alborz.Login, path MessagePath) (string, error) {
 	var id string
 	err := login.DoIMAPContext(ctx, alborz.RoundTripTimeout, func(c *imapclient.Client) error {
 		var err error
@@ -349,12 +354,12 @@ func messageListID(ctx context.Context, login *alborz.Login, path messagePath) (
 	return id, err
 }
 
-// ownIdentity is the address compose opens on: the one asked for where the account may write as it.
-func (p *plugin) ownIdentity(login *alborz.Login, settings *Settings, want string) string {
+// OwnIdentity is the address compose opens on: the one asked for where the account may write as it.
+func (p *Mailboxes) OwnIdentity(login *alborz.Login, settings *Settings, want string) string {
 	return ownIdentity(settings, p.newDeliveryTrust(login, settings), want)
 }
 
-// replyIdentity answers a mail to an identity by that identity; Cc counts too.
-func (p *plugin) replyIdentity(login *alborz.Login, settings *Settings, msg *IMAPMessage) string {
+// ReplyIdentity answers a mail to an identity by that identity; Cc counts too.
+func (p *Mailboxes) ReplyIdentity(login *alborz.Login, settings *Settings, msg *IMAPMessage) string {
 	return writeAs(settings, p.newDeliveryTrust(login, settings), msg, msg.Envelope.To, msg.Envelope.Cc)
 }

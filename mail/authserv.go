@@ -22,7 +22,7 @@ const (
 )
 
 // SuggestAuthServ names the id this account's server appears to use, or "".
-func (p *plugin) SuggestAuthServ(login *alborz.Login) string {
+func (p *Mailboxes) SuggestAuthServ(login *alborz.Login) string {
 	return p.authServGuesses.Warm(login.Username(), func() (string, error) {
 		return sampleAuthServ(login)
 	})
@@ -151,7 +151,7 @@ func serverFamily(id string) string {
 }
 
 // TrustedAuthServ is the id whose verdicts are believed for this account.
-func (p *plugin) TrustedAuthServ(login *alborz.Login, settings *Settings) string {
+func (p *Mailboxes) TrustedAuthServ(login *alborz.Login, settings *Settings) string {
 	if settings.TrustedAuthServ != "" {
 		return settings.TrustedAuthServ
 	}

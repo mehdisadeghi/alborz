@@ -5,10 +5,11 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/internal/memo"
-	"github.com/microcosm-cc/bluemonday"
 )
 
-type plugin struct {
+// Mailboxes is mail read and written for the accounts signed in: what it keeps of their lists and
+// bodies, and the watchers that keep it in step.
+type Mailboxes struct {
 	server          *alborz.Server
 	listings        *listingCache
 	bodies          *bodyCache
@@ -17,16 +18,15 @@ type plugin struct {
 	senderBooks     *memo.Memo[*senderBook]
 	authServGuesses *memo.Memo[string]
 	wkd             *wkdCache
-	// composed cleans what the editor wrote.
-	composed *bluemonday.Policy
-	watchers sync.Map
+	watchers        sync.Map
 }
 
-func newPlugin(s *alborz.Server) *plugin {
+// New keeps mail for the server, for as long as its options say.
+func New(s *alborz.Server) *Mailboxes {
 	o := s.Options
 	bodies := newBodyCache(o.CacheFor(bodyKeepFor))
 	sidebars := memo.NewBackground[Rail](o.CacheFor(listingFreshFor))
-	p := &plugin{
+	p := &Mailboxes{
 		server:          s,
 		listings:        newListingCache(o.CacheFor(listingKeepFor), sidebars, bodies),
 		bodies:          bodies,

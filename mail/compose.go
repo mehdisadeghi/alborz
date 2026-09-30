@@ -61,12 +61,12 @@ func composeIdentities(ctx *web.Context, writtenAs string) []AccountIdentities {
 }
 
 func (a AccountIdentities) offers(address string) bool {
-	want := bareAddress(address)
+	want := BareAddress(address)
 	if strings.EqualFold(want, a.Account) {
 		return true
 	}
 	for _, identity := range a.Addresses {
-		if strings.EqualFold(want, bareAddress(identity)) {
+		if strings.EqualFold(want, BareAddress(identity)) {
 			return true
 		}
 	}
@@ -76,12 +76,12 @@ func (a AccountIdentities) offers(address string) bool {
 // attachedField carries "mailbox/uid" refs, re-fetched when the form comes back.
 const attachedField = "attached_messages"
 
-func parseAttachedRef(s string) (messagePath, error) {
+func parseAttachedRef(s string) (MessagePath, error) {
 	i := strings.LastIndex(s, "/")
 	if i < 0 {
-		return messagePath{}, fmt.Errorf("bad attached message %q", s)
+		return MessagePath{}, fmt.Errorf("bad attached message %q", s)
 	}
-	var p messagePath
+	var p MessagePath
 	var err error
 	p.Mailbox, p.Uid, err = ParseMessageRef(s[:i], s[i+1:])
 	return p, err
@@ -93,7 +93,7 @@ func (d *ComposeRenderData) SelectedFrom() string {
 	if d.GlobalData.URLAccount != "" {
 		fallback = d.GlobalData.URLAccount
 	}
-	want := bareAddress(d.Message.From)
+	want := BareAddress(d.Message.From)
 	if want == "" {
 		return fallback
 	}
@@ -102,7 +102,7 @@ func (d *ComposeRenderData) SelectedFrom() string {
 			return group.Account
 		}
 		for _, identity := range group.Addresses {
-			if strings.EqualFold(want, bareAddress(identity)) {
+			if strings.EqualFold(want, BareAddress(identity)) {
 				return group.Account + "|" + identity
 			}
 		}
@@ -111,20 +111,20 @@ func (d *ComposeRenderData) SelectedFrom() string {
 }
 
 // Uploads are the files the form had taken before it was sent back.
-func (d *ComposeRenderData) Uploads() []*formAttachment {
-	var out []*formAttachment
+func (d *ComposeRenderData) Uploads() []*FormAttachment {
+	var out []*FormAttachment
 	for _, att := range d.Message.Attachments {
-		if a, ok := att.(*formAttachment); ok && a.ID != "" {
+		if a, ok := att.(*FormAttachment); ok && a.ID != "" {
 			out = append(out, a)
 		}
 	}
 	return out
 }
 
-func (d *ComposeRenderData) PartAttachments() []*imapAttachment {
-	var out []*imapAttachment
+func (d *ComposeRenderData) PartAttachments() []*IMAPAttachment {
+	var out []*IMAPAttachment
 	for _, att := range d.Message.Attachments {
-		if a, ok := att.(*imapAttachment); ok {
+		if a, ok := att.(*IMAPAttachment); ok {
 			out = append(out, a)
 		}
 	}
@@ -134,22 +134,22 @@ func (d *ComposeRenderData) PartAttachments() []*imapAttachment {
 func attachedList(msg *OutgoingMessage) []AttachedMessage {
 	var out []AttachedMessage
 	for _, att := range msg.Attachments {
-		if m, ok := att.(*messageAttachment); ok {
+		if m, ok := att.(*MessageAttachment); ok {
 			out = append(out, AttachedMessage{Ref: attachedRef(m.Path), Name: m.Name})
 		}
 	}
 	return out
 }
 
-func attachedRef(p messagePath) string {
+func attachedRef(p MessagePath) string {
 	return fmt.Sprintf("%s/%v", url.PathEscape(p.Mailbox), p.Uid)
 }
 
 // The form shows only names; the send fetches the messages.
 
 // The sender is the From account; the draft and the answered message stay on the request's account.
-func (p *plugin) submitCompose(ctx *web.Context, sender *alborz.Login, msg *OutgoingMessage, options *composeOptions) error {
-	sent, sentUID, to, err := p.submit(ctx.Request().Context(), ctx.Login, sender, msg, options)
+func (p *plugin) submitCompose(ctx *web.Context, sender *alborz.Login, msg *OutgoingMessage, options *ComposeOptions) error {
+	sent, sentUID, to, err := p.Submit(ctx.Request().Context(), ctx.Login, sender, msg, options)
 	if _, ok := err.(alborz.AuthError); ok {
 		return web.NewError(http.StatusForbidden, err)
 	}
@@ -173,7 +173,7 @@ func (p *plugin) submitCompose(ctx *web.Context, sender *alborz.Login, msg *Outg
 	return ctx.Redirect(http.StatusFound, ctx.URL("mail.mailbox", "INBOX"))
 }
 
-func (p *plugin) handleCompose(ctx *web.Context, msg *OutgoingMessage, options *composeOptions) error {
+func (p *plugin) handleCompose(ctx *web.Context, msg *OutgoingMessage, options *ComposeOptions) error {
 	ibase, err := p.newIMAPBaseRenderData(ctx, web.NewBaseRenderData(ctx))
 	if err != nil {
 		return err
@@ -183,10 +183,10 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *OutgoingMessage, options *
 	if err != nil {
 		return err
 	}
-	msg.Mailer = mailerName()
+	msg.Mailer = Mailer()
 
 	if msg.From == "" && strings.ContainsRune(ctx.Login.Username(), '@') {
-		msg.From = fromAddress(settings, ctx.Login.Username())
+		msg.From = FromAddress(settings, ctx.Login.Username())
 	}
 
 	if ctx.Request().Method == http.MethodPost {
@@ -198,7 +198,7 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *OutgoingMessage, options *
 
 		// SMTP, Sent and settings follow the From account; the draft, the answered message and attachments stay on the request's.
 		sender := ctx.Login
-		account, identity := splitIdentityChoice(ctx.FormValue("from_account"))
+		account, identity := SplitIdentityChoice(ctx.FormValue("from_account"))
 		if account != "" && account != sender.Username() {
 			sender = ctx.LoginFor(account)
 			if sender == nil {
@@ -239,7 +239,7 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *OutgoingMessage, options *
 			}
 			return err
 		}
-		msg.From = fromAddress(settings, sender.Username())
+		msg.From = FromAddress(settings, sender.Username())
 		// No Sender header: an identity is the same person, not a different transmitter (RFC 5322 3.6.2).
 		if identity != "" && slices.Contains(settings.Identities, identity) {
 			msg.From = identity
@@ -248,7 +248,7 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *OutgoingMessage, options *
 			name string
 			into *[]string
 		}{{"to", &msg.To}, {"cc", &msg.Cc}, {"bcc", &msg.Bcc}, {"reply_to", &msg.ReplyTo}} {
-			addresses, err := parseAddressList(ctx.FormValue(field.name))
+			addresses, err := ParseAddressList(ctx.FormValue(field.name))
 			if err != nil {
 				return render(http.StatusUnprocessableEntity, ctx.FormValue("signature"), ctx.T("form.recipientinvalid"))
 			}
@@ -257,17 +257,17 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *OutgoingMessage, options *
 		msg.Subject = ctx.FormValue("subject")
 		msg.Text = ctx.FormValue("text")
 		// The text is derived from the HTML so the plain part and the draft agree.
-		if msg.HTML = composedHTML(p.composed, ctx.FormValue("html")); msg.HTML != "" {
-			msg.Text = composedText(msg.HTML)
+		if msg.HTML = ComposedHTML(p.composed, ctx.FormValue("html")); msg.HTML != "" {
+			msg.Text = ComposedText(msg.HTML)
 		}
 
 		// Choosing a signature is a submit, so it works without script.
 		if _, ok := formParams["signature_apply"]; ok {
 			chosen := ctx.FormValue("signature")
-			sig, _ := settings.signatureNamed(chosen)
-			msg.Text = withSignature(msg.Text, sig.Text)
+			sig, _ := settings.SignatureNamed(chosen)
+			msg.Text = WithSignature(msg.Text, sig.Text)
 			if msg.HTML != "" {
-				msg.HTML = withSignatureHTML(msg.HTML, sig.Text)
+				msg.HTML = WithSignatureHTML(msg.HTML, sig.Text)
 			}
 			return render(http.StatusOK, sig.Name, "")
 		}
@@ -275,7 +275,7 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *OutgoingMessage, options *
 		msg.SendHTML = msg.HTML == "" && !ctx.Profile().Writing.NoDirectionPart && lang.HasRTL(msg.Text)
 		if msg.SendHTML && options.InReplyTo != nil {
 			toList := false
-			if id, err := messageListID(ctx.Request().Context(), ctx.Login, *options.InReplyTo); err != nil {
+			if id, err := MessageListID(ctx.Request().Context(), ctx.Login, *options.InReplyTo); err != nil {
 				// Unknown counts as a list: plain text to a person is the smaller harm.
 				ctx.Logger().Printf("list check for reply: %v", err)
 				toList = true
@@ -288,7 +288,7 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *OutgoingMessage, options *
 		msg.MessageID = ctx.FormValue("message_id")
 		if msg.MessageID == "" {
 			// The page carries the id so a draft saved twice stays one message.
-			msg.MessageID = newMessageID()
+			msg.MessageID = NewMessageID()
 		}
 
 		form, err := ctx.MultipartForm()
@@ -296,7 +296,7 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *OutgoingMessage, options *
 			return fmt.Errorf("failed to get multipart form: %v", err)
 		}
 
-		var attached []messagePath
+		var attached []MessagePath
 		for _, s := range form.Value[attachedField] {
 			p, err := parseAttachedRef(s)
 			if err != nil {
@@ -304,12 +304,12 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *OutgoingMessage, options *
 			}
 			attached = append(attached, p)
 		}
-		if err := attachMessages(ctx.Request().Context(), ctx.Login, msg, attached); err != nil {
+		if err := AttachMessages(ctx.Request().Context(), ctx.Login, msg, attached); err != nil {
 			return err
 		}
 		options.Attached = attached
 
-		var original *messagePath
+		var original *MessagePath
 		if options.Draft != nil {
 			original = options.Draft
 		} else if options.Forward != nil {
@@ -322,7 +322,7 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *OutgoingMessage, options *
 					return fmt.Errorf("failed to parse original attachment path: %v", err)
 				}
 
-				if err := attachPart(ctx.Request().Context(), ctx.Login, msg, *original, path); err != nil {
+				if err := AttachPart(ctx.Request().Context(), ctx.Login, msg, *original, path); err != nil {
 					return err
 				}
 			}
@@ -331,7 +331,7 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *OutgoingMessage, options *
 		}
 
 		for _, fh := range form.File["attachments"] {
-			msg.Attachments = append(msg.Attachments, &formAttachment{FileHeader: fh})
+			msg.Attachments = append(msg.Attachments, &FormAttachment{FileHeader: fh})
 		}
 
 		uuids := ctx.FormValue("attachment-uuids")
@@ -345,12 +345,12 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *OutgoingMessage, options *
 				return fmt.Errorf("Unable to retrieve message attachment %s from session", uuid)
 			}
 			msg.Attachments = append(msg.Attachments,
-				&formAttachment{FileHeader: attachment.File, ID: uuid})
+				&FormAttachment{FileHeader: attachment.File, ID: uuid})
 			uploads = append(uploads, uuid)
 		}
 
 		if msg.HTML != "" {
-			images, err := inlineImages(msg.HTML, msg.MessageID, imageSource(ctx, &uploads))
+			images, err := InlineImages(msg.HTML, msg.MessageID, imageSource(ctx, &uploads))
 			if err != nil {
 				return err
 			}
@@ -422,20 +422,20 @@ func (p *plugin) handleComposeNew(ctx *web.Context) error {
 		return err
 	}
 	chosen := settings.DefaultSignature
-	if sig, ok := settings.signatureNamed(chosen); ok && text == "" {
-		text = withSignature(text, sig.Text)
+	if sig, ok := settings.SignatureNamed(chosen); ok && text == "" {
+		text = WithSignature(text, sig.Text)
 	} else if !ok {
 		chosen = ""
 	}
 
 	return p.handleCompose(ctx, &OutgoingMessage{
-		From:      p.ownIdentity(ctx.Login, settings, ctx.QueryParam("from")),
+		From:      p.OwnIdentity(ctx.Login, settings, ctx.QueryParam("from")),
 		To:        strings.Split(ctx.QueryParam("to"), ","),
 		Subject:   ctx.QueryParam("subject"),
-		MessageID: newMessageID(),
+		MessageID: NewMessageID(),
 		InReplyTo: ctx.QueryParam("in-reply-to"),
 		Text:      text,
-	}, &composeOptions{Signature: chosen})
+	}, &ComposeOptions{Signature: chosen})
 }
 
 // composeTooLarge answers a message form past its limit; what was typed did not arrive.
@@ -483,7 +483,7 @@ func handleCancelAttachment(ctx *web.Context) error {
 }
 
 func (p *plugin) handleReply(ctx *web.Context) error {
-	var inReplyToPath messagePath
+	var inReplyToPath MessagePath
 	var err error
 	inReplyToPath.Mailbox, inReplyToPath.Uid, err = MessageRef(ctx)
 	if err != nil {
@@ -498,19 +498,19 @@ func (p *plugin) handleReply(ctx *web.Context) error {
 		}
 	}
 
-	return p.handleCompose(ctx, &msg, &composeOptions{InReplyTo: &inReplyToPath})
+	return p.handleCompose(ctx, &msg, &ComposeOptions{InReplyTo: &inReplyToPath})
 }
 
 // A bare link names no part, so the text part shown is fetched instead.
-func quotablePart(ctx *web.Context, path messagePath, partPath []int) (*IMAPMessage, *message.Entity, string, error) {
-	msg, part, mimeType, err := quotable(ctx.Request().Context(), ctx.Login, path, partPath)
-	if errors.Is(err, errNoText) {
+func quotablePart(ctx *web.Context, path MessagePath, partPath []int) (*IMAPMessage, *message.Entity, string, error) {
+	msg, part, mimeType, err := Quotable(ctx.Request().Context(), ctx.Login, path, partPath)
+	if errors.Is(err, ErrNoText) {
 		return nil, nil, "", web.NewError(http.StatusBadRequest, err)
 	}
 	return msg, part, mimeType, err
 }
 
-func (p *plugin) populateMessageFromOriginalMessage(ctx *web.Context, inReplyToPath messagePath) (OutgoingMessage, error) {
+func (p *plugin) populateMessageFromOriginalMessage(ctx *web.Context, inReplyToPath MessagePath) (OutgoingMessage, error) {
 	var ret OutgoingMessage
 
 	partPath, err := ParsePartPath(ctx.QueryParam("part"))
@@ -527,10 +527,10 @@ func (p *plugin) populateMessageFromOriginalMessage(ctx *web.Context, inReplyToP
 	switch mimeType {
 	case "text/plain":
 		var text string
-		if text, err = readText(part); err != nil {
+		if text, err = ReadText(part); err != nil {
 			return ret, err
 		}
-		quoted, err = quote(strings.NewReader(text))
+		quoted, err = Quote(strings.NewReader(text))
 	case "text/html":
 		var text string
 		text, err = html2text.FromReader(part.Body, html2text.Options{})
@@ -538,7 +538,7 @@ func (p *plugin) populateMessageFromOriginalMessage(ctx *web.Context, inReplyToP
 			return ret, err
 		}
 
-		quoted, err = quote(strings.NewReader(text))
+		quoted, err = Quote(strings.NewReader(text))
 	default:
 		defErr := fmt.Errorf("cannot forward %q part", mimeType)
 		err = web.NewError(http.StatusBadRequest, defErr)
@@ -561,24 +561,24 @@ func (p *plugin) populateMessageFromOriginalMessage(ctx *web.Context, inReplyToP
 		ret.QuoteRich = true
 	}
 
-	ret.MessageID = newMessageID()
+	ret.MessageID = NewMessageID()
 	ret.InReplyTo = "<" + inReplyTo.Envelope.MessageID + ">"
 	ret.References = strings.TrimSpace(inReplyTo.References + " " + ret.InReplyTo)
 	// A mail to an identity is answered by that identity; Cc counts too.
-	ret.From = p.replyIdentity(ctx.Login, settings, inReplyTo)
+	ret.From = p.ReplyIdentity(ctx.Login, settings, inReplyTo)
 	replyTo := inReplyTo.Envelope.ReplyTo
 	if len(replyTo) == 0 {
 		replyTo = inReplyTo.Envelope.From
 	}
-	ret.To = unwrapIMAPAddressList(replyTo)
+	ret.To = AddressStrings(replyTo)
 
 	if ctx.QueryParam("list") != "" && inReplyTo.ListPost != "" {
 		ret.To = []string{inReplyTo.ListPost}
 	} else if ctx.QueryParam("all") != "" {
-		filtered := filterOutUsername(ctx.Login.Username(),
+		filtered := WithoutAccount(ctx.Login.Username(),
 			inReplyTo.Envelope.To)
-		ret.To = unwrapIMAPAddressList(append(replyTo, filtered...))
-		ret.Cc = unwrapIMAPAddressList(inReplyTo.Envelope.Cc)
+		ret.To = AddressStrings(append(replyTo, filtered...))
+		ret.Cc = AddressStrings(inReplyTo.Envelope.Cc)
 	}
 
 	ret.Subject = inReplyTo.Envelope.Subject
@@ -601,7 +601,7 @@ func forwardBody(ctx *web.Context, original *IMAPMessage, body string) string {
 	fmt.Fprintf(&b, "Date: %s\n", ctx.Dates().Full(original.Date()))
 	fmt.Fprintf(&b, "Subject: %s\n", original.Envelope.Subject)
 	if to := original.Envelope.To; len(to) > 0 {
-		fmt.Fprintf(&b, "To: %s\n", strings.Join(unwrapIMAPAddressList(to), ", "))
+		fmt.Fprintf(&b, "To: %s\n", strings.Join(AddressStrings(to), ", "))
 	}
 	b.WriteString("\n")
 	b.WriteString(body)
@@ -615,15 +615,15 @@ func forwardHTML(ctx *web.Context, original *IMAPMessage, body string) template.
 		`<p dir="` + lang.ParagraphDir(head) + `">` + strings.Join(lines, "<br>") + "</p>\n<div>" + body + "</div>\n")
 }
 
-func (p *plugin) quotedHTML(ctx *web.Context, path messagePath, msg *IMAPMessage) (string, error) {
+func (p *plugin) quotedHTML(ctx *web.Context, path MessagePath, msg *IMAPMessage) (string, error) {
 	raw := ctx.Path("mail.message.raw", msg.Mailbox, msg.UID)
-	quoted, err := quotedHTML(ctx.Request().Context(), ctx.Login, path, msg, func(part *IMAPPartNode) string {
+	quoted, err := QuotedHTML(ctx.Request().Context(), ctx.Login, path, msg, func(part *IMAPPartNode) string {
 		return raw + part.Query(ctx.Login.Username())
 	})
 	if err != nil || quoted == "" {
 		return "", err
 	}
-	return composedHTML(p.composed, quoted), nil
+	return ComposedHTML(p.composed, quoted), nil
 }
 
 func addressLine(a imap.Address) string {
@@ -675,7 +675,7 @@ func handleForwardSelection(ctx *web.Context) error {
 	if err != nil {
 		return web.NewError(http.StatusBadRequest, err)
 	}
-	uids, err := parseUidList(params["uids"])
+	uids, err := ParseUIDs(params["uids"])
 	if err != nil {
 		return web.NewError(http.StatusBadRequest, err)
 	}
@@ -705,28 +705,28 @@ func (p *plugin) handleForwardAttached(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	uids, err := parseUidList(strings.Split(ctx.QueryParam("uids"), ","))
+	uids, err := ParseUIDs(strings.Split(ctx.QueryParam("uids"), ","))
 	if err != nil || len(uids) == 0 {
 		return web.NewError(http.StatusBadRequest, "no messages to forward")
 	}
-	paths := make([]messagePath, len(uids))
+	paths := make([]MessagePath, len(uids))
 	for i, uid := range uids {
-		paths[i] = messagePath{Mailbox: mboxName, Uid: uid}
+		paths[i] = MessagePath{Mailbox: mboxName, Uid: uid}
 	}
 	var msg OutgoingMessage
 	if ctx.Request().Method == http.MethodGet {
-		if err := attachMessages(ctx.Request().Context(), ctx.Login, &msg, paths); err != nil {
+		if err := AttachMessages(ctx.Request().Context(), ctx.Login, &msg, paths); err != nil {
 			return err
 		}
-		msg.MessageID = newMessageID()
+		msg.MessageID = NewMessageID()
 		msg.Subject = ctx.Tf("message.forwardcount", len(uids))
 		msg.QuoteBelow = true
 	}
-	return p.handleCompose(ctx, &msg, &composeOptions{Attached: paths})
+	return p.handleCompose(ctx, &msg, &ComposeOptions{Attached: paths})
 }
 
 func (p *plugin) handleForward(ctx *web.Context) error {
-	var sourcePath messagePath
+	var sourcePath MessagePath
 	var err error
 	sourcePath.Mailbox, sourcePath.Uid, err = MessageRef(ctx)
 	if err != nil {
@@ -748,7 +748,7 @@ func (p *plugin) handleForward(ctx *web.Context) error {
 		var body string
 		switch mimeType {
 		case "text/plain":
-			body, err = readText(part)
+			body, err = ReadText(part)
 		case "text/html":
 			// Lossy; attaching the message instead keeps it whole.
 			body, err = html2text.FromReader(part.Body, html2text.Options{})
@@ -768,7 +768,7 @@ func (p *plugin) handleForward(ctx *web.Context) error {
 			msg.QuoteRich = true
 		}
 
-		msg.MessageID = newMessageID()
+		msg.MessageID = NewMessageID()
 		msg.Subject = source.Envelope.Subject
 		if !strings.HasPrefix(strings.ToLower(msg.Subject), "fwd:") &&
 			!strings.HasPrefix(strings.ToLower(msg.Subject), "fw:") {
@@ -779,7 +779,7 @@ func (p *plugin) handleForward(ctx *web.Context) error {
 
 		attachments := source.Attachments()
 		for i := range attachments {
-			msg.Attachments = append(msg.Attachments, &imapAttachment{
+			msg.Attachments = append(msg.Attachments, &IMAPAttachment{
 				Mailbox: sourcePath.Mailbox,
 				Uid:     sourcePath.Uid,
 				Node:    &attachments[i],
@@ -787,11 +787,11 @@ func (p *plugin) handleForward(ctx *web.Context) error {
 		}
 	}
 
-	return p.handleCompose(ctx, &msg, &composeOptions{Forward: &sourcePath})
+	return p.handleCompose(ctx, &msg, &ComposeOptions{Forward: &sourcePath})
 }
 
 func (p *plugin) handleEdit(ctx *web.Context) error {
-	var sourcePath messagePath
+	var sourcePath MessagePath
 	var err error
 	sourcePath.Mailbox, sourcePath.Uid, err = MessageRef(ctx)
 	if err != nil {
@@ -824,7 +824,7 @@ func (p *plugin) handleEdit(ctx *web.Context) error {
 			return web.NewError(http.StatusBadRequest, err)
 		}
 
-		if msg.Text, err = readText(part); err != nil {
+		if msg.Text, err = ReadText(part); err != nil {
 			return fmt.Errorf("failed to read part body: %v", err)
 		}
 		if msg.HTML, err = p.quotedHTML(ctx, sourcePath, source); err != nil {
@@ -834,14 +834,14 @@ func (p *plugin) handleEdit(ctx *web.Context) error {
 		if len(source.Envelope.From) > 0 {
 			msg.From = source.Envelope.From[0].Addr()
 		}
-		msg.To = unwrapIMAPAddressList(source.Envelope.To)
+		msg.To = AddressStrings(source.Envelope.To)
 		msg.Subject = source.Envelope.Subject
 		msg.InReplyTo = formatMsgIDList(source.Envelope.InReplyTo)
 		msg.MessageID = "<" + source.Envelope.MessageID + ">"
 
 		attachments := source.Attachments()
 		for i := range attachments {
-			msg.Attachments = append(msg.Attachments, &imapAttachment{
+			msg.Attachments = append(msg.Attachments, &IMAPAttachment{
 				Mailbox: sourcePath.Mailbox,
 				Uid:     sourcePath.Uid,
 				Node:    &attachments[i],
@@ -849,7 +849,7 @@ func (p *plugin) handleEdit(ctx *web.Context) error {
 		}
 	}
 
-	return p.handleCompose(ctx, &msg, &composeOptions{Draft: &sourcePath})
+	return p.handleCompose(ctx, &msg, &ComposeOptions{Draft: &sourcePath})
 }
 
 func formatMsgIDList(l []string) string {

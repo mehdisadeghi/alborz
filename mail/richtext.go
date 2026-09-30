@@ -11,9 +11,9 @@ import (
 	"git.mehdix.org/alborz/internal/lang"
 )
 
-// composedPolicy drops what the editor did not write, so a paste cannot carry styles or scripts; images
+// ComposedPolicy drops what the editor did not write, so a paste cannot carry styles or scripts; images
 // may reference only what alborz holds (ADR 40), which images matches.
-func composedPolicy(images *regexp.Regexp) *bluemonday.Policy {
+func ComposedPolicy(images *regexp.Regexp) *bluemonday.Policy {
 	p := bluemonday.NewPolicy()
 	p.AllowElements("p", "div", "br", "b", "strong", "i", "em", "u", "s", "ul", "ol", "li", "blockquote", "a")
 	p.AllowAttrs("dir").Matching(regexp.MustCompile(`^(ltr|rtl|auto)$`)).OnElements("p", "div", "li", "blockquote", "ul", "ol")
@@ -36,7 +36,8 @@ var (
 	quoteTag      = regexp.MustCompile(`<blockquote([^>]*)>`)
 )
 
-func composedHTML(policy *bluemonday.Policy, raw string) string {
+// ComposedHTML is what the editor wrote, cleaned by policy and each paragraph given its direction; "" where it holds nothing.
+func ComposedHTML(policy *bluemonday.Policy, raw string) string {
 	clean := policy.Sanitize(raw)
 	if strings.TrimSpace(composedTag.ReplaceAllString(clean, "")) == "" && !strings.Contains(clean, "<img") {
 		return ""
@@ -61,7 +62,8 @@ func composedHTML(policy *bluemonday.Policy, raw string) string {
 
 var signatureBlock = regexp.MustCompile(`(?s)<p[^>]*>-- <br>.*?</p>\s*$`)
 
-func withSignatureHTML(body, text string) string {
+// WithSignatureHTML puts a signature under the HTML body, in place of the one there.
+func WithSignatureHTML(body, text string) string {
 	body = strings.TrimSpace(signatureBlock.ReplaceAllString(body, ""))
 	if text == "" {
 		return body
@@ -70,7 +72,8 @@ func withSignatureHTML(body, text string) string {
 	return body + "\n<p dir=\"" + lang.ParagraphDir(text) + "\">-- <br>" + strings.Join(lines, "<br>") + "</p>"
 }
 
-func composedText(htmlBody string) string {
+// ComposedText is the plain part written from the HTML, so the two agree.
+func ComposedText(htmlBody string) string {
 	text, err := html2text.FromString(htmlBody, html2text.Options{})
 	if err != nil {
 		return ""

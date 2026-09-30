@@ -21,8 +21,8 @@ import (
 	"github.com/emersion/go-message/textproto"
 )
 
-// exportRun streams one account's run of messages into the archive, on a connection of its own.
-func exportRun(ctx context.Context, log *log.Logger, s *alborz.Login, run []Ref, archive *mbox.Writer, strip bool, note string, begin, flush func()) error {
+// ExportRun streams one account's run of messages into the archive, on a connection of its own.
+func ExportRun(ctx context.Context, log *log.Logger, s *alborz.Login, run []Ref, archive *mbox.Writer, strip bool, note string, begin, flush func()) error {
 	return s.DoIMAPTransfer(ctx, func(c *imapclient.Client) error {
 		for _, r := range run {
 			if err := exportMessage(log, c, archive, r, strip, note, begin); err != nil {
@@ -202,7 +202,7 @@ func (h *heldBreak) end() error {
 }
 
 // ImportFile appends the messages of an mbox or .eml file to folder, taking the connection once.
-func (p *plugin) ImportFile(ctx context.Context, login *alborz.Login, folder string, r io.Reader) (added, held int, err error) {
+func (p *Mailboxes) ImportFile(ctx context.Context, login *alborz.Login, folder string, r io.Reader) (added, held int, err error) {
 	defer p.accountChanged(login.Username())
 	err = login.DoIMAPWork(ctx, alborz.IMAPScan, importBound, func(c *imapclient.Client) error {
 		var err error
@@ -215,7 +215,7 @@ func (p *plugin) ImportFile(ctx context.Context, login *alborz.Login, folder str
 // DropFiles appends the messages of each file next gives, until io.EOF, to folder; the connection is
 // taken once and the files read inside, so they are appended as they arrive. A file that fails to
 // arrive is fileErr, the sender's; err is the server's.
-func (p *plugin) DropFiles(ctx context.Context, login *alborz.Login, folder string, next func() (io.Reader, error)) (added, held int, fileErr, err error) {
+func (p *Mailboxes) DropFiles(ctx context.Context, login *alborz.Login, folder string, next func() (io.Reader, error)) (added, held int, fileErr, err error) {
 	defer p.accountChanged(login.Username())
 	err = login.DoIMAPWork(ctx, alborz.IMAPScan, importBound, func(c *imapclient.Client) error {
 		if err := ensureMailboxSelected(c, folder); err != nil {
@@ -358,8 +358,8 @@ func mboxMessages(r io.Reader) func() ([]byte, error) {
 	}
 }
 
-// exportSize is how many messages a folder, or its narrowing, holds, and their size where the server says (STATUS=SIZE).
-func exportSize(c *imapclient.Client, settings *Settings, mboxName, query, view string) (count int, size int64, err error) {
+// ExportSize is how many messages a folder, or its narrowing, holds, and their size where the server says (STATUS=SIZE).
+func ExportSize(c *imapclient.Client, settings *Settings, mboxName, query, view string) (count int, size int64, err error) {
 	if criteria := listCriteria(c, settings, query, view); criteria != nil {
 		if err := ensureMailboxSelected(c, mboxName); err != nil {
 			return 0, 0, err

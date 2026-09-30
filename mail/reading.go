@@ -381,7 +381,7 @@ func OneClick(c *imapclient.Client, mboxName string, uid imap.UID) (string, erro
 }
 
 // Unsubscribe posts the one-click Unsubscribe to the list's address.
-func (p *plugin) Unsubscribe(ctx context.Context, uri string) error {
+func (p *Mailboxes) Unsubscribe(ctx context.Context, uri string) error {
 	body := strings.NewReader("List-Unsubscribe=One-Click")
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, uri, body)
 	if err != nil {
@@ -454,7 +454,8 @@ type Opened struct {
 	Unsubscribe url.Values
 }
 
-func (p *plugin) Read(ctx context.Context, r ReadAsk) (*Opened, error) {
+// Read reads a message for its page, from what is held where it can, and marks it read.
+func (p *Mailboxes) Read(ctx context.Context, r ReadAsk) (*Opened, error) {
 	// Read before the message's IMAP work: it may sample the inbox, and the login lock is not reentrant.
 	trusted := p.TrustedAuthServ(r.Login, r.Settings)
 	partPath := r.Part

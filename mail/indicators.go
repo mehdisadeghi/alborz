@@ -260,7 +260,7 @@ const (
 	senderBookSpan = 2000
 )
 
-func (p *plugin) senderBookFor(s *alborz.Login) *senderBook {
+func (p *Mailboxes) senderBookFor(s *alborz.Login) *senderBook {
 	return p.senderBooks.Warm(s.Username(), func() (*senderBook, error) {
 		book := &senderBook{}
 		err := s.DoIMAPBackground(func(c *imapclient.Client) error {

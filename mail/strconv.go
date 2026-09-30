@@ -36,7 +36,8 @@ func parseMboxAndUid(mboxString, uidString string) (string, imap.UID, error) {
 	return mboxName, uid, err
 }
 
-func parseUidList(values []string) ([]imap.UID, error) {
+// ParseUIDs reads the UIDs a form names.
+func ParseUIDs(values []string) ([]imap.UID, error) {
 	var uids []imap.UID
 	for _, v := range values {
 		uid, err := ParseUID(v)
@@ -71,7 +72,7 @@ func ParsePartPath(s string) ([]int, error) {
 }
 
 // Uses net/mail, since a display name may contain a comma.
-func parseAddressList(s string) ([]string, error) {
+func ParseAddressList(s string) ([]string, error) {
 	if strings.TrimSpace(s) == "" {
 		return nil, nil
 	}

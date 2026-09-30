@@ -30,13 +30,13 @@ func wholeView(form url.Values) (query, view string, whole bool) {
 func selection(ctx *web.Context, mboxName string, form url.Values) ([]imap.UID, error) {
 	query, view, whole := wholeView(form)
 	if !whole {
-		uids, err := parseUidList(form["uids"])
+		uids, err := ParseUIDs(form["uids"])
 		if err != nil {
 			return nil, web.NewError(http.StatusBadRequest, err)
 		}
 		return uids, nil
 	}
-	return folderViewUIDs(ctx.Request().Context(), ctx.Login, mboxName, query, view)
+	return FolderView(ctx.Request().Context(), ctx.Login, mboxName, query, view)
 }
 
 func folderSelection(ctx *web.Context) (mboxName string, form url.Values, uids []imap.UID, err error) {
@@ -79,7 +79,7 @@ func (p *plugin) mergedSelection(ctx *web.Context, role string, form url.Values)
 	}
 	var refs []Ref
 	for _, s := range logins {
-		found, err := p.viewRefs(ctx.Request().Context(), s, role, spanning, settings, query, view)
+		found, err := p.ViewRefs(ctx.Request().Context(), s, role, spanning, settings, query, view)
 		if err != nil {
 			return nil, err
 		}

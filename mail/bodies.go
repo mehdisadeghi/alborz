@@ -153,7 +153,7 @@ func (b *cachedBody) size() int {
 	return n
 }
 
-func (p *plugin) prefetchBodies(s *alborz.Login, preferHTML bool, mbox string, validity uint32, rows []IMAPMessage) {
+func (p *Mailboxes) prefetchBodies(s *alborz.Login, preferHTML bool, mbox string, validity uint32, rows []IMAPMessage) {
 	if validity == 0 {
 		return
 	}
@@ -283,7 +283,7 @@ func (bc *bodyCache) cancelSeen(user, mailbox string, uids []imap.UID) {
 	maps.DeleteFunc(bc.seen, func(k bodyKey, _ uint64) bool { return k.user == user && k.mbox == mailbox && among[k.uid] })
 }
 
-func (p *plugin) markHeldSeen(s *alborz.Login, mailbox string, uid imap.UID, validity uint32) {
+func (p *Mailboxes) markHeldSeen(s *alborz.Login, mailbox string, uid imap.UID, validity uint32) {
 	k := bodyKey{s.Username(), mailbox, validity, uid}
 	p.bodies.mu.Lock()
 	if p.bodies.seen[k] != 0 {

@@ -27,6 +27,7 @@ type CategorizedMailboxes struct {
 // railFolderLimit caps unsubscribed folders on the rail; more run off a laptop's screen.
 const railFolderLimit = 25
 
+// Trim keeps as many folders as a rail shows.
 func (cc *CategorizedMailboxes) Trim() {
 	if len(cc.Additional) <= railFolderLimit {
 		return
@@ -163,6 +164,7 @@ func (sb *Rail) adjustUnseen(folder string, delta int) {
 	st.StatusData = &data
 }
 
+// Clone is a copy of the rail to change for one page.
 func (sb Rail) Clone() Rail {
 	out := Rail{
 		Mailboxes: append([]MailboxInfo(nil), sb.Mailboxes...),
@@ -185,7 +187,7 @@ func (sb Rail) Clone() Rail {
 	return out
 }
 
-func (p *plugin) railFor(s *alborz.Login, mboxName string, fetched Rail) Rail {
+func (p *Mailboxes) railFor(s *alborz.Login, mboxName string, fetched Rail) Rail {
 	sb, err := p.Rail(s)
 	if err != nil {
 		return fetched
@@ -199,7 +201,8 @@ func (p *plugin) railFor(s *alborz.Login, mboxName string, fetched Rail) Rail {
 	return sb
 }
 
-func (p *plugin) Rail(s *alborz.Login) (Rail, error) {
+// Rail is the account's folders and counts as last read.
+func (p *Mailboxes) Rail(s *alborz.Login) (Rail, error) {
 	return p.accountSidebars.Get(s.Username(), func() (Rail, error) {
 		// Loaded before DoIMAP: on a METADATA server the settings read is itself a DoIMAP, and the lock is not reentrant.
 		settings, err := LoadSettings(context.Background(), s.Store())

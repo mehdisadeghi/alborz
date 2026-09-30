@@ -169,7 +169,7 @@ func verdictOver(t *testing.T, raw string) Verification {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p := &plugin{wkd: newWKDCache(0)}
+	p := &Mailboxes{wkd: newWKDCache(0)}
 	v, err := p.verifySignature(context.Background(), &http.Client{Transport: unresolvable{}}, c, msg)
 	if err != nil {
 		t.Fatal(err)

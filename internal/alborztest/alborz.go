@@ -76,6 +76,9 @@ func NoCache() Option { return func(c *config) { c.options.Cache = false } }
 
 func PublicURL(u string) Option { return func(c *config) { c.options.PublicURL = u } }
 
+// LoginKey seals what alborz keeps under key instead of the rig's.
+func LoginKey(key string) Option { return func(c *config) { c.options.LoginKey = key } }
+
 // DataDir keeps alborz.db in dir, for an alborz that starts again over it.
 func DataDir(dir string) Option { return func(c *config) { c.options.DataDir = dir } }
 

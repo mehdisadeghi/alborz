@@ -66,6 +66,9 @@ type Server struct {
 	// OnAccountGone is called when an account signs out.
 	OnAccountGone []func(username string)
 
+	// Archive are the features' shares of an account's archive, beside its settings.
+	Archive []ArchivePart
+
 	// OnClose releases what a feature holds open.
 	OnClose []func() error
 

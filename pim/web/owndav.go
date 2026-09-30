@@ -1,9 +1,11 @@
 package web
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"errors"
+	"fmt"
 	"maps"
 	"math"
 	"net/http"
@@ -27,6 +29,22 @@ func Mount(dav, app *web.Group) (*store.Store, error) {
 		return nil, err
 	}
 	st := store.New(db, srv.LoginKey)
+	srv.Archive = append(srv.Archive, alborz.ArchivePart{Dir: "collections",
+		Export: func(_ context.Context, l *alborz.Login, put func(string, []byte) error) error {
+			return st.Export(l.Username(), put)
+		},
+		Import: func(_ context.Context, l *alborz.Login, files map[string][]byte) ([]alborz.ImportNote, error) {
+			unpublished, err := st.Import(l.Username(), files)
+			var notes []alborz.ImportNote
+			for _, name := range unpublished {
+				notes = append(notes, alborz.ImportNote{Key: "data.unpublished", Name: name})
+			}
+			if errors.Is(err, store.ErrArchive) {
+				err = fmt.Errorf("%w: %w", alborz.ErrNotArchive, err)
+			}
+			return notes, err
+		},
+	})
 	serveOwn(dav, srv, st)
 	app.GET("server", "/settings/servers/"+web.ServerDAV, web.Scoped(handleServer))
 	app.POST("server", "/settings/servers/"+web.ServerDAV, web.Scoped(handleServer))

@@ -1,10 +1,12 @@
 package store
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -352,5 +354,76 @@ func TestAFedCalendarIsWrittenByItsFeedAlone(t *testing.T) {
 	}
 	if code := serve(t, st.Handler(), owner, http.MethodDelete, path+"e2.ics", ""); code != http.StatusForbidden {
 		t.Errorf("the owner's DELETE of an object answered %d, want %d", code, http.StatusForbidden)
+	}
+}
+
+// An archive a later version wrote carries fields this one does not know, at every level; an export of what
+// it imported gives them back (ADR 26, 27).
+func TestAnImportKeepsFieldsItDoesNotKnow(t *testing.T) {
+	st := open(t)
+	const owner = "owner@example.org"
+	archive := map[string][]byte{
+		"work/collection.json": []byte(`{
+			"Collection": {"ID": "work", "Owner": "someone@elsewhere.org", "Kind": "calendar", "Name": "Work",
+				"Later": "c", "Feed": null, "Nested": {"Deeper": 1}},
+			"Shares": [{"Owner": "someone@elsewhere.org", "Collection": "work", "To": "guest@example.org",
+				"Accepted": true, "Later": "s"}],
+			"Objects": [{"Name": "e1.ics", "UID": "e1", "Later": "o"}]}`),
+		"work/e1.ics": []byte(event),
+	}
+	if _, err := st.Import(owner, archive); err != nil {
+		t.Fatal(err)
+	}
+	sh, err := st.Share(Ref{Owner: owner, ID: "work"}, "guest@example.org")
+	if err != nil || !sh.Accepted || sh.Owner != owner {
+		t.Fatalf("the share after the import: %+v, %v", sh, err)
+	}
+	exported := map[string][]byte{}
+	if err := st.Export(owner, func(name string, data []byte) error { exported[name] = data; return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if string(exported["work/e1.ics"]) != event {
+		t.Fatalf("the object after the round trip: %q", exported["work/e1.ics"])
+	}
+	var got struct {
+		Collection struct {
+			Owner, Later string
+			Nested       struct{ Deeper int }
+		}
+		Shares  []struct{ Owner, Later string }
+		Objects []struct{ Later string }
+	}
+	if err := json.Unmarshal(exported["work/collection.json"], &got); err != nil {
+		t.Fatal(err)
+	}
+	c := got.Collection
+	if c.Owner != owner || c.Later != "c" || c.Nested.Deeper != 1 ||
+		len(got.Shares) != 1 || got.Shares[0].Later != "s" || got.Shares[0].Owner != owner ||
+		len(got.Objects) != 1 || got.Objects[0].Later != "o" {
+		t.Errorf("the export of the import lost a field: %s", exported["work/collection.json"])
+	}
+}
+
+// A published address serves one collection: an import of another collection under a secret in use here
+// comes in unpublished and says so; importing the same collection again keeps its address.
+func TestAnImportNeverTakesOverAPublishedAddress(t *testing.T) {
+	st := open(t)
+	archive := map[string][]byte{"work/collection.json": []byte(
+		`{"Collection": {"ID": "work", "Kind": "calendar", "Name": "Work", "Public": "s3cret"}}`)}
+	const first, second = "first@example.org", "second@example.org"
+	for _, step := range []struct {
+		owner       string
+		unpublished []string
+	}{{first, nil}, {first, nil}, {second, []string{"Work"}}} {
+		unpublished, err := st.Import(step.owner, archive)
+		if err != nil || !slices.Equal(unpublished, step.unpublished) {
+			t.Fatalf("importing for %s: %v, %v; want %v unpublished", step.owner, unpublished, err, step.unpublished)
+		}
+	}
+	if c, err := st.ByPublic("s3cret"); err != nil || c.Owner != first {
+		t.Errorf("the address serves %+v, %v; want the first import", c, err)
+	}
+	if c, err := st.Collection(Ref{Owner: second, ID: "work"}); err != nil || c.Public != "" {
+		t.Errorf("the second import: %+v, %v; want it kept, unpublished", c, err)
 	}
 }

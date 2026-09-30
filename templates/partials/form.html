@@ -76,8 +76,8 @@
 </label>
 {{ end }}
 
-{{/* dict: g file accept hint go cancel [name namehint namevalue
-     namerequired]. */}}
+{{/* dict: g file accept hint [go cancel name namehint namevalue
+     namerequired]; without go the form puts its own button. */}}
 {{ define "import-fields" }}
 {{ if .name }}{{ template "field" (dict "label" .name "name" "name" "value" .namevalue "dir" "auto" "hint" .namehint "required" .namerequired) }}{{ end }}
 <div class="field">
@@ -85,7 +85,7 @@
   <input type="file" name="file" id="file" accept="{{ .accept }}"{{ if not .optional }} required{{ end }}>
   <p class="hint">{{ .hint }}</p>
 </div>
-{{ template "form-actions" (dict "save" .go "cancel" .cancel "cancelLabel" (.g.T "common.cancel")) }}
+{{ with .go }}{{ template "form-actions" (dict "save" . "cancel" $.cancel "cancelLabel" ($.g.T "common.cancel")) }}{{ end }}
 {{ end }}
 
 {{/* dict: action next label add. */}}

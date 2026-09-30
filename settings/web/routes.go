@@ -1,6 +1,7 @@
 package web
 
 import (
+	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/web"
 )
 
@@ -14,6 +15,9 @@ func Mount(g *web.Group) {
 	g.POST("sessions", "/settings/sessions", web.Scoped(handleSessions))
 	g.GET("password", "/settings/password", web.Scoped(handlePassword))
 	g.POST("password", "/settings/password", web.Scoped(handlePassword))
+	g.GET("data", "/settings/data", web.Scoped(handleData))
+	g.Stream("data", "/settings/data", alborz.ArchiveMaxSize+web.FormFieldsSize, web.Scoped(handleImport))
+	g.Verbatim("data.export", "/settings/data/export", web.Scoped(handleExport))
 	g.GET("servers", "/settings/servers", web.Scoped(handleServers))
 	g.GET("server", "/settings/servers/{server}", web.Scoped(handleServer))
 	g.POST("server", "/settings/servers/{server}", web.Scoped(handleServer))

@@ -83,7 +83,7 @@ func fetchEnvelope(c *imapclient.Client, mboxName string, uid imap.UID) (*imap.E
 func ZipAttachments(ctx context.Context, login *alborz.Login, mboxName string, uid imap.UID, open func(*imap.Envelope) io.Writer) error {
 	return StreamMessage(ctx, login, mboxName, uid, func(env *imap.Envelope, lit imap.LiteralReader) error {
 		entity, err := message.Read(lit)
-		if err != nil && !message.IsUnknownCharset(err) {
+		if err != nil && !message.IsUnknownCharset(err) && !message.IsUnknownEncoding(err) {
 			return err
 		}
 		archive := zip.NewWriter(open(env))
@@ -211,7 +211,8 @@ func writeAttachments(archive *zip.Writer, e *message.Entity, taken map[string]i
 			if err == io.EOF {
 				return nil
 			}
-			if err != nil && !message.IsUnknownCharset(err) {
+			// A part in an encoding go-message lacks is stored as its bytes.
+			if err != nil && !message.IsUnknownCharset(err) && !message.IsUnknownEncoding(err) {
 				return err
 			}
 			if err := writeAttachments(archive, part, taken, strings.TrimPrefix(mediaType, "multipart/")); err != nil {

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"html"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -683,5 +684,48 @@ func TestPresentationalHTMLKept(t *testing.T) {
 	doc = frameDoc(t, c.Page(t, "mail.message", "INBOX", uid, url.Values{"part": {"1"}, "allow-remote-resources": {"1"}}))
 	if !strings.Contains(doc, proxied) {
 		t.Errorf("an allowed remote background does not go through the proxy:\n%s", doc)
+	}
+}
+
+// A transfer encoding go-message lacks leaves the part as its bytes: the page, a reply and the zip
+// show it as sent, and the parts beside it as usual.
+func TestAnUnknownTransferEncodingShowsTheBytes(t *testing.T) {
+	uuencoded := "begin 644 a\r\n#86)C\r\n`\r\nend\r\n"
+	raw := "From: <eve@example.org>\r\nTo: <" + User + ">\r\nSubject: Old encodings\r\nMIME-Version: 1.0\r\n" +
+		"Content-Type: multipart/mixed; boundary=\"b\"\r\n\r\n" +
+		"--b\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: 8-bit\r\n\r\nHello from an old mailer.\r\n" +
+		"--b\r\nContent-Type: application/octet-stream\r\nContent-Transfer-Encoding: x-uuencode\r\n" +
+		"Content-Disposition: attachment; filename=\"a.uue\"\r\n\r\n" + uuencoded +
+		"--b\r\nContent-Type: application/octet-stream\r\nContent-Disposition: attachment; filename=\"b.txt\"\r\n\r\nplain\r\n--b--\r\n"
+	a := Alborz(t)
+	uid := a.IMAP.Append(t, "INBOX", raw)
+	c := a.SignIn(t, User)
+
+	for _, route := range []string{"mail.message", "mail.message.reply", "mail.message.forward"} {
+		resp := c.Get(t, route, "INBOX", uid, url.Values{"part": {"1"}})
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("%s: %s", route, resp.Status)
+		}
+		if !strings.Contains(resp.Text, "Hello from an old mailer.") {
+			t.Errorf("%s does not show the text", route)
+		}
+	}
+
+	resp := c.Get(t, "mail.message.attachments", "INBOX", uid)
+	archive, err := zip.NewReader(strings.NewReader(resp.Text), int64(len(resp.Text)))
+	if err != nil {
+		t.Fatalf("attachments.zip (%s): %v", resp.Status, err)
+	}
+	got := map[string]string{}
+	for _, f := range archive.File {
+		r, err := f.Open()
+		if err != nil {
+			t.Fatalf("%s: %v", f.Name, err)
+		}
+		b, _ := io.ReadAll(r)
+		got[f.Name] = string(b)
+	}
+	if want := map[string]string{"a.uue": strings.TrimSuffix(uuencoded, "\r\n"), "b.txt": "plain"}; !maps.Equal(got, want) {
+		t.Errorf("the zip holds %q, want %q", got, want)
 	}
 }

@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	authweb "git.mehdix.org/alborz/auth/web"
@@ -11,8 +11,8 @@ import (
 	"git.mehdix.org/alborz/web"
 )
 
-// mount composes the groups, from out to in, and mounts each feature on its own.
-func mount(s *web.Server) error {
+// Mount composes the groups, from out to in, and mounts each feature on its own.
+func Mount(s *web.Server) error {
 	// DAV clients send their password with every request and hold no session.
 	dav := s.Group("", "dav")
 

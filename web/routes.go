@@ -46,6 +46,11 @@ func PublicRoutes(g *Group) {
 				"params": map[string]any{"title": "title", "text": "text", "url": "url",
 					"files": []map[string]any{{"name": "files", "accept": []string{"*/*"}}}},
 			},
+			// Where the Settings buttons point, so installing offers the app for these links.
+			"protocol_handlers": []map[string]string{
+				{"protocol": "mailto", "url": ctx.Path("mail.compose") + "?mailto=%s"},
+				{"protocol": "webcal", "url": ctx.Path("calendar.import") + "?url=%s"},
+			},
 		})
 	})
 

@@ -92,7 +92,7 @@ func TestDownloadsSentAsTheyAre(t *testing.T) {
 }
 
 // An installed app opens its home, its worker serves every page under the scope, and what it is
-// shared lands on a page of alborz.
+// handed, a share or a link, lands on a page of alborz.
 func TestManifestScopesTheApp(t *testing.T) {
 	a := Alborz(t)
 	c := a.SignIn(t, User)
@@ -102,6 +102,7 @@ func TestManifestScopesTheApp(t *testing.T) {
 		ShareTarget struct {
 			Action, Method, Enctype string
 		} `json:"share_target"`
+		Handlers []struct{ Protocol, URL string } `json:"protocol_handlers"`
 	}
 	if err := json.Unmarshal([]byte(c.Get(t, "core.manifest").Text), &manifest); err != nil {
 		t.Fatal(err)
@@ -114,6 +115,14 @@ func TestManifestScopesTheApp(t *testing.T) {
 	}
 	if st := manifest.ShareTarget; st.Action != a.Path("mail.share") || st.Method != "POST" || st.Enctype != "multipart/form-data" {
 		t.Errorf("the share target is %+v, not a multipart POST to %s", st, a.Path("mail.share"))
+	}
+	for _, h := range manifest.Handlers {
+		if !strings.HasPrefix(h.URL, manifest.Scope) || !strings.Contains(h.URL, "%s") {
+			t.Errorf("the %s handler %q is outside the scope or takes no link", h.Protocol, h.URL)
+		}
+	}
+	if len(manifest.Handlers) != 2 {
+		t.Errorf("%d protocol handlers, want mailto and webcal", len(manifest.Handlers))
 	}
 }
 

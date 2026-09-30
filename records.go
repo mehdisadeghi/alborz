@@ -70,7 +70,8 @@ func (v vault) remove(k string) error {
 const keyCheckKey = "alborz.keycheck"
 
 // CheckKey refuses the file at path unless root sealed it. A file without the
-// check gets one once every value under the sealed prefixes opens with its key.
+// check gets one once every value under the sealed prefixes opens with its key;
+// a value under an account's own key is that account's to open (ADR 71).
 func CheckKey(db kv.DB, path string, root seal.Root, sealed map[string]*seal.Key) error {
 	refused := func(err error) error {
 		if errors.Is(err, seal.ErrFormat) {
@@ -90,6 +91,9 @@ func CheckKey(db kv.DB, path string, root seal.Root, sealed map[string]*seal.Key
 		}
 		for prefix, k := range sealed {
 			err := tx.Scan(prefix, func(_ string, v []byte) error {
+				if seal.Format(v) == seal.ByAccount {
+					return nil
+				}
 				_, err := k.Open(v)
 				return err
 			})

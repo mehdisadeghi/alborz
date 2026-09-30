@@ -71,3 +71,26 @@ func TestParseRootRefusesShortKeys(t *testing.T) {
 		t.Fatal("a 5-byte key was taken")
 	}
 }
+
+// A value tells the kind of key that sealed it, and one kind never opens the other's.
+func TestFormatTellsTheKindOfKey(t *testing.T) {
+	var secret [KeySize]byte
+	copy(secret[:], "an account's own key, 32 bytes!!")
+	own, instance := AccountRoot(secret).Key("settings"), NewKey(secret)
+	sealed := own.Seal([]byte("a@test.local"))
+	if Format(sealed) != ByAccount || Format(instance.Seal(nil)) != ByInstance {
+		t.Fatalf("formats %d and %d", Format(sealed), Format(instance.Seal(nil)))
+	}
+	if _, err := own.Open(sealed); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := AccountRoot(secret).Key("mirror").Open(sealed); !errors.Is(err, ErrOpen) {
+		t.Errorf("another purpose: Open = %v, want ErrOpen", err)
+	}
+	// The seal covers the byte: the same secret as an instance's key does not open it.
+	flipped := NewAccountKey(secret).Seal([]byte("a@test.local"))
+	flipped[0] = ByInstance
+	if _, err := instance.Open(flipped); !errors.Is(err, ErrOpen) {
+		t.Errorf("the byte changed: Open = %v, want ErrOpen", err)
+	}
+}

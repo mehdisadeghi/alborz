@@ -17,9 +17,14 @@ import (
 // KeySize is the length of every key: AES-256.
 const KeySize = 32
 
-// gcm is the format byte of AES-256-GCM with a random 96-bit nonce, the only one written so far. It
-// leads every sealed value, so a later format is told apart from this one by its first byte.
-const gcm byte = 1
+// A format byte leads every sealed value and says which kind of key sealed it, so a reader knows which to
+// reach for. Both are AES-256-GCM with a random 96-bit nonce.
+const (
+	// ByInstance is a key the instance holds: one derived from the login key, or one its context names.
+	ByInstance byte = 1
+	// ByAccount is a key an account holds: its own, or one of its collections' (ADR 71).
+	ByAccount byte = 2
+)
 
 var (
 	// ErrFormat is a value in no format this build reads, such as the Fernet tokens earlier builds wrote.
@@ -29,9 +34,18 @@ var (
 )
 
 // Key seals values and opens them.
-type Key struct{ aead cipher.AEAD }
+type Key struct {
+	aead   cipher.AEAD
+	format byte
+}
 
-func NewKey(secret [KeySize]byte) *Key {
+// NewKey is a key the instance holds.
+func NewKey(secret [KeySize]byte) *Key { return newKey(secret, ByInstance) }
+
+// NewAccountKey is a key an account holds.
+func NewAccountKey(secret [KeySize]byte) *Key { return newKey(secret, ByAccount) }
+
+func newKey(secret [KeySize]byte, format byte) *Key {
 	block, err := aes.NewCipher(secret[:])
 	if err != nil {
 		panic(err)
@@ -40,16 +54,27 @@ func NewKey(secret [KeySize]byte) *Key {
 	if err != nil {
 		panic(err)
 	}
-	return &Key{aead}
+	return &Key{aead, format}
+}
+
+// Format is the byte k's values begin with.
+func (k *Key) Format() byte { return k.format }
+
+// Format is the byte sealed begins with, 0 for an empty value.
+func Format(sealed []byte) byte {
+	if len(sealed) == 0 {
+		return 0
+	}
+	return sealed[0]
 }
 
 // Seal returns plain sealed, behind its format byte, which the seal covers too.
 func (k *Key) Seal(plain []byte) []byte {
-	return k.aead.Seal([]byte{gcm}, nil, plain, []byte{gcm})
+	return k.aead.Seal([]byte{k.format}, nil, plain, []byte{k.format})
 }
 
 func (k *Key) Open(sealed []byte) ([]byte, error) {
-	if len(sealed) == 0 || sealed[0] != gcm {
+	if f := Format(sealed); f != ByInstance && f != ByAccount {
 		return nil, ErrFormat
 	}
 	plain, err := k.aead.Open(nil, nil, sealed[1:], sealed[:1])
@@ -59,13 +84,19 @@ func (k *Key) Open(sealed []byte) ([]byte, error) {
 	return plain, nil
 }
 
-// Root is the operator's login key. Nothing is sealed under it directly: each purpose derives a key
-// of its own, so no two purposes ever share one.
-type Root struct{ secret [KeySize]byte }
+// Root is the operator's login key, or an account's own. Nothing is sealed under it directly: each
+// purpose derives a key of its own, so no two purposes ever share one.
+type Root struct {
+	secret [KeySize]byte
+	format byte
+}
+
+// AccountRoot is an account's own key.
+func AccountRoot(secret [KeySize]byte) Root { return Root{secret, ByAccount} }
 
 // ParseRoot reads a login key: 32 bytes in base64, either alphabet, so a Fernet key serves as well.
 func ParseRoot(text string) (Root, error) {
-	var r Root
+	r := Root{format: ByInstance}
 	raw, err := base64.StdEncoding.DecodeString(text)
 	if err != nil {
 		raw, err = base64.URLEncoding.DecodeString(text)
@@ -86,7 +117,7 @@ func (r Root) derive(info string) [KeySize]byte {
 }
 
 // Key is the key sealing what purpose keeps.
-func (r Root) Key(purpose string) *Key { return NewKey(r.derive("alborz seal " + purpose)) }
+func (r Root) Key(purpose string) *Key { return newKey(r.derive("alborz seal "+purpose), r.format) }
 
 // Names names what alborz keeps by keyed hashes.
 func (r Root) Names() Names {

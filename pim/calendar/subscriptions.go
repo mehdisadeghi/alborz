@@ -193,9 +193,6 @@ func (f *feeds) objects(url string, cal *ical.Calendar) ([]store.Object, error) 
 		if len(obj.Events()) == 0 {
 			continue
 		}
-		for _, ev := range obj.Events() {
-			stamp(ev.Component)
-		}
 		var buf bytes.Buffer
 		if err := ical.NewEncoder(&buf).Encode(obj); err != nil {
 			// One malformed event is left out rather than holding back the rest of the feed.
@@ -207,8 +204,9 @@ func (f *feeds) objects(url string, cal *ical.Calendar) ([]store.Object, error) 
 	return objects, nil
 }
 
-// stamp gives an event the DTSTAMP a feed may leave out and a stored object must carry (RFC 5545 3.6.1): its
-// own LAST-MODIFIED or CREATED, else the epoch; never the fetch time, which would change every object's ETag.
+// stamp gives a component the DTSTAMP a feed or a file may leave out and a stored object must carry (RFC 5545
+// 3.6.1): its own LAST-MODIFIED or CREATED, else the epoch; never the fetch time, which would change every
+// object's ETag.
 func stamp(ev *ical.Component) {
 	if ev.Props.Get(ical.PropDateTimeStamp) != nil {
 		return

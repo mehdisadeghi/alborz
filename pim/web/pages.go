@@ -450,6 +450,8 @@ func (pg Page) createFree(ctx *web.Context, list, name, place string) (string, e
 
 func (pg Page) importRaw(ctx *web.Context, collPath string, raw []byte) error {
 	n, err := pg.Import(ctx, collPath, raw)
+	// What was written before a refusal stays written.
+	pg.Forget(ctx.Login.Username())
 	if err != nil {
 		return err
 	}
@@ -458,7 +460,6 @@ func (pg Page) importRaw(ctx *web.Context, collPath string, raw []byte) error {
 	} else {
 		ctx.PutNotice(ctx.Tf("import."+strings.TrimPrefix(pg.Ext, "."), n))
 	}
-	pg.Forget(ctx.Login.Username())
 	return nil
 }
 
@@ -485,20 +486,20 @@ func ImportRefusal(ctx *web.Context, err error) string {
 	switch {
 	case errors.As(err, &file):
 		return file.name + ": " + ImportRefusal(ctx, file.err)
+	case errors.As(err, &partly) && partly.Saved == 0 && !errors.As(partly.Err, &unreadable):
+		return Refusal(ctx, partly.Err)
+	case errors.As(err, &partly) && errors.Is(err, dav.ErrScaleUnlisted):
+		return ctx.Tf("import.partly", partly.Saved, partly.Total, ctx.T("form.repeatscale"))
+	case errors.As(err, &partly):
+		return ctx.Tf("import.partly", partly.Saved, partly.Total, partly.Err)
 	case errors.As(err, &unreadable):
 		return fmt.Sprintf(ctx.T("import.unreadable"), unreadable.Err)
 	case errors.Is(err, pim.ErrTooLarge):
 		return importTooLarge(ctx)
 	case errors.Is(err, dav.ErrPlaceDown):
 		return ctx.T("form.placedown")
-	case !errors.As(err, &partly):
-		return Refusal(ctx, err)
-	case partly.Saved == 0:
-		return Refusal(ctx, partly.Err)
-	case errors.Is(err, dav.ErrScaleUnlisted):
-		return ctx.Tf("import.partly", partly.Saved, partly.Total, ctx.T("form.repeatscale"))
 	}
-	return ctx.Tf("import.partly", partly.Saved, partly.Total, partly.Err)
+	return Refusal(ctx, err)
 }
 
 // ImportData is the section's import page.

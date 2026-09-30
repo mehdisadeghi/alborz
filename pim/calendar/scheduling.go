@@ -189,32 +189,51 @@ func Import(ctx context.Context, client *caldav.Client, calendarPath string, raw
 		calendars = append(calendars, objects)
 		total += len(objects)
 	}
+	put := func(uid string, obj *ical.Calendar) error {
+		// What go-ical will not write is the file's fault, not the server's.
+		if err := ical.NewEncoder(io.Discard).Encode(obj); err != nil {
+			return &pim.UnreadableError{Err: err}
+		}
+		_, err := client.PutCalendarObject(ctx, path.Join(calendarPath, dav.SafeObjectName(uid)+".ics"), obj, nil)
+		if err == nil {
+			return nil
+		}
+		// A server refusing a UID it holds under another path: find the object and write there.
+		existing := objectPathByUID(ctx, client, calendarPath, uid)
+		if existing == "" {
+			return err
+		}
+		_, err = client.PutCalendarObject(ctx, existing, obj, nil)
+		return err
+	}
 	n := 0
+	var refused []error
 	for _, objects := range calendars {
 		for uid, obj := range objects {
-			target := path.Join(calendarPath, dav.SafeObjectName(uid)+".ics")
-			if _, err := client.PutCalendarObject(ctx, target, obj, nil); err != nil {
-				// A server refusing a UID it holds under another path: find the object and write there.
-				existing := objectPathByUID(ctx, client, calendarPath, uid)
-				if existing == "" {
-					return n, &pim.PartlySavedError{Saved: n, Total: total, Err: fmt.Errorf("failed to write %s: %w", uid, err)}
-				}
-				if _, err := client.PutCalendarObject(ctx, existing, obj, nil); err != nil {
-					return n, &pim.PartlySavedError{Saved: n, Total: total, Err: fmt.Errorf("failed to write %s: %w", uid, err)}
-				}
+			err := put(uid, obj)
+			if pim.ObjectRefused(err) {
+				refused = append(refused, fmt.Errorf("%s: %w", uid, err))
+				continue
+			} else if err != nil {
+				return n, &pim.PartlySavedError{Saved: n, Total: total, Err: fmt.Errorf("failed to write %s: %w", uid, err)}
 			}
 			n++
 		}
 	}
-	return n, nil
+	return pim.Saved(n, total, refused)
 }
 
-// A stored object carries no METHOD (RFC 4791 4.1) and names alborz as the product that wrote it.
+// A stored object carries no METHOD (RFC 4791 4.1), a DTSTAMP on each component, and names alborz as
+// the product that wrote it.
 func objectsByUID(cal *ical.Calendar) (map[string]*ical.Calendar, error) {
 	for _, child := range cal.Children {
-		if uid, _ := child.Props.Text(ical.PropUID); uid == "" && child.Name != ical.CompTimezone {
+		if child.Name == ical.CompTimezone {
+			continue
+		}
+		if uid, _ := child.Props.Text(ical.PropUID); uid == "" {
 			child.Props.SetText(ical.PropUID, uuid.New().String())
 		}
+		stamp(child)
 	}
 	objects, err := cal.SplitByUID()
 	if err != nil {

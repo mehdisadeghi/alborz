@@ -29,6 +29,7 @@ func Mount(g *web.Group) error {
 	// A restored account skips the login handler, so it is followed here too.
 	s.OnAccountReady = append(s.OnAccountReady, p.watchAccount, p.warmAccount)
 	s.OnAccountGone = append(s.OnAccountGone, p.ForgetAccount)
+	s.Status = append(s.Status, web.Segment{Name: "mail", Show: p.showUnread})
 	return nil
 }
 

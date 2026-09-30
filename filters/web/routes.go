@@ -241,7 +241,7 @@ func handleImportFilter(ctx *web.Context) error {
 		data.Account = picked
 	}
 	file, err := ctx.FormFile("file")
-	if err == nil && file.Size > maxScriptSize {
+	if err == nil && file.Size() > maxScriptSize {
 		data.Refused(ctx.Tf("import.toolarge", maxScriptSize>>20))
 		return ctx.Render(http.StatusUnprocessableEntity, "filters/import", data)
 	}
@@ -249,12 +249,7 @@ func handleImportFilter(ctx *web.Context) error {
 		data.Refused(ctx.T("form.fileneeded"))
 		return ctx.Render(http.StatusUnprocessableEntity, "filters/import", data)
 	}
-	f, err := file.Open()
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	raw, err := io.ReadAll(f)
+	raw, err := io.ReadAll(file.Open())
 	if err != nil {
 		return err
 	}

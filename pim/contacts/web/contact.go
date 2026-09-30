@@ -70,18 +70,13 @@ func photoTooLarge(ctx *web.Context) error {
 
 func applyPhoto(ctx *web.Context, card vcard.Card) error {
 	file, err := ctx.FormFile("photo")
-	if err != nil || file == nil || file.Size == 0 {
+	if err != nil || file.Size() == 0 {
 		return nil
 	}
-	if file.Size > photoMaxUpload {
+	if file.Size() > photoMaxUpload {
 		return errPhotoTooLarge
 	}
-	f, err := file.Open()
-	if err != nil {
-		return contacts.ErrPhotoUnreadable
-	}
-	defer f.Close()
-	return contacts.SetPhoto(card, f)
+	return contacts.SetPhoto(card, file.Open())
 }
 
 func (p *plugin) contact(ctx *web.Context) error {

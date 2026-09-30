@@ -8,7 +8,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"mime/multipart"
 	"slices"
 	"strings"
 	"sync"
@@ -29,7 +28,7 @@ type Session struct {
 	mu          sync.Mutex
 	seen        time.Time
 	notice      *Notice
-	attachments map[string]*Attachment
+	attachments map[string]*File
 	// accounts is every account this browser has signed into, in display order.
 	accounts []*alborz.Login
 	// proof verifies the browser's secret; only the secret opens the session.
@@ -111,7 +110,7 @@ func sessionFromRecord(rec *alborz.SessionRecord) *Session {
 		created:     rec.Created,
 		proof:       rec.Proof,
 		seen:        time.Now(),
-		attachments: map[string]*Attachment{},
+		attachments: map[string]*File{},
 		remember:    map[string][]byte{},
 	}
 	for _, a := range rec.Accounts {
@@ -244,7 +243,7 @@ func newSession() (*Session, string) {
 		proof:       sessionProof(secret),
 		seen:        now,
 		active:      now,
-		attachments: map[string]*Attachment{},
+		attachments: map[string]*File{},
 	}
 	return s, secret
 }
@@ -303,31 +302,31 @@ func (s *Session) popNotice() *Notice {
 }
 
 // putAttachment keeps a file the compose form has taken but not sent.
-func (s *Session) putAttachment(in *multipart.FileHeader, form *multipart.Form) (string, error) {
+func (s *Session) putAttachment(in *File) (string, error) {
 	id := uuid.New()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	var size int64
 	for _, a := range s.attachments {
-		size += a.File.Size
+		size += a.Size()
 	}
-	if size+in.Size > MaxAttachmentSize {
+	if size+in.Size() > MaxAttachmentSize {
 		return "", ErrAttachmentCacheSize
 	}
-	s.attachments[id.String()] = &Attachment{File: in, Form: form}
+	s.attachments[id.String()] = in
 	return id.String(), nil
 }
 
 // peekAttachment leaves the attachment in place, so a refused send finds it again.
-func (s *Session) peekAttachment(id string) *Attachment {
+func (s *Session) peekAttachment(id string) *File {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.attachments[id]
 }
 
 // popAttachment takes an attachment back, once.
-func (s *Session) popAttachment(id string) *Attachment {
+func (s *Session) popAttachment(id string) *File {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	a, ok := s.attachments[id]
@@ -342,11 +341,9 @@ func (s *Session) close() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, a := range s.attachments {
-		if a.Form != nil {
-			a.Form.RemoveAll()
-		}
+		a.Close()
 	}
-	s.attachments = map[string]*Attachment{}
+	s.attachments = map[string]*File{}
 }
 
 // Session returns this browser's session, made on first use.
@@ -462,18 +459,18 @@ func (ctx *Context) popNotice() *Notice {
 }
 
 // PutAttachment holds a file the compose form has taken but not sent.
-func (ctx *Context) PutAttachment(in *multipart.FileHeader, form *multipart.Form) (string, error) {
-	return ctx.Session().putAttachment(in, form)
+func (ctx *Context) PutAttachment(in *File) (string, error) {
+	return ctx.Session().putAttachment(in)
 }
 
-func (ctx *Context) PeekAttachment(id string) *Attachment {
+func (ctx *Context) PeekAttachment(id string) *File {
 	if s := ctx.lookupSession(); s != nil {
 		return s.peekAttachment(id)
 	}
 	return nil
 }
 
-func (ctx *Context) PopAttachment(id string) *Attachment {
+func (ctx *Context) PopAttachment(id string) *File {
 	if s := ctx.lookupSession(); s != nil {
 		return s.popAttachment(id)
 	}
@@ -484,8 +481,3 @@ func (ctx *Context) PopAttachment(id string) *Attachment {
 const MaxAttachmentSize = 32 << 20
 
 var ErrAttachmentCacheSize = errors.New("Attachments on session exceed maximum file size")
-
-type Attachment struct {
-	File *multipart.FileHeader
-	Form *multipart.Form
-}

@@ -325,6 +325,50 @@ func TestSearchMoveUndoesIntoTheFolderItCameFrom(t *testing.T) {
 	}
 }
 
+// Both offers are followed as the browser would, relative to the page that drew them.
+func TestFolderSearchOffersEveryFolder(t *testing.T) {
+	a := Alborz(t)
+	c := a.SignIn(t, User)
+	offer := func(page, from, label string) string {
+		t.Helper()
+		m := regexp.MustCompile(`<a class="filter-offer" href="([^"]*)">` + label + `</a>`).FindStringSubmatch(page)
+		if m == nil {
+			t.Fatalf("%s offers no %q", from, label)
+		}
+		base, err := url.Parse(from)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ref, err := url.Parse(html.UnescapeString(m[1]))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return base.ResolveReference(ref).String()
+	}
+	folders := func(page string) []string {
+		var out []string
+		for _, ref := range rowRefs(page) {
+			out = append(out, strings.Split(ref, "|")[1])
+		}
+		slices.Sort(out)
+		return out
+	}
+	want := []string{"INBOX", "INBOX/Lists"}
+	inbox := a.Path("mail.mailbox", "INBOX", url.Values{"query": {"eve"}})
+	everywhere := offer(c.Follow(t, inbox), inbox, "Search all folders")
+	results := c.Follow(t, everywhere)
+	if got := folders(results); !slices.Equal(got, want) {
+		t.Fatalf("all folders found eve in %v, want %v", got, want)
+	}
+	whole := c.Follow(t, offer(results, everywhere, "Search the whole message too"))
+	if got := folders(whole); !slices.Equal(got, want) {
+		t.Errorf("the whole message found eve in %v, want %v", got, want)
+	}
+	if strings.Contains(whole, `class="filter-offer"`) {
+		t.Error("the whole-message search still offers the whole message")
+	}
+}
+
 func TestDroppedTwiceIsImportedOnce(t *testing.T) {
 	c := Alborz(t).SignIn(t, User)
 	eml := "From: ann@example.org\r\nTo: " + User + "\r\nSubject: dropped\r\n" +

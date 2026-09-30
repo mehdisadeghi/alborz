@@ -51,7 +51,7 @@
 "notfound.calendar" = "No se encontró ningún calendario en el servidor."
 "notfound.addressbook" = "No se encontró ninguna libreta de direcciones en el servidor."
 "common.noresults" = "Sin resultados para «%s»."
-"mailbox.searchtext" = "Buscar también en todo el mensaje, lento en un servidor sin índice"
+"mailbox.searchtext" = "Buscar también en todo el mensaje"
 "search.title" = "Búsqueda"
 "search.allfolders" = "Buscar en todas las carpetas"
 "nav.email" = "Correo"

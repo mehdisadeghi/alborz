@@ -198,6 +198,7 @@
 "list.archive" = "Archive"
 "notice.unsubscribed" = "Unsubscribed."
 "notice.unsubfailed" = "The list did not accept the unsubscribe; its own page may still work."
+"notice.misread" = "Some saved settings could not be read."
 "message.editdraft" = "Edit draft"
 "message.movetoinbox" = "Move to Inbox"
 "message.markunread" = "Mark Unread"

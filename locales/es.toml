@@ -195,6 +195,7 @@
 "list.archive" = "Archivo"
 "notice.unsubscribed" = "Suscripción cancelada."
 "notice.unsubfailed" = "La lista no aceptó la baja; su propia página puede servir."
+"notice.misread" = "Algunos ajustes guardados no se pudieron leer."
 "message.editdraft" = "Editar borrador"
 "message.movetoinbox" = "Mover a la bandeja de entrada"
 "message.markunread" = "Marcar como no leído"

@@ -35,6 +35,8 @@ type IMAPServer struct {
 	thread atomic.Int32
 	// passwords holds the passwords changed from Password.
 	passwords sync.Map
+	// md holds the entries the Metadata proxy keeps.
+	md *metadata
 }
 
 type imapConfig struct {
@@ -500,6 +502,16 @@ func (s *IMAPServer) sortingProxy(t *testing.T, upstream string) string {
 	return ln.Addr().String()
 }
 
+// SetEntry writes an alborz entry of user's as another program would, bypassing alborz; Metadata only.
+func (s *IMAPServer) SetEntry(user, key, value string) {
+	s.md.mu.Lock()
+	defer s.md.mu.Unlock()
+	if s.md.entries[user] == nil {
+		s.md.entries[user] = map[string][]byte{}
+	}
+	s.md.entries[user]["/private/vendor/alborz/"+key] = []byte(value)
+}
+
 // metadata are the entries of each account, by name.
 type metadata struct {
 	mu      sync.Mutex
@@ -521,6 +533,7 @@ func literalSize(line string) (n int, sync, ok bool) {
 func (s *IMAPServer) metadataProxy(t *testing.T, upstream string) string {
 	t.Helper()
 	md := &metadata{entries: map[string]map[string][]byte{}}
+	s.md = md
 	return proxyPair(t, upstream, func(client, server net.Conn) {
 		var wmu sync.Mutex
 		send := func(b []byte) error {

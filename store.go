@@ -49,7 +49,7 @@ func (sm *loginManager) newStore(login *Login) (Store, error) {
 		sm.warnedNoMetadata = true
 		sm.logger.Print("Upstream IMAP server doesn't support the METADATA extension, keeping account settings in alborz's own store")
 	}
-	return localStore{records: sm.settings, account: login.Username()}, nil
+	return localStore{records: sm.settings, account: login.Username(), login: login}, nil
 }
 
 type imapMetadataStore struct {
@@ -134,7 +134,11 @@ func (s *imapMetadataStore) Get(ctx context.Context, key string, out any) error 
 		return ErrNoStoreEntry
 	}
 	if err := json.Unmarshal(v, out); err != nil {
-		return fmt.Errorf("alborz: failed to unmarshal IMAP store entry %q: %v", key, err)
+		// The account's own key is no setting: read as absent, a new one would be made over it.
+		if key == keyEntry {
+			return fmt.Errorf("alborz: failed to unmarshal IMAP store entry %q: %v", key, err)
+		}
+		s.login.misread(key, err)
 	}
 	return nil
 }
@@ -220,6 +224,7 @@ func (s *imapMetadataStore) OnServer() bool { return true }
 type localStore struct {
 	records *settingsRecords
 	account string
+	login   *Login
 }
 
 func (s localStore) Get(_ context.Context, key string, out any) error {
@@ -229,7 +234,12 @@ func (s localStore) Get(_ context.Context, key string, out any) error {
 		}
 		return nil
 	}
-	return s.records.Get(s.account, key, out)
+	err := s.records.Get(s.account, key, out)
+	if err != nil && err != ErrNoStoreEntry {
+		s.login.misread(key, err)
+		return nil
+	}
+	return err
 }
 
 func (s localStore) Put(_ context.Context, key string, v any) error {

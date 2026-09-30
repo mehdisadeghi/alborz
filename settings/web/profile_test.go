@@ -93,3 +93,57 @@ func TestSigningInAskedAboutAnotherProfile(t *testing.T) {
 		})
 	}
 }
+
+// Entries another program or version wrote in a shape alborz does not read are read as far as they go:
+// every page opens, the reader is told once, and what did decode stays.
+func TestAStoredEntryThatDoesNotDecodeIsReadAsFarAsItGoes(t *testing.T) {
+	srv := IMAP(t, Metadata())
+	for key, value := range map[string]string{
+		"base.settings":        `{"From": "Ada Lovelace", "Signatures": "not a list"}`,
+		"caldav.settings":      `not json`,
+		"caldav.subscriptions": `[`,
+		"carddav.settings":     `{"AddressBookFilter": "yes"}`,
+	} {
+		srv.SetEntry(User, key, value)
+	}
+	c := Alborz(t, WithIMAP(srv)).Client()
+	signIn := c.Post(t, "auth.login", url.Values{"username": {User}, "password": {Password}})
+	if signIn.StatusCode != http.StatusFound {
+		t.Fatalf("signing in answered %s", signIn.Status)
+	}
+	const warning = "Some saved settings could not be read."
+	warned := 0
+	if strings.Contains(NoticeBar(c.Follow(t, signIn.Header.Get("Location"))), warning) {
+		warned++
+	}
+	for _, route := range []string{"mail.account", "calendar.month", "calendar.tasks", "contacts.list", "mail.mailbox"} {
+		args := []any{}
+		if route == "mail.mailbox" {
+			args = append(args, "INBOX")
+		}
+		resp := c.Get(t, route, args...)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("%s answered %s", route, resp.Status)
+		}
+		if strings.Contains(NoticeBar(resp.Text), warning) {
+			warned++
+		}
+		if route == "mail.account" && !strings.Contains(resp.Text, `value="Ada Lovelace"`) {
+			t.Error("the name that decoded is not shown")
+		}
+	}
+	if warned != 1 {
+		t.Errorf("the reader was warned %d times, want once", warned)
+	}
+}
+
+// A limit lowered since an entry was written holds for what the reader saves, not for what is read.
+func TestAStoredEntryPastALimitIsRead(t *testing.T) {
+	srv := IMAP(t, Metadata())
+	long := strings.Repeat("Ada ", 200)
+	srv.SetEntry(User, "base.settings", `{"From": "`+long+`"}`)
+	resp := Alborz(t, WithIMAP(srv)).SignIn(t, User).Get(t, "mail.account")
+	if resp.StatusCode != http.StatusOK || !strings.Contains(resp.Text, long) {
+		t.Errorf("the account page answered %s without the stored name", resp.Status)
+	}
+}

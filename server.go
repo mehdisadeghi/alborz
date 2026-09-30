@@ -47,6 +47,8 @@ const storeFile = AppName + ".db"
 
 const (
 	credentialCookieLife = 30 * 24 * time.Hour
+	// reminderTick makes a reminder late by at most a minute, the finest step a calendar offers one in.
+	reminderTick = time.Minute
 )
 
 // CredentialCookieLife is how long a remembered account is kept.
@@ -137,6 +139,9 @@ func New(log *log.Logger, options Options) (*Server, error) {
 		Changes: newChanges(), Outgoing: NewOutgoing(), Schedule: newSchedule(), signInRefused: newRefusals(signInTries, signInWindow)}
 	if options.Guarded != nil {
 		s.Outgoing.Guarded = options.Guarded
+	}
+	if s.Options.ReminderTick == 0 {
+		s.Options.ReminderTick = reminderTick
 	}
 	if options.LoginKey == "" {
 		return nil, errors.New("no login key: make one with `openssl rand -base64 32`")
@@ -240,6 +245,9 @@ func New(log *log.Logger, options Options) (*Server, error) {
 	s.logins = newLoginManager(s.dialIMAP, s.dialIMAPTransfer, s.dialIMAPWatch, s.dialSMTP, s.dialSieve, log, settings, s.Keys, s.unlock)
 	return s, nil
 }
+
+// Logins are the logins alive, an account once for each browser signed in to it.
+func (s *Server) Logins() []*Login { return s.logins.live() }
 
 // Logger returns this server's logger.
 func (s *Server) Logger() *log.Logger { return s.log }
@@ -469,6 +477,8 @@ type Options struct {
 	PublicURL string
 	// Guarded carries the requests to servers outsiders name; nil dials public addresses only.
 	Guarded http.RoundTripper
+	// ReminderTick paces the round that fires event reminders; zero is reminderTick.
+	ReminderTick time.Duration
 }
 
 // CacheFor is how long a cache keeps what it holds: d, or zero with caching off.

@@ -130,7 +130,7 @@ type CalendarObject struct {
 	ReadOnly bool
 }
 
-// Alarm is a reminder an object carries; alborz shows it but never fires it.
+// Alarm is a reminder an object carries, as its page shows it; Reminders fires them.
 type Alarm struct {
 	At     time.Time
 	Action string

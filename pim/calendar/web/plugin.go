@@ -25,6 +25,7 @@ func Mount(g *web.Group, st *store.Store) error {
 	srv.OnServers = append(srv.OnServers, pimweb.Cards(p.DAV, "settings.davcalendar", davAbilities))
 	srv.OnAccountReady = append(srv.OnAccountReady, p.warm)
 	srv.Status = append(srv.Status, web.Segment{Name: "calendar", Show: p.showToday})
+	srv.Schedule.Add(srv.Options.ReminderTick, p.remind(srv))
 
 	return nil
 }

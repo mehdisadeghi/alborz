@@ -1008,6 +1008,8 @@
 "status.label" = "Statusleiste"
 "settings.status" = "Statusleiste"
 "mail.status" = "Ungelesene E-Mails"
+"calendar.status" = "Heutige Termine"
+"calendar.status.none" = "Heute keine Termine"
 "date-gregorian.status" = "Gregorianisches Datum"
 "date-shcal.status" = "Sonnen-Hidschri-Datum"
 
@@ -1193,3 +1195,11 @@ other = "Die öffentlichen Links von %[2]s wurden nicht übernommen: Sie gehöre
 ["mail.status.unread"]
 one = "%d ungelesen"
 other = "%d ungelesen"
+
+["calendar.status.today"]
+one = "Heute"
+other = "%d Termine heute"
+
+["calendar.status.next"]
+one = "%[2]s"
+other = "Nächster um %[2]s"

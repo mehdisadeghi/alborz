@@ -1008,6 +1008,8 @@
 "status.label" = "نوار وضعیت"
 "settings.status" = "نوار وضعیت"
 "mail.status" = "نامه‌های خوانده‌نشده"
+"calendar.status" = "رویدادهای امروز"
+"calendar.status.none" = "امروز رویدادی نیست"
 "date-gregorian.status" = "تاریخ میلادی"
 "date-shcal.status" = "تاریخ هجری شمسی"
 
@@ -1192,3 +1194,11 @@ other = "پیوندهای عمومی %[2]s نگه داشته نشدند: این�
 ["mail.status.unread"]
 one = "%d خوانده‌نشده"
 other = "%d خوانده‌نشده"
+
+["calendar.status.today"]
+one = "امروز"
+other = "%d رویداد امروز"
+
+["calendar.status.next"]
+one = "%[2]s"
+other = "بعدی ساعت %[2]s"

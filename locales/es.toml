@@ -1008,6 +1008,8 @@
 "status.label" = "Barra de estado"
 "settings.status" = "Barra de estado"
 "mail.status" = "Correo sin leer"
+"calendar.status" = "Eventos de hoy"
+"calendar.status.none" = "Sin eventos hoy"
 "date-gregorian.status" = "Fecha gregoriana"
 "date-shcal.status" = "Fecha de la hégira solar"
 
@@ -1192,3 +1194,11 @@ other = "No se conservaron los enlaces públicos de %[2]s: aquí sirven a otros 
 ["mail.status.unread"]
 one = "%d sin leer"
 other = "%d sin leer"
+
+["calendar.status.today"]
+one = "Hoy"
+other = "%d eventos hoy"
+
+["calendar.status.next"]
+one = "%[2]s"
+other = "Siguiente a las %[2]s"

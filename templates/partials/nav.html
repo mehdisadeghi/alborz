@@ -5,7 +5,7 @@
 <header>
   {{$page := (index .GlobalData.Path 0)}}
   {{ $section := $page }}
-  {{ range tuple "message" "compose" "search" "import" "new-mailbox" "rename-mailbox" "delete-mailbox" }}{{ if eq $page . }}{{ $section = "mailbox" }}{{ end }}{{ end }}
+  {{ range tuple "message" "compose" "mail" "import" "new-mailbox" "rename-mailbox" "delete-mailbox" }}{{ if eq $page . }}{{ $section = "mailbox" }}{{ end }}{{ end }}
   <nav>
     {{ if .GlobalData.LoggedIn }}
     <label for="sidebar" class="sidebar-button" aria-hidden="true">☰</label>

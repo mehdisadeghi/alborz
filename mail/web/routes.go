@@ -18,7 +18,7 @@ func (p *plugin) registerRoutes(g *web.Group) {
 
 	g.GET("mailbox", "/mailbox/{mbox}", p.handleGetMailbox)
 	g.GET("sidebar", "/mail/sidebar", p.handleSidebar)
-	g.GET("search", "/search", p.handleSearch)
+	g.GET("search", "/mail/search", p.handleSearch)
 	g.GET("mailbox.empty", "/mailbox/{mbox}/empty", p.handleEmptyMailbox)
 	g.POST("mailbox.empty", "/mailbox/{mbox}/empty", p.handleEmptyMailbox)
 	g.POST("role.empty", "/mailbox/{role}/empty-all", p.handleEmptyAllMailbox)

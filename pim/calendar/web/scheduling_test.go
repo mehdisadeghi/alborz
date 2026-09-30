@@ -361,3 +361,33 @@ func TestAMessageTheEventCannotTakeIsRefused(t *testing.T) {
 		t.Errorf("the refused messages changed the event (%s)", after.Status)
 	}
 }
+
+// A calendar alborz cannot take, of a method it does not handle or that does not parse, is refused with the
+// reason on both of the message's buttons.
+func TestACalendarThatDoesNotReadIsRefused(t *testing.T) {
+	a := Alborz(t)
+	c := a.SignIn(t, User)
+	coll := c.CreateCalendar(t, "Plans", "")
+	for _, tc := range []struct{ method, body, reason string }{
+		{"COUNTER", "BEGIN:VCALENDAR\nPRODID:-//Example//EN\nMETHOD:COUNTER\nVERSION:2.0\nBEGIN:VEVENT\nUID:x\nDTSTAMP:20260901T080000Z\nEND:VEVENT\nEND:VCALENDAR\n", "COUNTER"},
+		{"REQUEST", "BEGIN:VCALENDAR\nMETHOD:REQUEST\nBEGIN:VEVENT\nUID:x\nSUMMARY\n", "could not be read"},
+	} {
+		uid := fmt.Sprint(a.IMAP.Append(t, "INBOX", calendarMail("b@example.org", "Plan", tc.method, tc.body)))
+		for _, post := range []func() *Response{
+			func() *Response {
+				return c.Post(t, "calendar.frommessage", url.Values{"mbox": {"INBOX"}, "uid": {uid}, "calendar": {User + "|" + Here + coll}})
+			},
+			func() *Response {
+				return c.Post(t, "calendar.invite", url.Values{"status": {"ACCEPTED"}}, "INBOX", uid)
+			},
+		} {
+			resp := post()
+			if resp.StatusCode != http.StatusFound {
+				t.Fatalf("%s: the button answered %s, want a redirect", tc.method, resp.Status)
+			}
+			if bar := NoticeBar(c.Follow(t, resp.Header.Get("Location"))); !strings.Contains(bar, "The calendar in this message could not be read") || !strings.Contains(bar, tc.reason) {
+				t.Errorf("%s: the page after does not say why:\n%s", tc.method, bar)
+			}
+		}
+	}
+}

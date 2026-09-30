@@ -1016,6 +1016,7 @@
 "invite.superseded" = "پاسخ تازه‌تری از این شرکت‌کننده ذخیره شده است."
 "invite.uninvited" = "این شرکت‌کننده به رویداد دعوت نشده است."
 "invite.noinstance" = "رویداد چنین تکراری ندارد."
+"invite.unreadable" = "تقویم این پیام خوانده نشد: %s"
 "indicator.title" = "نشانه‌های هشدار"
 "indicator.twoscanners" = "سرآیندهای هرزنامه از دو پویشگر، rspamd و SpamAssassin؛ فقط یکی از آن‌ها این سرور است."
 "indicator.score" = "امتیاز هرزنامه در سرآیندها: %s."

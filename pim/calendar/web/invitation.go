@@ -39,7 +39,9 @@ func handleInvitationReply(ctx *web.Context) error {
 	}
 
 	request, err := invitationAt(ctx, mboxName, uid)
-	if err != nil {
+	if errors.As(err, new(*mail.CalendarUnreadError)) {
+		return calendarUnread(ctx, err, ctx.NextOr(ctx.URL("mail.message", mboxName, uid)))
+	} else if err != nil {
 		return err
 	}
 	if request == nil {
@@ -97,6 +99,13 @@ func messageInvitation(ctx *web.Context, msg *mail.IMAPMessage, mboxName string,
 func invitationAt(ctx *web.Context, mboxName string, uid imap.UID) (*ical.Calendar, error) {
 	cal, _, err := mail.CalendarPartAt(ctx.Request().Context(), ctx.Login, mboxName, uid)
 	return cal, err
+}
+
+// calendarUnread refuses a button on a message whose calendar does not read, which is the sender's doing.
+func calendarUnread(ctx *web.Context, err error, back string) error {
+	ctx.Logger().Printf("invitation not read: %v", err)
+	ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: ctx.Tf("invite.unreadable", err)})
+	return ctx.Redirect(http.StatusFound, back)
 }
 
 func sendScheduling(ctx *web.Context, msg *ical.Calendar, to []string) error {
@@ -186,7 +195,9 @@ func (p *plugin) applyInvitation(ctx *web.Context) error {
 		return err
 	}
 	msg, err := invitationAt(ctx, mboxName, uid)
-	if err != nil {
+	if errors.As(err, new(*mail.CalendarUnreadError)) {
+		return calendarUnread(ctx, err, ctx.NextOr(ctx.URL("calendar.month")))
+	} else if err != nil {
 		return err
 	}
 	if msg == nil {

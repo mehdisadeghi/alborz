@@ -355,7 +355,9 @@ func (s *Server) parseIMAPUpstream(domain string) error {
 		}
 	}
 
-	s.log.Printf("Domain %q: configured upstream IMAP server: %v", domain, u)
+	if s.Options.Debug {
+		s.log.Printf("Domain %q: configured upstream IMAP server: %v", domain, u)
+	}
 
 	c, err := s.dialIMAP(domain, "")
 	if err != nil {
@@ -400,7 +402,9 @@ func (s *Server) parseSMTPUpstream(domain string) error {
 		}
 	}
 
-	s.log.Printf("Domain %q: configured upstream SMTP server: %v", domain, u)
+	if s.Options.Debug {
+		s.log.Printf("Domain %q: configured upstream SMTP server: %v", domain, u)
+	}
 
 	c, err := s.dialSMTP(domain)
 	if err != nil {

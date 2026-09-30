@@ -61,7 +61,9 @@ func (s *Server) parseSieveUpstream(domain string) error {
 	d.sieve.host = host
 	d.sieve.insecure = u.Scheme == "sieve+insecure"
 
-	s.log.Printf("Domain %q: configured upstream ManageSieve server: %v", domain, host)
+	if s.Options.Debug {
+		s.log.Printf("Domain %q: configured upstream ManageSieve server: %v", domain, host)
+	}
 	return nil
 }
 

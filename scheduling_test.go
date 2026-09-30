@@ -4,15 +4,14 @@ import (
 	"fmt"
 	"html"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"regexp"
 	"strings"
 	"testing"
 	"time"
 
+	. "git.mehdix.org/alborz/internal/alborztest"
 	"github.com/emersion/go-ical"
-	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-message"
 	gomail "github.com/emersion/go-message/mail"
 )
@@ -59,31 +58,8 @@ func sentCalendars(t *testing.T, raws []string) []sentCalendar {
 	return out
 }
 
-func appendMessage(t *testing.T, imapAddr, mbox, raw string) string {
-	t.Helper()
-	ic, err := imapclient.DialInsecure(imapAddr, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer ic.Close()
-	if err := ic.Login(smokeUser, smokePass).Wait(); err != nil {
-		t.Fatal(err)
-	}
-	cmd := ic.Append(mbox, int64(len(raw)), nil)
-	cmd.Write([]byte(raw))
-	cmd.Close()
-	data, err := cmd.Wait()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if data.UID == 0 {
-		t.Fatal("the server gave the appended message no UID")
-	}
-	return fmt.Sprint(data.UID)
-}
-
 func calendarMail(from, subject, method, body string) string {
-	return "From: " + from + "\r\nTo: " + smokeUser + "\r\nSubject: " + subject +
+	return "From: " + from + "\r\nTo: " + User + "\r\nSubject: " + subject +
 		"\r\nMIME-Version: 1.0\r\nContent-Type: text/calendar; charset=utf-8; method=" + method +
 		"\r\n\r\n" + strings.ReplaceAll(body, "\n", "\r\n")
 }
@@ -103,13 +79,7 @@ func attendees(comp *ical.Component) []string {
 	return out
 }
 
-// A new event is named after the UID it is given.
-func eventPath(coll, uid string) (page, object string) {
-	object = coll + uid + ".ics"
-	return "/calendar/" + url.PathEscape(object), object
-}
-
-func created(t *testing.T, resp *http.Response) {
+func created(t *testing.T, resp *Response) {
 	t.Helper()
 	if resp.StatusCode != http.StatusFound {
 		t.Fatalf("saving the event answered %s", resp.Status)
@@ -117,21 +87,22 @@ func created(t *testing.T, resp *http.Response) {
 }
 
 func TestAnOrganizerKeepsAttendeesInformed(t *testing.T) {
-	smtpAddr, sent := startSMTP(t)
-	base := startAlborz(t, startIMAP(t), smtpAddr)
-	c := login(t, base)
-	u, _ := url.Parse(base)
-	c.Jar.SetCookies(u, []*http.Cookie{{Name: "alborz_tz", Value: "Europe/Berlin"}})
-	coll := hereAt + strings.TrimPrefix(createCalendar(t, base, c, "Plans", "plans"), base)
+	sent := SMTP(t)
+	a := Alborz(t, WithSMTP(sent))
+	c := a.SignIn(t, User)
+	u, _ := url.Parse(a.URL)
+	c.HTTP.Jar.SetCookies(u, []*http.Cookie{{Name: "alborz_tz", Value: "Europe/Berlin"}})
+	coll := Here + c.CreateCalendar(t, "Plans", "")
 
 	form := url.Values{"summary": {"Review"}, "start": {"2026-10-05T10:00"}, "end": {"2026-10-05T11:00"}, "start-calendar": {"gregorian"}, "end-calendar": {"gregorian"},
-		"calendar": {smokeUser + "|" + coll}, "attendees": {"b@example.org\nc@example.org"}}
-	created(t, postForm(t, c, base+"/calendar/create", form))
+		"calendar": {User + "|" + coll}, "attendees": {"b@example.org\nc@example.org"}}
+	created(t, c.Post(t, "calendar.event.create", form))
 	got := sentCalendars(t, sent.All())
 	if len(got) != 1 || got[0].method != "REQUEST" {
 		t.Fatalf("creating the event sent %d calendars, want one REQUEST", len(got))
 	}
-	page, _ := eventPath(coll, prop(got[0].event, ical.PropUID))
+	// A new event is named after the UID it is given.
+	event := coll + prop(got[0].event, ical.PropUID) + ".ics"
 	if seq := prop(got[0].event, ical.PropSequence); seq != "0" {
 		t.Errorf("the first REQUEST carries SEQUENCE %q, want 0", seq)
 	}
@@ -151,7 +122,7 @@ func TestAnOrganizerKeepsAttendeesInformed(t *testing.T) {
 		for k, v := range change {
 			form[k] = v
 		}
-		if resp := postForm(t, c, base+page+"/update", form); resp.StatusCode != http.StatusFound {
+		if resp := c.Post(t, "calendar.event.update", form, event); resp.StatusCode != http.StatusFound {
 			t.Fatalf("updating the event answered %s", resp.Status)
 		}
 		return sentCalendars(t, sent.All()[was:])
@@ -171,7 +142,7 @@ func TestAnOrganizerKeepsAttendeesInformed(t *testing.T) {
 	if strings.Join(cancel.to, ",") != "c@example.org" || strings.Join(attendees(cancel.event), ",") != "c@example.org" {
 		t.Errorf("the CANCEL went to %v naming %v, want c@example.org alone", cancel.to, attendees(cancel.event))
 	}
-	if prop(cancel.event, ical.PropOrganizer) != "mailto:"+smokeUser {
+	if prop(cancel.event, ical.PropOrganizer) != "mailto:"+User {
 		t.Errorf("the CANCEL names organizer %q", prop(cancel.event, ical.PropOrganizer))
 	}
 	if status := prop(cancel.event, ical.PropStatus); status != "" {
@@ -192,7 +163,7 @@ func TestAnOrganizerKeepsAttendeesInformed(t *testing.T) {
 	}
 
 	was := len(sent.All())
-	if resp := postForm(t, c, base+page+"/delete", nil); resp.StatusCode != http.StatusFound {
+	if resp := c.Post(t, "calendar.event.delete", nil, event); resp.StatusCode != http.StatusFound {
 		t.Fatalf("deleting the event answered %s", resp.Status)
 	}
 	deleted := sentCalendars(t, sent.All()[was:])
@@ -236,19 +207,18 @@ END:VCALENDAR
 `
 
 func TestAnInvitationIsAnsweredAsInvited(t *testing.T) {
-	smtpAddr, sent := startSMTP(t)
-	imapAddr := startIMAP(t)
-	base := startAlborz(t, imapAddr, smtpAddr)
-	c := login(t, base)
-	if resp := postForm(t, c, base+"/settings/account", url.Values{"identities": {"Alias <alias@test.local>"}}); resp.StatusCode != http.StatusFound {
+	sent := SMTP(t)
+	a := Alborz(t, WithSMTP(sent))
+	c := a.SignIn(t, User)
+	if resp := c.Post(t, "mail.account", url.Values{"identities": {"Alias <alias@test.local>"}}); resp.StatusCode != http.StatusFound {
 		t.Fatalf("saving the identity answered %s", resp.Status)
 	}
-	uid := appendMessage(t, imapAddr, "INBOX", calendarMail("a@example.com", "Moved", "REQUEST", instanceRequest))
+	uid := a.IMAP.Append(t, "INBOX", calendarMail("a@example.com", "Moved", "REQUEST", instanceRequest))
 
-	if page := get(t, c, base+"/message/INBOX/"+uid); !strings.Contains(page, `class="invitation-mine">no answer yet<`) {
+	if page := c.Page(t, "mail.message", "INBOX", uid); !strings.Contains(page, `class="invitation-mine">no answer yet<`) {
 		t.Errorf("the page does not show the identity's own answer")
 	}
-	if resp := postForm(t, c, base+"/message/INBOX/"+uid+"/invite?lang=fa", url.Values{"status": {"ACCEPTED"}}); resp.StatusCode != http.StatusFound {
+	if resp := c.Post(t, "calendar.invite", url.Values{"status": {"ACCEPTED"}}, "INBOX", uid, url.Values{"lang": {"fa"}}); resp.StatusCode != http.StatusFound {
 		t.Fatalf("answering answered %s", resp.Status)
 	}
 	got := sentCalendars(t, []string{sent.Last()})
@@ -268,16 +238,14 @@ func TestAnInvitationIsAnsweredAsInvited(t *testing.T) {
 }
 
 func TestAnAnswerIsRecordedOnTheEvent(t *testing.T) {
-	smtpAddr, sent := startSMTP(t)
-	imapAddr := startIMAP(t)
-	base := startAlborz(t, imapAddr, smtpAddr)
-	c := login(t, base)
-	coll := strings.TrimPrefix(createCalendar(t, base, c, "Plans", "plans"), base)
+	sent := SMTP(t)
+	a := Alborz(t, WithSMTP(sent))
+	c := a.SignIn(t, User)
+	coll := c.CreateCalendar(t, "Plans", "")
 	form := url.Values{"summary": {"Review"}, "start": {"2026-10-05T10:00"}, "end": {"2026-10-05T11:00"}, "start-calendar": {"gregorian"}, "end-calendar": {"gregorian"},
-		"calendar": {smokeUser + "|" + hereAt + coll}, "attendees": {"b@example.org"}}
-	created(t, postForm(t, c, base+"/calendar/create", form))
+		"calendar": {User + "|" + Here + coll}, "attendees": {"b@example.org"}}
+	created(t, c.Post(t, "calendar.event.create", form))
 	eventUID := prop(sentCalendars(t, sent.All())[0].event, ical.PropUID)
-	_, object := eventPath(coll, eventUID)
 
 	reply := fmt.Sprintf(`BEGIN:VCALENDAR
 PRODID:-//Example/ExampleCalendarClient//EN
@@ -291,17 +259,18 @@ SEQUENCE:0
 DTSTAMP:%s
 END:VEVENT
 END:VCALENDAR
-`, smokeUser, eventUID, time.Now().UTC().Format("20060102T150405Z"))
-	uid := appendMessage(t, imapAddr, "INBOX", calendarMail("b@example.org", "Accepted: Review", "REPLY", reply))
+`, User, eventUID, time.Now().UTC().Format("20060102T150405Z"))
+	uid := a.IMAP.Append(t, "INBOX", calendarMail("b@example.org", "Accepted: Review", "REPLY", reply))
 
-	page := get(t, c, base+"/message/INBOX/"+uid)
-	if !strings.Contains(page, `action="/calendar/from-message`) {
+	page := c.Page(t, "mail.message", "INBOX", uid)
+	if !strings.Contains(page, `action="`+a.Path("calendar.frommessage")) {
 		t.Fatalf("the answer's page offers nothing to record it with")
 	}
-	if resp := postForm(t, c, base+"/calendar/from-message", url.Values{"mbox": {"INBOX"}, "uid": {uid}}); resp.StatusCode != http.StatusFound {
+	if resp := c.Post(t, "calendar.frommessage", url.Values{"mbox": {"INBOX"}, "uid": {fmt.Sprint(uid)}}); resp.StatusCode != http.StatusFound {
 		t.Fatalf("recording the answer answered %s", resp.Status)
 	}
-	_, stored := dav(t, http.MethodGet, base+object, nil, "")
+	// A new event is named after the UID it is given.
+	stored := a.DAV(t, http.MethodGet, coll+eventUID+".ics", nil, "").Text
 	cal, err := ical.NewDecoder(strings.NewReader(stored)).Decode()
 	if err != nil {
 		t.Fatalf("reading the stored event: %v\n%s", err, stored)
@@ -314,61 +283,47 @@ END:VCALENDAR
 }
 
 func TestAnIcsAttachmentIsImported(t *testing.T) {
-	imapAddr := startIMAP(t)
-	base := startAlborz(t, imapAddr)
-	c := login(t, base)
-	coll := strings.TrimPrefix(createCalendar(t, base, c, "Plans", "plans"), base)
-	raw := "From: eve@example.org\r\nTo: " + smokeUser + "\r\nSubject: The plan\r\nMIME-Version: 1.0\r\n" +
+	a := Alborz(t)
+	c := a.SignIn(t, User)
+	coll := c.CreateCalendar(t, "Plans", "")
+	raw := "From: eve@example.org\r\nTo: " + User + "\r\nSubject: The plan\r\nMIME-Version: 1.0\r\n" +
 		"Content-Type: multipart/mixed; boundary=b1\r\n\r\n" +
 		"--b1\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nAttached.\r\n" +
 		"--b1\r\nContent-Type: text/calendar; charset=utf-8\r\nContent-Disposition: attachment; filename=\"plan.ics\"\r\n\r\n" +
-		event("imported", "Imported") + "--b1--\r\n"
-	uid := appendMessage(t, imapAddr, "INBOX", raw)
+		Event("imported", "Imported") + "--b1--\r\n"
+	uid := a.IMAP.Append(t, "INBOX", raw)
 
-	page := get(t, c, base+"/message/INBOX/"+uid)
+	page := c.Page(t, "mail.message", "INBOX", uid)
 	m := regexp.MustCompile(`<form method="post" action="([^"]*)" class="invitation-actions">\s*<input type="hidden" name="mbox"[^>]*>\s*<input type="hidden" name="uid"[^>]*>\s*<input type="hidden" name="part"`).FindStringSubmatch(page)
 	if m == nil {
 		t.Fatalf("the attachment has no import form")
 	}
-	form := url.Values{"mbox": {"INBOX"}, "uid": {uid}, "part": {"2"}, "calendar": {smokeUser + "|" + hereAt + coll}}
-	if resp := postForm(t, c, base+html.UnescapeString(m[1]), form); resp.StatusCode != http.StatusFound {
+	form := url.Values{"mbox": {"INBOX"}, "uid": {fmt.Sprint(uid)}, "part": {"2"}, "calendar": {User + "|" + Here + coll}}
+	if resp := c.PostTo(t, html.UnescapeString(m[1]), form); resp.StatusCode != http.StatusFound {
 		t.Fatalf("importing the attachment answered %s", resp.Status)
 	}
-	if resp, body := dav(t, http.MethodGet, base+coll+"imported.ics", nil, ""); resp.StatusCode != http.StatusOK || !strings.Contains(body, "Imported") {
+	if resp := a.DAV(t, http.MethodGet, coll+"imported.ics", nil, ""); resp.StatusCode != http.StatusOK || !strings.Contains(resp.Text, "Imported") {
 		t.Errorf("the imported event is not in the calendar: %s", resp.Status)
 	}
 }
 
 // A server advertising calendar-auto-schedule sends the invitations itself (RFC 6638 2).
 func TestAServerThatSchedulesSendsTheInvitations(t *testing.T) {
-	personal := davHome + "personal/"
-	stub := &davStub{cals: map[string]davCal{personal: {"Personal", "#3366cc"}},
-		refuse: map[string]bool{}, keep: map[string]bool{}, gone: map[string]bool{}}
-	dav := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "OPTIONS" {
-			w.Header().Set("DAV", "1, 3, calendar-access, calendar-auto-schedule")
-			return
-		}
-		stub.ServeHTTP(w, r)
-	}))
-	defer dav.Close()
-	smtpAddr, sent := startSMTP(t)
-	base := startAlborzWith(t, append([]string{
-		"test.local=imap+insecure://" + startIMAP(t),
-		"test.local=caldav+insecure://" + strings.TrimPrefix(dav.URL, "http://") + "/dav",
-	}, smtpUpstreams([]string{smtpAddr})...))
-	c := login(t, base)
-	coll := hereAt + strings.TrimPrefix(createCalendar(t, base, c, "Plans", "plans"), base)
+	personal := DAVHome + "personal/"
+	d := DAV(t, Calendar(personal, "Personal"), Schedules())
+	sent := SMTP(t)
+	c := Alborz(t, WithDAV(d), WithSMTP(sent)).SignIn(t, User)
+	coll := Here + c.CreateCalendar(t, "Plans", "")
 
 	form := url.Values{"summary": {"Review"}, "start": {"2026-10-05T10:00"}, "end": {"2026-10-05T11:00"}, "start-calendar": {"gregorian"}, "end-calendar": {"gregorian"},
-		"calendar": {smokeUser + "|" + at(dav.URL) + personal}, "attendees": {"b@example.org"}}
-	created(t, postForm(t, c, base+"/calendar/create", form))
+		"calendar": {User + "|" + d.At() + personal}, "attendees": {"b@example.org"}}
+	created(t, c.Post(t, "calendar.event.create", form))
 	if got := sent.All(); len(got) != 0 {
 		t.Fatalf("saving on a scheduling server sent %d messages, want none", len(got))
 	}
 
-	form.Set("calendar", smokeUser+"|"+coll)
-	created(t, postForm(t, c, base+"/calendar/create", form))
+	form.Set("calendar", User+"|"+coll)
+	created(t, c.Post(t, "calendar.event.create", form))
 	if got := sentCalendars(t, sent.All()); len(got) != 1 || got[0].method != "REQUEST" {
 		t.Fatalf("saving on a calendar on alborz sent %d calendars, want one REQUEST", len(got))
 	}

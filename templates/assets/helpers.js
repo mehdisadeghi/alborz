@@ -531,7 +531,7 @@ document.addEventListener("htmx:afterSwap", ev => {
 	// On a phone the list is under the drawer; a rail link's tap is for the page.
 	const from = ev.detail && ev.detail.requestConfig && ev.detail.requestConfig.elt;
 	const drawer = document.getElementById("sidebar");
-	if (drawer && from && from.closest && from.closest("aside")) {
+	if (drawer && from && from.matches && from.matches("aside a")) {
 		drawer.checked = false;
 	}
 	const here = railPlace(location.href);

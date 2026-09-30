@@ -3501,7 +3501,8 @@ main.calendar .date.active h3 .day-label {
   color: var(--on-accent);
 }
 
-aside .aside-filter { display: flex; flex-direction: column; }
+/* A swap redraws these rows; anchored on one, the browser would scroll the page by what main gained. */
+aside .aside-filter { display: flex; flex-direction: column; overflow-anchor: none; }
 
 /* A tick submits its own form, so the form's button is for a page without scripts. */
 @media (scripting: enabled) {

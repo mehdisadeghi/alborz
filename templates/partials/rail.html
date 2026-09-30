@@ -1,12 +1,12 @@
 {{ define "scope-rail" }}
   <div class="rail-brand">{{ template "brand" (dict "g" .g "build" .g.GlobalData.Revision) }}</div>
   {{ with .homes }}{{ template "rail-rows" . }}{{ end }}
-  {{ $merged := not .urlaccount }}{{ if eq .kind "dav" }}{{ range $.data.items }}{{ if .Only }}{{ $merged = false }}{{ end }}{{ end }}{{ end }}
+  {{ $merged := or (not .urlaccount) (eq (len .accounts) 1) }}{{ if eq .kind "dav" }}{{ range $.data.items }}{{ if .Only }}{{ $merged = false }}{{ end }}{{ end }}{{ end }}
   {{ if gt (len .accounts) 1 }}
   {{ if eq .kind "mail" }}
   {{ template "rail-mail-merged" .data }}
   {{ else }}
-  {{ with .all }}<a class="aside-account aside-all{{ if $merged }} active{{ end }}" href="{{$.path}}">{{ if eq $.kind "dav" }}{{$.g.T "nav.allaccounts"}}{{ else }}{{.}}{{ end }}</a>{{ end }}
+  {{ with .all }}<a id="rail-all" class="aside-account aside-all{{ if $merged }} active{{ end }}" href="{{$.path}}"{{ if $.g.GlobalData.Swap }} hx-swap-oob="true"{{ end }}>{{ if eq $.kind "dav" }}{{$.g.T "nav.allaccounts"}}{{ else }}{{.}}{{ end }}</a>{{ end }}
   {{ end }}
   {{ range .accounts }}
   {{ $acct := .Username }}
@@ -36,7 +36,7 @@
   {{ else if and (eq .kind "rows") .accounts }}
   {{ template "rail-rows" (index .data.rows (index .accounts 0).Username) }}
   {{ else if and (eq .kind "dav") .data.items }}
-  {{ with .all }}<a class="aside-account aside-all{{ if $merged }} active{{ end }}" href="{{$.path}}">{{.}}</a>{{ end }}
+  {{ with .all }}<a id="rail-all" class="aside-account aside-all{{ if $merged }} active{{ end }}" href="{{$.path}}"{{ if $.g.GlobalData.Swap }} hx-swap-oob="true"{{ end }}>{{.}}</a>{{ end }}
   {{ template "rail-dav-account" (dict "account" (index .accounts 0).Username "data" .data "single" true "g" .g) }}
   {{ end }}
   {{ end }}
@@ -122,10 +122,11 @@
 
 {{ define "rail-dav-account" }}
 {{ $d := .data }}
-<form method="post" action="{{$d.action}}{{ account "?" .account }}" class="aside-filter">
+{{ $narrowed := false }}{{ range $d.items }}{{ if .Only }}{{ $narrowed = true }}{{ end }}{{ end }}
+{{/* A tick redraws the list and these rows in place; the address follows without a step in history, which the links inside still take (ADR 35). */}}
+<form id="rail-{{.account}}" method="post" action="{{$d.action}}{{ account "?" .account }}" class="aside-filter" hx-post="{{$d.action}}{{ account "?" .account }}" hx-target="#main" hx-swap="innerHTML show:none" hx-replace-url="true" hx-disinherit="hx-replace-url"{{ if $.g.GlobalData.Swap }} hx-swap-oob="innerHTML"{{ end }}>
 <input type="hidden" name="next" value="{{$d.next}}">
 {{ with .all }}
-{{ $narrowed := false }}{{ range $d.items }}{{ if .Only }}{{ $narrowed = true }}{{ end }}{{ end }}
 {{ $on := and (eq $.account $.urlaccount) (not $narrowed) }}
 <div class="filter-row nested{{ if $on }} active{{ end }}">
   <a class="filter-name" href="{{ localhref (printf "%s%s" $.path (account (qsep $.path) $.account)) }}"{{ if $on }} aria-current="true"{{ end }}><span>{{.}}</span></a>
@@ -139,7 +140,7 @@
 {{ end }}
 
 {{/* dict: item field itemclass action shown keep nested
-     [edit editlabel]. */}}
+     [edit editlabel]. The tick's id brings focus back to it when a swap redraws the row. */}}
 {{ define "dav-filter-item" }}
 {{ $i := .item }}
 {{ $base := printf "%s?%s=%s" .action .field ($i.Path | qv) }}{{ with .keep }}{{ $base = printf "%s%s" $base . }}{{ end }}
@@ -150,7 +151,7 @@
   </a>
   <a class="filter-edit" href="{{url .edit $i.Path}}{{account "?" $i.Account}}" title="{{.editlabel}}" hx-boost="false">{{.editlabel}}</a>
   <label class="filter-tick" title="{{.shown}}">
-    <input type="checkbox" name="{{.field}}" value="{{$i.Path}}" {{ if $i.Visible }}checked{{ end }} data-source-item data-submit-on-change {{ if $i.Color }}style="accent-color:{{$i.Color}}"{{ end }} aria-label="{{.shown}}: {{$i.Name}}">
+    <input type="checkbox" id="rail-{{$i.Account}}{{$i.Path}}" name="{{.field}}" value="{{$i.Path}}" {{ if $i.Visible }}checked{{ end }} data-source-item data-submit-on-change {{ if $i.Color }}style="accent-color:{{$i.Color}}"{{ end }} aria-label="{{.shown}}: {{$i.Name}}">
   </label>
 </div>
 {{ end }}
@@ -174,15 +175,19 @@
 {{ end }}
 
 {{ define "settings-rail" }}
+{{ if not .GlobalData.Swap }}
 <aside>
   {{ template "scope-rail" (dict "g" . "kind" "rows" "path" (url "mail.account") "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "data" (dict "rows" .Rail) "homes" (index .Rail "")) }}
 </aside>
 {{ end }}
+{{ end }}
 
 {{ define "mail-rail" }}
+{{ if not .GlobalData.Swap }}
 <aside data-mail-sidebar="{{url "mail.sidebar"}}" data-importing="{{$.T "folder.dropimporting"}}" data-importing-many="{{$.T "folder.dropimportingmany"}}" data-importing-adding="{{$.T "folder.dropadding"}}" data-importing-none="{{$.T "folder.dropnomail"}}" data-importing-failed="{{$.T "folder.dropfailed"}}" data-importing-where="{{$.T "folder.dropwhere"}}" data-importing-which="{{$.T "folder.dropwhich"}}" data-live-arrived="{{$.T "list.mailarrived"}}" data-live-show="{{$.T "list.showarrived"}}">
 {{ template "scope-rail" (dict "g" $ "kind" "mail" "path" (url "mail.mailbox" "INBOX") "urlaccount" .GlobalData.Scope "accounts" .GlobalData.Accounts "data" . "new" (dict "href" (url "mail.mailbox.create") "label" ($.T "aside.newfolder") "active" (eq .GlobalData.URL.Path (url "mail.mailbox.create"))) "import" (dict "href" (url "mail.import") "label" ($.T "aside.import") "active" (eq .GlobalData.URL.Path (url "mail.import")))) }}
 </aside>
+{{ end }}
 {{ end }}
 
 {{ define "rail-mail-single" }}
@@ -304,7 +309,8 @@
 {{/* dict: g urlaccount path items field itemclass action edit new
      [keep follow import views groups categories invitations]. */}}
 {{ define "pim-rail" }}
-<aside>
+{{/* A swap into main takes the marked rows out of this rail by their ids; htmx drops the rest. */}}
+{{ if .g.GlobalData.Swap }}<template>{{ else }}<aside>{{ end }}
   {{ template "scope-rail" (dict "g" .g "kind" "dav" "path" .path "urlaccount" .urlaccount "accounts" .g.GlobalData.Accounts "all" (.g.T "aside.all") "new" .new "follow" .follow "import" .import "data" (dict "keep" .keep "items" .items "field" .field "itemclass" .itemclass "action" .action "apply" (.g.T "common.apply") "shown" (.g.T "common.shown") "edit" .edit "editlabel" (.g.T "common.edit") "next" .g.GlobalData.URL.RequestURI) "views" .views "groups" .groups "categories" .categories "invitations" .invitations) }}
-</aside>
+{{ if .g.GlobalData.Swap }}</template>{{ else }}</aside>{{ end }}
 {{ end }}

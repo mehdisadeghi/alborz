@@ -37,8 +37,12 @@ blank page per navigation.
      whole page.
 7. Fragments are used only where a whole page is the wrong answer: a
    mark on one row, a list swapped into `#main` under an unchanged
-   toolbar, and lazily loaded pieces (signature check, status bar).
-   A page asked for by a swap into `#main` answers its `main` block.
+   toolbar or rail (a page, a sort, a rail tick), and lazily loaded
+   pieces (signature check, status bar).
+   A page asked for by a swap into `#main` answers its `main` block;
+   a calendar, task or contact page adds its rail's tick form and All
+   link out of band in a `template`, so their marks and ticks follow
+   the list while the rail and its scroll stay.
    Signing in and unlocking take the window: a piece asked for then is
    answered with `HX-Redirect`. An error keeps its status, which htmx
    does not swap, so the page stays and the failed notice shows.

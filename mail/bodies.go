@@ -20,7 +20,8 @@ const (
 	bodyFetchBatch = 10
 	// Keeps many idle accounts from exhausting memory.
 	bodyMaxBytes = 64 << 20
-	bodyKeepFor  = listingKeepFor
+	// A body is fetched for the reader of a login, and outlives it no more than the login does.
+	bodyKeepFor = alborz.LoginDuration
 )
 
 type bodyKey struct {
@@ -268,7 +269,12 @@ func (bc *bodyCache) observe(user, mailbox string, validity uint32) {
 func (bc *bodyCache) current(user, mailbox string, uid imap.UID, part []int) *cachedBody {
 	bc.mu.Lock()
 	defer bc.mu.Unlock()
-	b := bc.entries[bodyKey{user, mailbox, bc.validity[mailboxKey{user, mailbox}], uid}]
+	k := bodyKey{user, mailbox, bc.validity[mailboxKey{user, mailbox}], uid}
+	b := bc.entries[k]
+	if b != nil && time.Since(b.lastUse) > bc.keepFor {
+		delete(bc.entries, k)
+		return nil
+	}
 	if b == nil || (len(part) != 0 && !slices.Equal(b.part, part)) {
 		return nil
 	}

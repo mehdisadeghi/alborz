@@ -151,7 +151,7 @@ func (p *Calendars) FindByUID(ctx context.Context, login *alborz.Login, groups [
 			Name: "VCALENDAR",
 			Comps: []caldav.CompFilter{{
 				Name:  "VEVENT",
-				Props: []caldav.PropFilter{{Name: "UID", TextMatch: &caldav.TextMatch{Text: uid}}},
+				Props: []caldav.PropFilter{{Name: "UID", TextMatch: &caldav.TextMatch{Text: uid, Collation: caldav.CollationOctet}}},
 			}},
 		},
 	}
@@ -234,7 +234,7 @@ func objectPathByUID(ctx context.Context, client *caldav.Client, calendarPath, u
 			CompRequest: caldav.CalendarCompRequest{Name: "VCALENDAR",
 				Comps: []caldav.CalendarCompRequest{{Name: comp, Props: []string{"UID"}}}},
 			CompFilter: caldav.CompFilter{Name: "VCALENDAR", Comps: []caldav.CompFilter{{
-				Name: comp, Props: []caldav.PropFilter{{Name: "UID", TextMatch: &caldav.TextMatch{Text: uid}}},
+				Name: comp, Props: []caldav.PropFilter{{Name: "UID", TextMatch: &caldav.TextMatch{Text: uid, Collation: caldav.CollationOctet}}},
 			}}},
 		})
 		if err == nil && len(objects) > 0 {

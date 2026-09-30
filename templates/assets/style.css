@@ -1162,6 +1162,8 @@ main.create-update #attachment-list {
 
   width: clamp(10rem, 28vw, 25rem);
   height: 100%;
+  /* The fields size the rows; a long list scrolls within them. */
+  contain: size;
   background: var(--bg-inset);
   overflow-y: auto;
   scrollbar-gutter: stable;

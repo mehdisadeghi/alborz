@@ -180,7 +180,7 @@ func calendarFilters(ctx *web.Context, calendars []dav.Collection) []web.Filter 
 			f.Label, f.Value = ctx.T("tasks.status"), ctx.T("tasks.all")
 		case viewHigh:
 			f.Label, f.Value = ctx.T("tasks.priority"), ctx.T("tasks.priority.high")
-		case web.ViewStarred:
+		case alborz.ViewStarred:
 			f.Value = ctx.T("mailbox.starred")
 		default:
 			f.Value = ctx.T("color." + f.Value)
@@ -249,7 +249,7 @@ func (p *plugin) warm(ctx *web.Context, s *alborz.Login) {
 }
 
 func validStarView(view string) bool {
-	return view == "" || view == web.ViewStarred || slices.Contains(alborz.FlagColors[:], view)
+	return view == "" || view == alborz.ViewStarred || slices.Contains(alborz.FlagColors[:], view)
 }
 
 // pooledCalendars lists every account's calendars.

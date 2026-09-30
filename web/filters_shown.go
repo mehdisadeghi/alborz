@@ -120,37 +120,14 @@ func perPage(ctx *Context, q url.Values) int {
 	return alborz.DefaultMessagesPerPage
 }
 
-// Page is one page of a list: its number, counted from zero, and how many rows a page holds.
-type Page struct {
-	Number, Size int
-}
-
-// Within is the page in a list of total rows. A page past the end is the
-// last one: the list may have shrunk since the link was drawn.
-func (p Page) Within(total int) Page {
-	p.Number = min(p.Number, max(0, (total-1)/p.Size))
-	return p
-}
-
-// Rows are the bounds of the page's rows in a list of total rows.
-func (p Page) Rows(total int) (from, to int) {
-	from = min(p.Number*p.Size, total)
-	return from, min(from+p.Size, total)
-}
-
-// Window is how many rows lie from the top of the list to the end of this page.
-func (p Page) Window() int {
-	return (p.Number + 1) * p.Size
-}
-
 // ListPage is the page of a list the request asks for; a number it cannot read is refused.
-func (ctx *Context) ListPage() (Page, error) {
+func (ctx *Context) ListPage() (alborz.Page, error) {
 	return ctx.ListPageAt(ctx.QueryParams())
 }
 
 // ListPageAt is the page a list's address asks for, read as ListPage reads the request's.
-func (ctx *Context) ListPageAt(q url.Values) (Page, error) {
-	p := Page{Size: perPage(ctx, q)}
+func (ctx *Context) ListPageAt(q url.Values) (alborz.Page, error) {
+	p := alborz.Page{Size: perPage(ctx, q)}
 	if raw := q.Get("page"); raw != "" {
 		n, err := locale.ReadInt(raw)
 		if err != nil || n < 0 {
@@ -172,7 +149,7 @@ type Pager struct {
 }
 
 // NewPager is the pager of page p of a list of total rows, drawn at the address at.
-func NewPager(at *url.URL, p Page, total int, sizes []int) Pager {
+func NewPager(at *url.URL, p alborz.Page, total int, sizes []int) Pager {
 	from, to := p.Rows(total)
 	q := at.Query()
 	q.Del("ipp")
@@ -212,18 +189,12 @@ type Neighbours struct {
 	Total    int
 }
 
-// Views narrow a folder by a flag.
-const (
-	ViewStarred = "starred"
-	ViewUnread  = "unread"
-)
-
 // StarMatches says whether a mark answers a view.
 func StarMatches(star, view string) bool {
 	switch view {
 	case "":
 		return true
-	case ViewStarred:
+	case alborz.ViewStarred:
 		return star != ""
 	}
 	return star == view
@@ -236,7 +207,7 @@ func StarLeaves(next, star string) bool {
 		return false
 	}
 	view := u.Query().Get("view")
-	return (view == ViewStarred || slices.Contains(alborz.FlagColors[:], view)) && !StarMatches(star, view)
+	return (view == alborz.ViewStarred || slices.Contains(alborz.FlagColors[:], view)) && !StarMatches(star, view)
 }
 
 // StarNotice says what became of a row's star that left its list.
@@ -259,9 +230,9 @@ func ViewRows(ctx *Context, current string, unread bool, clear string) []FilterR
 	}
 	var rows []FilterRow
 	if unread {
-		rows = append(rows, row(ctx.T("mailbox.unread"), ViewUnread, ""))
+		rows = append(rows, row(ctx.T("mailbox.unread"), alborz.ViewUnread, ""))
 	}
-	rows = append(rows, row(ctx.T("mailbox.starred"), ViewStarred, ""))
+	rows = append(rows, row(ctx.T("mailbox.starred"), alborz.ViewStarred, ""))
 	for _, name := range alborz.FlagColors {
 		rows = append(rows, row(ctx.T("color."+name), name, name))
 	}

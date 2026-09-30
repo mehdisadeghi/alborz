@@ -230,13 +230,13 @@ func (p *plugin) wholePage(ctx *web.Context, role, key string, page []IMAPMessag
 }
 
 // The page is cut from a merged window, which holds every row up to it.
-func cutPage(merged *listingEntry, page web.Page) (web.Page, []IMAPMessage) {
+func cutPage(merged *listingEntry, page alborz.Page) (alborz.Page, []IMAPMessage) {
 	page = page.Within(merged.total)
 	from, to := page.Rows(len(merged.msgs))
 	return page, merged.msgs[from:to]
 }
 
-func listPage(ctx *web.Context, spec listingSpec, page web.Page, e *listingEntry, rows []IMAPMessage) *MailboxRenderData {
+func listPage(ctx *web.Context, spec listingSpec, page alborz.Page, e *listingEntry, rows []IMAPMessage) *MailboxRenderData {
 	return &MailboxRenderData{
 		Messages:      rows,
 		Pager:         web.NewPager(ctx.Request().URL, page, e.total, web.PerPageChoices(ctx)),
@@ -365,7 +365,7 @@ func (p *plugin) fetchUnifiedAccount(c *imapclient.Client, user, folder string, 
 	if withSnap {
 		snapCmd = c.Status(folder, listingStatusOptions(c))
 	}
-	e, err := p.fetchRows(c, user, folder, spec, settings, web.Page{Size: window}, fields)
+	e, err := p.fetchRows(c, user, folder, spec, settings, alborz.Page{Size: window}, fields)
 	if err != nil {
 		return nil, err
 	}
@@ -433,13 +433,13 @@ func (p *plugin) handleGetMailbox(ctx *web.Context) error {
 		return err
 	}
 	sb, msgs := p.railFor(ctx.Login, mboxName, e.sb), e.msgs
-	page := web.Page{Number: e.page, Size: e.perPage}
+	page := alborz.Page{Number: e.page, Size: e.perPage}
 	// Bodies are fetched behind the page, so the next click asks the server nothing.
 	if cacheable {
 		login := ctx.Login
 		p.prefetchBodies(login, ctx.Reading().PreferHTML, mboxName, e.validity(), e.msgs)
 		if spec.sortKey != threadSort && spec.thread == 0 && page.Window() < e.total {
-			p.prefetchPage(login, settings, spec, web.Page{Number: page.Number + 1, Size: page.Size})
+			p.prefetchPage(login, settings, spec, alborz.Page{Number: page.Number + 1, Size: page.Size})
 		}
 	}
 
@@ -492,7 +492,7 @@ func everywhereQuery(query string) string {
 }
 
 type listAsk struct {
-	page web.Page
+	page alborz.Page
 	spec listingSpec
 }
 
@@ -568,15 +568,15 @@ func readView(q url.Values) (string, error) {
 
 func viewTitle(ctx *web.Context, view string) string {
 	switch view {
-	case web.ViewStarred:
+	case alborz.ViewStarred:
 		return ctx.T("mailbox.starred")
-	case web.ViewUnread:
+	case alborz.ViewUnread:
 		return ctx.T("mailbox.unread")
 	}
 	return fmt.Sprintf(ctx.T("mailbox.starcolor"), ctx.T("color."+view))
 }
 
-func (p *plugin) fetchListing(c *imapclient.Client, user string, spec listingSpec, settings *Settings, page web.Page) (*listingEntry, error) {
+func (p *plugin) fetchListing(c *imapclient.Client, user string, spec listingSpec, settings *Settings, page alborz.Page) (*listingEntry, error) {
 	load, err := startSidebar(c, spec.mbox, spec.mbox, settings.Subscriptions)
 	if err != nil {
 		return nil, err
@@ -592,7 +592,7 @@ func (p *plugin) fetchListing(c *imapclient.Client, user string, spec listingSpe
 	return e, nil
 }
 
-func (p *plugin) fetchRows(c *imapclient.Client, user, folder string, spec listingSpec, settings *Settings, page web.Page, fields rowFields) (*listingEntry, error) {
+func (p *plugin) fetchRows(c *imapclient.Client, user, folder string, spec listingSpec, settings *Settings, page alborz.Page, fields rowFields) (*listingEntry, error) {
 	e := &listingEntry{perPage: page.Size, sortSupported: c.Caps().Has(imap.CapSort), threadAlgorithm: ThreadAlgorithm(c)}
 	// Each window is cut under the requested order, so the merge sees the true candidates.
 	sortKey, reverse := spec.sortKey, spec.reverse()

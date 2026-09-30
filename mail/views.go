@@ -14,17 +14,17 @@ import (
 
 // KnownView says whether a view name is one alborz offers.
 func KnownView(view string) bool {
-	return view == "" || view == web.ViewStarred || view == web.ViewUnread || slices.Contains(alborz.FlagColors[:], view)
+	return view == "" || view == alborz.ViewStarred || view == alborz.ViewUnread || slices.Contains(alborz.FlagColors[:], view)
 }
 
 // StarView says whether a view is a mark the reader put on a message.
 func StarView(view string) bool {
-	return view == web.ViewStarred || slices.Contains(alborz.FlagColors[:], view)
+	return view == alborz.ViewStarred || slices.Contains(alborz.FlagColors[:], view)
 }
 
 // ViewLabel names a view for a page heading.
 func ViewLabel(ctx *web.Context, view string) string {
-	if view == web.ViewStarred {
+	if view == alborz.ViewStarred {
 		return ctx.T("mailbox.starred")
 	}
 	return ctx.T("color." + view)
@@ -35,9 +35,9 @@ func ViewCriteria(view string) *imap.SearchCriteria {
 	switch view {
 	case "":
 		return nil
-	case web.ViewStarred:
+	case alborz.ViewStarred:
 		return &imap.SearchCriteria{Flag: []imap.Flag{imap.FlagFlagged}}
-	case web.ViewUnread:
+	case alborz.ViewUnread:
 		return &imap.SearchCriteria{NotFlag: []imap.Flag{imap.FlagSeen}}
 	}
 	add, del := FlagColorFlags(view)

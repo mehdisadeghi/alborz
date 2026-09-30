@@ -1064,7 +1064,7 @@ func listID(h textproto.Header) string {
 	return strings.TrimSpace(id)
 }
 
-func listMessages(conn *imapclient.Client, mboxName string, page web.Page, fields rowFields) (msgs []IMAPMessage, total int, err error) {
+func listMessages(conn *imapclient.Client, mboxName string, page alborz.Page, fields rowFields) (msgs []IMAPMessage, total int, err error) {
 	// Only an already selected mailbox needs a NOOP to notice new mail.
 	if mbox := conn.Mailbox(); mbox != nil && mbox.Name == mboxName {
 		if err := conn.Noop().Wait(); err != nil {
@@ -1192,7 +1192,7 @@ func threadOrder(conn *imapclient.Client, algorithm imap.ThreadAlgorithm, criter
 }
 
 // threadPage fetches one page of conversations, not messages, from a held thread order.
-func threadPage(conn *imapclient.Client, mboxName string, o messageOrder, page web.Page) ([]IMAPMessage, error) {
+func threadPage(conn *imapclient.Client, mboxName string, o messageOrder, page alborz.Page) ([]IMAPMessage, error) {
 	threads := len(o.starts)
 	from, to := page.Within(threads).Rows(threads)
 	if from == to {
@@ -1553,7 +1553,7 @@ func viewOrder(conn *imapclient.Client, q search.Query, criteria *imap.SearchCri
 }
 
 // orderedPage fetches one page of a view whose order is held.
-func orderedPage(conn *imapclient.Client, mboxName string, uids []imap.UID, page web.Page, fields rowFields) ([]IMAPMessage, error) {
+func orderedPage(conn *imapclient.Client, mboxName string, uids []imap.UID, page alborz.Page, fields rowFields) ([]IMAPMessage, error) {
 	from, to := page.Within(len(uids)).Rows(len(uids))
 	if from == to {
 		return nil, nil

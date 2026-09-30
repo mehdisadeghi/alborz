@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/calendar"
 	"git.mehdix.org/alborz/pim/dav"
@@ -255,7 +256,7 @@ var taskColumns = []pim.Column[TaskRow]{
 		}
 		return strconv.Itoa(len(calendar.PriorityBands))
 	}},
-	{Key: web.ViewStarred, Value: func(row TaskRow) string { return pim.StarredFirst(row.Star) }},
+	{Key: alborz.ViewStarred, Value: func(row TaskRow) string { return pim.StarredFirst(row.Star) }},
 	{Key: "account", Value: func(row TaskRow) string { return strings.ToLower(row.Task.Account) }},
 	{Key: "calendar", Value: func(row TaskRow) string { return strings.ToLower(row.Calendar.Name) }},
 	{Key: "due", Value: func(row TaskRow) string { return pim.When(row.Due) }},

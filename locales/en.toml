@@ -1234,6 +1234,14 @@ other = "%d yrs"
 one = "The public link of %[2]s was not kept: it serves another calendar here."
 other = "The public links of %[2]s were not kept: they serve other calendars here."
 
+["data.entryunread"]
+one = "The setting %[2]s in the archive could not be read and was not imported."
+other = "The settings %[2]s in the archive could not be read and were not imported."
+
+["data.entryrefused"]
+one = "The mail server did not keep the setting %[2]s."
+other = "The mail server did not keep the settings %[2]s."
+
 ["mail.status.unread"]
 one = "%d unread"
 other = "%d unread"

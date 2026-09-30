@@ -88,7 +88,7 @@ func importRefusal(ctx *web.Context, err error) error {
 	case errors.Is(err, alborz.ErrNotArchive):
 		ctx.Logger().Printf("import for %q refused: %v", ctx.Login.Username(), err)
 		return renderData(ctx, http.StatusUnprocessableEntity, ctx.T("data.notarchive"))
-	case errors.Is(err, errors.ErrUnsupported):
+	case errors.Is(err, errors.ErrUnsupported), errors.Is(err, alborz.ErrLocked):
 		return renderData(ctx, http.StatusUnprocessableEntity, ctx.SaveRefusal(err))
 	}
 	return err

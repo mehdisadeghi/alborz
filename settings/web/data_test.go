@@ -124,3 +124,64 @@ func TestAFileThatIsNoArchiveIsRefused(t *testing.T) {
 		t.Fatalf("a file that is no archive answered %s", resp.Status)
 	}
 }
+
+// archiveOf is an archive holding the settings files named, as another alborz could have written it.
+func archiveOf(t *testing.T, settings map[string]string) string {
+	t.Helper()
+	var buf strings.Builder
+	z := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(z)
+	files := map[string]string{"alborz.json": `{"Format": 1}`}
+	for name, data := range settings {
+		files["settings/"+name+".json"] = data
+	}
+	for name, data := range files {
+		if err := tw.WriteHeader(&tar.Header{Name: name, Mode: 0o600, Size: int64(len(data)), Typeflag: tar.TypeReg}); err != nil {
+			t.Fatal(err)
+		}
+		io.WriteString(tw, data)
+	}
+	tw.Close()
+	z.Close()
+	return buf.String()
+}
+
+// An entry that does not read, or that the mail server will not keep, is named and the rest is imported;
+// an account whose key is locked imports nothing and says why.
+func TestAnArchiveImportsWhatItCan(t *testing.T) {
+	upload := func(c *Client, archive string) *Response {
+		return c.Upload(t, "settings.data", nil, []File{{Field: "file", Name: "alborz.tar.gz", Body: strings.NewReader(archive)}},
+			url.Values{"account": {User}})
+	}
+	archive := archiveOf(t, map[string]string{"profile": `{"Reading": {"MessagesPerPage": 17}}`, "broken": `not json`})
+
+	imap := IMAP(t, Metadata())
+	a := Alborz(t, WithIMAP(imap))
+	c := a.SignIn(t, User)
+	resp := upload(c, archive)
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("the import answered %s", resp.Status)
+	}
+	if bar := NoticeBar(c.Follow(t, resp.Header.Get("Location"))); !strings.Contains(bar, "Archive imported.") || !strings.Contains(bar, "The setting broken in the archive could not be read") {
+		t.Errorf("the page after the import does not name the entry left out:\n%s", bar)
+	}
+	if got := perPage(t, a.SignIn(t, User)); got != "17" {
+		t.Errorf("the profile beside the broken entry holds a page size of %s, want 17", got)
+	}
+
+	imap.RefuseEntries()
+	resp = upload(c, archive)
+	if bar := NoticeBar(c.Follow(t, resp.Header.Get("Location"))); resp.StatusCode != http.StatusFound || !strings.Contains(bar, "The mail server did not keep the setting profile.") {
+		t.Errorf("the import the server refused answered %s without naming the entry:\n%s", resp.Status, bar)
+	}
+
+	imap, dir := IMAP(t), t.TempDir()
+	a = Alborz(t, WithIMAP(imap), DataDir(dir))
+	encrypt(t, a.SignIn(t, User), Password)
+	a.Close()
+	imap.SetPassword(User, "reset")
+	locked, _ := signInWith(t, Alborz(t, WithIMAP(imap), DataDir(dir)), "reset")
+	if resp := upload(locked, archive); resp.StatusCode != http.StatusUnprocessableEntity || !strings.Contains(NoticeBar(resp.Text), "encrypted and not open") {
+		t.Errorf("the import into a locked account answered %s without saying why:\n%s", resp.Status, NoticeBar(resp.Text))
+	}
+}

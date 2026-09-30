@@ -114,7 +114,7 @@ func TestAnImportTheServerRefusesSetsANotice(t *testing.T) {
 	})
 	t.Run("a server that does not answer the import page", func(t *testing.T) {
 		resp := c.Upload(t, "calendar.import", url.Values{"collection": {User + "|" + work}}, file("plan.ics", Event("plan", "Plan")))
-		if resp.StatusCode != http.StatusBadGateway || !strings.Contains(resp.Text, "The dav server could not be reached.") {
+		if resp.StatusCode != http.StatusBadGateway || !strings.Contains(resp.Text, "The calendar and contacts server could not be reached.") || !strings.Contains(resp.Text, "<h1>The calendar and contacts server did not answer</h1>") {
 			t.Errorf("the import no server answered gave %s without naming the server, want 502", resp.Status)
 		}
 	})

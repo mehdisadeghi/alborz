@@ -337,12 +337,12 @@ func renderUpstreamDown(ctx *Context, cause alborz.UpstreamError) error {
 	}
 	data := upstreamRenderData{
 		BaseRenderData: *NewBaseRenderData(ctx),
-		Service:        cause.Service,
+		Service:        ctx.T("upstream." + cause.Service),
 		Seconds:        fmt.Sprintf("%d", int(cause.After.Seconds())),
 		Waited:         cause.After > 0,
 		Retry:          ctx.Request().URL.RequestURI(),
 	}
-	data.BaseRenderData.WithTitle(ctx.T("upstream.title"))
+	data.BaseRenderData.WithTitle(ctx.Tf("upstream.title", data.Service))
 	return ctx.Render(http.StatusBadGateway, "upstream", &data)
 }
 

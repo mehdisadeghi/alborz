@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"html/template"
 	"maps"
 	"net/http"
 	"slices"
@@ -164,4 +165,22 @@ func Selected[C any](ctx *web.Context, refs []string, client func(context.Contex
 		out = append(out, pim.Ref[C]{Client: c, Account: account, Path: objPath})
 	}
 	return out, nil
+}
+
+// WarnUnread logs what a page left out and names the calendars it leaves incomplete.
+func WarnUnread(ctx *web.Context, unread []pim.Unread) {
+	var names, marked []string
+	for _, u := range unread {
+		ctx.Logger().Printf("calendar: %s: %v", u.Collection, u.Err)
+		if !slices.Contains(names, u.Collection) {
+			names = append(names, u.Collection)
+			marked = append(marked, web.NoticeName(u.Collection))
+		}
+	}
+	if len(names) == 0 {
+		return
+	}
+	ctx.Notify(web.Notice{Kind: web.NoticeWarning,
+		Text:   ctx.Tf("notice.calendarunread", len(names), strings.Join(names, ", ")),
+		Markup: template.HTML(ctx.Tf("notice.calendarunread", len(names), strings.Join(marked, ", ")))})
 }

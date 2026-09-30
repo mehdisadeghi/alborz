@@ -367,6 +367,14 @@ const enhance = () => {
 		};
 		fits.set(wrap, fit);
 		new ResizeObserver(fit).observe(wrap);
+		// Opening the search widens it without resizing the row, which the observer alone would miss.
+		for (const type of ["focusin", "focusout"]) {
+			wrap.addEventListener(type, ev => {
+				if (ev.target.closest(".actions-search")) {
+					requestAnimationFrame(fit);
+				}
+			});
+		}
 		fit();
 	}
 

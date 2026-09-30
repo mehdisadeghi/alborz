@@ -1,0 +1,30 @@
+{{ define "rail" }}
+  {{ template "settings-rail" . }}
+{{ end }}
+
+{{ define "main-class" }} class="list"{{ end }}
+
+{{ define "main" }}
+  {{ $aq := .GlobalData.AccountQuery }}
+      {{ template "settings-head" (dict "g" $ "title" ($.T "notifications.title") "path" (url "settings.notifications") "newhref" (print (url "settings.notifications.create") $aq) "newlabel" ($.T "notifications.new")) }}
+      <section class="list-items">
+        {{ range .Devices }}
+        <div class="list-item">
+          <div class="list-content">
+            <span class="list-summary" title="{{.Device}}">{{ template "device-name" (dict "g" $ "ua" .Device) }}</span>
+            <span class="list-detail">{{ printf ($.T "notifications.since") ($.GlobalData.ShortDate .Created) }}{{ if .Current }} · {{$.T "sessions.current"}}{{ end }}{{ if .Gone }} · {{$.T "notifications.gone"}}{{ end }}</span>
+          </div>
+          <form method="post" action="{{url "settings.notifications.off"}}{{$aq}}">
+            <input type="hidden" name="device" value="{{.ID}}">
+            <button class="button-danger">{{$.T "notifications.off"}}</button>
+          </form>
+        </div>
+        {{ end }}
+        {{ if not .Devices }}
+        <p class="empty-list">{{$.T "notifications.none"}}</p>
+        {{ end }}
+      </section>
+      <p class="hint list-option">{{$.T "notifications.what"}}</p>
+      <p class="hint list-option">{{$.GlobalData.Tf "notifications.when" .Minutes}}</p>
+      <p class="hint list-option">{{$.T "notifications.privacy"}}</p>
+{{ end }}

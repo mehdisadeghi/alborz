@@ -1062,6 +1062,22 @@
 "date-shcal.status" = "Solar Hijri date"
 
 
+"notifications.title" = "Notifications"
+"notifications.new" = "Notify this browser"
+"notifications.on" = "Turn on"
+"notifications.off" = "Turn off"
+"notifications.since" = "On since %s"
+"notifications.gone" = "Signed out, nothing is sent"
+"notifications.none" = "No browser is notified."
+"notifications.what" = "A notification says \"New mail\" or \"Event at\" and a time, with the account's address. It carries no sender, subject or event title."
+"notifications.privacy" = "Each notification is encrypted for the browser. The browser's push service (Google, Mozilla, Apple or Microsoft) delivers it and sees when it is sent and its size, not what it says."
+"notifications.unsupported" = "This browser cannot receive notifications."
+"notifications.denied" = "The browser refused notifications. Allow them in its settings for this site."
+"notifications.needsscript" = "Notifications need JavaScript."
+"notifications.refused" = "The browser's subscription was not accepted."
+"notice.notificationson" = "Notifications turned on for this browser."
+"notice.notificationsoff" = "Notifications turned off."
+"notifications.failed" = "The browser could not subscribe to notifications."
 ["calendar.more"]
 one = "%d more"
 other = "%d more"
@@ -1266,3 +1282,7 @@ other = "%d events today"
 ["calendar.status.next"]
 one = "%[2]s"
 other = "Next at %[2]s"
+
+["notifications.when"]
+one = "Notifications are sent while this account is signed in and in use. They stop %d minute after it was last used."
+other = "Notifications are sent while this account is signed in and in use. They stop %d minutes after it was last used."

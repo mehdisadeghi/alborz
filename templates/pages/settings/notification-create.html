@@ -1,0 +1,25 @@
+{{ define "rail" }}
+  {{ template "settings-rail" . }}
+{{ end }}
+
+{{ define "main-class" }} class="create-update"{{ end }}
+
+{{ define "main" }}
+  {{ $aq := .GlobalData.AccountQuery }}
+      <form method="post" action="{{url "settings.notifications.create"}}{{$aq}}" id="push-form" hx-boost="false"
+            data-key="{{.Key}}" data-unsupported="{{$.T "notifications.unsupported"}}" data-denied="{{$.T "notifications.denied"}}" data-failed="{{$.T "notifications.failed"}}">
+        {{ template "settings-crumb" (dict "g" $ "collection" ($.T "notifications.title") "path" (print (url "settings.notifications") $aq)) }}
+        <h1>{{$.T "notifications.new"}}</h1>
+        <input type="hidden" name="endpoint">
+        <input type="hidden" name="p256dh">
+        <input type="hidden" name="auth">
+        <p class="hint">{{$.T "notifications.what"}}</p>
+        <p class="hint">{{$.GlobalData.Tf "notifications.when" .Minutes}}</p>
+        <p class="hint">{{$.T "notifications.privacy"}}</p>
+        {{ template "form-actions" (dict "save" ($.T "notifications.on") "cancel" (print (url "settings.notifications") $aq) "cancelLabel" ($.T "common.cancel")) }}
+      </form>
+{{ end }}
+
+{{ define "scripts" }}
+<script src="{{call .GlobalData.Asset "push.js"}}"></script>
+{{ end }}

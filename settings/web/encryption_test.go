@@ -39,8 +39,8 @@ func signInWith(t *testing.T, a *App, password string) (*Client, string) {
 	return c, c.Follow(t, resp.Header.Get("Location"))
 }
 
-// sealedBy counts, in the data file of a stopped alborz, the values of User's collections, settings and key
-// pair by the kind of key that sealed them.
+// sealedBy counts, in the data file of a stopped alborz, the values of User's collections, settings,
+// notified devices and key pair by the kind of key that sealed them.
 func sealedBy(t *testing.T, dir string) map[byte]int {
 	t.Helper()
 	db, err := bolt.Open(filepath.Join(dir, "alborz.db"), time.Second)
@@ -50,7 +50,7 @@ func sealedBy(t *testing.T, dir string) map[byte]int {
 	defer db.Close()
 	counts := map[byte]int{}
 	err = db.View(func(tx kv.Tx) error {
-		for _, prefix := range []string{"alborz.pim/collections/", "alborz.pim/objects/", "alborz.settings/"} {
+		for _, prefix := range []string{"alborz.pim/collections/", "alborz.pim/objects/", "alborz.settings/", "alborz.push/devices/"} {
 			err := tx.Scan(prefix, func(k string, v []byte) error {
 				if !strings.HasPrefix(k, "alborz.settings/key/") {
 					counts[seal.Format(v)]++
@@ -86,9 +86,10 @@ func TestEncryptionTurnsOnOffAndOnAgain(t *testing.T) {
 	if resp := c.Post(t, "settings.profile", url.Values{"messages_per_page": {"17"}}); resp.StatusCode != http.StatusFound {
 		t.Fatalf("saving the profile: %s", resp.Status)
 	}
+	PushServer(t).TurnOn(t, c)
 	first := encrypt(t, c, Password)
 	a.Close()
-	if got := sealedBy(t, dir); got[seal.ByInstance] != 0 || got[seal.ByAccount] < 4 {
+	if got := sealedBy(t, dir); got[seal.ByInstance] != 0 || got[seal.ByAccount] < 5 {
 		t.Fatalf("turned on, values by kind of key: %v, want all under the account's", got)
 	}
 
@@ -108,7 +109,7 @@ func TestEncryptionTurnsOnOffAndOnAgain(t *testing.T) {
 		t.Fatalf("turning encryption off answered %s", resp.Status)
 	}
 	a.Close()
-	if got := sealedBy(t, dir); got[seal.ByAccount] != 0 || got[seal.ByInstance] < 4 {
+	if got := sealedBy(t, dir); got[seal.ByAccount] != 0 || got[seal.ByInstance] < 5 {
 		t.Fatalf("turned off, values by kind of key: %v, want all under the instance's", got)
 	}
 

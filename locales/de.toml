@@ -1062,6 +1062,22 @@
 "date-shcal.status" = "Sonnen-Hidschri-Datum"
 
 
+"notifications.title" = "Benachrichtigungen"
+"notifications.new" = "Diesen Browser benachrichtigen"
+"notifications.on" = "Einschalten"
+"notifications.off" = "Ausschalten"
+"notifications.since" = "Ein seit %s"
+"notifications.gone" = "Abgemeldet, es wird nichts gesendet"
+"notifications.none" = "Kein Browser wird benachrichtigt."
+"notifications.what" = "Eine Benachrichtigung lautet „Neue E-Mail“ oder „Termin um“ mit einer Uhrzeit, dazu die Adresse des Kontos. Absender, Betreff und Titel des Termins enthält sie nicht."
+"notifications.privacy" = "Jede Benachrichtigung ist für den Browser verschlüsselt. Der Push-Dienst des Browsers (Google, Mozilla, Apple oder Microsoft) stellt sie zu und sieht, wann sie gesendet wird und wie groß sie ist, nicht ihren Inhalt."
+"notifications.unsupported" = "Dieser Browser kann keine Benachrichtigungen empfangen."
+"notifications.denied" = "Der Browser hat Benachrichtigungen abgelehnt. Erlauben Sie sie in seinen Einstellungen für diese Seite."
+"notifications.needsscript" = "Benachrichtigungen brauchen JavaScript."
+"notifications.refused" = "Das Abonnement des Browsers wurde nicht angenommen."
+"notice.notificationson" = "Benachrichtigungen für diesen Browser eingeschaltet."
+"notice.notificationsoff" = "Benachrichtigungen ausgeschaltet."
+"notifications.failed" = "Der Browser konnte Benachrichtigungen nicht abonnieren."
 ["calendar.more"]
 one = "%d weiteres"
 other = "%d weitere"
@@ -1267,3 +1283,7 @@ other = "%d Termine heute"
 ["calendar.status.next"]
 one = "%[2]s"
 other = "Nächster um %[2]s"
+
+["notifications.when"]
+one = "Benachrichtigungen kommen, solange dieses Konto angemeldet ist und genutzt wird. Sie enden %d Minute nach der letzten Nutzung."
+other = "Benachrichtigungen kommen, solange dieses Konto angemeldet ist und genutzt wird. Sie enden %d Minuten nach der letzten Nutzung."

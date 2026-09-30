@@ -174,10 +174,12 @@ type Sessions struct {
 	mu      sync.Mutex
 	live    map[string]*Session
 	records alborz.SessionRecords
+	// pushes are the devices a browser turned on, which signing it out ends.
+	pushes *alborz.Pushes
 }
 
-func newSessions(records alborz.SessionRecords) *Sessions {
-	return &Sessions{live: map[string]*Session{}, records: records}
+func newSessions(records alborz.SessionRecords, pushes *alborz.Pushes) *Sessions {
+	return &Sessions{live: map[string]*Session{}, records: records, pushes: pushes}
 }
 
 func (ss *Sessions) get(id string) *Session {

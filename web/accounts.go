@@ -159,6 +159,10 @@ func (ctx *Context) LogoutAccount(username string) *alborz.Login {
 		return ctx.defaultLogin
 	}
 	target.Close()
+	// Signing out ends the browser's notifications; a failure leaves them to be turned off by hand.
+	if err := ctx.Server.Pushes.SignedOut(username, s.ID); err != nil {
+		ctx.Logger().Printf("sign out %s: %v", username, err)
+	}
 	ctx.accountsLoaded = false
 	ctx.forgetLoginToken(target.Username())
 	remaining, _ := s.Accounts()

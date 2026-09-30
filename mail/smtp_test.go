@@ -52,11 +52,11 @@ func TestQuoteJoinsFlowedParagraphs(t *testing.T) {
 		{"format=flowed", "The quick \r\nbrown fox.\r\nNext"},
 		{"format=flowed; delsp=yes", "The quick  \r\nbrown fox.\r\nNext"},
 	} {
-		text, err := readText(flowedPart(t, c.params, c.body))
+		text, err := ReadText(flowedPart(t, c.params, c.body))
 		if err != nil {
 			t.Fatal(err)
 		}
-		got, err := quote(strings.NewReader(text))
+		got, err := Quote(strings.NewReader(text))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -67,7 +67,7 @@ func TestQuoteJoinsFlowedParagraphs(t *testing.T) {
 }
 
 func TestQuoteNestsMarkersWithoutSpaces(t *testing.T) {
-	got, err := quote(strings.NewReader("> earlier\nreply"))
+	got, err := Quote(strings.NewReader("> earlier\nreply"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +78,7 @@ func TestQuoteNestsMarkersWithoutSpaces(t *testing.T) {
 
 func TestQuoteOfQuoteSurvivesUnflow(t *testing.T) {
 	long := strings.TrimSuffix(strings.Repeat("word ", 30), " ")
-	quoted, err := quote(strings.NewReader("> " + long))
+	quoted, err := Quote(strings.NewReader("> " + long))
 	if err != nil {
 		t.Fatal(err)
 	}

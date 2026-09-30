@@ -26,7 +26,7 @@ const (
 )
 
 // Warm reads ahead what an account's first pages need: its senders, its authserv-id and its inbox.
-func (p *plugin) Warm(s *alborz.Login) {
+func (p *Mailboxes) Warm(s *alborz.Login) {
 	p.senderBookFor(s)
 	p.SuggestAuthServ(s)
 	if !p.listings.keeps() {
@@ -41,7 +41,7 @@ func (p *plugin) Warm(s *alborz.Login) {
 }
 
 // Watch starts following an account's folders unless a watcher already is.
-func (p *plugin) Watch(s *alborz.Login, log *log.Logger, changes *alborz.Changes) {
+func (p *Mailboxes) Watch(s *alborz.Login, log *log.Logger, changes *alborz.Changes) {
 	user := s.Username()
 	if _, running := p.watchers.LoadOrStore(user, true); running {
 		return
@@ -52,7 +52,7 @@ func (p *plugin) Watch(s *alborz.Login, log *log.Logger, changes *alborz.Changes
 	}()
 }
 
-func (p *plugin) watch(s *alborz.Login, log *log.Logger, changes *alborz.Changes) {
+func (p *Mailboxes) watch(s *alborz.Login, log *log.Logger, changes *alborz.Changes) {
 	backoff := idleRetry
 	reconnect := false
 	for {
@@ -78,7 +78,7 @@ func (p *plugin) watch(s *alborz.Login, log *log.Logger, changes *alborz.Changes
 	}
 }
 
-func (p *plugin) follow(s *alborz.Login, changes *alborz.Changes, reconnect bool) error {
+func (p *Mailboxes) follow(s *alborz.Login, changes *alborz.Changes, reconnect bool) error {
 	user := s.Username()
 	changed := make(chan struct{}, 1)
 	var overflowed atomic.Bool
@@ -162,7 +162,7 @@ func armNotify(c *imapclient.Client) bool {
 	return err == nil && cmd.Wait() == nil
 }
 
-func (p *plugin) folderSweep(user string, c *imapclient.Client, changes *alborz.Changes) func() error {
+func (p *Mailboxes) folderSweep(user string, c *imapclient.Client, changes *alborz.Changes) func() error {
 	seen := map[string]imap.UID{}
 	// The selected folder is IDLE's to report; without IDLE none is selected.
 	var selected string
@@ -209,7 +209,7 @@ func sweepEvery(done <-chan struct{}, sweep func() error, window time.Duration) 
 }
 
 // On an IDLE change, keep serving the old listing until its replacement is ready.
-func (p *plugin) idleOnce(s *alborz.Login, c *imapclient.Client, changed chan struct{}, changes *alborz.Changes, length time.Duration) error {
+func (p *Mailboxes) idleOnce(s *alborz.Login, c *imapclient.Client, changed chan struct{}, changes *alborz.Changes, length time.Duration) error {
 	cmd, err := c.Idle()
 	if err != nil {
 		return fmt.Errorf("failed to idle: %w", err)
@@ -234,7 +234,7 @@ func (p *plugin) idleOnce(s *alborz.Login, c *imapclient.Client, changed chan st
 	return nil
 }
 
-func (p *plugin) warmInbox(s *alborz.Login) error {
+func (p *Mailboxes) warmInbox(s *alborz.Login) error {
 	if !p.listings.keeps() {
 		return nil
 	}

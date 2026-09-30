@@ -94,7 +94,7 @@ func handleSignatureForm(ctx *web.Context) error {
 		Rail:           web.SettingsRail(ctx),
 	}
 	if name := ctx.Param("name"); name != "" {
-		found, ok := settings.signatureNamed(name)
+		found, ok := settings.SignatureNamed(name)
 		if !ok {
 			return alborz.NotFound("notfound.signature", name)
 		}
@@ -125,8 +125,8 @@ func handleSignatureSave(ctx *web.Context) error {
 		return render(ctx.T("form.signaturename"))
 	case text == "":
 		return render(ctx.T("form.signaturetext"))
-	case len(settings.Signatures) >= maxSignatures && was == "":
-		return render(fmt.Sprintf(ctx.T("form.signaturecount"), maxSignatures))
+	case len(settings.Signatures) >= MaxSignatures && was == "":
+		return render(fmt.Sprintf(ctx.T("form.signaturecount"), MaxSignatures))
 	}
 
 	// A rename keeps the entry's place in the list and its default status.
@@ -142,12 +142,12 @@ func handleSignatureSave(ctx *web.Context) error {
 		replaced = true
 	}
 	if !replaced {
-		if _, taken := settings.signatureNamed(name); taken {
+		if _, taken := settings.SignatureNamed(name); taken {
 			return render(ctx.T("form.signaturetaken"))
 		}
 		settings.Signatures = append(settings.Signatures, editing)
 	}
-	if key, limit := settings.check(); key != "" {
+	if key, limit := settings.Check(); key != "" {
 		return render(fmt.Sprintf(ctx.T(key), limit))
 	}
 	if err := SaveSettings(ctx.Request().Context(), ctx.Login.Store(), settings); err != nil {
@@ -190,7 +190,7 @@ func handleSignatureDefault(ctx *web.Context) error {
 	}
 	// An empty name clears the default.
 	chosen := ctx.FormValue("name")
-	if _, ok := settings.signatureNamed(chosen); !ok {
+	if _, ok := settings.SignatureNamed(chosen); !ok {
 		chosen = ""
 	}
 	settings.DefaultSignature = chosen
@@ -233,7 +233,7 @@ func (p *plugin) handleSettings(ctx *web.Context) error {
 		settings.From = ctx.FormValue("from")
 		settings.TrustedAuthServ = strings.TrimSpace(ctx.FormValue("trusted_authserv"))
 		settings.IndexedSearch = ctx.FormValue("indexed_search") != ""
-		settings.Identities = parseIdentities(ctx.FormValue("identities"))
+		settings.Identities = ParseIdentities(ctx.FormValue("identities"))
 
 		params, err := ctx.FormParams()
 		if err != nil {
@@ -241,7 +241,7 @@ func (p *plugin) handleSettings(ctx *web.Context) error {
 		}
 		settings.Subscriptions = params["subscriptions"]
 
-		if key, limit := settings.check(); key != "" {
+		if key, limit := settings.Check(); key != "" {
 			return reject(fmt.Sprintf(ctx.T(key), limit))
 		}
 		if err := SaveSettings(ctx.Request().Context(), ctx.Login.Store(), settings); err != nil {

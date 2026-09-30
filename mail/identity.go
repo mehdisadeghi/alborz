@@ -38,28 +38,30 @@ func Addresses(ctx context.Context, login *alborz.Login) ([]string, error) {
 	}
 	out := []string{login.Username()}
 	for _, identity := range settings.Identities {
-		out = append(out, bareAddress(identity))
+		out = append(out, BareAddress(identity))
 	}
 	return out, nil
 }
 
 func matchIdentity(settings *Settings, address string) string {
 	for _, identity := range settings.Identities {
-		if strings.EqualFold(bareAddress(identity), address) {
+		if strings.EqualFold(BareAddress(identity), address) {
 			return identity
 		}
 	}
 	return ""
 }
 
-func bareAddress(s string) string {
+// BareAddress is the address of "Name <address>", or s where it does not parse.
+func BareAddress(s string) string {
 	if parsed, err := mail.ParseAddress(s); err == nil {
 		return parsed.Address
 	}
 	return s
 }
 
-func parseIdentities(raw string) []string {
+// ParseIdentities reads the addresses an account may write as, one a line.
+func ParseIdentities(raw string) []string {
 	var out []string
 	for _, line := range strings.Split(raw, "\n") {
 		if line = strings.TrimSpace(line); line != "" {
@@ -69,7 +71,8 @@ func parseIdentities(raw string) []string {
 	return out
 }
 
-func splitIdentityChoice(value string) (account, identity string) {
+// SplitIdentityChoice reads a From choice, "account" or "account|identity".
+func SplitIdentityChoice(value string) (account, identity string) {
 	account, identity, _ = strings.Cut(value, "|")
 	return account, identity
 }
@@ -107,7 +110,7 @@ type deliveryTrust struct {
 	authserv string
 }
 
-func (p *plugin) newDeliveryTrust(login *alborz.Login, settings *Settings) deliveryTrust {
+func (p *Mailboxes) newDeliveryTrust(login *alborz.Login, settings *Settings) deliveryTrust {
 	return deliveryTrust{
 		account:  login.Username(),
 		domains:  p.server.Domains(),
@@ -190,7 +193,8 @@ func writeAs(settings *Settings, trust deliveryTrust, msg *IMAPMessage, lists ..
 	return ""
 }
 
-func filterOutUsername(username string, addresses []imap.Address) []imap.Address {
+// WithoutAccount is addresses less the first that is the account's own.
+func WithoutAccount(username string, addresses []imap.Address) []imap.Address {
 	for i, addr := range addresses {
 		if addr.Addr() == username {
 			return append(addresses[:i], addresses[i+1:]...)

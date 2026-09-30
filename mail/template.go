@@ -29,7 +29,7 @@ var TemplateFuncs = template.FuncMap{
 		}
 		return template.URL("data:image/jpeg;base64," + data)
 	},
-	"humansize": formatSize,
+	"humansize": FormatSize,
 	"sub":       func(a, b int) int { return a - b },
 	// A theme's name is a proper noun, so it is not a locale string.
 	"themename": web.ThemeName,

@@ -17,7 +17,7 @@ func (p *plugin) handleSignature(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	v, err := p.verify(ctx.Request().Context(), ctx.Login, mboxName, uid, p.TrustedAuthServ(ctx.Login, settings))
+	v, err := p.Verify(ctx.Request().Context(), ctx.Login, mboxName, uid, p.TrustedAuthServ(ctx.Login, settings))
 	// A verdict that could not be drawn says nothing, as one without a key does.
 	if err != nil {
 		ctx.Logger().Printf("signature %q uid %v: %v", mboxName, uid, err)

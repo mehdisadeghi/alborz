@@ -110,10 +110,10 @@ func listPage(ctx *web.Context, ask ListAsk, l *Listing) *MailboxRenderData {
 		Pager:         web.NewPager(ctx.Request().URL, l.Page, l.Total, web.PerPageChoices(ctx)),
 		Total:         l.Total,
 		Query:         ask.Query,
-		Everywhere:    everywhereQuery(ask.Query),
+		Everywhere:    Everywhere(ask.Query),
 		Filters:       searchFilters(ctx),
 		FilterRows:    web.ViewRows(ctx, ask.View, true, ctx.WithoutParam("view")),
-		TextQuery:     textQueryOffered(ask.Query, l.HeadersOnly),
+		TextQuery:     TextQuery(ask.Query, l.HeadersOnly),
 		Sort:          ask.Sort,
 		SortDir:       map[bool]string{true: "desc", false: "asc"}[ask.Descending()],
 		SortSupported: l.SortSupported,
@@ -132,7 +132,7 @@ func (p *plugin) handleGetMailbox(ctx *web.Context) error {
 	}
 
 	// thread is not a sort column, but travels in the same parameter.
-	ask, err := readListAsk(ctx, threadSort)
+	ask, err := readListAsk(ctx, SortThread)
 	if err != nil {
 		return err
 	}
@@ -170,9 +170,9 @@ func (p *plugin) handleGetMailbox(ctx *web.Context) error {
 	data := listPage(ctx, ask, list)
 	data.IMAPBaseRenderData = *ibase
 	data.Crumb = mailboxCrumb(sb.Mailboxes, mboxName, ctx.Login.Username(), folderPath(ctx))
-	data.Outgoing = outgoingFolder(sb.Mailboxes, mboxName)
+	data.Outgoing = Outgoing(sb.Mailboxes, mboxName)
 	data.ThreadSupported = list.ThreadAlgorithm != ""
-	data.Threaded = ask.Sort == threadSort && list.ThreadAlgorithm != ""
+	data.Threaded = ask.Sort == SortThread && list.ThreadAlgorithm != ""
 	return ctx.Render(http.StatusOK, listTemplate(ctx), data)
 }
 

@@ -39,6 +39,7 @@ type MailboxInfo struct {
 	Label string
 }
 
+// Role is what the folder is for: inbox, drafts, sent, junk, trash or archive; "" for none.
 func (mbox *MailboxInfo) Role() string {
 	name := mbox.Mailbox
 	switch {
@@ -758,14 +759,15 @@ func (msg *IMAPMessage) AttachmentsSize() string {
 	for _, part := range msg.Attachments() {
 		total += int64(part.Size)
 	}
-	return formatSize(total)
+	return FormatSize(total)
 }
 
 func (node IMAPPartNode) SizeString() string {
-	return formatSize(int64(node.Size))
+	return FormatSize(int64(node.Size))
 }
 
-func formatSize(n int64) string {
+// FormatSize says a size in bytes as a person reads it.
+func FormatSize(n int64) string {
 	switch {
 	case n >= 1<<20:
 		return fmt.Sprintf("%.1f MB", float64(n)/(1<<20))
@@ -1408,7 +1410,7 @@ func findByHeader(conn *imapclient.Client, mboxName, key, value string, limit in
 }
 
 // It shares the sort parameter: a reader picks threads or a column, never both.
-const threadSort = "thread"
+const SortThread = "thread"
 
 var sortKeys = map[string]struct {
 	key      imapclient.SortKey
@@ -1801,13 +1803,13 @@ func (msg *IMAPMessage) Signed() bool {
 }
 
 // A whole message carried inside another, arriving intact (RFC 2046 5.2).
-type messageAttachment struct {
-	Path     messagePath
+type MessageAttachment struct {
+	Path     MessagePath
 	Name     string
 	transfer transfer
 }
 
-func (a *messageAttachment) WriteTo(w io.Writer) (n int64, err error) {
+func (a *MessageAttachment) WriteTo(w io.Writer) (n int64, err error) {
 	err = a.transfer(func(c *imapclient.Client) error {
 		n, err = copySection(w, c, a.Path.Mailbox, a.Path.Uid, nil, "")
 		return err
@@ -1815,7 +1817,7 @@ func (a *messageAttachment) WriteTo(w io.Writer) (n int64, err error) {
 	return n, err
 }
 
-func (a *messageAttachment) MIMEType() string { return "message/rfc822" }
+func (a *MessageAttachment) MIMEType() string { return "message/rfc822" }
 
 // A part of a message on the mail server, fetched into a file.
 type fetched struct {
@@ -1898,7 +1900,7 @@ func (c *octetClass) encoding() string {
 	return "7bit"
 }
 
-func (a *messageAttachment) Filename() string { return a.Name }
+func (a *MessageAttachment) Filename() string { return a.Name }
 
 func attachmentName(subject string) string {
 	name := strings.Map(func(r rune) rune {
@@ -2003,7 +2005,7 @@ const unifiedFoldersTTL = 5 * time.Minute
 
 // resolveRole names an account's folder for a merged view: a role's folder,
 // else the folder of that very name; "" where the account has none.
-func (p *plugin) resolveRole(conn *imapclient.Client, username, role string) (string, error) {
+func (p *Mailboxes) resolveRole(conn *imapclient.Client, username, role string) (string, error) {
 	folders, err := p.unifiedFolders.Get(username, func() (map[string]string, error) {
 		mailboxes, err := listMailboxes(conn)
 		if err != nil {

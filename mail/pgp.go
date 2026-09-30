@@ -39,8 +39,8 @@ const (
 	KeyFromCA      KeySource = "ca"      // an S/MIME certificate's issuer
 )
 
-// verify draws the verdict on one message, streaming its signed part; trusted is the account's authserv-id.
-func (p *plugin) verify(ctx context.Context, login *alborz.Login, mboxName string, uid imap.UID, trusted string) (Verification, error) {
+// Verify draws the verdict on one message, streaming its signed part; trusted is the account's authserv-id.
+func (p *Mailboxes) Verify(ctx context.Context, login *alborz.Login, mboxName string, uid imap.UID, trusted string) (Verification, error) {
 	var v Verification
 	err := login.DoIMAPTransfer(ctx, func(c *imapclient.Client) error {
 		if err := ensureMailboxSelected(c, mboxName); err != nil {
@@ -102,7 +102,7 @@ func isSigned(bs imap.BodyStructure) bool {
 
 // verifySignature draws the verdict on msg from its parts on c; the signed
 // part streams through the check, never held, and only when a check can come of it.
-func (p *plugin) verifySignature(ctx context.Context, client *http.Client, c *imapclient.Client, msg *IMAPMessage) (Verification, error) {
+func (p *Mailboxes) verifySignature(ctx context.Context, client *http.Client, c *imapclient.Client, msg *IMAPMessage) (Verification, error) {
 	if !isSigned(msg.BodyStructure) {
 		return Verification{}, nil
 	}
@@ -174,7 +174,7 @@ type signedMessage struct {
 }
 
 // verifier readies the check the signed part streams through; nil when none can give a verdict.
-func (p *plugin) verifier(ctx context.Context, client *http.Client, m signedMessage) func(signed io.Reader) Verification {
+func (p *Mailboxes) verifier(ctx context.Context, client *http.Client, m signedMessage) func(signed io.Reader) Verification {
 	authors := authorAddresses(m.header, m.inner)
 	if smimeProtocols[m.protocol] {
 		return smimeVerifier(m.sig, authors)
@@ -219,7 +219,7 @@ func withDelivery(v Verification, a *AuthResults) Verification {
 	return v
 }
 
-func (p *plugin) domainKeys(ctx context.Context, client *http.Client, authors []string) openpgp.EntityList {
+func (p *Mailboxes) domainKeys(ctx context.Context, client *http.Client, authors []string) openpgp.EntityList {
 	var found openpgp.EntityList
 	for _, author := range authors {
 		for _, key := range p.wkd.keys(ctx, client, author) {

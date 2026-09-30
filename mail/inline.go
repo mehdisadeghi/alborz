@@ -23,8 +23,8 @@ type inlineImage struct {
 	Attachment
 }
 
-// inlineImages are the images an HTML body shows, each once, as parts to send with it; open reads what a src names.
-func inlineImages(body, messageID string, open func(src string) (Attachment, error)) ([]inlineImage, error) {
+// InlineImages are the images an HTML body shows, each once, as parts to send with it; open reads what a src names.
+func InlineImages(body, messageID string, open func(src string) (Attachment, error)) ([]inlineImage, error) {
 	var images []inlineImage
 	seen := map[string]bool{}
 	for _, m := range imageSrc.FindAllStringSubmatch(body, -1) {
@@ -46,8 +46,8 @@ func inlineImages(body, messageID string, open func(src string) (Attachment, err
 	return images, nil
 }
 
-// partImage is an image part of a message, to be sent again as it is.
-func partImage(ctx context.Context, login *alborz.Login, mboxName string, uid imap.UID, path []int) (*imapAttachment, error) {
+// PartImage is an image part of a message, to be sent again as it is.
+func PartImage(ctx context.Context, login *alborz.Login, mboxName string, uid imap.UID, path []int) (*IMAPAttachment, error) {
 	var part *imap.BodyStructureSinglePart
 	err := login.DoIMAP(func(c *imapclient.Client) error {
 		var err error
@@ -59,9 +59,9 @@ func partImage(ctx context.Context, login *alborz.Login, mboxName string, uid im
 	}
 	node := newIMAPPartNode(nil, path, part)
 	if !strings.HasPrefix(node.MIMEType, "image/") {
-		return nil, errNotImage
+		return nil, ErrNotImage
 	}
-	return &imapAttachment{
+	return &IMAPAttachment{
 		Mailbox:  mboxName,
 		Uid:      uid,
 		Node:     node,
@@ -70,7 +70,8 @@ func partImage(ctx context.Context, login *alborz.Login, mboxName string, uid im
 	}, nil
 }
 
-var errNotImage = errors.New("not an image")
+// ErrNotImage is a part a composed message shows that is no image.
+var ErrNotImage = errors.New("not an image")
 
 func cidImages(body string, images []inlineImage) string {
 	cids := map[string]string{}

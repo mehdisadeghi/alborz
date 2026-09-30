@@ -40,12 +40,12 @@ func SendCalendarMessage(ctx context.Context, login *alborz.Login, to []string, 
 		return err
 	}
 	msg := &OutgoingMessage{
-		From:      fromAddress(settings, login.Username()),
+		From:      FromAddress(settings, login.Username()),
 		To:        to,
 		Subject:   subject,
-		MessageID: newMessageID(),
+		MessageID: NewMessageID(),
 		Calendar:  cal,
-		Mailer:    mailerName(),
+		Mailer:    Mailer(),
 	}
 	return send(login, msg)
 }
@@ -60,12 +60,12 @@ func SendText(ctx context.Context, login *alborz.Login, to []string, subject, te
 		return err
 	}
 	msg := &OutgoingMessage{
-		From:      fromAddress(settings, login.Username()),
+		From:      FromAddress(settings, login.Username()),
 		To:        to,
 		Subject:   subject,
-		MessageID: newMessageID(),
+		MessageID: NewMessageID(),
 		Text:      text,
-		Mailer:    mailerName(),
+		Mailer:    Mailer(),
 		Headers:   headers,
 	}
 	return send(login, msg)

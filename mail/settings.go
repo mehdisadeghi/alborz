@@ -13,7 +13,7 @@ const (
 	// Named for the warming code, which has no context to read a profile from.
 	defaultMessagesPerPage = alborz.DefaultMessagesPerPage
 	maxSignature           = 2048
-	maxSignatures          = 20
+	MaxSignatures          = 20
 	maxSignatureName       = 60
 	maxFullName            = 512
 )
@@ -46,7 +46,7 @@ func LoadSettings(ctx context.Context, s alborz.Store) (*Settings, error) {
 	if err := s.Get(ctx, settingsKey, settings); err != nil && err != alborz.ErrNoStoreEntry {
 		return nil, err
 	}
-	if key, limit := settings.check(); key != "" {
+	if key, limit := settings.Check(); key != "" {
 		return nil, fmt.Errorf("stored settings break %s (%d)", key, limit)
 	}
 	return settings, nil
@@ -57,10 +57,11 @@ func SaveSettings(ctx context.Context, s alborz.Store, settings *Settings) error
 	return s.Put(ctx, settingsKey, settings)
 }
 
-func (s *Settings) check() (string, int) {
+// Check names the limit the settings break, as a locale key and the limit, or "".
+func (s *Settings) Check() (string, int) {
 	switch {
-	case len(s.Signatures) > maxSignatures:
-		return "form.signaturecount", maxSignatures
+	case len(s.Signatures) > MaxSignatures:
+		return "form.signaturecount", MaxSignatures
 	case len(s.From) > maxFullName:
 		return "form.namelong", maxFullName
 	}
@@ -75,7 +76,8 @@ func (s *Settings) check() (string, int) {
 	return "", 0
 }
 
-func (s *Settings) signatureNamed(name string) (Signature, bool) {
+// SignatureNamed is the signature of that name.
+func (s *Settings) SignatureNamed(name string) (Signature, bool) {
 	for _, sig := range s.Signatures {
 		if sig.Name == name {
 			return sig, true

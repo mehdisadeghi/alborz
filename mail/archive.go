@@ -34,7 +34,7 @@ func (p *plugin) handleExportMbox(ctx *web.Context) error {
 		if err != nil {
 			return err
 		}
-		if uids, err = folderViewUIDs(ctx.Request().Context(), ctx.Login, mboxName, query, view); err != nil {
+		if uids, err = FolderView(ctx.Request().Context(), ctx.Login, mboxName, query, view); err != nil {
 			return err
 		}
 	} else if uids, err = selection(ctx, mboxName, params); err != nil {
@@ -79,7 +79,7 @@ func streamMbox(ctx *web.Context, refs []Ref, name string, strip bool) error {
 		if s == nil {
 			continue
 		}
-		err := exportRun(ctx.Request().Context(), ctx.Logger(), s, run, archive, strip, ctx.T("mailbox.attachmentremoved"), begin, res.Flush)
+		err := ExportRun(ctx.Request().Context(), ctx.Logger(), s, run, archive, strip, ctx.T("mailbox.attachmentremoved"), begin, res.Flush)
 		// Too late for the response: stop, leave the file short, and log why.
 		if err != nil {
 			return streamed(ctx, err)
@@ -163,7 +163,7 @@ func (p *plugin) handleExportPage(ctx *web.Context) error {
 	}
 	err = ctx.DoIMAPScan(func(c *imapclient.Client) error {
 		var err error
-		data.Count, data.Size, err = exportSize(c, settings, mboxName, data.Query, ibase.ListView)
+		data.Count, data.Size, err = ExportSize(c, settings, mboxName, data.Query, ibase.ListView)
 		return err
 	})
 	if err != nil {

@@ -348,7 +348,7 @@ func viewUIDs(c *imapclient.Client, settings *Settings, query, view string) ([]i
 	uids := data.AllUIDs()
 	// The list drops what the envelope contradicts (carried), so the selection must too.
 	q := search.Parse(query)
-	if len(uids) == 0 || !q.Addressed() {
+	if len(uids) == 0 || !search.Addressed(q) {
 		return uids, nil
 	}
 	kept, err := carried(c, q, imap.UIDSetNum(uids...))

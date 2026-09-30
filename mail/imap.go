@@ -1324,7 +1324,7 @@ func envelopeName(from []imap.Address) string {
 // A full-text index matches addresses inside attached messages; only what the
 // envelope contradicts is dropped, over every answer so totals hold.
 func carried(c *imapclient.Client, q search.Query, answers imap.NumSet) (map[imap.UID]bool, error) {
-	wanted := q.Addresses()
+	wanted := search.Addresses(q)
 	kept := map[imap.UID]bool{}
 	cmd := c.Fetch(answers, &imap.FetchOptions{UID: true, Envelope: true})
 	for msg := cmd.Next(); msg != nil; msg = cmd.Next() {
@@ -1480,7 +1480,7 @@ func viewOrder(conn *imapclient.Client, q search.Query, criteria *imap.SearchCri
 			slices.Reverse(uids)
 		}
 	}
-	if !q.Addressed() || len(uids) == 0 {
+	if !search.Addressed(q) || len(uids) == 0 {
 		return uids, nil
 	}
 	kept, err := carried(conn, q, imap.UIDSetNum(uids...))

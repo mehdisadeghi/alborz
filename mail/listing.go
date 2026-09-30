@@ -264,7 +264,7 @@ func Everywhere(query string) string {
 		return ""
 	}
 	q := search.Parse(query)
-	if _, everywhere := q.Scope(); everywhere {
+	if _, everywhere := search.Scope(q); everywhere {
 		return ""
 	}
 	return strings.TrimSpace(q.Without(search.In) + " " + search.In + ":" + search.Everywhere)
@@ -460,7 +460,7 @@ func TextQuery(query string, headersOnly bool) string {
 	if !headersOnly {
 		return ""
 	}
-	return search.Parse(query).Widened()
+	return search.Widened(search.Parse(query))
 }
 
 // Outgoing says a folder holds what the reader wrote, so its rows name recipients.
@@ -479,8 +479,8 @@ func folderRole(mailboxes []MailboxInfo, name string) string {
 }
 
 func searchFolders(mailboxes []MailboxInfo, q search.Query) []string {
-	named, everywhere := q.Scope()
-	excluded := q.Excluded()
+	named, everywhere := search.Scope(q)
+	excluded := search.Excluded(q)
 	var out []string
 	for i := range mailboxes {
 		mbox := &mailboxes[i]

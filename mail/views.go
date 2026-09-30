@@ -38,7 +38,7 @@ func ViewCriteria(view string) *imap.SearchCriteria {
 func listCriteria(c *imapclient.Client, settings *Settings, query, view string) *imap.SearchCriteria {
 	criteria := ViewCriteria(view)
 	if query != "" {
-		criteria = search.And(criteria, search.Parse(query).Criteria(SearchesIndex(c, settings), time.Now()))
+		criteria = search.And(criteria, search.Of(search.Parse(query), SearchesIndex(c, settings), time.Now()))
 	}
 	return criteria
 }
@@ -65,7 +65,7 @@ func queryDays(query string, now time.Time) string {
 			walk(&c.Or[i][1])
 		}
 	}
-	if c := search.Parse(query).Criteria(false, now); c != nil {
+	if c := search.Of(search.Parse(query), false, now); c != nil {
 		walk(c)
 	}
 	return strings.Join(days, ",")

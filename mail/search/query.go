@@ -1,25 +1,14 @@
 package search
 
 import (
-	"bufio"
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/emersion/go-imap/v2"
 )
-
-// Query is a search as the reader typed it, parsed once.
-type Query struct {
-	terms []queryTerm
-}
-
-type queryTerm struct {
-	key, value string
-	not        bool
-	// quoted keeps a bare phrase one term when the query is written back.
-	quoted bool
-}
 
 // In is the key that names the folders a search covers.
 const In = "in"
@@ -164,76 +153,27 @@ func querySize(value string) (int64, bool) {
 	return n * unit, true
 }
 
-// Parse reads a query; an unknown or unreadable term is searched as text, not dropped.
-func Parse(raw string) Query {
-	scanner := bufio.NewScanner(strings.NewReader(raw))
-	scanner.Split(splitSearchTokens)
-	var q Query
-	for scanner.Scan() {
-		token := scanner.Text()
-		key, value, keyed := strings.Cut(token, ":")
-		not := strings.HasPrefix(key, "-")
-		key = strings.ToLower(strings.TrimPrefix(key, "-"))
-		read, known := operators[key]
-		switch {
-		case phrased([]byte(token)) || !keyed:
-			q.terms = append(q.terms, bareTerms(token)...)
-		case value == "" || (key != In && (!known || read(value, time.Time{}) == nil)):
-			q.terms = append(q.terms, queryTerm{value: token})
-		default:
-			q.terms = append(q.terms, queryTerm{key: key, value: value, not: not})
-		}
-	}
-	return q
-}
-
-func bareTerms(run string) []queryTerm {
-	var terms []queryTerm
-	var words []string
-	flush := func() {
-		if len(words) > 0 {
-			terms = append(terms, queryTerm{value: strings.Join(words, " ")})
-			words = nil
-		}
-	}
-	for run = strings.TrimLeft(run, " "); run != ""; run = strings.TrimLeft(run, " ") {
-		word := run[:bareLen([]byte(run))]
-		run = run[len(word):]
-		value, not := strings.CutPrefix(word, "-")
-		quoted := strings.HasPrefix(value, `"`)
-		value = strings.ReplaceAll(value, `"`, "")
-		if value == "" || !(not || quoted) {
-			words = append(words, word)
-			continue
-		}
-		flush()
-		terms = append(terms, queryTerm{value: value, not: not, quoted: quoted})
-	}
-	flush()
-	return terms
-}
-
-// Criteria is the search the server is asked; never nil.
-func (q Query) Criteria(indexed bool, now time.Time) *imap.SearchCriteria {
+// Of is the search the server is asked; never nil.
+func Of(q Query, indexed bool, now time.Time) *imap.SearchCriteria {
 	var criteria *imap.SearchCriteria
-	for _, term := range q.terms {
+	for _, term := range resolved(q) {
 		var one *imap.SearchCriteria
 		switch {
-		case term.key == In:
+		case term.Key == In:
 			continue
-		case term.key != "":
-			one = operators[term.key](term.value, now)
+		case term.Key != "":
+			one = operators[term.Key](term.Value, now)
 		case indexed:
-			one = &imap.SearchCriteria{Text: []string{term.value}}
+			one = &imap.SearchCriteria{Text: []string{term.Value}}
 		default:
 			one = searchCriteriaOr(
-				searchCriteriaHeader("From", term.value),
-				searchCriteriaHeader("To", term.value),
-				searchCriteriaHeader("Cc", term.value),
-				searchCriteriaHeader("Subject", term.value),
+				searchCriteriaHeader("From", term.Value),
+				searchCriteriaHeader("To", term.Value),
+				searchCriteriaHeader("Cc", term.Value),
+				searchCriteriaHeader("Subject", term.Value),
 			)
 		}
-		if term.not {
+		if term.Not {
 			one = &imap.SearchCriteria{Not: []imap.SearchCriteria{*one}}
 		}
 		criteria = And(criteria, one)
@@ -244,10 +184,29 @@ func (q Query) Criteria(indexed bool, now time.Time) *imap.SearchCriteria {
 	return criteria
 }
 
+// resolved is the query with a key nobody knows, or a value its key cannot read, as a word: dropping it would
+// answer with the whole folder, which reads as a result.
+func resolved(q Query) Query {
+	out := make(Query, len(q))
+	for i, term := range q {
+		read, known := operators[term.Key]
+		if term.Key != "" && term.Key != In && (!known || read(term.Value, time.Time{}) == nil) {
+			term = Term{Value: term.Key + ":" + term.Value, Not: term.Not}
+		}
+		out[i] = term
+	}
+	return out
+}
+
+// Keys are the keys a search of mail answers.
+func Keys() []string {
+	return append(slices.Sorted(maps.Keys(operators)), In)
+}
+
 // WantsText reports whether the query asks for the whole message.
-func (q Query) WantsText() bool {
-	for _, term := range q.terms {
-		if term.key == "text" {
+func WantsText(q Query) bool {
+	for _, term := range q {
+		if term.Key == "text" {
 			return true
 		}
 	}
@@ -255,25 +214,25 @@ func (q Query) WantsText() bool {
 }
 
 // Scope is the folder in: names, and whether it names all of them.
-func (q Query) Scope() (folder string, everywhere bool) {
-	for _, term := range q.terms {
-		if term.key != In || term.not {
+func Scope(q Query) (folder string, everywhere bool) {
+	for _, term := range q {
+		if term.Key != In || term.Not {
 			continue
 		}
-		if value := strings.ToLower(term.value); value == Everywhere || value == "all" {
+		if value := strings.ToLower(term.Value); value == Everywhere || value == "all" {
 			return "", true
 		}
-		folder = term.value
+		folder = term.Value
 	}
 	return folder, false
 }
 
 // Excluded are the folders -in: names.
-func (q Query) Excluded() []string {
+func Excluded(q Query) []string {
 	var out []string
-	for _, term := range q.terms {
-		if term.key == In && term.not {
-			out = append(out, term.value)
+	for _, term := range q {
+		if term.Key == In && term.Not {
+			out = append(out, term.Value)
 		}
 	}
 	return out
@@ -282,9 +241,9 @@ func (q Query) Excluded() []string {
 var addressKeys = map[string]bool{"from": true, "to": true, "cc": true, "bcc": true}
 
 // Addressed reports whether the query names an address.
-func (q Query) Addressed() bool {
-	for _, term := range q.terms {
-		if !term.not && addressKeys[term.key] {
+func Addressed(q Query) bool {
+	for _, term := range q {
+		if !term.Not && addressKeys[term.Key] {
 			return true
 		}
 	}
@@ -292,23 +251,23 @@ func (q Query) Addressed() bool {
 }
 
 // Addresses are the terms naming a person, by key.
-func (q Query) Addresses() map[string][]string {
+func Addresses(q Query) map[string][]string {
 	out := map[string][]string{}
-	for _, term := range q.terms {
-		if !term.not && addressKeys[term.key] {
-			out[term.key] = append(out[term.key], term.value)
+	for _, term := range q {
+		if !term.Not && addressKeys[term.Key] {
+			out[term.Key] = append(out[term.Key], term.Value)
 		}
 	}
 	return out
 }
 
 // Widened is the query with every bare term asked of the whole message.
-func (q Query) Widened() string {
+func Widened(q Query) string {
 	widened := false
-	out := make([]string, 0, len(q.terms))
-	for _, term := range q.terms {
-		if term.key == "" {
-			term.key, widened = "text", true
+	out := make([]string, 0, len(q))
+	for _, term := range resolved(q) {
+		if term.Key == "" {
+			term.Key, widened = "text", true
 		}
 		out = append(out, term.String())
 	}
@@ -316,29 +275,4 @@ func (q Query) Widened() string {
 		return ""
 	}
 	return strings.Join(out, " ")
-}
-
-// Without is the query less the terms of one key.
-func (q Query) Without(key string) string {
-	out := make([]string, 0, len(q.terms))
-	for _, term := range q.terms {
-		if term.key != key {
-			out = append(out, term.String())
-		}
-	}
-	return strings.Join(out, " ")
-}
-
-func (t queryTerm) String() string {
-	value := t.value
-	if t.quoted || (t.key != "" && strings.ContainsRune(value, ' ')) {
-		value = `"` + value + `"`
-	}
-	if t.key != "" {
-		value = t.key + ":" + value
-	}
-	if t.not {
-		return "-" + value
-	}
-	return value
 }

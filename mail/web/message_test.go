@@ -169,6 +169,32 @@ func TestBrokenDownloadIsNotComplete(t *testing.T) {
 	}
 }
 
+// Over BINARY (RFC 3516) the server decodes the part and knows its length, so the file arrives
+// with it, byte for byte.
+func TestAnAttachmentDownloadsAsItsBytes(t *testing.T) {
+	file := make([]byte, 100<<10)
+	for i := range file {
+		file[i] = byte(i * 7)
+	}
+	raw := "From: <eve@example.org>\r\nTo: <" + User + ">\r\nSubject: A file\r\nMIME-Version: 1.0\r\n" +
+		"Content-Type: multipart/mixed; boundary=\"b\"\r\n\r\n" +
+		"--b\r\nContent-Type: text/plain\r\n\r\nSee the file.\r\n" +
+		"--b\r\nContent-Type: application/octet-stream\r\nContent-Transfer-Encoding: base64\r\n" +
+		"Content-Disposition: attachment; filename=\"file.bin\"\r\n\r\n" + wrapped(file) + "--b--\r\n"
+	a := Alborz(t)
+	uid := a.IMAP.Append(t, "INBOX", raw)
+	resp := a.SignIn(t, User).Get(t, "mail.message.raw", "INBOX", uid, url.Values{"part": {"2"}})
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("the download answered %s", resp.Status)
+	}
+	if got := resp.Header.Get("Content-Length"); got != fmt.Sprint(len(file)) {
+		t.Errorf("Content-Length is %q, want %d", got, len(file))
+	}
+	if !bytes.Equal([]byte(resp.Text), file) {
+		t.Errorf("the download is %d bytes unlike the %d-byte file", len(resp.Text), len(file))
+	}
+}
+
 func TestBadMessageReferenceIsTheCallersFault(t *testing.T) {
 	c := Alborz(t).SignIn(t, User)
 	for _, route := range []string{"mail.message", "mail.message.raw", "mail.message.eml"} {

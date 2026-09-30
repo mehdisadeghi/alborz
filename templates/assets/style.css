@@ -3751,10 +3751,6 @@ header nav .accounts-menu[popover] {
   gap: 0.3rem;
 }
 
-.actions:has(.actions-search:focus-within) .actions-pagination {
-  display: none;
-}
-
 .actions-search:focus-within input {
   flex: 1;
   width: 100%;
@@ -3789,10 +3785,6 @@ header nav .accounts-menu[popover] {
   .actions-end:has(.actions-search:focus-within) {
     flex: 1 1 auto;
     min-width: 0;
-  }
-
-  .actions-end:has(.actions-search:focus-within) > :not(.actions-search) {
-    display: none;
   }
 
   .actions-search:focus-within {

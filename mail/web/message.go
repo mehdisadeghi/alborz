@@ -222,6 +222,9 @@ func (p *plugin) handleGetPart(ctx *web.Context) error {
 		return err
 	}
 
+	if msg.Damaged != nil {
+		ctx.Logger().Printf("message %s %d part %v: %v", mboxName, uid, partPath, msg.Damaged)
+	}
 	view, err := viewMessagePart(ctx, msg, partPath, part)
 	if err != nil {
 		view = View{}

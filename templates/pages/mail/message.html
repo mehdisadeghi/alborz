@@ -367,6 +367,14 @@
             </td>
           </tr>
           {{end}}
+          {{- if .Message.Damaged}}
+          <tr class="part-cut">
+            <td colspan="2" dir="auto">
+              {{$.T "message.damaged"}}
+              <a hx-boost="false" href="{{url "mail.message.raw" $.Message.Mailbox $.Message.UID}}?part={{.Part.PathString}}{{account "&" $.GlobalData.URLAccount}}">{{$.T "message.downloadpart"}}</a>
+            </td>
+          </tr>
+          {{- end}}
           {{- if .View}}{{with .Message.CutPart .Part.Path}}
           <tr class="part-cut">
             <td colspan="2" dir="auto">

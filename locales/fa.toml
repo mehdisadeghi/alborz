@@ -214,6 +214,7 @@
 "message.remote" = "این نامه محتوای خارجی مانند تصاویر بیرونی دارد."
 "message.loadremote" = "بارگیری محتوای خارجی"
 "message.cut" = "بقیهٔ این بخش نمایش داده نمی‌شود."
+"message.damaged" = "این بخش از پیام خراب است."
 "message.downloadpart" = "دریافت کل این بخش"
 "compose.from" = "از"
 "compose.to" = "به"

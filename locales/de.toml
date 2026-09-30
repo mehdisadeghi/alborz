@@ -214,6 +214,7 @@
 "message.remote" = "Diese E-Mail enthält externe Inhalte wie eingebettete Bilder."
 "message.loadremote" = "Externe Inhalte laden"
 "message.cut" = "Der Rest dieses Teils wird nicht angezeigt."
+"message.damaged" = "Dieser Teil der Nachricht ist beschädigt."
 "message.downloadpart" = "Ganzen Teil herunterladen"
 "compose.from" = "Von"
 "compose.to" = "An"

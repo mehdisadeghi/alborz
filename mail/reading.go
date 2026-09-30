@@ -156,8 +156,9 @@ func htmlAsText(part *message.Entity) (*message.Entity, error) {
 	return message.New(message.Header{Header: header}, strings.NewReader(text))
 }
 
-func joinedHTML(c *imapclient.Client, mboxName string, uid imap.UID, pieces []IMAPPartNode) (*message.Entity, error) {
-	if err := ensureMailboxSelected(c, mboxName); err != nil {
+// joinedHTML is the HTML pieces make whole; a piece that did not decode whole marks msg Damaged.
+func joinedHTML(c *imapclient.Client, msg *IMAPMessage, pieces []IMAPPartNode) (*message.Entity, error) {
+	if err := ensureMailboxSelected(c, msg.Mailbox); err != nil {
 		return nil, err
 	}
 	options := &imap.FetchOptions{}
@@ -168,11 +169,11 @@ func joinedHTML(c *imapclient.Client, mboxName string, uid imap.UID, pieces []IM
 				&imap.FetchItemBodySection{Peek: true, Part: p.Path, Partial: &imap.SectionPartial{Size: partReadMax}})
 		}
 	}
-	msgs, err := c.Fetch(imap.UIDSetNum(uid), options).Collect()
+	msgs, err := c.Fetch(imap.UIDSetNum(msg.UID), options).Collect()
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch the HTML pieces: %v", err)
 	} else if len(msgs) == 0 {
-		return nil, alborz.NotFound("notfound.message", fmt.Sprint(uid))
+		return nil, alborz.NotFound("notfound.message", fmt.Sprint(msg.UID))
 	}
 	var joined bytes.Buffer
 	sections := options.BodySection
@@ -190,9 +191,9 @@ func joinedHTML(c *imapclient.Client, mboxName string, uid imap.UID, pieces []IM
 		if err != nil {
 			return nil, err
 		}
-		piece, err := readPart(h, bodyBuf, &p, p.Cut())
-		if err != nil {
-			return nil, err
+		piece, damaged := readPart(h, bodyBuf, &p, p.Cut())
+		if damaged != nil {
+			msg.Damaged = damaged
 		}
 		if _, err := io.Copy(&joined, piece.Body); err != nil {
 			return nil, err
@@ -602,7 +603,7 @@ func Body(ctx context.Context, login *alborz.Login, msg *IMAPMessage, part *mess
 	if pieces := msg.HTMLPieces(path); pieces != nil {
 		err := login.DoIMAPContext(ctx, alborz.RoundTripTimeout, func(c *imapclient.Client) error {
 			var err error
-			part, err = joinedHTML(c, msg.Mailbox, msg.UID, pieces)
+			part, err = joinedHTML(c, msg, pieces)
 			return err
 		})
 		if err != nil {

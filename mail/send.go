@@ -327,7 +327,7 @@ func QuotedHTML(ctx context.Context, login *alborz.Login, path MessagePath, msg 
 			err  error
 		)
 		if pieces := msg.HTMLPieces(node.Path); pieces != nil {
-			part, err = joinedHTML(c, path.Mailbox, path.Uid, pieces)
+			part, err = joinedHTML(c, msg, pieces)
 		} else {
 			_, part, err = getShownPart(c, path.Mailbox, path.Uid, node.Path)
 		}

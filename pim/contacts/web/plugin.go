@@ -37,14 +37,13 @@ func Mount(g *web.Group, st *store.Store) error {
 	p := &plugin{b}
 
 	registerRoutes(p, g)
-	srv.OnMessage = append(srv.OnMessage, p.collectionPage().ShowOffer(p.DAV))
+	web.Extend(srv, p.collectionPage().ShowOffer(p.DAV))
 	// Calendar registers first, so the collections on alborz come last.
 	srv.OnServers = append(srv.OnServers, pimweb.Cards(p.DAV, "settings.davcontacts", bookAbilities), pimweb.HereCard(p.DAV))
 	srv.OnAccountReady = append(srv.OnAccountReady, p.warm, p.seed)
 
 	// A card attached to a mail is filed from its own row.
-	srv.OnMessage = append(srv.OnMessage, func(ctx *web.Context, _data web.RenderData) error {
-		data := _data.(*mail.MessageRenderData)
+	web.Extend(srv, func(ctx *web.Context, data *mail.Shown) error {
 		if !hasAttachment(data.Message, "text/vcard", "text/x-vcard", "text/directory") {
 			return nil
 		}
@@ -56,8 +55,7 @@ func Mount(g *web.Group, st *store.Store) error {
 		return nil
 	})
 
-	srv.OnMessage = append(srv.OnMessage, func(ctx *web.Context, _data web.RenderData) error {
-		data := _data.(*mail.MessageRenderData)
+	web.Extend(srv, func(ctx *web.Context, data *mail.Shown) error {
 		groups, err := p.writableBookGroups(ctx)
 		if err != nil || len(groups) == 0 {
 			return nil

@@ -30,8 +30,8 @@ import (
 
 type MessageRenderData struct {
 	IMAPBaseRenderData
-	Message *IMAPMessage
-	Part    *IMAPPartNode
+	Shown
+	Part *IMAPPartNode
 	// AsText is the HTML part read as words, offered only without a plain part.
 	AsText         bool
 	View           interface{}
@@ -39,9 +39,6 @@ type MessageRenderData struct {
 	Flags          map[imap.Flag]bool
 	ContextPending bool
 	ContextURL     template.URL
-
-	// Invitation is the scheduling request this message carries, if any.
-	Invitation any
 
 	// AuthResults is what the receiving server said about the sender's domain.
 	AuthResults *AuthResults
@@ -82,15 +79,21 @@ type MessageRenderData struct {
 
 	// Filters offers the rule shortcuts, where an account has a filter server.
 	Filters bool
+}
 
-	// Filled by calendars and contacts, nil where they have nothing: the share this mail announces,
-	// where an invitation or an attached file can be filed, and the stored copy a withdrawal can drop.
+// Shown is a message on its page as the other features see it: they read Message and fill what they
+// offer beside it (web.Extend).
+type Shown struct {
+	Message *IMAPMessage
+	// Filled by calendars and contacts, nil where they have nothing: the scheduling request this
+	// message carries, the share it announces, where an invitation or an attached file can be filed,
+	// and the stored copy a withdrawal can drop.
+	Invitation      any
 	ShareOffer      any
 	InviteCalendars any
 	ImportCalendars any
 	ImportBooks     any
 	InviteFiled     string
-
 	// Contact is what "Add to contacts" offers; nil where no address book takes a card.
 	Contact *ContactOffer
 }
@@ -624,7 +627,7 @@ func (p *plugin) handleGetPart(ctx *web.Context) error {
 		ContextPending:     deferContext,
 		ContextURL:         template.URL(contextURL.RequestURI()),
 		IMAPBaseRenderData: *ibase,
-		Message:            msg,
+		Shown:              Shown{Message: msg},
 		Part:               msg.PartByPath(partPath),
 		AsText:             asText,
 		View:               view.Body,
@@ -650,10 +653,8 @@ func (p *plugin) handleGetPart(ctx *web.Context) error {
 			return ctx.Server.SieveEnabled(s.Domain())
 		}),
 	}
-	for _, add := range ctx.Server.OnMessage {
-		if err := add(ctx, data); err != nil {
-			return err
-		}
+	if err := web.Extended(ctx, &data.Shown); err != nil {
+		return err
 	}
 	return ctx.Render(http.StatusOK, "mail/message", data)
 }

@@ -21,7 +21,7 @@ func Mount(g *web.Group, st *store.Store) error {
 
 	registerRoutes(p, g)
 	p.registerScheduling(g)
-	srv.OnMessage = append(srv.OnMessage, p.collectionPage().ShowOffer(p.DAV))
+	web.Extend(srv, p.collectionPage().ShowOffer(p.DAV))
 	srv.OnServers = append(srv.OnServers, pimweb.Cards(p.DAV, "settings.davcalendar", davAbilities))
 	srv.OnAccountReady = append(srv.OnAccountReady, p.warm)
 

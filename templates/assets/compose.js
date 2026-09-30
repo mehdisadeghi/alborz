@@ -3,7 +3,8 @@
 // A block of its own: a boosted visit reruns this script, and a top-level const declared twice is a SyntaxError.
 {
 const textarea = document.querySelector("textarea.body");
-if (window.location.pathname.endsWith("/reply")) {
+const composeForm = document.getElementById("compose-form");
+if ("reply" in composeForm.dataset) {
 	textarea.focus();
 	textarea.setSelectionRange(textarea.value.length, textarea.value.length);
 	textarea.scrollTop = textarea.scrollHeight;
@@ -12,7 +13,6 @@ if (window.location.pathname.endsWith("/reply")) {
 const sendButton = document.getElementById("send-button"),
 	saveButton = document.getElementById("save-button");
 
-const composeForm = document.getElementById("compose-form");
 const sendProgress = document.getElementById("send-progress");
 composeForm.addEventListener("submit", ev => {
 	[...document.querySelectorAll("input, textarea")].map(
@@ -44,8 +44,8 @@ attachmentsInput.addEventListener("input", ev => {
 
 // The page takes the drop, not the window: the window outlives a boosted page.
 composeForm.closest(".page-wrap").addEventListener("drop", ev => {
-	// A drop on a folder imports into it; one on the file field is the field's own.
-	if (ev.target.closest("aside a[href*='/mailbox/'], input[type='file']")) {
+	// A drop on the mail rail imports; one on the file field is the field's own.
+	if (ev.target.closest("aside[data-mail-sidebar], input[type='file']")) {
 		return;
 	}
 	const files = ev.dataTransfer.files;
@@ -108,7 +108,7 @@ function attachFile(file) {
 		updateState();
 	};
 
-	xhr.open("POST", "/compose/attachment");
+	xhr.open("POST", composeForm.dataset.upload);
 	xhr.upload.addEventListener("progress", ev => {
 		attachment.progress = ev.loaded / ev.total;
 		updateState();
@@ -126,7 +126,8 @@ function attachFile(file) {
 			return;
 		}
 
-		attachment.uuid = resp[0];
+		attachment.uuid = resp[0].id;
+		attachment.remove = resp[0].remove;
 		updateState();
 	});
 	xhr.addEventListener("error", () => {
@@ -146,7 +147,7 @@ function removable(attachment) {
 
 		if (typeof attachment.uuid !== "undefined") {
 			const cancel = new XMLHttpRequest();
-			cancel.open("POST", `/compose/attachment/${attachment.uuid}/remove`);
+			cancel.open("POST", attachment.remove);
 			cancel.send();
 		}
 	});
@@ -155,7 +156,7 @@ function removable(attachment) {
 // A refused send renders what it held; those uploads are finished.
 for (const node of attachmentsNode.querySelectorAll(".upload[data-uuid]")) {
 	helpNode.remove();
-	const attachment = { node: node, progress: 1.0, uuid: node.dataset.uuid };
+	const attachment = { node: node, progress: 1.0, uuid: node.dataset.uuid, remove: node.dataset.remove };
 	attachments.push(attachment);
 	removable(attachment);
 }

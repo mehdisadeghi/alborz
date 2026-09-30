@@ -540,7 +540,7 @@ document.addEventListener("htmx:afterSwap", ev => {
 const rail = document.querySelector("aside");
 if (rail && window.EventSource) {
 	let due = null;
-	const live = new EventSource("/events");
+	const live = new EventSource(document.body.dataset.events);
 
 	const listing = () => document.querySelector("main.message-list [data-live-folder]");
 
@@ -607,7 +607,7 @@ if (rail && window.EventSource) {
 		due = setTimeout(() => {
 			const here = document.querySelector("aside[data-mail-sidebar]");
 			if (here && window.htmx) {
-				const url = new URL("/mail/sidebar", location.origin);
+				const url = new URL(here.dataset.mailSidebar, location.origin);
 				url.search = location.search;
 				url.searchParams.set("path", location.pathname);
 				htmx.ajax("GET", url.href,
@@ -659,7 +659,7 @@ if ("serviceWorker" in navigator) {
 if ("serviceWorker" in navigator) {
 	window.addEventListener("load", () => {
 		// Revalidate the worker's script on every registration, so a new shell arrives on the next visit.
-		navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" }).catch(() => {});
+		navigator.serviceWorker.register(document.body.dataset.worker, { updateViaCache: "none" }).catch(() => {});
 	});
 }
 
@@ -796,15 +796,16 @@ for (const event of ["htmx:afterRequest", "htmx:sendError", "htmx:timeout", "htm
 }
 
 // The page leaves with the lock, so what is on screen does not outstay it.
-const lockAfter = Number((document.querySelector('meta[name="alborz-lock"]') || {}).content);
-if (lockAfter > 0 && location.pathname !== "/unlock") {
+const lock = document.querySelector('meta[name="alborz-lock"]');
+const lockAfter = Number((lock || {}).content);
+if (lockAfter > 0 && location.pathname !== lock.dataset.unlock) {
 	// Writing a long message asks the server nothing, so it is told the reader is here.
 	const tellEvery = 60;
 	let timer, told = Date.now();
-	const leave = () => location.assign("/unlock?next=" + encodeURIComponent(location.pathname + location.search));
+	const leave = () => location.assign(lock.dataset.unlock + "?next=" + encodeURIComponent(location.pathname + location.search));
 	// The lock may have been taken in another tab; fetch follows its redirect silently.
-	const tell = () => fetch("/alive", {method: "POST"}).then(answer => {
-		if (answer.redirected && new URL(answer.url).pathname === "/unlock") {
+	const tell = () => fetch(lock.dataset.alive, {method: "POST"}).then(answer => {
+		if (answer.redirected && new URL(answer.url).pathname === lock.dataset.unlock) {
 			leave();
 		}
 	}).catch(() => {});
@@ -940,6 +941,7 @@ const notices = { live: noticeBar(), upload: noticeBar() };
 	};
 	const target = node => folderLink(node) || listArea(node);
 	const folderURL = el => el.dataset.folder || dropMbox(el).dataset.dropMbox;
+	const importURL = el => el.dataset.import || dropMbox(el).dataset.dropImport;
 	// Refusing the drop for the page would refuse it for a file field too.
 	const ownField = node => node && node.closest && node.closest('input[type="file"]');
 	const carriesFiles = ev => ev.dataTransfer && [...ev.dataTransfer.types].includes("Files") && !ownField(ev.target);
@@ -994,13 +996,13 @@ const notices = { live: noticeBar(), upload: noticeBar() };
 		const dropped = [...ev.dataTransfer.files];
 		const waiting = entries.length ? collect(entries) : Promise.resolve(dropped);
 		if (into) {
-			send(new URL(folderURL(into), location.origin), waiting);
+			send(new URL(folderURL(into), location.origin), new URL(importURL(into), location.origin), waiting);
 			return;
 		}
 		// A merged list names the folder, not the account; the rail knows which accounts hold it.
 		const accounts = holders();
 		if (accounts.length === 1) {
-			send(new URL(accounts[0].href, location.origin), waiting);
+			send(new URL(accounts[0].href, location.origin), new URL(accounts[0].into, location.origin), waiting);
 			return;
 		}
 		if (accounts.length > 1) {
@@ -1014,11 +1016,11 @@ const notices = { live: noticeBar(), upload: noticeBar() };
 	});
 
 	const holders = () => [...document.querySelectorAll("aside a[data-folder]")]
-		.map(row => ({href: row.dataset.folder, label: row.textContent.trim(), account: new URL(row.dataset.folder, location.origin).searchParams.get("account")}))
+		.map(row => ({href: row.dataset.folder, into: row.dataset.import, label: row.textContent.trim(), account: new URL(row.dataset.folder, location.origin).searchParams.get("account")}))
 		.filter(row => row.account && new URL(row.href, location.origin).pathname === location.pathname);
 
 	const ask = (accounts, waiting) => {
-		const here = decodeURIComponent(location.pathname.split("/").pop());
+		const here = document.querySelector("[data-live-folder]").dataset.liveFolder;
 		const bar = notices.upload.show(say("importingWhich").replace("%s", here));
 		bar.querySelector("progress").hidden = true;
 		for (const account of accounts) {
@@ -1030,7 +1032,7 @@ const notices = { live: noticeBar(), upload: noticeBar() };
 				for (const other of bar.querySelectorAll("button")) {
 					other.disabled = true;
 				}
-				send(new URL(account.href, location.origin), waiting);
+				send(new URL(account.href, location.origin), new URL(account.into, location.origin), waiting);
 			});
 			bar.append(button);
 		}
@@ -1060,7 +1062,7 @@ const notices = { live: noticeBar(), upload: noticeBar() };
 		return files;
 	};
 
-	const post = (href, batch, before, total) => new Promise(resolve => {
+	const post = (into, batch, before, total) => new Promise(resolve => {
 		const body = new FormData();
 		for (const file of batch) {
 			body.append("file", file);
@@ -1070,7 +1072,7 @@ const notices = { live: noticeBar(), upload: noticeBar() };
 			: say("importingMany").replace("%s", new Intl.NumberFormat(document.documentElement.lang || "en").format(batch.length));
 		const progress = status(naming);
 		const request = new XMLHttpRequest();
-		request.open("POST", href.pathname + "/import" + href.search);
+		request.open("POST", into.pathname + into.search);
 		request.upload.addEventListener("progress", e => {
 			if (e.lengthComputable) {
 				progress.value = Math.round(((before + (e.loaded / e.total) * batch.length) / total) * 100);
@@ -1085,7 +1087,7 @@ const notices = { live: noticeBar(), upload: noticeBar() };
 		request.send(body);
 	});
 
-	const send = async (href, waiting) => {
+	const send = async (href, into, waiting) => {
 		const found = await waiting;
 		const files = found.filter(mailLike);
 		if (!files.length) {
@@ -1105,7 +1107,7 @@ const notices = { live: noticeBar(), upload: noticeBar() };
 		let failure = 0;
 		while (pending.length) {
 			const batch = pending.shift();
-			const code = await post(href, batch, landed + refused, files.length);
+			const code = await post(into, batch, landed + refused, files.length);
 			if (code >= 200 && code <= 299) {
 				landed += batch.length;
 				continue;

@@ -1,6 +1,8 @@
 package web
 
 import (
+	"regexp"
+
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/web"
@@ -9,7 +11,8 @@ import (
 
 type plugin struct {
 	*mail.Mailboxes
-	// composed cleans what the editor wrote.
+	// images match the images alborz holds; composed cleans what the editor wrote, keeping only those.
+	images   *regexp.Regexp
 	composed *bluemonday.Policy
 }
 
@@ -22,7 +25,7 @@ func Mount(g *web.Group) error {
 	if err != nil {
 		return err
 	}
-	p.composed = mail.ComposedPolicy(images)
+	p.images, p.composed = images, mail.ComposedPolicy(images)
 	// A restored account skips the login handler, so it is followed here too.
 	s.OnAccountReady = append(s.OnAccountReady, p.watchAccount, p.warmAccount)
 	s.OnAccountGone = append(s.OnAccountGone, p.ForgetAccount)

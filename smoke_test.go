@@ -1363,14 +1363,14 @@ func TestRefusedSendKeepsItsUploads(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var ids []string
-	if err := json.NewDecoder(resp.Body).Decode(&ids); err != nil || len(ids) != 1 {
-		t.Fatalf("upload: %s, %v, %v", resp.Status, ids, err)
+	var uploads []struct{ ID, Src string }
+	if err := json.NewDecoder(resp.Body).Decode(&uploads); err != nil || len(uploads) != 1 {
+		t.Fatalf("upload: %s, %v, %v", resp.Status, uploads, err)
 	}
 	resp.Body.Close()
 
 	resp = postCompose(t, c, base, "/compose", get(t, c, base+"/compose"),
-		"to", "refused@example.org", "subject", "kept", "attachment-uuids", ids[0])
+		"to", "refused@example.org", "subject", "kept", "attachment-uuids", uploads[0].ID)
 	var page bytes.Buffer
 	page.ReadFrom(resp.Body)
 	resp.Body.Close()
@@ -1378,8 +1378,8 @@ func TestRefusedSendKeepsItsUploads(t *testing.T) {
 		t.Fatalf("a refused recipient was answered with %s", resp.Status)
 	}
 	kept := between(page.String(), `data-uuid="`, `"`)
-	if kept != ids[0] {
-		t.Fatalf("the refused form holds upload %q, want %q", kept, ids[0])
+	if kept != uploads[0].ID {
+		t.Fatalf("the refused form holds upload %q, want %q", kept, uploads[0].ID)
 	}
 
 	sendFrom(t, c, base, "/compose", page.String(), "subject", "kept", "attachment-uuids", kept)
@@ -1412,14 +1412,14 @@ func TestPastedImageTravelsBesideTheHTML(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var ids []string
-	if err := json.NewDecoder(resp.Body).Decode(&ids); err != nil || len(ids) != 1 {
-		t.Fatalf("upload: %s, %v, %v", resp.Status, ids, err)
+	var uploads []struct{ ID, Src string }
+	if err := json.NewDecoder(resp.Body).Decode(&uploads); err != nil || len(uploads) != 1 {
+		t.Fatalf("upload: %s, %v, %v", resp.Status, uploads, err)
 	}
 	resp.Body.Close()
 
 	sendFrom(t, c, base, "/compose", get(t, c, base+"/compose"), "subject", "pasted",
-		"html", `<p>Look: <img src="/compose/attachment/`+ids[0]+`" alt="shot.png"></p>`)
+		"html", `<p>Look: <img src="`+uploads[0].Src+`" alt="shot.png"></p>`)
 	got := sent.Last()
 	if !strings.Contains(got, "Subject: pasted") {
 		t.Fatalf("the message was not sent:\n%s", headOf(got))

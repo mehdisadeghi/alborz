@@ -1152,6 +1152,10 @@ other = "Die %d gewählten Nachrichten exportieren?"
 one = "Eine war schon da."
 other = "%d waren schon da."
 
+["notice.importrefused"]
+one = "Eine hat der Server abgelehnt."
+other = "%d hat der Server abgelehnt."
+
 ["folder.exportcount"]
 one = "Er enthält eine Nachricht."
 other = "Er enthält %d Nachrichten."

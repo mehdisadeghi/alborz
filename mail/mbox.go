@@ -201,21 +201,23 @@ func (h *heldBreak) end() error {
 	return err
 }
 
+// Imported counts an import's messages: those added, those the folder held already, and those the
+// server refused.
+type Imported struct{ Added, Held, Refused int }
+
 // ImportFile appends the messages of an mbox or .eml file to folder, taking the connection once.
-func (p *Mailboxes) ImportFile(ctx context.Context, login *alborz.Login, folder string, r io.Reader) (added, held int, err error) {
+func (p *Mailboxes) ImportFile(ctx context.Context, login *alborz.Login, folder string, r io.Reader) (n Imported, err error) {
 	defer p.accountChanged(login.Username())
 	err = login.DoIMAPWork(ctx, alborz.IMAPScan, importBound, func(c *imapclient.Client) error {
-		var err error
-		added, held, err = appendMessages(c, folder, r, map[string]bool{})
-		return err
+		return appendMessages(c, folder, r, map[string]bool{}, &n)
 	})
-	return added, held, err
+	return n, err
 }
 
 // DropFiles appends the messages of each file next gives, until io.EOF, to folder; the connection is
 // taken once and the files read inside, so they are appended as they arrive. A file that fails to
 // arrive is fileErr, the sender's; err is the server's.
-func (p *Mailboxes) DropFiles(ctx context.Context, login *alborz.Login, folder string, next func() (io.Reader, error)) (added, held int, fileErr, err error) {
+func (p *Mailboxes) DropFiles(ctx context.Context, login *alborz.Login, folder string, next func() (io.Reader, error)) (n Imported, fileErr, err error) {
 	defer p.accountChanged(login.Username())
 	err = login.DoIMAPWork(ctx, alborz.IMAPScan, importBound, func(c *imapclient.Client) error {
 		if err := ensureMailboxSelected(c, folder); err != nil {
@@ -235,31 +237,29 @@ func (p *Mailboxes) DropFiles(ctx context.Context, login *alborz.Login, folder s
 				fileErr = err
 				return nil
 			}
-			n, already, err := appendMessages(c, folder, file, seen)
-			added += n
-			held += already
-			if err != nil {
+			if err := appendMessages(c, folder, file, seen, &n); err != nil {
 				return err
 			}
 		}
 	})
-	return added, held, fileErr, err
+	return n, fileErr, err
 }
 
-// A message whose Message-ID the folder already holds is skipped, so a repeated drop adds nothing.
-func appendMessages(c *imapclient.Client, folder string, r io.Reader, seen map[string]bool) (added, held int, err error) {
+// A message whose Message-ID the folder already holds is skipped, so a repeated drop adds nothing; one the
+// server refuses is counted and the rest go on.
+func appendMessages(c *imapclient.Client, folder string, r io.Reader, seen map[string]bool, n *Imported) error {
 	next := mboxMessages(r)
 	for {
 		raw, err := next()
 		if err == io.EOF {
-			return added, held, nil
+			return nil
 		}
 		if err != nil {
-			return added, held, err
+			return err
 		}
 		id := messageID(raw)
 		if id != "" && seen[id] {
-			held++
+			n.Held++
 			continue
 		}
 		if id != "" {
@@ -268,15 +268,20 @@ func appendMessages(c *imapclient.Client, folder string, r io.Reader, seen map[s
 		options := imap.AppendOptions{Flags: []imap.Flag{imap.FlagSeen}, Time: messageDate(raw)}
 		cmd := c.Append(folder, int64(len(raw)), &options)
 		if _, err := cmd.Write(raw); err != nil {
-			return added, held, err
+			return err
 		}
 		if err := cmd.Close(); err != nil {
-			return added, held, err
+			return err
 		}
-		if _, err := cmd.Wait(); err != nil {
-			return added, held, err
+		var refused *imap.Error
+		if _, err := cmd.Wait(); errors.As(err, &refused) {
+			log.Printf("import into %q: the server refused message %q: %v", folder, id, err)
+			n.Refused++
+			continue
+		} else if err != nil {
+			return err
 		}
-		added++
+		n.Added++
 	}
 }
 

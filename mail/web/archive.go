@@ -254,17 +254,26 @@ func (p *plugin) handleImport(ctx *web.Context) error {
 		return render(http.StatusUnprocessableEntity, fmt.Sprintf(ctx.T("form.foldertaken"), fullName, err))
 	}
 
-	count, held, importErr := p.ImportFile(ctx.Request().Context(), login, fullName, file)
+	n, importErr := p.ImportFile(ctx.Request().Context(), login, fullName, file)
 	if importErr != nil {
-		ctx.Logger().Printf("import into %q stopped after %d: %v", fullName, count, importErr)
-		ctx.PutNotice(ctx.Tf("notice.importstopped", count, fullName))
+		ctx.Logger().Printf("import into %q stopped after %d: %v", fullName, n.Added, importErr)
+		ctx.PutNotice(importSaid(ctx, "notice.importstopped", n, fullName))
 	} else {
-		ctx.PutNotice(ctx.Tf("notice.imported", count, fullName))
-	}
-	if held > 0 {
-		ctx.Notify(web.Notice{Text: ctx.Tf("notice.importheld", held)})
+		ctx.PutNotice(importSaid(ctx, "notice.imported", n, fullName))
 	}
 	return ctx.Redirect(http.StatusFound, folderURL(ctx, selectedAccount, fullName))
+}
+
+// importSaid is an import's notice: what was added, as key says, then what was not.
+func importSaid(ctx *web.Context, key string, n mail.Imported, folder string) string {
+	said := []string{ctx.Tf(key, n.Added, folder)}
+	if n.Held > 0 {
+		said = append(said, ctx.Tf("notice.importheld", n.Held))
+	}
+	if n.Refused > 0 {
+		said = append(said, ctx.Tf("notice.importrefused", n.Refused))
+	}
+	return strings.Join(said, " ")
 }
 
 // A body past the bound is 413, as a proxy in front would answer, so clients split alike.
@@ -302,19 +311,16 @@ func (p *plugin) handleDropImport(ctx *web.Context) error {
 			}
 		}
 	}
-	count, held, bodyErr, importErr := p.DropFiles(ctx.Request().Context(), login, mboxName, files)
+	n, bodyErr, importErr := p.DropFiles(ctx.Request().Context(), login, mboxName, files)
 	if bodyErr != nil {
 		return importBodyError(bodyErr)
 	}
 	if importErr != nil {
-		ctx.Logger().Printf("drop into %q stopped after %d: %v", mboxName, count, importErr)
-		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: ctx.Tf("notice.importstopped", count, mboxName)})
+		ctx.Logger().Printf("drop into %q stopped after %d: %v", mboxName, n.Added, importErr)
+		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: importSaid(ctx, "notice.importstopped", n, mboxName)})
 		return ctx.NoContent(http.StatusOK)
 	}
-	ctx.Notify(web.Notice{Text: ctx.Tf("notice.imported", count, mboxName)})
-	if held > 0 {
-		ctx.Notify(web.Notice{Text: ctx.Tf("notice.importheld", held)})
-	}
+	ctx.Notify(web.Notice{Text: importSaid(ctx, "notice.imported", n, mboxName)})
 	return ctx.NoContent(http.StatusOK)
 }
 

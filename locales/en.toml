@@ -1152,6 +1152,10 @@ other = "Export the %d messages picked?"
 one = "One was already there."
 other = "%d were already there."
 
+["notice.importrefused"]
+one = "The server refused one."
+other = "The server refused %d."
+
 ["folder.exportcount"]
 one = "It holds one message."
 other = "It holds %d messages."

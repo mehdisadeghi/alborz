@@ -52,6 +52,7 @@
 "notfound.contact" = "چنین مخاطبی نیست."
 "notfound.reply" = "چنین پاسخی نیست."
 "notfound.rule" = "چنین قاعده‌ای نیست."
+"notfound.script" = "فیلتری به نام %s وجود ندارد."
 "notfound.folder" = "پوشه‌ای به نام %s نیست."
 "notfound.calendar" = "تقویمی روی سرور پیدا نشد."
 "notfound.addressbook" = "دفترچهٔ نشانی‌ای روی سرور پیدا نشد."

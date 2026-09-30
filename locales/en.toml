@@ -52,6 +52,7 @@
 "notfound.contact" = "There is no such contact."
 "notfound.reply" = "There is no such reply."
 "notfound.rule" = "There is no such rule."
+"notfound.script" = "There is no filter named %s."
 "notfound.folder" = "There is no folder named %s."
 "notfound.calendar" = "No calendar was found on the server."
 "notfound.addressbook" = "No address book was found on the server."

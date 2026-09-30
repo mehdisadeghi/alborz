@@ -129,11 +129,14 @@ func replyFromForm(ctx *web.Context) (filters.Reply, error) {
 }
 
 func handleReplySave(ctx *web.Context) error {
-	v, err := replyFromForm(ctx)
 	index := -1
-	if at := ctx.FormValue("index"); at != "" {
-		index, _ = strconv.Atoi(at)
+	if ctx.FormValue("index") != "" {
+		var err error
+		if index, err = formIndex(ctx); err != nil {
+			return err
+		}
 	}
+	v, err := replyFromForm(ctx)
 	refuse := func(message string) error {
 		data, err := repliesData(ctx)
 		if err != nil {
@@ -183,7 +186,7 @@ func handleReplySave(ctx *web.Context) error {
 }
 
 func handleReplyDelete(ctx *web.Context) error {
-	index, err := strconv.Atoi(ctx.FormValue("index"))
+	index, err := formIndex(ctx)
 	if err != nil {
 		return err
 	}

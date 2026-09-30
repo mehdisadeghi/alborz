@@ -385,7 +385,7 @@ func (l *Login) DoSieve(f func(SieveClient) error) error {
 		err := f(c)
 		if !watchdog.Stop() {
 			timedOut = true
-			return fmt.Errorf("sieve command timed out after %v", RoundTripTimeout)
+			return UpstreamError{Service: "sieve", After: RoundTripTimeout, cause: errors.New("sieve command timed out")}
 		}
 		return err
 	}

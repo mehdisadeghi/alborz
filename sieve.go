@@ -2,8 +2,10 @@ package alborz
 
 import (
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net"
+	"strings"
 	"time"
 
 	"go.guido-berhoerster.org/managesieve"
@@ -128,7 +130,7 @@ func (s *Server) dialSieve(domain, username, password string) (SieveClient, erro
 	// cost very different amounts against a remote proxy.
 	conn, err := net.DialTimeout("tcp", d.sieve.host, dialTimeout)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to ManageSieve server: %v", err)
+		return nil, sieveDown(err, dialTimeout)
 	}
 	step := func() { conn.SetDeadline(time.Now().Add(RoundTripTimeout)) }
 
@@ -136,14 +138,14 @@ func (s *Server) dialSieve(domain, username, password string) (SieveClient, erro
 	c, err := managesieve.NewClient(conn, host)
 	if err != nil {
 		conn.Close()
-		return nil, fmt.Errorf("failed to connect to ManageSieve server: %v", err)
+		return nil, sieveDown(err, RoundTripTimeout)
 	}
 
 	if !d.sieve.insecure {
 		step()
 		if err := c.StartTLS(&tls.Config{ServerName: host}); err != nil {
 			c.Close()
-			return nil, fmt.Errorf("STARTTLS failed: %v", err)
+			return nil, sieveDown(fmt.Errorf("STARTTLS failed: %w", err), RoundTripTimeout)
 		}
 	}
 
@@ -155,6 +157,15 @@ func (s *Server) dialSieve(domain, username, password string) (SieveClient, erro
 	conn.SetDeadline(time.Time{})
 
 	return &sieveClient{c}, nil
+}
+
+// sieveDown is a server that took no connection, or gave no answer within budget.
+func sieveDown(err error, budget time.Duration) error {
+	var slow net.Error
+	if errors.As(err, &slow) && slow.Timeout() {
+		return UpstreamError{Service: "sieve", After: budget, cause: err}
+	}
+	return UpstreamError{Service: "sieve", cause: err}
 }
 
 // sieveClient adapts go.guido-berhoerster.org/managesieve to SieveClient.
@@ -179,7 +190,12 @@ func (sc *sieveClient) Implementation() string { return sc.c.Implementation() }
 func (sc *sieveClient) Extensions() []string { return sc.c.Extensions() }
 
 func (sc *sieveClient) GetScript(name string) (string, error) {
-	return sc.c.GetScript(name)
+	content, err := sc.c.GetScript(name)
+	var refused *managesieve.ServerError
+	if errors.As(err, &refused) && strings.EqualFold(refused.Code, "NONEXISTENT") {
+		return "", NotFound("notfound.script", name)
+	}
+	return content, err
 }
 
 func (sc *sieveClient) PutScript(name, content string) (string, error) {

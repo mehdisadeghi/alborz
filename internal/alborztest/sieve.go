@@ -101,7 +101,11 @@ func (s *SieveServer) serve(conn net.Conn) {
 			}
 			io.WriteString(conn, "OK\r\n")
 		case "GETSCRIPT":
-			fmt.Fprintf(conn, "%s\r\nOK\r\n", literal(s.scripts[args[1]]))
+			if script, ok := s.scripts[args[1]]; ok {
+				fmt.Fprintf(conn, "%s\r\nOK\r\n", literal(script))
+			} else {
+				io.WriteString(conn, "NO (NONEXISTENT) \"There is no script by that name\"\r\n")
+			}
 		case "PUTSCRIPT":
 			s.scripts[args[1]] = args[2]
 			io.WriteString(conn, "OK\r\n")

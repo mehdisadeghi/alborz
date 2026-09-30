@@ -142,11 +142,14 @@ func ruleFromForm(ctx *web.Context) (filters.Rule, error) {
 }
 
 func handleRuleSave(ctx *web.Context) error {
-	r, err := ruleFromForm(ctx)
-	index, _ := strconv.Atoi(ctx.FormValue("index"))
-	if ctx.FormValue("index") == "" {
-		index = -1
+	index := -1
+	if ctx.FormValue("index") != "" {
+		var err error
+		if index, err = formIndex(ctx); err != nil {
+			return err
+		}
 	}
+	r, err := ruleFromForm(ctx)
 	if err != nil {
 		data, derr := rulesData(ctx)
 		if derr != nil {
@@ -199,7 +202,7 @@ func handleBlock(ctx *web.Context) error {
 }
 
 func handleRuleDelete(ctx *web.Context) error {
-	index, err := strconv.Atoi(ctx.FormValue("index"))
+	index, err := formIndex(ctx)
 	if err != nil {
 		return err
 	}
@@ -214,7 +217,7 @@ func handleRuleDelete(ctx *web.Context) error {
 
 // Order is meaning: the first rule that stops wins.
 func handleRuleMove(ctx *web.Context) error {
-	index, err := strconv.Atoi(ctx.FormValue("index"))
+	index, err := formIndex(ctx)
 	if err != nil {
 		return err
 	}
@@ -233,7 +236,7 @@ func handleRuleMove(ctx *web.Context) error {
 }
 
 func handleRuleToggle(ctx *web.Context) error {
-	index, err := strconv.Atoi(ctx.FormValue("index"))
+	index, err := formIndex(ctx)
 	if err != nil {
 		return err
 	}
@@ -244,6 +247,15 @@ func handleRuleToggle(ctx *web.Context) error {
 		return rules
 	})
 	return answer(ctx, err, "filters.rules", ctx.T("notice.rulesaved"))
+}
+
+// formIndex is the row a form names by its index; one that is no number is refused.
+func formIndex(ctx *web.Context) (int, error) {
+	i, err := strconv.Atoi(ctx.FormValue("index"))
+	if err != nil {
+		return 0, web.NewError(http.StatusBadRequest, err)
+	}
+	return i, nil
 }
 
 func changeRules(ctx *web.Context, change func([]filters.Rule) []filters.Rule) error {

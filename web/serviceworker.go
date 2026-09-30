@@ -30,6 +30,10 @@ const DOWNLOADS = %[3]s.map(pattern => new RegExp(pattern));
 const SIGNINGS = %[4]s;
 const SIGN_IN = %[5]s;
 const ASSETS = %[6]s;
+const ICON = %[7]s;
+// The key pushes are signed with, and where a replaced subscription is posted.
+const PUSH_KEY = %[8]s;
+const RENEW = %[9]s;
 
 self.addEventListener("install", event => {
 	event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -134,6 +138,44 @@ const page = async (event, ask) => {
 		throw failure;
 	}
 };
+
+// A push says only what the server rendered for this browser (ADR 74); a click brings the app to its page.
+self.addEventListener("push", event => {
+	const note = event.data.json();
+	const shown = [self.registration.showNotification(note.title, { body: note.body, tag: note.tag, icon: ICON, data: { url: note.url } })];
+	if (note.badge && self.navigator.setAppBadge) {
+		shown.push(self.navigator.setAppBadge().catch(() => {}));
+	}
+	event.waitUntil(Promise.all(shown));
+});
+
+// A push service may replace a subscription; the server swaps it in for every account of this browser
+// that had the old one. A browser that does not name the old one is turned on again by hand.
+self.addEventListener("pushsubscriptionchange", event => {
+	const old = event.oldSubscription;
+	if (!old) {
+		return;
+	}
+	const renewed = event.newSubscription ? Promise.resolve(event.newSubscription) :
+		self.registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: PUSH_KEY });
+	event.waitUntil(renewed.then(sub => {
+		const json = sub.toJSON();
+		const form = new URLSearchParams({ old: old.endpoint, endpoint: json.endpoint, p256dh: json.keys.p256dh, auth: json.keys.auth });
+		return fetch(RENEW, { method: "POST", body: form, credentials: "same-origin", redirect: "manual" });
+	}));
+});
+
+self.addEventListener("notificationclick", event => {
+	event.notification.close();
+	const url = new URL(event.notification.data.url, self.location.origin).href;
+	event.waitUntil(self.clients.matchAll({ type: "window" }).then(windows => {
+		const open = windows.find(w => new URL(w.url).origin === self.location.origin);
+		if (!open) {
+			return self.clients.openWindow(url);
+		}
+		return open.focus().then(w => w.navigate(url));
+	}));
+});
 
 self.addEventListener("fetch", event => {
 	const request = event.request;

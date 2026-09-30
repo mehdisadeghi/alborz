@@ -82,6 +82,9 @@ func openPushes(db kv.DB, root seal.Root, keys *keyring.Ring, path string) (*Pus
 // ID names a device without its endpoint, for a form to point at.
 func (p *Pushes) ID(d PushDevice) string { return p.names.Of(d.Endpoint) }
 
+// Topic names the account's pushes of one kind to the push service without naming the account.
+func (p *Pushes) Topic(account, kind string) string { return p.names.Of(account + "\x00" + kind) }
+
 func (p *Pushes) prefix(account string) string {
 	return pushOwner + "/devices/" + p.keys.Name(account) + "/"
 }

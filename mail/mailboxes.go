@@ -5,6 +5,7 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/internal/memo"
+	"github.com/emersion/go-imap/v2"
 )
 
 // Mailboxes is mail read and written for the accounts signed in: what it keeps of their lists and
@@ -19,6 +20,8 @@ type Mailboxes struct {
 	authServGuesses *memo.Memo[string]
 	wkd             *wkdCache
 	watchers        sync.Map
+	// NewMail is told of mail arriving in an account's INBOX, named by the newest message's UID.
+	NewMail func(account string, validity uint32, newest imap.UID)
 }
 
 // New keeps mail for the server, for as long as its options say.

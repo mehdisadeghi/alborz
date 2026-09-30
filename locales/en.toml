@@ -1078,6 +1078,8 @@
 "notice.notificationson" = "Notifications turned on for this browser."
 "notice.notificationsoff" = "Notifications turned off."
 "notifications.failed" = "The browser could not subscribe to notifications."
+"push.mail" = "New mail"
+"push.event" = "Event at %s"
 ["calendar.more"]
 one = "%d more"
 other = "%d more"

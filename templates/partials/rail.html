@@ -132,13 +132,13 @@
 </div>
 {{ end }}
 {{ range $d.items }}{{ if eq .Account $.account }}
-{{ template "dav-filter-item" (dict "item" . "field" $d.field "itemclass" $d.itemclass "action" $d.action "onlylabel" $d.onlylabel "alllabel" $d.alllabel "shown" $d.shown "keep" $d.keep "nested" (not $.single) "edit" $d.edit "editlabel" $d.editlabel "g" $.g) }}
+{{ template "dav-filter-item" (dict "item" . "field" $d.field "itemclass" $d.itemclass "action" $d.action "shown" $d.shown "keep" $d.keep "nested" (not $.single) "edit" $d.edit "editlabel" $d.editlabel "g" $.g) }}
 {{ end }}{{ end }}
 <button>{{$d.apply}}</button>
 </form>
 {{ end }}
 
-{{/* dict: item field itemclass action onlylabel shown keep nested
+{{/* dict: item field itemclass action shown keep nested
      [edit editlabel]. */}}
 {{ define "dav-filter-item" }}
 {{ $i := .item }}
@@ -305,6 +305,6 @@
      [keep follow import views groups categories invitations]. */}}
 {{ define "pim-rail" }}
 <aside>
-  {{ template "scope-rail" (dict "g" .g "kind" "dav" "path" .path "urlaccount" .urlaccount "accounts" .g.GlobalData.Accounts "all" (.g.T "aside.all") "new" .new "follow" .follow "import" .import "data" (dict "keep" .keep "items" .items "field" .field "itemclass" .itemclass "action" .action "apply" (.g.T "common.apply") "onlylabel" (.g.T "common.only") "alllabel" (.g.T "common.showall") "shown" (.g.T "common.shown") "edit" .edit "editlabel" (.g.T "common.edit") "next" .g.GlobalData.URL.RequestURI) "views" .views "groups" .groups "categories" .categories "invitations" .invitations) }}
+  {{ template "scope-rail" (dict "g" .g "kind" "dav" "path" .path "urlaccount" .urlaccount "accounts" .g.GlobalData.Accounts "all" (.g.T "aside.all") "new" .new "follow" .follow "import" .import "data" (dict "keep" .keep "items" .items "field" .field "itemclass" .itemclass "action" .action "apply" (.g.T "common.apply") "shown" (.g.T "common.shown") "edit" .edit "editlabel" (.g.T "common.edit") "next" .g.GlobalData.URL.RequestURI) "views" .views "groups" .groups "categories" .categories "invitations" .invitations) }}
 </aside>
 {{ end }}

@@ -96,7 +96,7 @@ func serveOwn(g *web.Group, srv *web.Server, st *store.Store) {
 	dav, passwords := st.Handler(), newDAVPasswords()
 	// Where a client given only the host starts (RFC 6764).
 	home := func(ctx *web.Context) error {
-		http.Redirect(ctx.Response(), ctx.Request(), store.Prefix+"/", http.StatusPermanentRedirect)
+		http.Redirect(ctx.Response(), ctx.Request(), ctx.Path("dav.collections"), http.StatusPermanentRedirect)
 		return nil
 	}
 	g.Handle("caldav", "/.well-known/caldav", home)

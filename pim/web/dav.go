@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"git.mehdix.org/alborz/pim/dav"
-	"git.mehdix.org/alborz/pim/store"
 	"git.mehdix.org/alborz/web"
 )
 
@@ -127,7 +126,7 @@ func HereCard(p *dav.Provider) func(*web.Context, *web.Servers) error {
 		servers.Cards = append(servers.Cards, web.ServerCard{
 			Group: web.ServerDAV, Title: ctx.T("settings.davhere"), Source: "servers.onalborz",
 			Rows: []map[string]any{
-				{"label": ctx.T("settings.davhereaddress"), "value": ctx.Origin() + store.Prefix + "/"},
+				{"label": ctx.T("settings.davhereaddress"), "value": ctx.Origin() + ctx.Path("dav.collections")},
 				{"label": ctx.T("settings.davhereuser"), "value": ctx.Login.Username()},
 			},
 		})

@@ -2,6 +2,7 @@ package web_test
 
 import (
 	"compress/gzip"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -85,6 +86,25 @@ func TestDownloadsSentAsTheyAre(t *testing.T) {
 	}
 	if got := c.Follow(t, a.Path("mail.message.raw", "INBOX", uid)+"?part=2"); got != text {
 		t.Errorf("the part is %d bytes, not the %d-byte attachment", len(got), len(text))
+	}
+}
+
+// An installed app opens its home, and its worker serves every page under the scope.
+func TestManifestScopesTheApp(t *testing.T) {
+	a := Alborz(t)
+	c := a.SignIn(t, User)
+	var manifest struct {
+		StartURL string `json:"start_url"`
+		Scope    string
+	}
+	if err := json.Unmarshal([]byte(c.Get(t, "core.manifest").Text), &manifest); err != nil {
+		t.Fatal(err)
+	}
+	if manifest.StartURL != a.Path("mail.home") {
+		t.Errorf("the manifest starts at %q, not the home page", manifest.StartURL)
+	}
+	if worker := a.Path("core.worker"); !strings.HasSuffix(manifest.Scope, "/") || !strings.HasPrefix(worker, manifest.Scope) || strings.Contains(worker[len(manifest.Scope):], "/") {
+		t.Errorf("the manifest's scope %q is not the directory of the worker at %q", manifest.Scope, worker)
 	}
 }
 

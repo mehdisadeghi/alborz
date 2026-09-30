@@ -3,7 +3,6 @@
 package alborztest
 
 import (
-	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -180,5 +179,5 @@ func At(u string) string { return "/@" + strings.TrimPrefix(u, "http://") }
 
 // DAVUpstream names a as the DAV server of Domain.
 func (a *App) DAVUpstream() Option {
-	return Upstream(Domain, fmt.Sprintf("caldav+insecure://%s%s/", strings.TrimPrefix(a.URL, "http://"), store.Prefix))
+	return Upstream(Domain, "caldav+insecure://"+strings.TrimPrefix(a.URL, "http://")+a.Path("dav.collections"))
 }

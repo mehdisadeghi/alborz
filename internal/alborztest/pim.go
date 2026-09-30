@@ -11,8 +11,8 @@ import (
 )
 
 // CalendarsOf and BooksOf are user's homes on alborz, as a DAV client reaches them.
-func CalendarsOf(user string) string { return store.Prefix + "/calendars/" + user + "/" }
-func BooksOf(user string) string     { return store.Prefix + "/addressbooks/" + user + "/" }
+func CalendarsOf(user string) string { return store.HomePath(store.Calendar, user) }
+func BooksOf(user string) string     { return store.HomePath(store.AddressBook, user) }
 
 func Event(uid, summary string) string {
 	return "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//test//EN\r\nBEGIN:VEVENT\r\nUID:" + uid +

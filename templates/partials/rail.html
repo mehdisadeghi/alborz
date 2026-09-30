@@ -184,7 +184,7 @@
 
 {{ define "mail-rail" }}
 {{ if not .GlobalData.Swap }}
-<aside data-mail-sidebar="{{url "mail.sidebar"}}" data-importing="{{$.T "folder.dropimporting"}}" data-importing-many="{{$.T "folder.dropimportingmany"}}" data-importing-adding="{{$.T "folder.dropadding"}}" data-importing-none="{{$.T "folder.dropnomail"}}" data-importing-failed="{{$.T "folder.dropfailed"}}" data-importing-where="{{$.T "folder.dropwhere"}}" data-importing-which="{{$.T "folder.dropwhich"}}" data-live-arrived="{{$.T "list.mailarrived"}}" data-live-show="{{$.T "list.showarrived"}}">
+<aside data-mail-sidebar="{{url "mail.sidebar"}}" data-unread="{{.Unread}}" data-importing="{{$.T "folder.dropimporting"}}" data-importing-many="{{$.T "folder.dropimportingmany"}}" data-importing-adding="{{$.T "folder.dropadding"}}" data-importing-none="{{$.T "folder.dropnomail"}}" data-importing-failed="{{$.T "folder.dropfailed"}}" data-importing-where="{{$.T "folder.dropwhere"}}" data-importing-which="{{$.T "folder.dropwhich"}}" data-live-arrived="{{$.T "list.mailarrived"}}" data-live-show="{{$.T "list.showarrived"}}">
 {{ template "scope-rail" (dict "g" $ "kind" "mail" "path" (url "mail.mailbox" "INBOX") "urlaccount" .GlobalData.Scope "accounts" .GlobalData.Accounts "data" . "new" (dict "href" (url "mail.mailbox.create") "label" ($.T "aside.newfolder") "active" (eq .GlobalData.URL.Path (url "mail.mailbox.create"))) "import" (dict "href" (url "mail.import") "label" ($.T "aside.import") "active" (eq .GlobalData.URL.Path (url "mail.import")))) }}
 </aside>
 {{ end }}

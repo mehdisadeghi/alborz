@@ -86,6 +86,17 @@ func (d *IMAPBaseRenderData) AllUnseen(role string) int {
 	return sum
 }
 
+// Unread is the unread mail in the inbox of every account the rail shows, for the app's badge.
+func (d *IMAPBaseRenderData) Unread() int {
+	if len(d.SidebarAccounts) > 0 {
+		return d.AllUnseen("INBOX")
+	}
+	if in := d.Inbox; in != nil && in.StatusData != nil && in.NumUnseen != nil {
+		return int(*in.NumUnseen)
+	}
+	return 0
+}
+
 // AccountSidebar is one account's folder tree for the mail aside.
 type AccountSidebar struct {
 	Account     string

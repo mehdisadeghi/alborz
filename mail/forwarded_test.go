@@ -36,35 +36,22 @@ func headerOf(t *testing.T, raw string) textproto.Header {
 }
 
 func TestForwardedBy(t *testing.T) {
-	h := headerOf(t, forwardedHeader)
-
-	if got := ForwardedBy(h, "mail.mehdix.org", ""); got != "msk1361@gmail.com" {
-		t.Fatalf("got %q, want msk1361@gmail.com", got)
-	}
-
-	if got := ForwardedBy(h, "", ""); got != "" {
-		t.Errorf("with no trusted authserv: got %q", got)
-	}
-	if got := ForwardedBy(h, "mx.google.com", ""); got != "" {
-		t.Errorf("with somebody else's authserv: got %q", got)
-	}
-	if got := ForwardedBy(h, "mail.mehdix.org", "tuhs.tuhs.org"); got != "" {
-		t.Errorf("on list mail: got %q", got)
-	}
-}
-
-func TestForwardedBySpoofed(t *testing.T) {
-	raw := strings.Replace(forwardedHeader,
+	spoofed := strings.Replace(forwardedHeader,
 		`spf=pass (mail.mehdix.org: domain of "msk1361+caf_=mehdi=mehdix.org@gmail.com" designates 209.85.160.180 as permitted sender) smtp.mailfrom="msk1361+caf_=mehdi=mehdix.org@gmail.com";`,
 		`spf=fail (mail.mehdix.org: domain of "attacker@evil.example" does not designate 1.2.3.4 as permitted sender) smtp.mailfrom="attacker@evil.example";`, 1)
-	if got := ForwardedBy(headerOf(t, raw), "mail.mehdix.org", ""); got != "" {
-		t.Fatalf("an SPF failure was reported as a forward: %q", got)
-	}
-
 	direct := strings.Replace(forwardedHeader,
 		`smtp.mailfrom="msk1361+caf_=mehdi=mehdix.org@gmail.com"`,
 		`smtp.mailfrom="bounce@info.ing.de"`, 1)
-	if got := ForwardedBy(headerOf(t, direct), "mail.mehdix.org", ""); got != "" {
-		t.Fatalf("aligned mail was called a forward: %q", got)
+	for _, tc := range []struct{ name, raw, authserv, list, want string }{
+		{"a forward our server vouched for", forwardedHeader, "mail.mehdix.org", "", "msk1361@gmail.com"},
+		{"no trusted authserv", forwardedHeader, "", "", ""},
+		{"somebody else's authserv", forwardedHeader, "mx.google.com", "", ""},
+		{"list mail", forwardedHeader, "mail.mehdix.org", "tuhs.tuhs.org", ""},
+		{"an SPF failure", spoofed, "mail.mehdix.org", "", ""},
+		{"aligned mail", direct, "mail.mehdix.org", "", ""},
+	} {
+		if got := ForwardedBy(headerOf(t, tc.raw), tc.authserv, tc.list); got != tc.want {
+			t.Errorf("%s: got %q, want %q", tc.name, got, tc.want)
+		}
 	}
 }

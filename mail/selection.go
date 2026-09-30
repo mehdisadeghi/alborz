@@ -108,7 +108,10 @@ func (p *plugin) mergedSelection(ctx *web.Context, role string, form url.Values)
 	if err != nil {
 		return nil, err
 	}
-	next, _ := url.Parse(form.Get("next"))
+	next, err := url.Parse(form.Get("next"))
+	if err != nil {
+		return nil, web.NewError(http.StatusBadRequest, err)
+	}
 	route, _, _ := ctx.Server.Match(next)
 	spanning := route == "mail.search"
 	logins := ctx.Logins()

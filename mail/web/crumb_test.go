@@ -1,14 +1,15 @@
-package mail
+package web
 
 import (
 	"net/url"
 	"testing"
 
+	"git.mehdix.org/alborz/mail"
 	"github.com/emersion/go-imap/v2"
 )
 
 func TestMailboxCrumbNamesEachStep(t *testing.T) {
-	boxes := []MailboxInfo{
+	boxes := []mail.MailboxInfo{
 		{ListData: &imap.ListData{Mailbox: "INBOX", Delim: '/'}, Label: "Inbox"},
 		{ListData: &imap.ListData{Mailbox: "INBOX/Lists", Delim: '/'}, Label: "INBOX/Lists"},
 		{ListData: &imap.ListData{Mailbox: "INBOX/Lists/Unix", Delim: '/'}, Label: "INBOX/Lists/Unix"},

@@ -19,7 +19,7 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
-	"git.mehdix.org/alborz/mail"
+	mailweb "git.mehdix.org/alborz/mail/web"
 	"git.mehdix.org/alborz/web"
 )
 
@@ -131,7 +131,7 @@ upstreams are given as repeated domain=url arguments, e.g.:
 	}
 
 	logger := log.New(os.Stderr, "", log.LstdFlags)
-	s, err := web.New(logger, options, mail.TemplateFuncs)
+	s, err := web.New(logger, options, mailweb.TemplateFuncs)
 	if err != nil {
 		return err
 	}

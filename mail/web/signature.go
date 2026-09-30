@@ -1,8 +1,9 @@
-package mail
+package web
 
 import (
 	"net/http"
 
+	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/web"
 )
 
@@ -13,7 +14,7 @@ func (p *plugin) handleSignature(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
+	settings, err := mail.LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return err
 	}
@@ -29,5 +30,5 @@ func (p *plugin) handleSignature(ctx *web.Context) error {
 // VerdictRenderData fills the page's place for the verdict.
 type VerdictRenderData struct {
 	web.BaseRenderData
-	Signature Verification
+	Signature mail.Verification
 }

@@ -1,4 +1,4 @@
-package mail
+package web
 
 import (
 	"fmt"
@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/mail/search"
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2"
@@ -24,13 +25,13 @@ func (p *plugin) handleSearch(ctx *web.Context) error {
 		return err
 	}
 	ask.Query = strings.TrimSpace(ask.Query)
-	if !StarView(ask.View) {
+	if !mail.StarView(ask.View) {
 		ask.View = ""
 	}
 	if ask.Query == "" && ask.View == "" {
 		return ctx.Redirect(http.StatusFound, ctx.URL("mail.mailbox", "INBOX"))
 	}
-	settings, err := LoadSettings(ctx.Request().Context(), ctx.Login.Store())
+	settings, err := mail.LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return err
 	}
@@ -67,7 +68,7 @@ func (p *plugin) handleSearch(ctx *web.Context) error {
 	}
 	ibase.SidebarAccounts = p.sidebarAccounts(ctx)
 	// No name, so the rail marks no folder.
-	ibase.Mailbox = &MailboxStatus{StatusData: &imap.StatusData{}, Label: title}
+	ibase.Mailbox = &mail.MailboxStatus{StatusData: &imap.StatusData{}, Label: title}
 	data := listPage(ctx, ask, list)
 	data.IMAPBaseRenderData = *ibase
 	data.Crumb = []CrumbLink{{Label: title}}

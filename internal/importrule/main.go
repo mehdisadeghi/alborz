@@ -20,9 +20,7 @@ const (
 )
 
 // allowed are the imports the feature split has yet to remove; each goes with its step of #220.
-var allowed = []string{
-	"git.mehdix.org/alborz/mail git.mehdix.org/alborz/web",
-}
+var allowed = []string{}
 
 func isWeb(path string) bool {
 	return path == core || strings.HasPrefix(path, module+"/") && strings.HasSuffix(path, "/web")

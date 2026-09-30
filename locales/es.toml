@@ -1055,6 +1055,7 @@
 "settings.status" = "Barra de estado"
 "mail.status" = "Correo sin leer"
 "calendar.status" = "Eventos de hoy"
+"mail.status.none" = "No hay mensajes sin leer"
 "calendar.status.none" = "Sin eventos hoy"
 "date-gregorian.status" = "Fecha gregoriana"
 "date-shcal.status" = "Fecha de la hégira solar"
@@ -1254,8 +1255,9 @@ one = "El servidor de correo no guardó el ajuste %[2]s."
 other = "El servidor de correo no guardó los ajustes %[2]s."
 
 ["mail.status.unread"]
-one = "%d sin leer"
-other = "%d sin leer"
+one = "Un mensaje sin leer"
+many = "%d de mensajes sin leer"
+other = "%d mensajes sin leer"
 
 ["calendar.status.today"]
 one = "Hoy"

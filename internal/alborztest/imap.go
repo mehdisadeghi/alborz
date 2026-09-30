@@ -512,10 +512,18 @@ func (s *IMAPServer) SetEntry(user, key, value string) {
 	s.md.entries[user]["/private/vendor/alborz/"+key] = []byte(value)
 }
 
+// RefuseEntries makes the Metadata proxy answer every SETMETADATA with NO, as a server over its quota does.
+func (s *IMAPServer) RefuseEntries() {
+	s.md.mu.Lock()
+	defer s.md.mu.Unlock()
+	s.md.refuse = true
+}
+
 // metadata are the entries of each account, by name.
 type metadata struct {
 	mu      sync.Mutex
 	entries map[string]map[string][]byte
+	refuse  bool
 }
 
 // A line ending in a literal's announcement, {n} or the non-synchronizing {n+}.
@@ -648,6 +656,9 @@ func (md *metadata) answer(user, tag string, cmd []byte) []byte {
 	if mine == nil {
 		mine = map[string][]byte{}
 		md.entries[user] = mine
+	}
+	if command == "SETMETADATA" && md.refuse {
+		return fmt.Appendf(nil, "%s NO [METADATA TOOMANY] too many entries\r\n", tag)
 	}
 	if command == "SETMETADATA" {
 		for i := 0; i+1 < len(names); i += 2 {

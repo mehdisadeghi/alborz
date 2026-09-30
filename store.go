@@ -3,6 +3,7 @@ package alborz
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -159,11 +160,21 @@ func (s *imapMetadataStore) Put(ctx context.Context, key string, v any) error {
 	err = s.login.DoIMAPContext(ctx, RoundTripTimeout, func(c *imapclient.Client) error {
 		return c.SetMetadata("", entries).Wait()
 	})
-	if err != nil {
+	var refused *imap.Error
+	if errors.As(err, &refused) {
+		return StoreRefusedError{err}
+	} else if err != nil {
 		return fmt.Errorf("alborz: failed to put IMAP store entry %q: %w", key, err)
 	}
 	return nil
 }
+
+// StoreRefusedError is an entry the settings store would not take, in the server's words.
+type StoreRefusedError struct{ cause error }
+
+func (err StoreRefusedError) Error() string { return err.cause.Error() }
+
+func (err StoreRefusedError) Unwrap() error { return err.cause }
 
 // vendorRoot is where RFC 5464 puts a vendor's private entries.
 const vendorRoot = "/private/vendor/alborz"

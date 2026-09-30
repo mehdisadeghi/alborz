@@ -326,3 +326,20 @@ func TestAShareFromAnEncryptedToAPlainAccount(t *testing.T) {
 		t.Fatal("with the owner signed out, the plain sharee does not read the calendar")
 	}
 }
+
+// A mail server that will not keep the key says so on the form, in its own words.
+func TestAKeyTheServerWillNotKeepIsRefusedOnTheForm(t *testing.T) {
+	imap := IMAP(t, Metadata())
+	c := Alborz(t, WithIMAP(imap)).SignIn(t, User)
+	imap.RefuseEntries()
+	resp := c.Post(t, "settings.encryption", url.Values{"password": {Password}, "account": {User}})
+	if resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("turning encryption on answered %s, want 422", resp.Status)
+	}
+	if bar := NoticeBar(resp.Text); !strings.Contains(bar, "The change was not saved. The server said:") || !strings.Contains(bar, "too many entries") {
+		t.Errorf("the form does not give the server's refusal:\n%s", bar)
+	}
+	if recoveryKey.MatchString(resp.Text) {
+		t.Error("the refused form shows a recovery key")
+	}
+}

@@ -6,7 +6,8 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
-	"git.mehdix.org/alborz/mail/search"
+	"git.mehdix.org/alborz/mail/imapsearch"
+	"git.mehdix.org/alborz/search"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 )
@@ -38,7 +39,7 @@ func ViewCriteria(view string) *imap.SearchCriteria {
 func listCriteria(c *imapclient.Client, settings *Settings, query, view string) *imap.SearchCriteria {
 	criteria := ViewCriteria(view)
 	if query != "" {
-		criteria = search.And(criteria, search.Of(search.Parse(query), SearchesIndex(c, settings), time.Now()))
+		criteria = imapsearch.And(criteria, imapsearch.Of(search.Parse(query), SearchesIndex(c, settings), time.Now()))
 	}
 	return criteria
 }
@@ -65,7 +66,7 @@ func queryDays(query string, now time.Time) string {
 			walk(&c.Or[i][1])
 		}
 	}
-	if c := search.Of(search.Parse(query), false, now); c != nil {
+	if c := imapsearch.Of(search.Parse(query), false, now); c != nil {
 		walk(c)
 	}
 	return strings.Join(days, ",")

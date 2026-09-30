@@ -11,7 +11,8 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/mail"
-	"git.mehdix.org/alborz/mail/search"
+	"git.mehdix.org/alborz/mail/imapsearch"
+	"git.mehdix.org/alborz/search"
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2"
 )
@@ -211,7 +212,7 @@ func readListAskAt(ctx *web.Context, q url.Values, also string) (mail.ListAsk, e
 }
 
 func searchInstead(ctx *web.Context, ask mail.ListAsk) string {
-	if folder, everywhere := search.Scope(search.Parse(ask.Query)); folder != "" || everywhere {
+	if folder, everywhere := imapsearch.Scope(search.Parse(ask.Query)); folder != "" || everywhere {
 		return ctx.AccountPath(ctx.Path("mail.search") + "?query=" + web.QueryValue(ask.Query))
 	}
 	// A star is on the message, not in the folder, so its view is the search page's fan-out.

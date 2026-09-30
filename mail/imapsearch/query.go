@@ -1,4 +1,4 @@
-package search
+package imapsearch
 
 import (
 	"maps"
@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"git.mehdix.org/alborz/search"
 	"github.com/emersion/go-imap/v2"
 )
 
@@ -154,7 +155,7 @@ func querySize(value string) (int64, bool) {
 }
 
 // Of is the search the server is asked; never nil.
-func Of(q Query, indexed bool, now time.Time) *imap.SearchCriteria {
+func Of(q search.Query, indexed bool, now time.Time) *imap.SearchCriteria {
 	var criteria *imap.SearchCriteria
 	for _, term := range resolved(q) {
 		var one *imap.SearchCriteria
@@ -186,12 +187,12 @@ func Of(q Query, indexed bool, now time.Time) *imap.SearchCriteria {
 
 // resolved is the query with a key nobody knows, or a value its key cannot read, as a word: dropping it would
 // answer with the whole folder, which reads as a result.
-func resolved(q Query) Query {
-	out := make(Query, len(q))
+func resolved(q search.Query) search.Query {
+	out := make(search.Query, len(q))
 	for i, term := range q {
 		read, known := operators[term.Key]
 		if term.Key != "" && term.Key != In && (!known || read(term.Value, time.Time{}) == nil) {
-			term = Term{Value: term.Key + ":" + term.Value, Not: term.Not}
+			term = search.Term{Value: term.Key + ":" + term.Value, Not: term.Not}
 		}
 		out[i] = term
 	}
@@ -204,7 +205,7 @@ func Keys() []string {
 }
 
 // WantsText reports whether the query asks for the whole message.
-func WantsText(q Query) bool {
+func WantsText(q search.Query) bool {
 	for _, term := range q {
 		if term.Key == "text" {
 			return true
@@ -214,7 +215,7 @@ func WantsText(q Query) bool {
 }
 
 // Scope is the folder in: names, and whether it names all of them.
-func Scope(q Query) (folder string, everywhere bool) {
+func Scope(q search.Query) (folder string, everywhere bool) {
 	for _, term := range q {
 		if term.Key != In || term.Not {
 			continue
@@ -228,7 +229,7 @@ func Scope(q Query) (folder string, everywhere bool) {
 }
 
 // Excluded are the folders -in: names.
-func Excluded(q Query) []string {
+func Excluded(q search.Query) []string {
 	var out []string
 	for _, term := range q {
 		if term.Key == In && term.Not {
@@ -241,7 +242,7 @@ func Excluded(q Query) []string {
 var addressKeys = map[string]bool{"from": true, "to": true, "cc": true, "bcc": true}
 
 // Addressed reports whether the query names an address.
-func Addressed(q Query) bool {
+func Addressed(q search.Query) bool {
 	for _, term := range q {
 		if !term.Not && addressKeys[term.Key] {
 			return true
@@ -251,7 +252,7 @@ func Addressed(q Query) bool {
 }
 
 // Addresses are the terms naming a person, by key.
-func Addresses(q Query) map[string][]string {
+func Addresses(q search.Query) map[string][]string {
 	out := map[string][]string{}
 	for _, term := range q {
 		if !term.Not && addressKeys[term.Key] {
@@ -262,7 +263,7 @@ func Addresses(q Query) map[string][]string {
 }
 
 // Widened is the query with every bare term asked of the whole message.
-func Widened(q Query) string {
+func Widened(q search.Query) string {
 	widened := false
 	out := make([]string, 0, len(q))
 	for _, term := range resolved(q) {

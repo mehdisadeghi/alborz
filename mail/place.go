@@ -9,7 +9,7 @@ import (
 	"slices"
 
 	"git.mehdix.org/alborz"
-	"git.mehdix.org/alborz/mail/search"
+	"git.mehdix.org/alborz/search"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-message/textproto"

@@ -8,7 +8,8 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/mail"
-	"git.mehdix.org/alborz/mail/search"
+	"git.mehdix.org/alborz/mail/imapsearch"
+	"git.mehdix.org/alborz/search"
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2"
 )
@@ -73,7 +74,7 @@ func (p *plugin) handleSearch(ctx *web.Context) error {
 	data.IMAPBaseRenderData = *ibase
 	data.Crumb = []CrumbLink{{Label: title}}
 	data.Merged, data.Spanning, data.Role = true, true, searchRole
-	data.FolderQuery = q.Without(search.In)
+	data.FolderQuery = q.Without(imapsearch.In)
 	data.FolderTrack = template.CSS(fmt.Sprintf("%dch", min(track, folderTrackMax)))
 	return ctx.Render(http.StatusOK, listTemplate(ctx), data)
 }

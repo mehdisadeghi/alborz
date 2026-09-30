@@ -11,7 +11,8 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
-	"git.mehdix.org/alborz/mail/search"
+	"git.mehdix.org/alborz/mail/imapsearch"
+	"git.mehdix.org/alborz/search"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 )
@@ -264,10 +265,10 @@ func Everywhere(query string) string {
 		return ""
 	}
 	q := search.Parse(query)
-	if _, everywhere := search.Scope(q); everywhere {
+	if _, everywhere := imapsearch.Scope(q); everywhere {
 		return ""
 	}
-	return strings.TrimSpace(q.Without(search.In) + " " + search.In + ":" + search.Everywhere)
+	return strings.TrimSpace(q.Without(imapsearch.In) + " " + imapsearch.In + ":" + imapsearch.Everywhere)
 }
 
 // ListAsk is the page of a list an address asks for, narrowed and ordered as it says.
@@ -460,7 +461,7 @@ func TextQuery(query string, headersOnly bool) string {
 	if !headersOnly {
 		return ""
 	}
-	return search.Widened(search.Parse(query))
+	return imapsearch.Widened(search.Parse(query))
 }
 
 // Outgoing says a folder holds what the reader wrote, so its rows name recipients.
@@ -479,8 +480,8 @@ func folderRole(mailboxes []MailboxInfo, name string) string {
 }
 
 func searchFolders(mailboxes []MailboxInfo, q search.Query) []string {
-	named, everywhere := search.Scope(q)
-	excluded := search.Excluded(q)
+	named, everywhere := imapsearch.Scope(q)
+	excluded := imapsearch.Excluded(q)
 	var out []string
 	for i := range mailboxes {
 		mbox := &mailboxes[i]

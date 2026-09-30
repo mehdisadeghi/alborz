@@ -2,6 +2,7 @@ package web_test
 
 import (
 	"compress/gzip"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -45,6 +46,45 @@ func TestGzippedDownloadArrivesWhole(t *testing.T) {
 	}
 	if string(got) != raw {
 		t.Errorf("the download is %d bytes, not the %d-byte message sent", len(got), len(raw))
+	}
+}
+
+// A part keeps the length the server knows, and an image is compressed already.
+func TestDownloadsSentAsTheyAre(t *testing.T) {
+	a := Alborz(t)
+	text := strings.Repeat("A line of a long attachment.\r\n", 2000)
+	uid := a.IMAP.Append(t, "INBOX", "From: <eve@example.org>\r\nTo: <"+User+">\r\nSubject: Attached\r\n"+
+		"MIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=b1\r\n\r\n"+
+		"--b1\r\nContent-Type: text/plain\r\n\r\nSee attached.\r\n"+
+		"--b1\r\nContent-Type: text/plain\r\nContent-Disposition: attachment; filename=\"notes.txt\"\r\n\r\n"+text+"\r\n--b1--\r\n")
+	c := a.SignIn(t, User)
+	for _, tc := range []struct{ name, path string }{
+		{"a part", a.Path("mail.message.raw", "INBOX", uid) + "?part=2"},
+		{"an icon", a.Path("core.asset", "icon-512.png")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req, err := http.NewRequest(http.MethodGet, a.URL+tc.path, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			req.Header.Set("Accept-Encoding", "gzip")
+			resp := c.Do(t, req)
+			if resp.StatusCode != http.StatusOK || len(resp.Text) < 1<<10 {
+				t.Fatalf("download: %s, %d bytes", resp.Status, len(resp.Text))
+			}
+			if ce := resp.Header.Get("Content-Encoding"); ce != "" {
+				t.Errorf("the download was compressed: Content-Encoding %q", ce)
+			}
+			if resp.Header.Get("Content-Length") != fmt.Sprint(len(resp.Text)) {
+				t.Errorf("the download's Content-Length %q is not its %d bytes", resp.Header.Get("Content-Length"), len(resp.Text))
+			}
+			if len(resp.Header.Values("No-Gzip-Compression")) != 0 {
+				t.Errorf("the compressor's own header reached the browser")
+			}
+		})
+	}
+	if got := c.Follow(t, a.Path("mail.message.raw", "INBOX", uid)+"?part=2"); got != text {
+		t.Errorf("the part is %d bytes, not the %d-byte attachment", len(got), len(text))
 	}
 }
 

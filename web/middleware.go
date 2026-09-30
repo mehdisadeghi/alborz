@@ -11,20 +11,20 @@ import (
 )
 
 var compress = func() func(http.Handler) http.HandlerFunc {
-	wrap, err := gzhttp.NewWrapper(gzhttp.EnableZstd(false))
+	// Raster images come compressed; SVG is text.
+	compressible := func(ct string) bool {
+		return gzhttp.DefaultContentTypeFilter(ct) && (!strings.HasPrefix(ct, "image/") || strings.HasPrefix(ct, "image/svg"))
+	}
+	wrap, err := gzhttp.NewWrapper(gzhttp.EnableZstd(false), gzhttp.ContentTypeFilter(compressible))
 	if err != nil {
 		panic(err)
 	}
 	return wrap
 }()
 
-// Compress compresses the answer; images come compressed, and a download is sent as it is.
+// Compress compresses the answer, unless its type comes compressed or its route is Verbatim.
 func Compress(next HandlerFunc) HandlerFunc {
 	return func(ctx *Context) error {
-		p := ctx.Request().URL.Path
-		if strings.HasSuffix(p, ".png") || strings.HasSuffix(p, "/raw") {
-			return next(ctx)
-		}
 		res := ctx.Response()
 		plain := res.ResponseWriter
 		// The error page is written after the compressor has closed, a panic's too.

@@ -10,6 +10,8 @@ import (
 	"slices"
 	"strings"
 	"text/template/parse"
+
+	"github.com/klauspost/compress/gzhttp"
 )
 
 // HandlerFunc serves a request.
@@ -65,6 +67,15 @@ func (g *Group) POST(name, path string, h HandlerFunc) {
 func (g *Group) Download(name, path string, h HandlerFunc) {
 	g.GET(name, path, h)
 	g.s.routes.downloads = append(g.s.routes.downloads, g.prefix+path)
+}
+
+// Verbatim serves a file at path as Download does, never compressed, so the length the handler
+// knows reaches the browser.
+func (g *Group) Verbatim(name, path string, h HandlerFunc) {
+	g.Download(name, path, func(ctx *Context) error {
+		ctx.Response().Header().Set(gzhttp.HeaderNoCompression, "1")
+		return h(ctx)
+	})
 }
 
 // Upload takes a form carrying files up to limit; one past it is answered by over, h never seeing its empty fields.

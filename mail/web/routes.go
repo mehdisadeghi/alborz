@@ -36,7 +36,7 @@ func (p *plugin) registerRoutes(g *web.Group) {
 	g.POST("mailbox.delete", "/delete-mailbox/{mbox}", p.handleDeleteMailbox)
 
 	g.GET("message", "/message/{mbox}/{uid}", p.handleGetPart)
-	g.Download("message.raw", "/message/{mbox}/{uid}/raw", handleRaw)
+	g.Verbatim("message.raw", "/message/{mbox}/{uid}/raw", handleRaw)
 	g.GET("message.signature", "/message/{mbox}/{uid}/signature", p.handleSignature)
 	g.Download("message.attachments", "/message/{mbox}/{uid}/attachments.zip", handleDownloadAttachments)
 	g.Download("message.eml", "/message/{mbox}/{uid}/eml", func(ctx *web.Context) error {

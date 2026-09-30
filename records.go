@@ -1,8 +1,6 @@
 package alborz
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,12 +20,6 @@ const (
 )
 
 func sessionRecordKey(id string) string { return sessionsOwner + "/" + id }
-
-// accountKey is hashed so the file names nobody.
-func accountKey(owner, account string) string {
-	sum := sha256.Sum256([]byte(account))
-	return owner + "/" + hex.EncodeToString(sum[:])
-}
 
 const openTimeout = 5 * time.Second
 
@@ -151,15 +143,23 @@ func (r *records) Sweep(before time.Time) error {
 }
 
 // settingsRecords keeps settings for servers without METADATA, one record per account.
-type settingsRecords struct{ vault }
+type settingsRecords struct {
+	vault
+	names seal.Names
+}
 
-func openSettingsRecords(db kv.DB, key *seal.Key) *settingsRecords {
-	return &settingsRecords{vault{db: db, key: key}}
+func openSettingsRecords(db kv.DB, key *seal.Key, names seal.Names) *settingsRecords {
+	return &settingsRecords{vault{db: db, key: key}, names}
+}
+
+// A keyed name, so the file names nobody to whoever lacks the login key.
+func (r *settingsRecords) key(account string) string {
+	return settingsOwner + "/" + r.names.Of(account)
 }
 
 func (r *settingsRecords) entries(tx kv.Tx, account string) map[string]json.RawMessage {
 	entries := map[string]json.RawMessage{}
-	r.read(tx.Get(accountKey(settingsOwner, account)), &entries)
+	r.read(tx.Get(r.key(account)), &entries)
 	return entries
 }
 
@@ -191,7 +191,7 @@ func (r *settingsRecords) Put(account, key string, v any) error {
 		if err != nil {
 			return err
 		}
-		return r.put(tx, accountKey(settingsOwner, account), raw)
+		return r.put(tx, r.key(account), raw)
 	})
 }
 
@@ -208,7 +208,7 @@ func (r *settingsRecords) Entries(account string) ([]string, error) {
 }
 
 func (r *settingsRecords) Forget(account string) error {
-	return r.remove(accountKey(settingsOwner, account))
+	return r.remove(r.key(account))
 }
 
 // SessionRecord is a session kept across a restart.

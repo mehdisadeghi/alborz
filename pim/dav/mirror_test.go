@@ -335,7 +335,7 @@ func TestMirrorKeepsTheOldServersCopyApartFromTheNew(t *testing.T) {
 	if named.count() == 0 {
 		t.Errorf("the new server was never asked")
 	}
-	if _, kept, err := m.held(someone.key(), marker("old.test")+"/cal/"); err != nil || !kept {
+	if _, kept, err := m.held(m.user(someone), marker("old.test")+"/cal/"); err != nil || !kept {
 		t.Errorf("the old server's copy is gone (%v)", err)
 	}
 }
@@ -371,7 +371,7 @@ func TestMirrorNeverServesOneNamesCopyToAnother(t *testing.T) {
 	if got := read("bob"); !slices.Equal(got, []string{"b"}) {
 		t.Errorf("bob was served %v, want his own", got)
 	}
-	if _, kept, err := m.held(Principal{Account: "u", Name: "alice"}.key(), marker(u.Host)+"/cal/"); err != nil || !kept {
+	if _, kept, err := m.held(m.user(Principal{Account: "u", Name: "alice"}), marker(u.Host)+"/cal/"); err != nil || !kept {
 		t.Errorf("alice's copy is gone (%v)", err)
 	}
 }
@@ -420,7 +420,7 @@ func TestMirrorHoldsOpenedCollectionsWithinItsBudget(t *testing.T) {
 	held := func(i int) bool {
 		m.hotMu.Lock()
 		defer m.hotMu.Unlock()
-		return m.hot[objectsKey(Principal{Account: "u", Name: strconv.Itoa(i)}.key(), "/cal/")] != nil
+		return m.hot[m.objectsKey(m.user(Principal{Account: "u", Name: strconv.Itoa(i)}), "/cal/")] != nil
 	}
 	read(0)
 	one := m.hotBytes
@@ -487,7 +487,7 @@ func TestMirrorLetsGoOfACollectionItsServerLost(t *testing.T) {
 	if !slices.Equal(told, []string{someone.Account}) {
 		t.Errorf("the listing was told of %v, want %v", told, []string{someone.Account})
 	}
-	if _, held, err := m.held(someone.key(), "/cal/"); err != nil || held {
+	if _, held, err := m.held(m.user(someone), "/cal/"); err != nil || held {
 		t.Errorf("the copy of a collection its server lost is still held (err %v)", err)
 	}
 }

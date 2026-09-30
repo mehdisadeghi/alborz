@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
-	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-message/textproto"
@@ -23,8 +22,7 @@ const (
 )
 
 // SuggestAuthServ names the id this account's server appears to use, or "".
-func (p *plugin) SuggestAuthServ(ctx *web.Context) string {
-	login := ctx.Login
+func (p *plugin) SuggestAuthServ(login *alborz.Login) string {
 	return p.authServGuesses.Warm(login.Username(), func() (string, error) {
 		return sampleAuthServ(login)
 	})
@@ -153,9 +151,9 @@ func serverFamily(id string) string {
 }
 
 // TrustedAuthServ is the id whose verdicts are believed for this account.
-func (p *plugin) TrustedAuthServ(ctx *web.Context, settings *Settings) string {
+func (p *plugin) TrustedAuthServ(login *alborz.Login, settings *Settings) string {
 	if settings.TrustedAuthServ != "" {
 		return settings.TrustedAuthServ
 	}
-	return p.SuggestAuthServ(ctx)
+	return p.SuggestAuthServ(login)
 }

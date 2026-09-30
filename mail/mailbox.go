@@ -1,6 +1,7 @@
 package mail
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"html/template"
@@ -86,18 +87,20 @@ func (p *plugin) handleUnifiedMailbox(ctx *web.Context) error {
 	key := listingView("#"+role, spec.query, spec.view, spec.sortKey, spec.sortDir)
 	class, bound := listingBudget(spec)
 	// A search costs a round trip per account, so it most wants the cache.
-	merged, found, err := p.mergedWindow(ctx, role, ask, settings, ctx.Request().Method == http.MethodGet)
+	merged, found, down, err := p.mergedWindow(ctx.Request().Context(), ctx.Logins(), role, ask, settings, ctx.Request().Method == http.MethodGet)
 	if err != nil {
 		return err
 	}
+	ctx.Unreachable(down)
 	if !found {
 		return alborz.NotFound("notfound.folder", role)
 	}
 	page, cut := cutPage(merged, ask.page)
-	rows, err := p.wholePage(ctx, role, key, cut, class, bound)
+	rows, down, err := p.wholePage(ctx.Request().Context(), ctx.Logins(), role, key, cut, class, bound)
 	if err != nil {
 		return err
 	}
+	ctx.Unreachable(down)
 	named := role
 	if slices.Contains(unifiedRoles, role) {
 		named = ctx.T("aside." + strings.ToLower(role))
@@ -123,13 +126,14 @@ func (p *plugin) handleUnifiedMailbox(ctx *web.Context) error {
 
 // mergedWindow is a merged folder's rows up to the page asked, merged as its
 // page is; found is false where every account answered without the folder.
-func (p *plugin) mergedWindow(ctx *web.Context, role string, ask listAsk, settings *Settings, cacheable bool) (merged *listingEntry, found bool, err error) {
+// down are the accounts whose servers did not answer.
+func (p *plugin) mergedWindow(ctx context.Context, logins []*alborz.Login, role string, ask listAsk, settings *Settings, cacheable bool) (merged *listingEntry, found bool, down []string, err error) {
 	spec := ask.spec
 	key := listingView("#"+role, spec.query, spec.view, spec.sortKey, spec.sortDir)
 	class, bound := listingBudget(spec)
 	// Every account that answered lacking the folder is a folder that is not there.
 	var holding, silent atomic.Int32
-	merged, err = gather(ctx, ctx.Logins(), spec, func(s *alborz.Login) (e *listingEntry, err error) {
+	merged, down, err = p.gather(ctx, logins, spec, func(s *alborz.Login) (e *listingEntry, err error) {
 		defer func() {
 			if e != nil {
 				holding.Add(1)
@@ -155,13 +159,13 @@ func (p *plugin) mergedWindow(ctx *web.Context, role string, ask listAsk, settin
 		if cacheable {
 			return p.cachedListing(ctx, s, key, size, spec, folder, fetch)
 		}
-		alborz.CacheTiming(ctx.Request().Context(), "listing", false)
-		return readOn(s, class, bound, fetch)(ctx.Request().Context())
+		alborz.CacheTiming(ctx, "listing", false)
+		return readOn(s, class, bound, fetch)(ctx)
 	})
 	if err != nil {
-		return nil, false, err
+		return nil, false, nil, err
 	}
-	return merged, holding.Load() > 0 || silent.Load() > 0, nil
+	return merged, holding.Load() > 0 || silent.Load() > 0, down, nil
 }
 
 // Rounded up to a power of two so a walk through n pages refetches log n times (ADR 46).
@@ -174,7 +178,7 @@ func (ask listAsk) held(have int) int {
 }
 
 // A row that could not be fetched is left off rather than shown without its marks.
-func (p *plugin) wholePage(ctx *web.Context, role, key string, page []IMAPMessage, class alborz.IMAPClass, bound time.Duration) ([]IMAPMessage, error) {
+func (p *plugin) wholePage(ctx context.Context, logins []*alborz.Login, role, key string, page []IMAPMessage, class alborz.IMAPClass, bound time.Duration) ([]IMAPMessage, []string, error) {
 	missing := map[string][]imap.UID{}
 	for _, m := range page {
 		if m.BodyStructure == nil {
@@ -182,9 +186,9 @@ func (p *plugin) wholePage(ctx *web.Context, role, key string, page []IMAPMessag
 		}
 	}
 	if len(missing) == 0 {
-		return page, nil
+		return page, nil, nil
 	}
-	fetched, err := gather(ctx, ctx.Logins(), listingSpec{}, func(s *alborz.Login) (*listingEntry, error) {
+	fetched, down, err := p.gather(ctx, logins, listingSpec{}, func(s *alborz.Login) (*listingEntry, error) {
 		user, uids := s.Username(), missing[s.Username()]
 		if len(uids) == 0 {
 			return nil, nil
@@ -203,10 +207,10 @@ func (p *plugin) wholePage(ctx *web.Context, role, key string, page []IMAPMessag
 			}
 			p.listings.fill(user, key, rows)
 			return &listingEntry{msgs: rows}, nil
-		})(ctx.Request().Context())
+		})(ctx)
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	type row struct {
 		account string
@@ -226,7 +230,7 @@ func (p *plugin) wholePage(ctx *web.Context, role, key string, page []IMAPMessag
 		}
 		rows = append(rows, m)
 	}
-	return rows, nil
+	return rows, down, nil
 }
 
 // The page is cut from a merged window, which holds every row up to it.
@@ -253,8 +257,8 @@ func listPage(ctx *web.Context, spec listingSpec, page alborz.Page, e *listingEn
 	}
 }
 
-// A silent server costs its account's rows, not the page; only when nobody answers is it an error.
-func gather(ctx *web.Context, logins []*alborz.Login, spec listingSpec, read func(*alborz.Login) (*listingEntry, error)) (*listingEntry, error) {
+// A silent server costs its account's rows, not the page, and is named in down; only when nobody answers is it an error.
+func (p *plugin) gather(ctx context.Context, logins []*alborz.Login, spec listingSpec, read func(*alborz.Login) (*listingEntry, error)) (*listingEntry, []string, error) {
 	var wg sync.WaitGroup
 	// One span for the whole fan-out: the accounts are queried concurrently.
 	imapStart := time.Now()
@@ -275,7 +279,7 @@ func gather(ctx *web.Context, logins []*alborz.Login, spec listingSpec, read fun
 		}()
 	}
 	wg.Wait()
-	alborz.AddTiming(ctx.Request().Context(), "imap", imapStart)
+	alborz.AddTiming(ctx, "imap", imapStart)
 	// Absorbed in the accounts' order, so the stable sort keeps equal rows in place across requests.
 	merged := &listingEntry{sortSupported: true}
 	for _, e := range entries {
@@ -289,18 +293,17 @@ func gather(ctx *web.Context, logins []*alborz.Login, spec listingSpec, read fun
 		switch {
 		case err == nil:
 		case errors.As(err, &upstream):
-			ctx.Logger().Printf("merged view without %q: %v", logins[i].Username(), err)
+			p.server.Logger().Printf("merged view without %q: %v", logins[i].Username(), err)
 			down = append(down, logins[i].Username())
 		default:
-			return nil, err
+			return nil, nil, err
 		}
 	}
 	if len(down) == len(errs) {
-		return nil, errs[0]
+		return nil, nil, errs[0]
 	}
-	ctx.Unreachable(down)
 	slices.SortStableFunc(merged.msgs, unifiedLess(spec.sortKey, spec.reverse()))
-	return merged, nil
+	return merged, down, nil
 }
 
 func unifiedLess(sortKey string, reverse bool) func(a, b IMAPMessage) int {
@@ -424,10 +427,10 @@ func (p *plugin) handleGetMailbox(ctx *web.Context) error {
 	}
 	var e *listingEntry
 	if cacheable {
-		e, err = p.cachedListing(ctx, ctx.Login, key, ask.page.Size, spec,
+		e, err = p.cachedListing(ctx.Request().Context(), ctx.Login, key, ask.page.Size, spec,
 			func(*imapclient.Client) (string, error) { return mboxName, nil }, fetch)
 	} else {
-		e, err = p.loadListing(ctx, ctx.Login, key, ask.page.Size, spec, fetch)
+		e, err = p.loadListing(ctx.Request().Context(), ctx.Login, key, ask.page.Size, spec, fetch)
 	}
 	if err != nil {
 		return err
@@ -443,7 +446,7 @@ func (p *plugin) handleGetMailbox(ctx *web.Context) error {
 		}
 	}
 
-	trust := p.newDeliveryTrust(ctx, settings, ctx.Login.Username())
+	trust := p.newDeliveryTrust(ctx.Login, settings)
 	for i := range msgs {
 		msgs[i].Alias = trust.alias(&msgs[i])
 	}
@@ -544,15 +547,18 @@ func readSort(q url.Values, also string) (sortKey, sortDir string, err error) {
 	return sortKey, sortDir, nil
 }
 
+// folderList is the folder's list a message was opened from, as the message's address names it.
+type folderList struct{ query, view, sort, dir string }
+
 // An order the server cannot sort by is no order at all here.
-func listOrder(ctx *web.Context) (sortKey string, reverse bool) {
-	sortKey = ctx.QueryParam("sort")
+func (l folderList) order() (sortKey string, reverse bool) {
+	sortKey = l.sort
 	if _, ok := sortKeys[sortKey]; !ok || sortKey == threadSort {
 		return "", true
 	}
 	reverse = sortKeys[sortKey].descends
-	if dir := ctx.QueryParam("dir"); dir != "" {
-		reverse = dir == "desc"
+	if l.dir != "" {
+		reverse = l.dir == "desc"
 	}
 	return sortKey, reverse
 }
@@ -749,9 +755,7 @@ func (p *plugin) handleNewMailbox(ctx *web.Context) error {
 			return web.NewError(http.StatusBadRequest, "not signed in to that account")
 		}
 		fullName := location.folder(name)
-		err := selectedLogin.DoIMAP(func(c *imapclient.Client) error {
-			return c.Create(fullName, nil).Wait()
-		})
+		err := createFolder(selectedLogin, fullName)
 
 		if err != nil {
 			return render(http.StatusUnprocessableEntity, err.Error())
@@ -818,11 +822,7 @@ func (p *plugin) handleDeleteMailbox(ctx *web.Context) error {
 	if ctx.Request().Method == http.MethodPost {
 		// Some deletions are refused; claiming success would send the reader looking for a folder still there.
 		if err := ctx.DoIMAP(func(c *imapclient.Client) error {
-			if err := c.Delete(mbox.Name()).Wait(); err != nil {
-				return err
-			}
-			p.mailboxDeleted(ctx.Login.Username(), mbox.Name())
-			return nil
+			return p.deleteFolder(c, ctx.Login.Username(), mbox.Name())
 		}); err != nil {
 			ibase.BaseRenderData.Refused(err.Error())
 			return ctx.Render(http.StatusUnprocessableEntity, "mail/folder-delete", &DeleteMailboxRenderData{
@@ -875,7 +875,7 @@ func (p *plugin) handleRenameMailbox(ctx *web.Context) error {
 		return ctx.Redirect(http.StatusFound, folderURL(ctx, ctx.Login.Username(), old))
 	}
 	if err := ctx.DoIMAP(func(c *imapclient.Client) error {
-		return c.Rename(old, renamed, nil).Wait()
+		return renameFolder(c, old, renamed)
 	}); err != nil {
 		return render(http.StatusUnprocessableEntity, err.Error())
 	}
@@ -969,17 +969,18 @@ type actFailure struct {
 	err     error
 }
 
-func actOn(ctx *web.Context, refs []rowRef, act mailAct) (done int, failed []actFailure) {
+// actOn acts on each account's rows among logins, the accounts signed in.
+func actOn(logins []*alborz.Login, refs []rowRef, act mailAct) (done int, failed []actFailure) {
 	for key, uids := range grouped(refs) {
-		s := ctx.LoginFor(key.account)
-		if s == nil {
+		i := slices.IndexFunc(logins, func(s *alborz.Login) bool { return s.Username() == key.account })
+		if i < 0 {
 			failed = append(failed, actFailure{account: key.account})
 			continue
 		}
 		if act.announce != nil {
 			act.announce(key, uids)
 		}
-		err := s.DoIMAP(func(c *imapclient.Client) error { return act.do(c, key, uids) })
+		err := logins[i].DoIMAP(func(c *imapclient.Client) error { return act.do(c, key, uids) })
 		if err != nil {
 			failed = append(failed, actFailure{key.account, err})
 			continue
@@ -1121,9 +1122,7 @@ func (p *plugin) handleEmptyMailbox(ctx *web.Context) error {
 	var removed int
 	err = ctx.DoIMAP(func(c *imapclient.Client) error {
 		var err error
-		removed, err = emptyMailbox(c, mboxName)
-		// Expunge can also remove messages already marked deleted elsewhere.
-		p.messagesRemoved(ctx.Login.Username(), mboxName)
+		removed, err = p.empty(c, ctx.Login.Username(), mboxName)
 		return err
 	})
 	if err != nil {
@@ -1132,6 +1131,29 @@ func (p *plugin) handleEmptyMailbox(ctx *web.Context) error {
 
 	ctx.Notify(emptiedNotice(ctx, removed))
 	return ctx.Redirect(http.StatusFound, ctx.NextOr(mailboxURL(ctx, mboxName)))
+}
+
+// empty deletes everything in a folder and says how many it deleted.
+func (p *plugin) empty(c *imapclient.Client, account, mboxName string) (int, error) {
+	n, err := emptyMailbox(c, mboxName)
+	// Expunge can also remove messages already marked deleted elsewhere.
+	p.messagesRemoved(account, mboxName)
+	return n, err
+}
+
+// emptyRole empties an account's folder of a merged role.
+func (p *plugin) emptyRole(s *alborz.Login, role string) (int, error) {
+	var removed int
+	err := s.DoIMAP(func(c *imapclient.Client) error {
+		folder, err := p.resolveRole(c, s.Username(), role)
+		if err != nil {
+			return err
+		}
+		removed, err = p.empty(c, s.Username(), folder)
+		return err
+	})
+	p.viewForgotten(s.Username(), "#"+role)
+	return removed, err
 }
 
 // The count keeps a caller from saying "deleted" over an already empty folder.
@@ -1171,17 +1193,8 @@ func (p *plugin) handleEmptyAllMailbox(ctx *web.Context) error {
 	var failed []string
 	var removed int
 	for _, s := range ctx.Logins() {
-		err := s.DoIMAP(func(c *imapclient.Client) error {
-			folder, err := p.resolveRole(c, s.Username(), role)
-			if err != nil {
-				return err
-			}
-			n, err := emptyMailbox(c, folder)
-			p.messagesRemoved(s.Username(), folder)
-			removed += n
-			return err
-		})
-		p.viewForgotten(s.Username(), "#"+role)
+		n, err := p.emptyRole(s, role)
+		removed += n
 		if err != nil {
 			failed = append(failed, s.Username()+": "+err.Error())
 		}
@@ -1211,12 +1224,9 @@ func (p *plugin) handleDelete(ctx *web.Context) error {
 	return runAct(ctx, folderRefs(ctx.Login.Username(), mboxName, uids), mailAct{
 		announce: p.leaving,
 		do: func(c *imapclient.Client, key rowRef, uids []imap.UID) error {
-			defer p.messagesRemoved(key.account, key.mailbox)
-			if err := deleteMessages(c, key.mailbox, imap.UIDSetNum(uids...)); err != nil {
-				return err
-			}
-			left = int(c.Mailbox().NumMessages)
-			return nil
+			var err error
+			left, err = p.removeMessages(c, key, uids)
+			return err
 		},
 	}, func(done int) web.Notice {
 		notice := web.Notice{Kind: web.NoticeDone, Text: ctx.Tf("notice.deleted", done)}
@@ -1507,7 +1517,7 @@ func nothingSelected(ctx *web.Context, back string) error {
 
 // A server's no is a notice naming who refused, never an error page.
 func runAct(ctx *web.Context, refs []rowRef, act mailAct, done func(n int) web.Notice, land func(done bool) error) error {
-	n, failed := actOn(ctx, refs, act)
+	n, failed := actOn(ctx.Logins(), refs, act)
 	// Only when no server answered is it the upstream page; the first failure stands for all.
 	down := 0
 	for _, f := range failed {
@@ -1560,4 +1570,31 @@ func searchFilters(ctx *web.Context) []web.Filter {
 		}
 	}
 	return append(out, f)
+}
+
+func createFolder(s *alborz.Login, name string) error {
+	return s.DoIMAP(func(c *imapclient.Client) error {
+		return c.Create(name, nil).Wait()
+	})
+}
+
+func (p *plugin) deleteFolder(c *imapclient.Client, account, name string) error {
+	if err := c.Delete(name).Wait(); err != nil {
+		return err
+	}
+	p.mailboxDeleted(account, name)
+	return nil
+}
+
+func renameFolder(c *imapclient.Client, old, name string) error {
+	return c.Rename(old, name, nil).Wait()
+}
+
+// removeMessages deletes a folder's messages and says how many it still holds.
+func (p *plugin) removeMessages(c *imapclient.Client, key rowRef, uids []imap.UID) (int, error) {
+	defer p.messagesRemoved(key.account, key.mailbox)
+	if err := deleteMessages(c, key.mailbox, imap.UIDSetNum(uids...)); err != nil {
+		return 0, err
+	}
+	return int(c.Mailbox().NumMessages), nil
 }

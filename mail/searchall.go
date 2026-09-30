@@ -1,6 +1,7 @@
 package mail
 
 import (
+	"context"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -73,10 +74,11 @@ func (p *plugin) handleSearch(ctx *web.Context) error {
 		logins = ctx.Logins()
 	}
 	q := search.Parse(spec.query)
-	merged, err := p.searchWindow(ctx, logins, ask, settings)
+	merged, down, err := p.searchWindow(ctx.Request().Context(), logins, ask, settings)
 	if err != nil {
 		return err
 	}
+	ctx.Unreachable(down)
 	page, msgs := cutPage(merged, ask.page)
 
 	track := 0
@@ -111,11 +113,11 @@ func (p *plugin) handleSearch(ctx *web.Context) error {
 }
 
 // searchWindow is a search's rows up to the page asked, from every folder it spans, merged as its page is.
-func (p *plugin) searchWindow(ctx *web.Context, logins []*alborz.Login, ask listAsk, settings *Settings) (*listingEntry, error) {
+func (p *plugin) searchWindow(ctx context.Context, logins []*alborz.Login, ask listAsk, settings *Settings) (*listingEntry, []string, error) {
 	spec := ask.spec
 	q := search.Parse(spec.query)
 	class, bound := listingBudget(spec)
-	merged, err := gather(ctx, logins, spec, func(s *alborz.Login) (*listingEntry, error) {
+	return p.gather(ctx, logins, spec, func(s *alborz.Login) (*listingEntry, error) {
 		sb, err := p.sidebarFor(s)
 		if err != nil {
 			return nil, err
@@ -125,7 +127,7 @@ func (p *plugin) searchWindow(ctx *web.Context, logins []*alborz.Login, ask list
 		for _, folder := range searchFolders(sb.mailboxes, q) {
 			e, err := readOn(s, class, bound, func(c *imapclient.Client) (*listingEntry, error) {
 				return p.fetchUnifiedAccount(c, s.Username(), folder, spec, settings, ask.page.Window(), listFetchOptions, false)
-			})(ctx.Request().Context())
+			})(ctx)
 			if err != nil {
 				return nil, err
 			}
@@ -133,5 +135,4 @@ func (p *plugin) searchWindow(ctx *web.Context, logins []*alborz.Login, ask list
 		}
 		return found, nil
 	})
-	return merged, err
 }

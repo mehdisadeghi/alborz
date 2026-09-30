@@ -95,7 +95,7 @@ func TestNotifyAdvertisedButRefused(t *testing.T) {
 	if armNotify(c) {
 		t.Fatal("a refused NOTIFY was taken as armed")
 	}
-	if err := newPlugin(&alborz.Options{Cache: true}).folderSweep("u", c, nil)(); err != nil {
+	if err := newPlugin(&alborz.Server{Options: &alborz.Options{Cache: true}}).folderSweep("u", c, nil)(); err != nil {
 		t.Fatalf("the sweep failed after a refused NOTIFY: %v", err)
 	}
 	idle, err := c.Idle()
@@ -159,7 +159,7 @@ func TestWithoutIdleTheSweepNoticesNewMail(t *testing.T) {
 		t.Fatal("the server advertises IDLE; the check proves nothing")
 	}
 
-	p := newPlugin(&alborz.Options{Cache: true})
+	p := newPlugin(&alborz.Server{Options: &alborz.Options{Cache: true}})
 	for _, name := range []string{"INBOX", "Junk"} {
 		p.listings.storeAt("u", name, &listingEntry{perPage: 25}, p.listings.epoch("u"))
 	}

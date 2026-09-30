@@ -119,22 +119,29 @@ func handleDownloadMessage(ctx *web.Context, plain bool) error {
 	if err != nil {
 		return err
 	}
-	return streamed(ctx, ctx.Login.DoIMAPTransfer(ctx.Request().Context(), func(c *imapclient.Client) error {
+	return streamed(ctx, streamMessage(ctx.Request().Context(), ctx.Login, mboxName, uid, func(env *imap.Envelope, lit imap.LiteralReader) error {
+		ctx.Response().Header().Set("Content-Length", fmt.Sprint(lit.Size()))
+		if plain {
+			// No charset can be right for a whole message whose parts each name their own.
+			return ctx.Stream(http.StatusOK, "text/plain; charset=utf-8", lit)
+		}
+		ctx.Response().Header().Set("Content-Disposition", downloadName(env.Subject, fmt.Sprint(uid), ".eml"))
+		return ctx.Stream(http.StatusOK, "message/rfc822", lit)
+	}))
+}
+
+// streamMessage hands write the whole message as the server sends it, on a connection of its own.
+func streamMessage(ctx context.Context, login *alborz.Login, mboxName string, uid imap.UID, write func(*imap.Envelope, imap.LiteralReader) error) error {
+	return login.DoIMAPTransfer(ctx, func(c *imapclient.Client) error {
 		env, err := fetchEnvelope(c, mboxName, uid)
 		if err != nil {
 			return err
 		}
 		whole := &imap.FetchOptions{UID: true, BodySection: []*imap.FetchItemBodySection{{Peek: true}}}
 		return streamSection(c, uid, whole, func(lit imap.LiteralReader) error {
-			ctx.Response().Header().Set("Content-Length", fmt.Sprint(lit.Size()))
-			if plain {
-				// No charset can be right for a whole message whose parts each name their own.
-				return ctx.Stream(http.StatusOK, "text/plain; charset=utf-8", lit)
-			}
-			ctx.Response().Header().Set("Content-Disposition", downloadName(env.Subject, fmt.Sprint(uid), ".eml"))
-			return ctx.Stream(http.StatusOK, "message/rfc822", lit)
+			return write(env, lit)
 		})
-	}))
+	})
 }
 
 // streamed aborts a response already under way, since it can no longer turn
@@ -166,27 +173,27 @@ func handleDownloadAttachments(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	return streamed(ctx, ctx.Login.DoIMAPTransfer(ctx.Request().Context(), func(c *imapclient.Client) error {
-		env, err := fetchEnvelope(c, mboxName, uid)
-		if err != nil {
+	return streamed(ctx, zipAttachments(ctx.Request().Context(), ctx.Login, mboxName, uid, func(env *imap.Envelope) io.Writer {
+		ctx.Response().Header().Set("Content-Disposition", downloadName(env.Subject, fmt.Sprint(uid), ".zip"))
+		ctx.Response().Header().Set("Content-Type", "application/zip")
+		ctx.Response().WriteHeader(http.StatusOK)
+		return ctx.Response()
+	}))
+}
+
+// zipAttachments writes a message's attachments as a zip archive into what open gives once the message reads.
+func zipAttachments(ctx context.Context, login *alborz.Login, mboxName string, uid imap.UID, open func(*imap.Envelope) io.Writer) error {
+	return streamMessage(ctx, login, mboxName, uid, func(env *imap.Envelope, lit imap.LiteralReader) error {
+		entity, err := message.Read(lit)
+		if err != nil && !message.IsUnknownCharset(err) {
 			return err
 		}
-		whole := &imap.FetchOptions{UID: true, BodySection: []*imap.FetchItemBodySection{{Peek: true}}}
-		return streamSection(c, uid, whole, func(lit imap.LiteralReader) error {
-			entity, err := message.Read(lit)
-			if err != nil && !message.IsUnknownCharset(err) {
-				return err
-			}
-			ctx.Response().Header().Set("Content-Disposition", downloadName(env.Subject, fmt.Sprint(uid), ".zip"))
-			ctx.Response().Header().Set("Content-Type", "application/zip")
-			ctx.Response().WriteHeader(http.StatusOK)
-			archive := zip.NewWriter(ctx.Response())
-			if err := writeAttachments(archive, entity, map[string]int{}, ""); err != nil {
-				return err
-			}
-			return archive.Close()
-		})
-	}))
+		archive := zip.NewWriter(open(env))
+		if err := writeAttachments(archive, entity, map[string]int{}, ""); err != nil {
+			return err
+		}
+		return archive.Close()
+	})
 }
 
 func singlePart(c *imapclient.Client, mboxName string, uid imap.UID, partPath []int) (*imap.BodyStructureSinglePart, error) {
@@ -217,12 +224,7 @@ func singlePart(c *imapclient.Client, mboxName string, uid imap.UID, partPath []
 
 // handleDownloadPart streams one part, decoded, as it comes from the server.
 func handleDownloadPart(ctx *web.Context, mboxName string, uid imap.UID, partPath []int) error {
-	return streamed(ctx, ctx.Login.DoIMAPTransfer(ctx.Request().Context(), func(c *imapclient.Client) error {
-		part, err := singlePart(c, mboxName, uid, partPath)
-		if err != nil {
-			return err
-		}
-
+	return streamed(ctx, streamPart(ctx.Request().Context(), ctx.Login, mboxName, uid, partPath, func(part *imap.BodyStructureSinglePart, size int64, body io.Reader) error {
 		mimeType := strings.ToLower(part.MediaType())
 		contentType := mimeType
 		if charset := part.Params["charset"]; charset != "" && part.Type == "text" {
@@ -238,7 +240,20 @@ func handleDownloadPart(ctx *web.Context, mboxName string, uid imap.UID, partPat
 				"filename": zipEntryName(newIMAPPartNode(nil, partPath, part).Filename, mimeType, map[string]int{}),
 			}))
 		}
+		if size >= 0 {
+			ctx.Response().Header().Set("Content-Length", fmt.Sprint(size))
+		}
+		return ctx.Stream(http.StatusOK, contentType, body)
+	}))
+}
 
+// streamPart hands write one part, decoded, and its length where the server knows it, else -1.
+func streamPart(ctx context.Context, login *alborz.Login, mboxName string, uid imap.UID, partPath []int, write func(part *imap.BodyStructureSinglePart, size int64, body io.Reader) error) error {
+	return login.DoIMAPTransfer(ctx, func(c *imapclient.Client) error {
+		part, err := singlePart(c, mboxName, uid, partPath)
+		if err != nil {
+			return err
+		}
 		// BINARY (RFC 3516) has the server decode the part, and so know its length.
 		options := &imap.FetchOptions{UID: true}
 		binary := c.Caps().Has(imap.CapBinary)
@@ -249,12 +264,11 @@ func handleDownloadPart(ctx *web.Context, mboxName string, uid imap.UID, partPat
 		}
 		return streamSection(c, uid, options, func(lit imap.LiteralReader) error {
 			if binary {
-				ctx.Response().Header().Set("Content-Length", fmt.Sprint(lit.Size()))
-				return ctx.Stream(http.StatusOK, contentType, lit)
+				return write(part, lit.Size(), lit)
 			}
-			return ctx.Stream(http.StatusOK, contentType, transferDecoded(part.Encoding, lit))
+			return write(part, -1, transferDecoded(part.Encoding, lit))
 		})
-	}))
+	})
 }
 
 func htmlAsText(part *message.Entity) (*message.Entity, error) {
@@ -413,8 +427,6 @@ func (p *plugin) handleGetPart(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	// Read before the message's IMAP work: it may sample the inbox, and the login lock is not reentrant.
-	trusted := p.TrustedAuthServ(ctx, settings)
 	messagesPerPage := web.PerPage(ctx)
 
 	query := ctx.QueryParam("query")
@@ -423,134 +435,22 @@ func (p *plugin) handleGetPart(ctx *web.Context) error {
 		return err
 	}
 
-	var (
-		cached *listingEntry
-		place  listPlace
-		placed bool
-	)
-	cached, place, placed = p.cachedPlace(ctx, mboxName, uid, query, railView)
 	// A list across accounts or folders is read back through its own pages, not this folder's order.
 	merged := mergedOrigin(ctx)
-	if merged != nil {
-		place, placed = listPlace{}, true
+	shown, err := p.read(ctx.Request().Context(), messageRead{
+		login: ctx.Login, logins: ctx.Logins(), settings: settings,
+		mailbox: mboxName, uid: uid, part: partPath, named: ctx.QueryParam("part") != "",
+		list:    folderList{query, railView, ctx.QueryParam("sort"), ctx.QueryParam("dir")},
+		perPage: messagesPerPage, preferHTML: ctx.Reading().PreferHTML, partial: ctx.Partial(), merged: merged != nil,
+		moneyWords: strings.Split(ctx.T("indicator.moneywords"), ","),
+	})
+	if err != nil {
+		return err
 	}
-	// A link naming no part opens the part the rows would link to; the cached row knows it without a fetch.
-	if ctx.QueryParam("part") == "" && cached != nil {
-		if row := cached.row(uid); row != nil {
-			if preferred := row.PreferredPart(ctx.Reading().PreferHTML); preferred != nil && len(preferred.Path) > 0 {
-				partPath = preferred.Path
-			}
-		}
-	}
-	held := p.bodies.current(ctx.Login.Username(), mboxName, uid, partPath)
-	if held != nil && len(partPath) == 0 {
-		partPath = held.part
-	}
-	alborz.CacheTiming(ctx.Request().Context(), "body", held != nil)
-	var (
-		sb              sidebar
-		msg             *IMAPMessage
-		part            *message.Entity
-		permanentFlags  []imap.Flag
-		authResults     *AuthResults
-		inReplyTo       *ThreadNeighbour
-		answers         []ThreadNeighbour
-		threadAlgorithm imap.ThreadAlgorithm
-	)
-	// A flag change evicts the listing but not the held body, so the sidebar may load below.
-	if cached != nil {
-		sb = cached.sb
-	}
-	if held != nil && cached == nil {
-		sb, err = p.sidebarFor(ctx.Login)
-		if err != nil {
-			return err
-		}
-		sb = sb.clone()
-		sb.active = sb.statuses[mboxName]
-	}
-	if held != nil {
-		if msg, part, err = messagePart(held.buf, mboxName, uid, partPath, true); err != nil {
-			return err
-		}
-		permanentFlags = held.permanent
-		authResults = readAuthResults(messageRootHeader(msg), trusted)
-		// The peek left it unread on the server; the page is what reads it.
-		if !msg.HasFlag(imap.FlagSeen) {
-			p.markHeldSeen(ctx.Login, mboxName, uid, held.validity)
-		}
-	}
-	sent := sentFolder(sb.mailboxes)
-	needsThread := msg != nil && (len(msg.Envelope.InReplyTo) > 0 || msg.References != "" || (sent != "" && mboxName == sent))
-	deferContext := held != nil && sb.active != nil && ctx.Partial() && (!placed || needsThread || merged != nil)
-	if cached != nil {
-		threadAlgorithm = cached.threadAlgorithm
-	}
-	if held == nil || sb.active == nil || (!deferContext && (!placed || needsThread)) {
-		err = ctx.DoIMAP(func(c *imapclient.Client) error {
-			var load *sidebarLoad
-			var err error
-			if sb.active == nil {
-				if load, err = startSidebar(c, mboxName, mboxName, settings.Subscriptions); err != nil {
-					return err
-				}
-			}
-			if held == nil {
-				if msg, part, err = getShownPart(c, mboxName, uid, partPath); err != nil {
-					return err
-				}
-				// The cached listings are marked read rather than fetched again for one flag.
-				p.messageRead(ctx.Login.Username(), mboxName, uid)
-				permanentFlags = c.Mailbox().PermanentFlags
-			}
-			if !placed {
-				if place, err = p.placeInList(ctx, c, settings, mboxName, uid, query, railView); err != nil {
-					return err
-				}
-			}
-			threadAlgorithm = ThreadAlgorithm(c)
-			if load != nil {
-				sent = sentFolder(load.sb.mailboxes)
-			}
-			inReplyTo, answers = readThread(ctx, c, mboxName, sent, msg)
-			if held == nil {
-				authResults = readAuthResults(messageRootHeader(msg), trusted)
-			}
-			if load != nil {
-				sb, err = load.finish()
-			}
-			return err
-		})
-		if err != nil {
-			return err
-		}
-	}
-	// Not in Junk: a message filed as junk needs no telling.
-	var indicators []Indicator
-	if folderRole(sb.mailboxes, mboxName) != "junk" {
-		evidence := &Evidence{
-			Header:     messageRootHeader(msg),
-			Trusted:    trusted,
-			Auth:       authResults,
-			Subject:    msg.Envelope.Subject,
-			From:       envelopeSender(msg.Envelope),
-			MoneyWords: strings.Split(ctx.T("indicator.moneywords"), ","),
-		}
-		if evidence.From != "" {
-			// Every signed-in account's inbox is asked: an imitation may reach a different address.
-			for _, s := range ctx.Logins() {
-				if book := p.senderBookFor(s); book != nil && evidence.Named == nil {
-					evidence.Named = book.named(msg.Envelope.From[0].Name, evidence.From)
-				}
-			}
-		}
-		indicators = Indicators(evidence)
-	}
-	var warnings []Indicator
-	mark := Mark(indicators, msg.NotJunk())
-	if mark != Fact {
-		warnings = Warnings(indicators)
-	}
+	msg, part, partPath, sb, place := shown.msg, shown.part, shown.partPath, shown.sb, shown.place
+	permanentFlags, authResults, trusted := shown.permanentFlags, shown.authResults, shown.trusted
+	inReplyTo, answers, threadAlgorithm, deferContext := shown.inReplyTo, shown.answers, shown.threadAlgorithm, shown.deferContext
+	warnings, mark := shown.warnings, shown.mark
 
 	// The bare envelope has no viewer.
 	if len(partPath) == 0 {
@@ -606,7 +506,7 @@ func (p *plugin) handleGetPart(ctx *web.Context) error {
 		flags[f] = msg.HasFlag(f)
 	}
 
-	trust := p.newDeliveryTrust(ctx, settings, ctx.Login.Username())
+	trust := p.newDeliveryTrust(ctx.Login, settings)
 	// The alias shows only where To and Cc do not already name it.
 	deliveredTo := trust.alias(msg)
 	if addressed(deliveredTo, msg.Envelope.To, msg.Envelope.Cc) {
@@ -759,62 +659,75 @@ func CalendarPart(ctx context.Context, login *alborz.Login, msg *IMAPMessage, mb
 }
 
 // The URI is re-read from the message, so a page cannot make us post anywhere (RFC 8058).
-func handleUnsubscribe(ctx *web.Context) error {
+func (p *plugin) handleUnsubscribe(ctx *web.Context) error {
 	mboxName, uid, err := MessageRef(ctx)
 	if err != nil {
 		return err
 	}
-	msg := &IMAPMessage{Mailbox: mboxName}
+	var oneClick string
 	err = ctx.DoIMAP(func(c *imapclient.Client) error {
-		if err := ensureMailboxSelected(c, mboxName); err != nil {
-			return err
-		}
-		header := &imap.FetchItemBodySection{Peek: true, Specifier: imap.PartSpecifierHeader,
-			HeaderFields: []string{"List-Unsubscribe", "List-Unsubscribe-Post"}}
-		msgs, err := c.Fetch(imap.UIDSetNum(uid), &imap.FetchOptions{
-			BodySection: []*imap.FetchItemBodySection{header},
-		}).Collect()
-		if err != nil {
-			return err
-		}
-		if len(msgs) == 0 {
-			return alborz.NotFound("notfound.message", fmt.Sprint(uid))
-		}
-		h, err := textproto.ReadHeader(bufio.NewReader(bytes.NewReader(msgs[0].FindBodySection(header))))
-		if err != nil {
-			return err
-		}
-		msg.setListHeaders(h)
-		return nil
+		var err error
+		oneClick, err = oneClickURI(c, mboxName, uid)
+		return err
 	})
 	if err != nil {
 		return err
 	}
 	back := ctx.NextOr(ctx.URL("mail.message", mboxName, uid))
-	if msg.OneClick == "" {
+	if oneClick == "" {
 		return web.NewError(http.StatusBadRequest, "this message offers no one-click unsubscribe")
 	}
-
-	body := strings.NewReader("List-Unsubscribe=One-Click")
-	req, err := http.NewRequestWithContext(ctx.Request().Context(),
-		http.MethodPost, msg.OneClick, body)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp, err := ctx.Server.Outgoing.Remote(unsubscribeTimeout).Do(req)
-	if err != nil {
-		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: ctx.T("notice.unsubfailed")})
-		return ctx.Redirect(http.StatusFound, back)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= 300 {
-		ctx.Logger().Printf("unsubscribe %s answered %s", msg.OneClick, resp.Status)
+	if err := p.unsubscribe(ctx.Request().Context(), oneClick); err != nil {
 		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: ctx.T("notice.unsubfailed")})
 		return ctx.Redirect(http.StatusFound, back)
 	}
 	ctx.PutNotice(ctx.T("notice.unsubscribed"))
 	return ctx.Redirect(http.StatusFound, back)
+}
+
+// oneClickURI is where a message's list takes a one-click unsubscribe (RFC 8058); empty where it offers none.
+func oneClickURI(c *imapclient.Client, mboxName string, uid imap.UID) (string, error) {
+	if err := ensureMailboxSelected(c, mboxName); err != nil {
+		return "", err
+	}
+	header := &imap.FetchItemBodySection{Peek: true, Specifier: imap.PartSpecifierHeader,
+		HeaderFields: []string{"List-Unsubscribe", "List-Unsubscribe-Post"}}
+	msgs, err := c.Fetch(imap.UIDSetNum(uid), &imap.FetchOptions{
+		BodySection: []*imap.FetchItemBodySection{header},
+	}).Collect()
+	if err != nil {
+		return "", err
+	}
+	if len(msgs) == 0 {
+		return "", alborz.NotFound("notfound.message", fmt.Sprint(uid))
+	}
+	h, err := textproto.ReadHeader(bufio.NewReader(bytes.NewReader(msgs[0].FindBodySection(header))))
+	if err != nil {
+		return "", err
+	}
+	msg := &IMAPMessage{Mailbox: mboxName}
+	msg.setListHeaders(h)
+	return msg.OneClick, nil
+}
+
+// unsubscribe posts the one-click unsubscribe to the list's address.
+func (p *plugin) unsubscribe(ctx context.Context, uri string) error {
+	body := strings.NewReader("List-Unsubscribe=One-Click")
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, uri, body)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp, err := p.server.Outgoing.Remote(unsubscribeTimeout).Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		p.server.Logger().Printf("unsubscribe %s answered %s", uri, resp.Status)
+		return fmt.Errorf("unsubscribe %s answered %s", uri, resp.Status)
+	}
+	return nil
 }
 
 const unsubscribeTimeout = 15 * time.Second
@@ -826,4 +739,176 @@ func sentFolder(mailboxes []MailboxInfo) string {
 		}
 	}
 	return ""
+}
+
+// messageRead asks for one message as its page shows it.
+type messageRead struct {
+	login *alborz.Login
+	// logins are the accounts signed in: each one's senders tell an imitation.
+	logins   []*alborz.Login
+	settings *Settings
+	mailbox  string
+	uid      imap.UID
+	// part is the part asked for, nil for the one the rows open; named says the address named one.
+	part  []int
+	named bool
+	list  folderList
+	// perPage is the list's page size; partial says the page is swapped in place, so its context can follow.
+	perPage    int
+	preferHTML bool
+	partial    bool
+	// merged says the list the message was opened from spans accounts or folders, and is read back elsewhere.
+	merged     bool
+	moneyWords []string
+}
+
+// messageShown is a message read for its page, from what is held where it can be.
+type messageShown struct {
+	msg             *IMAPMessage
+	part            *message.Entity
+	partPath        []int
+	sb              sidebar
+	permanentFlags  []imap.Flag
+	authResults     *AuthResults
+	trusted         string
+	inReplyTo       *ThreadNeighbour
+	answers         []ThreadNeighbour
+	threadAlgorithm imap.ThreadAlgorithm
+	place           listPlace
+	// deferContext says the place and the thread are left for the page to ask for.
+	deferContext bool
+	warnings     []Indicator
+	mark         Grade
+}
+
+func (p *plugin) read(ctx context.Context, r messageRead) (*messageShown, error) {
+	// Read before the message's IMAP work: it may sample the inbox, and the login lock is not reentrant.
+	trusted := p.TrustedAuthServ(r.login, r.settings)
+	partPath := r.part
+	cached, place, placed := p.cachedPlace(r.login.Username(), r.mailbox, r.uid, r.list, r.perPage)
+	// A list across accounts or folders is read back through its own pages, not this folder's order.
+	if r.merged {
+		place, placed = listPlace{}, true
+	}
+	// A link naming no part opens the part the rows would link to; the cached row knows it without a fetch.
+	if !r.named && cached != nil {
+		if row := cached.row(r.uid); row != nil {
+			if preferred := row.PreferredPart(r.preferHTML); preferred != nil && len(preferred.Path) > 0 {
+				partPath = preferred.Path
+			}
+		}
+	}
+	held := p.bodies.current(r.login.Username(), r.mailbox, r.uid, partPath)
+	if held != nil && len(partPath) == 0 {
+		partPath = held.part
+	}
+	alborz.CacheTiming(ctx, "body", held != nil)
+	var (
+		sb              sidebar
+		msg             *IMAPMessage
+		part            *message.Entity
+		permanentFlags  []imap.Flag
+		authResults     *AuthResults
+		inReplyTo       *ThreadNeighbour
+		answers         []ThreadNeighbour
+		threadAlgorithm imap.ThreadAlgorithm
+		err             error
+	)
+	// A flag change evicts the listing but not the held body, so the sidebar may load below.
+	if cached != nil {
+		sb = cached.sb
+	}
+	if held != nil && cached == nil {
+		sb, err = p.sidebarFor(r.login)
+		if err != nil {
+			return nil, err
+		}
+		sb = sb.clone()
+		sb.active = sb.statuses[r.mailbox]
+	}
+	if held != nil {
+		if msg, part, err = messagePart(held.buf, r.mailbox, r.uid, partPath, true); err != nil {
+			return nil, err
+		}
+		permanentFlags = held.permanent
+		authResults = readAuthResults(messageRootHeader(msg), trusted)
+		// The peek left it unread on the server; the page is what reads it.
+		if !msg.HasFlag(imap.FlagSeen) {
+			p.markHeldSeen(r.login, r.mailbox, r.uid, held.validity)
+		}
+	}
+	sent := sentFolder(sb.mailboxes)
+	needsThread := msg != nil && (len(msg.Envelope.InReplyTo) > 0 || msg.References != "" || (sent != "" && r.mailbox == sent))
+	deferContext := held != nil && sb.active != nil && r.partial && (!placed || needsThread || r.merged)
+	if cached != nil {
+		threadAlgorithm = cached.threadAlgorithm
+	}
+	if held == nil || sb.active == nil || (!deferContext && (!placed || needsThread)) {
+		err = r.login.DoIMAPContext(ctx, alborz.RoundTripTimeout, func(c *imapclient.Client) error {
+			var load *sidebarLoad
+			var err error
+			if sb.active == nil {
+				if load, err = startSidebar(c, r.mailbox, r.mailbox, r.settings.Subscriptions); err != nil {
+					return err
+				}
+			}
+			if held == nil {
+				if msg, part, err = getShownPart(c, r.mailbox, r.uid, partPath); err != nil {
+					return err
+				}
+				// The cached listings are marked read rather than fetched again for one flag.
+				p.messageRead(r.login.Username(), r.mailbox, r.uid)
+				permanentFlags = c.Mailbox().PermanentFlags
+			}
+			if !placed {
+				if place, err = p.placeInList(c, r.login.Username(), r.settings, r.mailbox, r.uid, r.list); err != nil {
+					return err
+				}
+			}
+			threadAlgorithm = ThreadAlgorithm(c)
+			if load != nil {
+				sent = sentFolder(load.sb.mailboxes)
+			}
+			inReplyTo, answers = readThread(p.server.Logger(), c, r.mailbox, sent, msg)
+			if held == nil {
+				authResults = readAuthResults(messageRootHeader(msg), trusted)
+			}
+			if load != nil {
+				sb, err = load.finish()
+			}
+			return err
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+	// Not in Junk: a message filed as junk needs no telling.
+	var indicators []Indicator
+	if folderRole(sb.mailboxes, r.mailbox) != "junk" {
+		evidence := &Evidence{
+			Header:     messageRootHeader(msg),
+			Trusted:    trusted,
+			Auth:       authResults,
+			Subject:    msg.Envelope.Subject,
+			From:       envelopeSender(msg.Envelope),
+			MoneyWords: r.moneyWords,
+		}
+		if evidence.From != "" {
+			// Every signed-in account's inbox is asked: an imitation may reach a different address.
+			for _, s := range r.logins {
+				if book := p.senderBookFor(s); book != nil && evidence.Named == nil {
+					evidence.Named = book.named(msg.Envelope.From[0].Name, evidence.From)
+				}
+			}
+		}
+		indicators = Indicators(evidence)
+	}
+	var warnings []Indicator
+	mark := Mark(indicators, msg.NotJunk())
+	if mark != Fact {
+		warnings = Warnings(indicators)
+	}
+	return &messageShown{msg: msg, part: part, partPath: partPath, sb: sb, permanentFlags: permanentFlags,
+		authResults: authResults, trusted: trusted, inReplyTo: inReplyTo, answers: answers,
+		threadAlgorithm: threadAlgorithm, place: place, deferContext: deferContext, warnings: warnings, mark: mark}, nil
 }

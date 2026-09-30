@@ -3,7 +3,9 @@ package mail
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"slices"
@@ -23,20 +25,19 @@ type listPlace struct {
 }
 
 // messageList is the order a message's list is cut from, and whether that is the folder's own.
-func messageList(ctx *web.Context, mailbox, query, view string) (order string, own bool) {
-	if ctx.QueryParam("sort") == threadSort {
-		return orderView(mailbox, query, view, threadSort, true), false
+func messageList(mailbox string, l folderList) (order string, own bool) {
+	if l.sort == threadSort {
+		return orderView(mailbox, l.query, l.view, threadSort, true), false
 	}
-	sortKey, reverse := listOrder(ctx)
-	return orderView(mailbox, query, view, sortKey, reverse), query == "" && view == "" && sortKey == "" && reverse
+	sortKey, reverse := l.order()
+	return orderView(mailbox, l.query, l.view, sortKey, reverse), l.query == "" && l.view == "" && sortKey == "" && reverse
 }
 
 // A narrowed, sorted or threaded list places the message in its held order; the folder's own, in its held pages.
-func (p *plugin) cachedPlace(ctx *web.Context, mailbox string, uid imap.UID, query, view string) (cached *listingEntry, place listPlace, placed bool) {
-	user := ctx.Login.Username()
-	sortKey, _ := listOrder(ctx)
-	cached, place, placed = p.listings.message(user, listingView(mailbox, query, view, sortKey, ctx.QueryParam("dir")), uid, web.PerPage(ctx))
-	if order, own := messageList(ctx, mailbox, query, view); !own {
+func (p *plugin) cachedPlace(user, mailbox string, uid imap.UID, l folderList, perPage int) (cached *listingEntry, place listPlace, placed bool) {
+	sortKey, _ := l.order()
+	cached, place, placed = p.listings.message(user, listingView(mailbox, l.query, l.view, sortKey, l.dir), uid, perPage)
+	if order, own := messageList(mailbox, l); !own {
 		if o, ok := p.listings.heldOrder(user, order); ok {
 			return cached, placeIn(o.uids, uid), true
 		}
@@ -44,23 +45,23 @@ func (p *plugin) cachedPlace(ctx *web.Context, mailbox string, uid imap.UID, que
 	return cached, place, placed
 }
 
-func (p *plugin) placeInList(ctx *web.Context, c *imapclient.Client, settings *Settings, mailbox string, uid imap.UID, query, view string) (listPlace, error) {
+func (p *plugin) placeInList(c *imapclient.Client, user string, settings *Settings, mailbox string, uid imap.UID, l folderList) (listPlace, error) {
 	if err := ensureMailboxSelected(c, mailbox); err != nil {
 		return listPlace{}, err
 	}
-	order, own := messageList(ctx, mailbox, query, view)
+	order, own := messageList(mailbox, l)
 	algorithm := ThreadAlgorithm(c)
-	threaded := ctx.QueryParam("sort") == threadSort
+	threaded := l.sort == threadSort
 	if own || threaded && algorithm == "" {
 		return folderNeighbors(c, uid)
 	}
-	o, err := p.listings.order(ctx.Login.Username(), order, func() (messageOrder, error) {
-		criteria := listCriteria(c, settings, query, view)
+	o, err := p.listings.order(user, order, func() (messageOrder, error) {
+		criteria := listCriteria(c, settings, l.query, l.view)
 		if threaded {
 			return threadOrder(c, algorithm, criteria)
 		}
-		sortKey, reverse := listOrder(ctx)
-		uids, err := viewOrder(c, search.Parse(query), criteria, sortKey, reverse)
+		sortKey, reverse := l.order()
+		uids, err := viewOrder(c, search.Parse(l.query), criteria, sortKey, reverse)
 		return messageOrder{uids: uids}, err
 	})
 	if err != nil {
@@ -123,15 +124,17 @@ func (p *plugin) mergedNeighbours(ctx *web.Context, settings *Settings, m *merge
 	var n web.Neighbours
 	for read := range 2 {
 		var e *listingEntry
+		var down []string
 		var err error
 		if m.search {
-			e, err = p.searchWindow(ctx, m.logins, ask, settings)
+			e, down, err = p.searchWindow(ctx.Request().Context(), m.logins, ask, settings)
 		} else {
-			e, _, err = p.mergedWindow(ctx, m.role, ask, settings, true)
+			e, _, down, err = p.mergedWindow(ctx.Request().Context(), ctx.Logins(), m.role, ask, settings, true)
 		}
 		if err != nil {
 			return web.Neighbours{}, err
 		}
+		ctx.Unreachable(down)
 		i := slices.IndexFunc(e.msgs, func(r IMAPMessage) bool {
 			return r.Account == account && r.Mailbox == mailbox && r.UID == uid
 		})
@@ -153,17 +156,17 @@ func (p *plugin) mergedNeighbours(ctx *web.Context, settings *Settings, m *merge
 	return n, nil
 }
 
-func readThread(ctx *web.Context, c *imapclient.Client, mailbox, sent string, msg *IMAPMessage) (*ThreadNeighbour, []ThreadNeighbour) {
+func readThread(log *log.Logger, c *imapclient.Client, mailbox, sent string, msg *IMAPMessage) (*ThreadNeighbour, []ThreadNeighbour) {
 	parent, err := threadParent(c, mailbox, sent, msg)
 	if err != nil {
-		ctx.Logger().Printf("thread lookup failed: %v", err)
+		log.Printf("thread lookup failed: %v", err)
 	}
 	if sent == "" || mailbox != sent {
 		return parent, nil
 	}
 	answers, err := threadAnswers(c, mailbox, msg)
 	if err != nil {
-		ctx.Logger().Printf("answer lookup failed: %v", err)
+		log.Printf("answer lookup failed: %v", err)
 	}
 	return parent, answers
 }
@@ -188,21 +191,50 @@ func (p *plugin) handleMessageNavigation(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	cached, place, placed := p.cachedPlace(ctx, mailbox, uid, data.Query, view)
 	merged := mergedOrigin(ctx)
+	list := folderList{data.Query, view, ctx.QueryParam("sort"), ctx.QueryParam("dir")}
+	around, err := p.around(ctx.Request().Context(), ctx.Login, settings, &sb, mailbox, uid, list, web.PerPage(ctx), merged != nil)
+	if err != nil {
+		return err
+	}
+	data.Message, data.ThreadSupported, data.InReplyTo, data.Answers = around.msg, around.threadSupported, around.inReplyTo, around.answers
+	place := around.place
+	data.Neighbours = neighbours(ctx, mailbox, place)
 	if merged != nil {
+		if data.Neighbours, err = p.mergedNeighbours(ctx, settings, merged, mailbox, uid); err != nil {
+			return err
+		}
+	}
+	data.IMAPBaseRenderData = *assembleIMAPBase(ctx, web.NewBaseRenderData(ctx), mailbox, sb, view)
+	return ctx.Render(http.StatusOK, "message-context", data)
+}
+
+// messageAround is what a message's navigation shows: the message, its place in its list and its thread.
+type messageAround struct {
+	msg             *IMAPMessage
+	place           listPlace
+	threadSupported bool
+	inReplyTo       *ThreadNeighbour
+	answers         []ThreadNeighbour
+}
+
+// around reads a message's navigation, from the listing held where it can; merged says its list is read
+// elsewhere, and sb gets the folder's counts where it lacks them.
+func (p *plugin) around(ctx context.Context, login *alborz.Login, settings *Settings, sb *sidebar, mailbox string, uid imap.UID, list folderList, perPage int, merged bool) (messageAround, error) {
+	var a messageAround
+	cached, place, placed := p.cachedPlace(login.Username(), mailbox, uid, list, perPage)
+	if merged {
 		place, placed = listPlace{}, true
 	}
 	if cached != nil {
-		data.Message = cached.row(uid)
-		data.ThreadSupported = cached.threadAlgorithm != ""
+		a.msg = cached.row(uid)
+		a.threadSupported = cached.threadAlgorithm != ""
 	}
-
-	err = ctx.DoIMAP(func(c *imapclient.Client) error {
+	err := login.DoIMAPContext(ctx, alborz.RoundTripTimeout, func(c *imapclient.Client) error {
 		if err := ensureMailboxSelected(c, mailbox); err != nil {
 			return err
 		}
-		if data.Message == nil {
+		if a.msg == nil {
 			header := &imap.FetchItemBodySection{Peek: true, Specifier: imap.PartSpecifierHeader,
 				HeaderFields: []string{"References", "List-Id"}}
 			msgs, err := c.Fetch(imap.UIDSetNum(uid), &imap.FetchOptions{UID: true, Envelope: true,
@@ -217,17 +249,16 @@ func (p *plugin) handleMessageNavigation(ctx *web.Context) error {
 			if h, err := textproto.ReadHeader(bufio.NewReader(bytes.NewReader(msgs[0].FindBodySection(header)))); err == nil {
 				msg.setListHeaders(h)
 			}
-			data.Message = msg
+			a.msg = msg
 		}
-		msg := data.Message
 		if !placed {
 			var err error
-			if place, err = p.placeInList(ctx, c, settings, mailbox, uid, data.Query, view); err != nil {
+			if place, err = p.placeInList(c, login.Username(), settings, mailbox, uid, list); err != nil {
 				return err
 			}
 		}
-		data.ThreadSupported = ThreadAlgorithm(c) != ""
-		data.InReplyTo, data.Answers = readThread(ctx, c, mailbox, sentFolder(sb.mailboxes), msg)
+		a.threadSupported = ThreadAlgorithm(c) != ""
+		a.inReplyTo, a.answers = readThread(p.server.Logger(), c, mailbox, sentFolder(sb.mailboxes), a.msg)
 		if sb.active == nil {
 			st, err := c.Status(mailbox, listingStatusOptions(c)).Wait()
 			if err != nil {
@@ -237,15 +268,6 @@ func (p *plugin) handleMessageNavigation(ctx *web.Context) error {
 		}
 		return nil
 	})
-	if err != nil {
-		return err
-	}
-	data.Neighbours = neighbours(ctx, mailbox, place)
-	if merged != nil {
-		if data.Neighbours, err = p.mergedNeighbours(ctx, settings, merged, mailbox, uid); err != nil {
-			return err
-		}
-	}
-	data.IMAPBaseRenderData = *assembleIMAPBase(ctx, web.NewBaseRenderData(ctx), mailbox, sb, view)
-	return ctx.Render(http.StatusOK, "message-context", data)
+	a.place = place
+	return a, err
 }

@@ -3,9 +3,11 @@ package mail
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"mime"
 	"mime/multipart"
 	"net/http"
@@ -42,7 +44,7 @@ func (p *plugin) handleExportMbox(ctx *web.Context) error {
 		if err != nil {
 			return err
 		}
-		if uids, err = folderViewUIDs(ctx, mboxName, query, view); err != nil {
+		if uids, err = folderViewUIDs(ctx.Request().Context(), ctx.Login, mboxName, query, view); err != nil {
 			return err
 		}
 	} else if uids, err = selection(ctx, mboxName, params); err != nil {
@@ -95,15 +97,7 @@ func streamMbox(ctx *web.Context, refs []rowRef, name string, strip bool) error 
 		if s == nil {
 			continue
 		}
-		err := s.DoIMAPTransfer(ctx.Request().Context(), func(c *imapclient.Client) error {
-			for _, r := range run {
-				if err := exportMessage(ctx, c, archive, r, strip, begin); err != nil {
-					return fmt.Errorf("export %s %q uid %v: %w", r.account, r.mailbox, r.uid, err)
-				}
-				res.Flush()
-			}
-			return nil
-		})
+		err := exportRun(ctx.Request().Context(), ctx.Logger(), s, run, archive, strip, ctx.T("mailbox.attachmentremoved"), begin, res.Flush)
 		// Too late for the response: stop, leave the file short, and log why.
 		if err != nil {
 			return streamed(ctx, err)
@@ -112,8 +106,21 @@ func streamMbox(ctx *web.Context, refs []rowRef, name string, strip bool) error 
 	return nil
 }
 
-// exportMessage streams one message into the archive; stripped, only its text is held.
-func exportMessage(ctx *web.Context, c *imapclient.Client, archive *mbox.Writer, r rowRef, strip bool, begin func()) error {
+// exportRun streams one account's run of messages into the archive, on a connection of its own.
+func exportRun(ctx context.Context, log *log.Logger, s *alborz.Login, run []rowRef, archive *mbox.Writer, strip bool, note string, begin, flush func()) error {
+	return s.DoIMAPTransfer(ctx, func(c *imapclient.Client) error {
+		for _, r := range run {
+			if err := exportMessage(log, c, archive, r, strip, note, begin); err != nil {
+				return fmt.Errorf("export %s %q uid %v: %w", r.account, r.mailbox, r.uid, err)
+			}
+			flush()
+		}
+		return nil
+	})
+}
+
+// exportMessage streams one message into the archive; stripped, only its text is held, note standing for what went.
+func exportMessage(log *log.Logger, c *imapclient.Client, archive *mbox.Writer, r rowRef, strip bool, note string, begin func()) error {
 	if err := ensureMailboxSelected(c, r.mailbox); err != nil {
 		return err
 	}
@@ -130,12 +137,12 @@ func exportMessage(ctx *web.Context, c *imapclient.Client, archive *mbox.Writer,
 	if strip {
 		err := streamSection(c, r.uid, whole, func(lit imap.LiteralReader) error {
 			var err error
-			stripped, err = withoutAttachments(lit, ctx.T("mailbox.attachmentremoved"))
+			stripped, err = withoutAttachments(lit, note)
 			return err
 		})
 		if err != nil && !errors.Is(err, errKeepWhole) {
 			// A message that cannot be taken apart goes out whole: larger than asked, not wrong.
-			ctx.Logger().Printf("export %q uid %v: kept attachments: %v", r.mailbox, r.uid, err)
+			log.Printf("export %q uid %v: kept attachments: %v", r.mailbox, r.uid, err)
 		}
 	}
 	if stripped != nil {
@@ -351,29 +358,9 @@ func (p *plugin) handleExportPage(ctx *web.Context) error {
 		return err
 	}
 	err = ctx.DoIMAPScan(func(c *imapclient.Client) error {
-		if criteria := listCriteria(c, settings, data.Query, ibase.ListView); criteria != nil {
-			if err := ensureMailboxSelected(c, mboxName); err != nil {
-				return err
-			}
-			found, err := c.UIDSearch(criteria, nil).Wait()
-			if err != nil {
-				return err
-			}
-			data.Count = len(found.AllUIDs())
-			return nil
-		}
-		options := &imap.StatusOptions{NumMessages: true, Size: c.Caps().Has(imap.CapStatusSize)}
-		st, err := c.Status(mboxName, options).Wait()
-		if err != nil {
-			return err
-		}
-		if st.NumMessages != nil {
-			data.Count = int(*st.NumMessages)
-		}
-		if st.Size != nil {
-			data.Size = *st.Size
-		}
-		return nil
+		var err error
+		data.Count, data.Size, err = exportSize(c, settings, mboxName, data.Query, ibase.ListView)
+		return err
 	})
 	if err != nil {
 		return err
@@ -458,18 +445,11 @@ func (p *plugin) handleImport(ctx *web.Context) error {
 		return web.NewError(http.StatusBadRequest, "not signed in to that account")
 	}
 	fullName := location.folder(name)
-	if err := login.DoIMAP(func(c *imapclient.Client) error {
-		return c.Create(fullName, nil).Wait()
-	}); err != nil {
+	if err := createFolder(login, fullName); err != nil {
 		return render(http.StatusUnprocessableEntity, fmt.Sprintf(ctx.T("form.foldertaken"), fullName, err))
 	}
 
-	var count, held int
-	importErr := login.DoIMAPWork(ctx.Request().Context(), alborz.IMAPScan, importBound, func(c *imapclient.Client) error {
-		var err error
-		count, held, err = appendMessages(c, fullName, file, map[string]bool{})
-		return err
-	})
+	count, held, importErr := importFile(ctx.Request().Context(), login, fullName, file)
 	p.accountChanged(selectedAccount)
 	if importErr != nil {
 		ctx.Logger().Printf("import into %q stopped after %d: %v", fullName, count, importErr)
@@ -481,6 +461,49 @@ func (p *plugin) handleImport(ctx *web.Context) error {
 		ctx.Notify(web.Notice{Text: ctx.Tf("notice.importheld", held)})
 	}
 	return ctx.Redirect(http.StatusFound, folderURL(ctx, selectedAccount, fullName))
+}
+
+// importFile appends the messages of an mbox or .eml file to folder, taking the connection once.
+func importFile(ctx context.Context, login *alborz.Login, folder string, r io.Reader) (added, held int, err error) {
+	err = login.DoIMAPWork(ctx, alborz.IMAPScan, importBound, func(c *imapclient.Client) error {
+		var err error
+		added, held, err = appendMessages(c, folder, r, map[string]bool{})
+		return err
+	})
+	return added, held, err
+}
+
+// dropFiles appends the messages of each file next gives, until io.EOF, to folder; the connection is
+// taken once and the files read inside, so they are appended as they arrive. A file that fails to
+// arrive is fileErr, the sender's; err is the server's.
+func dropFiles(ctx context.Context, login *alborz.Login, folder string, next func() (io.Reader, error)) (added, held int, fileErr, err error) {
+	err = login.DoIMAPWork(ctx, alborz.IMAPScan, importBound, func(c *imapclient.Client) error {
+		if err := ensureMailboxSelected(c, folder); err != nil {
+			return err
+		}
+		// So a file dropped twice, or a batch resent in halves, adds nothing the second time.
+		seen, err := folderMessageIDs(c)
+		if err != nil {
+			return err
+		}
+		for {
+			file, err := next()
+			if err == io.EOF {
+				return nil
+			}
+			if err != nil {
+				fileErr = err
+				return nil
+			}
+			n, already, err := appendMessages(c, folder, file, seen)
+			added += n
+			held += already
+			if err != nil {
+				return err
+			}
+		}
+	})
+	return added, held, fileErr, err
 }
 
 // A message whose Message-ID the folder already holds is skipped, so a repeated drop adds nothing.
@@ -581,38 +604,15 @@ func (p *plugin) handleDropImport(ctx *web.Context) error {
 	if login == nil {
 		return web.NewError(http.StatusBadRequest, "not signed in to that account")
 	}
-	// The drop takes the connection once and reads the body inside, so files are appended as they arrive.
-	count, held := 0, 0
-	var bodyErr error
-	importErr := login.DoIMAPWork(ctx.Request().Context(), alborz.IMAPScan, importBound, func(c *imapclient.Client) error {
-		if err := ensureMailboxSelected(c, mboxName); err != nil {
-			return err
-		}
-		// So a file dropped twice, or a batch resent in halves, adds nothing the second time.
-		seen, err := folderMessageIDs(c)
-		if err != nil {
-			return err
-		}
+	files := func() (io.Reader, error) {
 		for {
 			part, err := form.NextPart()
-			if err == io.EOF {
-				return nil
-			}
-			if err != nil {
-				bodyErr = err
-				return nil
-			}
-			if part.FormName() != "file" {
-				continue
-			}
-			n, already, err := appendMessages(c, mboxName, part, seen)
-			count += n
-			held += already
-			if err != nil {
-				return err
+			if err != nil || part.FormName() == "file" {
+				return part, err
 			}
 		}
-	})
+	}
+	count, held, bodyErr, importErr := dropFiles(ctx.Request().Context(), login, mboxName, files)
 	if bodyErr != nil {
 		p.accountChanged(account)
 		return importBodyError(bodyErr)
@@ -675,4 +675,30 @@ func mboxMessages(r io.Reader) func() ([]byte, error) {
 		}
 		return io.ReadAll(message)
 	}
+}
+
+// exportSize is how many messages a folder, or its narrowing, holds, and their size where the server says (STATUS=SIZE).
+func exportSize(c *imapclient.Client, settings *Settings, mboxName, query, view string) (count int, size int64, err error) {
+	if criteria := listCriteria(c, settings, query, view); criteria != nil {
+		if err := ensureMailboxSelected(c, mboxName); err != nil {
+			return 0, 0, err
+		}
+		found, err := c.UIDSearch(criteria, nil).Wait()
+		if err != nil {
+			return 0, 0, err
+		}
+		return len(found.AllUIDs()), 0, nil
+	}
+	options := &imap.StatusOptions{NumMessages: true, Size: c.Caps().Has(imap.CapStatusSize)}
+	st, err := c.Status(mboxName, options).Wait()
+	if err != nil {
+		return 0, 0, err
+	}
+	if st.NumMessages != nil {
+		count = int(*st.NumMessages)
+	}
+	if st.Size != nil {
+		size = *st.Size
+	}
+	return count, size, nil
 }

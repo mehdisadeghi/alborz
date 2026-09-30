@@ -186,16 +186,19 @@ func (d *DAVServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// report answers a REPORT on a calendar with the objects in it, or those a multiget names, as a server
-// that filters by nothing but the text it is asked to match; a sync-collection gets a token as well.
+// report answers a REPORT on a calendar with the objects in it, or those a multiget names, and one on
+// an object with that object, as a server that filters by nothing but the text it is asked to match; a
+// sync-collection gets a token as well.
 func (d *DAVServer) report(w http.ResponseWriter, r *http.Request, body string) {
-	if _, ok := d.cals[r.URL.Path]; !ok {
+	_, calendar := d.cals[r.URL.Path]
+	_, object := d.objects[r.URL.Path]
+	if !calendar && !object {
 		multistatus(w)
 		return
 	}
 	var resps []string
 	for _, p := range slices.Sorted(maps.Keys(d.objects)) {
-		if path.Dir(p)+"/" != r.URL.Path || strings.Contains(body, "multiget") && !strings.Contains(body, p) {
+		if p != r.URL.Path && (path.Dir(p)+"/" != r.URL.Path || strings.Contains(body, "multiget") && !strings.Contains(body, p)) {
 			continue
 		}
 		if m := textMatch.FindStringSubmatch(body); m != nil && !strings.Contains(d.objects[p], m[1]) {

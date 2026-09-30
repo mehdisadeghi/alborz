@@ -36,7 +36,7 @@ func (p *plugin) copyTo(s section) func(*web.Context) error {
 		if held == nil {
 			return alborz.NotFound(missing)
 		}
-		co, err := c.GetCalendarObject(rc, src)
+		co, err := calendar.GetObject(rc, c, src)
 		if code, _ := webdav.HTTPErrorCode(err); code == http.StatusNotFound {
 			return alborz.NotFound(missing)
 		} else if err != nil {

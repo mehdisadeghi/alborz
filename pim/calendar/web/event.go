@@ -180,7 +180,7 @@ func (p *plugin) event(ctx *web.Context) error {
 	}
 	event := &events[0]
 	if event.Data == nil {
-		return web.NewError(http.StatusBadGateway, ctx.T("calendar.unreadable"))
+		return fmt.Errorf("%w: %s", alborz.ErrUnreadable, path)
 	}
 	vevents := event.Data.Events()
 	if len(vevents) == 0 {
@@ -228,12 +228,12 @@ func (p *plugin) updateEvent(ctx *web.Context) error {
 		if err != nil {
 			return err
 		}
-		co, err = c.GetCalendarObject(ctx.Request().Context(), calendarObjectPath)
+		co, err = calendar.GetObject(ctx.Request().Context(), c, calendarObjectPath)
 		if err != nil {
 			if code, _ := webdav.HTTPErrorCode(err); code == http.StatusNotFound {
 				return alborz.NotFound("notfound.event")
 			}
-			return fmt.Errorf("failed to get CalDAV event: %v", err)
+			return fmt.Errorf("failed to get CalDAV event: %w", err)
 		}
 		// The VEVENT without RECURRENCE-ID is the series; the form edits that.
 		events := co.Data.Events()

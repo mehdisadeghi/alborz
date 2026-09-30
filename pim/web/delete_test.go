@@ -69,8 +69,8 @@ func TestAPhoneDeletingASharedCalendarLeavesNoPageNamingIt(t *testing.T) {
 	}
 }
 
-// Another client deleting a calendar on a remote server leaves the page answering, and the next one without it.
-// The calendar is listed but never read before, so no copy of it is held to answer instead of the server.
+// Another client deleting a calendar on a remote server leaves the page answering from the copy, and asking
+// the server again leaves the pages without it.
 func TestARemoteCalendarDeletedElsewhereLeavesThePage(t *testing.T) {
 	personal := DAVHome + "personal/"
 	d := DAV(t, Calendar(personal, "Personal"))
@@ -81,7 +81,10 @@ func TestARemoteCalendarDeletedElsewhereLeavesThePage(t *testing.T) {
 	}
 	d.Apply(Gone(personal))
 	c.Page(t, "calendar.month")
+	if resp := c.Post(t, "calendar.refresh", url.Values{}); resp.StatusCode != http.StatusFound {
+		t.Fatalf("refreshing answered %s", resp.Status)
+	}
 	if rail := c.Page(t, "calendar.calendars.create"); strings.Contains(rail, path) {
-		t.Errorf("%s is still listed on the page after the one that found it gone", path)
+		t.Errorf("%s is still listed after asking the server again", path)
 	}
 }

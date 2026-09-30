@@ -32,7 +32,7 @@ type fakeDAV struct {
 	noSync, forget bool
 	tokens         []string
 	requests       int
-	down           bool
+	down, gone     bool
 }
 
 func event(summary string) string {
@@ -83,6 +83,10 @@ func (s *fakeDAV) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.requests++
 	if s.down {
 		w.WriteHeader(http.StatusServiceUnavailable)
+		return
+	}
+	if s.gone {
+		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 	if r.Method == http.MethodDelete {
@@ -161,7 +165,7 @@ func through(t *testing.T, s *fakeDAV) (*Mirror, *caldav.Client) {
 	if err := key.Generate(); err != nil {
 		t.Fatal(err)
 	}
-	m, err := OpenMirror(t.TempDir(), Kind{Name: "caldav", Poll: time.Hour, Holds: store.Calendar}, &key)
+	m, err := OpenMirror(t.TempDir(), Kind{Name: "caldav", Poll: time.Hour, Holds: store.Calendar}, &key, func(string) {})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -461,5 +465,25 @@ func TestMirrorWaitsOutAFailedSync(t *testing.T) {
 	}
 	if n := s.count() - before; n != 1 {
 		t.Errorf("five reads of a stale copy asked the down server %d times, want once", n)
+	}
+}
+
+func TestMirrorLetsGoOfACollectionItsServerLost(t *testing.T) {
+	s := newFake()
+	m, c := through(t, s)
+	var told []string
+	m.gone = func(account string) { told = append(told, account) }
+	summaries(t, c)
+	s.mu.Lock()
+	s.gone = true
+	s.mu.Unlock()
+	if err := m.Refresh(context.Background(), someone, s); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(told, []string{someone.Account}) {
+		t.Errorf("the listing was told of %v, want %v", told, []string{someone.Account})
+	}
+	if _, held, err := m.held(someone.key(), "/cal/"); err != nil || held {
+		t.Errorf("the copy of a collection its server lost is still held (err %v)", err)
 	}
 }

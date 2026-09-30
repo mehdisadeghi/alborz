@@ -264,15 +264,15 @@
                   <dt>{{$.T "list.post"}}</dt>
                   <dd><a href="{{ localhref (printf "%s?to=%s" (url "mail.compose") (. | qv)) }}">{{ template "ltr" . }}</a></dd>
                   {{ end }}
-                  {{ with .Message.ListHelp }}
+                  {{ with .List.Help }}
                   <dt>{{$.T "list.help"}}</dt>
                   <dd><a href="{{.}}" rel="nofollow noopener noreferrer">{{ template "ltr" . }}</a></dd>
                   {{ end }}
-                  {{ with .Message.ListSubscribe }}
+                  {{ with .List.Subscribe }}
                   <dt>{{$.T "list.subscribe"}}</dt>
                   <dd><a href="{{.}}" rel="nofollow noopener noreferrer">{{ template "ltr" . }}</a></dd>
                   {{ end }}
-                  {{ with .Message.ListOwner }}
+                  {{ with .List.Owner }}
                   <dt>{{$.T "list.owner"}}</dt>
                   <dd><a href="{{.}}" rel="nofollow noopener noreferrer">{{ template "ltr" . }}</a></dd>
                   {{ end }}

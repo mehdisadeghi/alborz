@@ -1,7 +1,6 @@
 package mail
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/emersion/go-imap/v2"
@@ -35,13 +34,13 @@ func listMessage(t *testing.T) *IMAPMessage {
 func TestUnsubscribeComposesFromTheReceivingAccount(t *testing.T) {
 	msg := listMessage(t)
 	trust := deliveryTrust{account: "mehdi@mehdix.org", domains: []string{"mehdix.org"}}
-	href := unsubscribeHref(&Settings{}, trust, msg)
-	if !strings.HasPrefix(href, "/compose?") {
-		t.Fatalf("a mailto unsubscribe did not become a compose link: %q", href)
+	q := unsubscribeMail(&Settings{}, trust, msg)
+	if q == nil {
+		t.Fatalf("a mailto unsubscribe did not become a message to compose")
 	}
-	for _, want := range []string{"account=mehdi@mehdix.org", "to=~sircmpwn/sr.ht-discuss%2Bunsubscribe@lists.sr.ht", "subject=unsubscribe"} {
-		if !strings.Contains(href, want) {
-			t.Errorf("%q lacks %s", href, want)
+	for field, want := range map[string]string{"account": "mehdi@mehdix.org", "to": "~sircmpwn/sr.ht-discuss+unsubscribe@lists.sr.ht", "subject": "unsubscribe"} {
+		if got := q.Get(field); got != want {
+			t.Errorf("%s is %q, want %q", field, got, want)
 		}
 	}
 }

@@ -591,10 +591,11 @@ func withSignature(body, text string) string {
 func (p *plugin) handleComposeNew(ctx *web.Context) error {
 	// Only a mailto URI is followed; redirecting to anything else would be an open redirect.
 	if uri := ctx.QueryParam("mailto"); uri != "" {
-		if to := composeFromMailto(uri); strings.HasPrefix(to, "/compose?") {
-			return ctx.Redirect(http.StatusFound, to)
+		q := Mailto(uri)
+		if q == nil {
+			return web.NewError(http.StatusBadRequest, "not a mailto URI")
 		}
-		return web.NewError(http.StatusBadRequest, "not a mailto URI")
+		return ctx.Redirect(http.StatusFound, ctx.Path("mail.compose")+"?"+web.Query(q))
 	}
 
 	text := ctx.QueryParam("body")

@@ -49,6 +49,8 @@ type MessageRenderData struct {
 
 	// Unsubscribe is where the unsubscribe control sends the reader.
 	Unsubscribe string
+	// List are the list's links as the page gives them.
+	List listLinks
 
 	// InReplyTo is the message this one answers, when it is in the same folder.
 	InReplyTo *ThreadNeighbour
@@ -544,9 +546,12 @@ func (p *plugin) handleGetPart(ctx *web.Context) error {
 		ThreadSupported:    threadAlgorithm != "",
 		Crumb:              mailboxCrumb(sb.mailboxes, mboxName, ctx.Login.Username(), folderPath(ctx)),
 		PreferHTML:         ctx.Reading().PreferHTML,
-		Unsubscribe:        unsubscribeHref(settings, trust, msg),
-		DeliveredTo:        deliveredTo,
-		ForwardedBy:        ForwardedBy(msg.rootHeader, trusted, msg.ListID),
+		Unsubscribe:        unsubscribeHref(ctx, settings, trust, msg),
+		List: listLinks{
+			Help: listHref(ctx, msg.ListHelp), Subscribe: listHref(ctx, msg.ListSubscribe), Owner: listHref(ctx, msg.ListOwner),
+		},
+		DeliveredTo: deliveredTo,
+		ForwardedBy: ForwardedBy(msg.rootHeader, trusted, msg.ListID),
 
 		HasRemoteResources:     view.Remote,
 		RemoteResourcesAllowed: ctx.QueryParam("allow-remote-resources") == "1",
@@ -562,26 +567,39 @@ func (p *plugin) handleGetPart(ctx *web.Context) error {
 
 // UnsubscribeExternal reports whether the unsubscribe link leaves alborz.
 func (d *MessageRenderData) UnsubscribeExternal() bool {
-	return d.Unsubscribe != "" && !strings.HasPrefix(d.Unsubscribe, "/")
+	return d.Unsubscribe != "" && Mailto(d.Message.ListUnsubscribe) == nil
 }
 
-func unsubscribeHref(settings *Settings, trust deliveryTrust, msg *IMAPMessage) string {
-	href := msg.ListUnsubscribe
-	if href == "" || !strings.HasPrefix(href, "/compose?") {
-		return href
+func unsubscribeHref(ctx *web.Context, settings *Settings, trust deliveryTrust, msg *IMAPMessage) string {
+	if q := unsubscribeMail(settings, trust, msg); q != nil {
+		return ctx.Path("mail.compose") + "?" + web.Query(q)
 	}
-	u, err := url.Parse(href)
-	if err != nil {
-		return href
+	return msg.ListUnsubscribe
+}
+
+// unsubscribeMail is what compose takes to leave a list by mail; nil where the list takes none.
+func unsubscribeMail(settings *Settings, trust deliveryTrust, msg *IMAPMessage) url.Values {
+	q := Mailto(msg.ListUnsubscribe)
+	if q == nil {
+		return nil
 	}
-	q := u.Query()
 	// The request leaves from the account the list wrote to, not the browser's active one.
 	q.Set("account", trust.owner(msg))
 	if from := writeAs(settings, trust, msg, msg.Envelope.To, msg.Envelope.Cc); from != "" {
 		q.Set("from", from)
 	}
-	u.RawQuery = web.Query(q)
-	return u.String()
+	return q
+}
+
+// listLinks are where a list's links take the reader.
+type listLinks struct{ Help, Subscribe, Owner string }
+
+// A mailto opens this account's compose page, not whatever mail app the machine has.
+func listHref(ctx *web.Context, uri string) string {
+	if q := Mailto(uri); q != nil {
+		return ctx.Path("mail.compose") + "?" + web.Query(q)
+	}
+	return uri
 }
 
 // PartAt reads one part of a message as the bytes it was sent as, with its media type.

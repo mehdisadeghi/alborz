@@ -40,7 +40,7 @@
           aria-label="{{ if .current }}{{.clear}}{{ else }}{{.title}}{{ end }}">
     {{- if .current }}&#9733;{{ else }}&#9734;{{ end -}}
   </button>
-  <button type="button" class="icon-button flag-more" title="{{.title}}" aria-label="{{.title}}" popovertarget="{{ if .row }}row-colors{{ else }}{{ or .id "menu-flag" }}{{ end }}"{{ if .row }} hidden data-row-colors{{ end }}>{{ template "icon" "down" }}</button>
+  <button type="button" class="icon-button flag-more" title="{{.title}}" aria-label="{{.title}}" popovertarget="{{ if .row }}row-colors{{ else }}{{ or .id "menu-flag" }}{{ end }}"{{ if .row }} data-row-colors{{ end }}>{{ template "icon" "down" }}</button>
   {{ if not .row }}{{ template "flag-colors-menu" . }}{{ end }}
 </div>
 {{ else }}

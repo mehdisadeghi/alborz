@@ -849,6 +849,11 @@ footer { text-align: end; }
   .status-bar { display: none; }
 }
 
+/* The browser's print dialog opens only by script. */
+@media (scripting: none) {
+  #print { display: none; }
+}
+
 .container {
   flex: 1 auto;
   display: flex;
@@ -1134,8 +1139,11 @@ main.create-update .headers {
 }
 
 /* minmax: a plain 1fr keeps the fields' own width, wider than a phone. */
-main.create-update .headers.no-js {
-  grid-template-columns: auto minmax(0, 1fr);
+@media (scripting: none) {
+  main.create-update .headers { grid-template-columns: auto minmax(0, 1fr); }
+  /* Dropping files needs the script; what is attached is listed to untick. */
+  main.create-update #attachment-list .help,
+  main.create-update #attachment-list:not(:has(.upload)) { display: none; }
 }
 
 main.create-update .headers label {
@@ -1238,6 +1246,11 @@ main.create-update .text {
 }
 
 .editor-toolbar:not(.is-on) [data-act] { display: none; }
+
+/* Rich text is written in the script's editor. */
+@media (scripting: none) {
+  .editor-toolbar { display: none; }
+}
 
 .editor-toolbar [aria-pressed="true"] {
   background: var(--surface-selected);
@@ -1662,7 +1675,10 @@ main.create-update .actions > *:not(:last-child) {
   z-index: 1;
   visibility: hidden;
 }
-.row-star .flag-split .flag-more[hidden] { display: none; }
+/* The colours menu opens only by script. */
+@media (scripting: none) {
+  .row-star .flag-split .flag-more[data-row-colors] { display: none; }
+}
 
 /* As specific as the rule that hides it: the menu hangs from the chevron. */
 @media (hover: hover) {
@@ -3479,6 +3495,11 @@ main.calendar .date.active h3 .day-label {
 }
 
 aside .aside-filter { display: flex; flex-direction: column; }
+
+/* A tick submits its own form, so the form's button is for a page without scripts. */
+@media (scripting: enabled) {
+  form:has([data-submit-on-change]) > button { display: none; }
+}
 
 .color-dot {
   display: inline-block;

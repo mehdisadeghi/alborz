@@ -39,6 +39,10 @@ blank page per navigation.
    mark on one row, a list swapped into `#main` under an unchanged
    toolbar, and lazily loaded pieces (signature check, status bar).
 8. Compose, import and file uploads post without htmx.
+9. What serves only a page with scripting, or only one without, is
+   shown or hidden by CSS under `@media (scripting: enabled)` or
+   `(scripting: none)`. No script MAY reveal or hide it after paint:
+   nothing appears or leaves when a script runs or a swap lands.
 
 ## Consequences
 
@@ -51,6 +55,7 @@ blank page per navigation.
 
 - htmx 2 documentation (`hx-boost`, `HX-Request`, `HX-Target`)
 - CSP Level 3 (`unsafe-eval`)
+- Media Queries Level 5 (`scripting`)
 - ADR 14, ADR 41
 - `templates/layout.html` (`htmx-config`, `body hx-boost`),
   `web/htmx.go` (`Partial`, `PartialFor`), `web/middleware.go` (CSP),

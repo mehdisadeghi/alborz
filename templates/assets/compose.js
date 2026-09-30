@@ -27,10 +27,8 @@ saveButton.addEventListener("click", ev => {
 let attachments = [];
 
 const headers = document.querySelector(".create-update .headers");
-headers.classList.remove("no-js");
 
 const attachmentsNode = document.getElementById("attachment-list");
-attachmentsNode.style.display = '';
 const helpNode = attachmentsNode.querySelector(".help");
 
 const attachmentsInput = headers.querySelector("input[type='file']");

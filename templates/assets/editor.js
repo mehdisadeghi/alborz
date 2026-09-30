@@ -247,7 +247,6 @@ if (form && textarea && holder && toolbar && htmlInput && toggle && window.Squir
 
 	// An untouched reply opens on the original's HTML; a typed-in one keeps what was typed.
 	const quoteHTML = document.getElementById("quote-html");
-	toolbar.hidden = false;
 	toggle.addEventListener("click", ev => {
 		ev.preventDefault();
 		if (editor) {

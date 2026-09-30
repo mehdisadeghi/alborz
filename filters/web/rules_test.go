@@ -1,6 +1,7 @@
 package web_test
 
 import (
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -33,6 +34,37 @@ func TestBlockingASenderLandsOnTheMessage(t *testing.T) {
 			if at := resp.Header.Get("Location"); resp.StatusCode != http.StatusFound || !strings.HasPrefix(at, a.Path("filters.rules")+"?") {
 				t.Errorf("%s blocking with next %s: %s to %q, want the rules page", account, next, resp.Status, at)
 			}
+		}
+	}
+}
+
+// A Sieve server that takes no connection gets the page that says so, not an error of alborz's.
+func TestAnUnreachableSieveServerIsNamed(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	gone := ln.Addr().String()
+	ln.Close()
+	c := Alborz(t, Upstream(Domain, "sieve+insecure://"+gone)).SignIn(t, User)
+	for _, route := range []string{"filters.rules", "filters.forwarding", "filters.autoreply"} {
+		resp := c.Get(t, route, url.Values{"account": {User}})
+		if resp.StatusCode != http.StatusBadGateway || !strings.Contains(resp.Text, "The sieve server could not be reached.") {
+			t.Errorf("%s answered %s without naming the server", route, resp.Status)
+		}
+	}
+}
+
+// A script deleted elsewhere is not found; a row named by no number is a bad request.
+func TestAFilterOrRuleThatIsNotThere(t *testing.T) {
+	c := Alborz(t, WithSieve(Sieve(t))).SignIn(t, User)
+	account := url.Values{"account": {User}}
+	if resp := c.Get(t, "filters.filter", "gone", account); resp.StatusCode != http.StatusNotFound || !strings.Contains(resp.Text, "There is no filter named gone.") {
+		t.Errorf("a missing script answered %s without saying so", resp.Status)
+	}
+	for _, route := range []string{"filters.rules", "filters.rules.delete", "filters.rules.move", "filters.rules.toggle", "filters.autoreply", "filters.autoreply.delete"} {
+		if resp := c.Post(t, route, url.Values{"index": {"first"}, "name": {"Rule"}, "text": {"Away"}}, account); resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("%s with index first answered %s, want 400", route, resp.Status)
 		}
 	}
 }

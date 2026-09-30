@@ -52,6 +52,7 @@
 "notfound.contact" = "Diesen Kontakt gibt es nicht."
 "notfound.reply" = "Diese Antwort gibt es nicht."
 "notfound.rule" = "Diese Regel gibt es nicht."
+"notfound.script" = "Es gibt keinen Filter namens %s."
 "notfound.folder" = "Es gibt keinen Ordner namens %s."
 "notfound.calendar" = "Auf dem Server wurde kein Kalender gefunden."
 "notfound.addressbook" = "Auf dem Server wurde kein Adressbuch gefunden."

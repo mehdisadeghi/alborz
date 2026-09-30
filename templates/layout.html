@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#1f1f1f" media="(prefers-color-scheme: dark)">
     <title>{{.GlobalData.PageTitle}}</title>
     <meta name="alborz-shell" content="{{.GlobalData.Shell}}">
-    {{ with .GlobalData.LockSeconds }}<meta name="alborz-lock" content="{{.}}">{{ end }}
+    {{ with .GlobalData.LockSeconds }}<meta name="alborz-lock" content="{{.}}" data-unlock="{{url "auth.unlock"}}" data-alive="{{url "auth.alive"}}">{{ end }}
     {{/* Not deferred: it sets the scheme before the first paint. */}}
     <script src="{{call .GlobalData.Asset "scheme.js"}}"></script>
     <link rel="stylesheet" href="{{call .GlobalData.Asset "style.css"}}">
@@ -33,7 +33,7 @@
     <script defer src="{{call .GlobalData.Asset "helpers.js"}}"></script>
     <script defer src="{{call .GlobalData.Asset "keys.js"}}"></script>
   </head>
-  <body hx-boost="true">
+  <body hx-boost="true" data-events="{{url "core.events"}}" data-worker="{{url "core.worker"}}">
     <a class="skip-link visually-hidden" href="#main">{{$.T "a11y.skip"}}</a>
     {{template "icons" .}}
 {{ block "body" . }}

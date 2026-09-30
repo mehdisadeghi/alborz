@@ -20,7 +20,7 @@
       {{ template "filter-chips" (dict "filters" .Filters "remove" ($.T "filter.remove") "offers" (tuple (tuple $whole ($.T "mailbox.searchtext")) (tuple $everywhere ($.T "search.allfolders")))) }}
       {{/* On the part every swap renews: on main they stayed those of the first
            folder loaded. */}}
-      <section class="messages" data-live-folder="{{.Mailbox.Name}}" data-live-account="{{$.GlobalData.URLAccount}}"{{ if .Merged }} data-live-merged="1"{{ end }}{{ if not .Merged }} data-drop-mbox="{{url "mail.mailbox" .Mailbox.Name}}{{ $.GlobalData.AccountQuery }}"{{ end }}>
+      <section class="messages" data-live-folder="{{.Mailbox.Name}}" data-live-account="{{$.GlobalData.URLAccount}}"{{ if .Merged }} data-live-merged="1"{{ end }}{{ if not .Merged }} data-drop-mbox="{{url "mail.mailbox" .Mailbox.Name}}{{ $.GlobalData.AccountQuery }}" data-drop-import="{{url "mail.mailbox.import" .Mailbox.Name}}{{ $.GlobalData.AccountQuery }}"{{ end }}>
         <div role="table" class="message-grid list-grid{{ if .GlobalData.Unified }} unified{{ end }}"{{ if or .GlobalData.Unified .Spanning }} style="{{ if .GlobalData.Unified }}--account-track: {{ .GlobalData.AccountTrack }};{{ end }}{{ if .Spanning }}--folder-track: {{ .FolderTrack }}{{ end }}"{{ end }}>
           {{ $hsort := .Sort }}{{ if eq $hsort "" }}{{ $hsort = "date" }}{{ end }}
           {{ $hexp := ne ($.GlobalData.URL.Query.Get "sort") "" }}

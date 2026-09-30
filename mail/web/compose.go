@@ -37,6 +37,10 @@ type ComposeRenderData struct {
 	Signature  string
 	// Suggestions are addresses the recipient fields offer.
 	Suggestions []string
+	// Reply opens the text at its end, below the quote.
+	Reply bool
+	// LocalImage matches the images the editor may keep: those alborz holds (ADR 40).
+	LocalImage string
 }
 
 // AccountIdentities lists the addresses an account may send as, the account itself implied.
@@ -221,6 +225,8 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *mail.OutgoingMessage, opti
 				Signatures:         settings.Signatures,
 				Signature:          signature,
 				Suggestions:        suggestions(ctx),
+				Reply:              options.InReplyTo != nil,
+				LocalImage:         p.images.String(),
 			})
 		}
 		// A server's refusal comes back on the form; uploads stay with the session until the message has left.
@@ -385,6 +391,8 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *mail.OutgoingMessage, opti
 		Signatures:         settings.Signatures,
 		Signature:          options.Signature,
 		Suggestions:        suggestions(ctx),
+		Reply:              options.InReplyTo != nil,
+		LocalImage:         p.images.String(),
 	}
 	return ctx.Render(http.StatusOK, "mail/compose", data)
 }
@@ -457,7 +465,13 @@ func handleComposeAttachment(ctx *web.Context) error {
 		return ctx.JSON(http.StatusBadRequest, map[string]string{"error": ctx.T("attach.invalid")})
 	}
 
-	var uuids []string
+	// Each upload's addresses go with it, so the page names no path of its own.
+	type upload struct {
+		ID     string `json:"id"`
+		Src    string `json:"src"`
+		Remove string `json:"remove"`
+	}
+	var uploads []upload
 	for _, fh := range form.File["attachments"] {
 		uuid, err := ctx.PutAttachment(fh, form)
 		if err == web.ErrAttachmentCacheSize {
@@ -468,10 +482,10 @@ func handleComposeAttachment(ctx *web.Context) error {
 			ctx.Logger().Printf("PutAttachment: %v\n", err)
 			return ctx.JSON(http.StatusBadRequest, map[string]string{"error": ctx.T("attach.failed")})
 		}
-		uuids = append(uuids, uuid)
+		uploads = append(uploads, upload{ID: uuid, Src: ctx.Path("mail.attachment", uuid), Remove: ctx.Path("mail.attachment.remove", uuid)})
 	}
 
-	return ctx.JSON(http.StatusOK, &uuids)
+	return ctx.JSON(http.StatusOK, &uploads)
 }
 
 func handleCancelAttachment(ctx *web.Context) error {

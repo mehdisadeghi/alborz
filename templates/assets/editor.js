@@ -16,7 +16,7 @@ if (form && textarea && holder && toolbar && htmlInput && toggle && window.Squir
 	// The tags the server keeps; pasted markup is reduced to these.
 	const allowed = { P: 1, DIV: 1, BR: 1, B: 1, STRONG: 1, I: 1, EM: 1, U: 1, S: 1, UL: 1, OL: 1, LI: 1, BLOCKQUOTE: 1, A: 1, IMG: 1 };
 	// Only images alborz holds survive (ADR 40).
-	const localImage = /^\/compose\/attachment\/[0-9a-f-]+$|^\/message\/[^?]+\/[0-9]+\/raw\?part=[0-9.]+(&account=[^&]+)?$/;
+	const localImage = new RegExp(form.dataset.localImage);
 	const shownTypes = ["image/png", "image/jpeg", "image/gif", "image/webp"];
 	const sanitize = html => {
 		const doc = new DOMParser().parseFromString(html, "text/html");
@@ -231,13 +231,13 @@ if (form && textarea && holder && toolbar && htmlInput && toggle && window.Squir
 		for (const file of images) {
 			const body = new FormData();
 			body.append("attachments", file);
-			fetch("/compose/attachment", { method: "POST", body: body })
+			fetch(form.dataset.upload, { method: "POST", body: body })
 				.then(resp => resp.json().then(data => ({ ok: resp.ok, data: data })))
 				.then(({ ok, data }) => {
 					if (!ok) {
 						throw new Error(data.error);
 					}
-					editor.insertImage("/compose/attachment/" + data[0], { alt: file.name });
+					editor.insertImage(data[0].src, { alt: file.name });
 				})
 				.catch(err => window.alert(err.message));
 		}

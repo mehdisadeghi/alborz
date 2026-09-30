@@ -180,7 +180,7 @@
 {{ end }}
 
 {{ define "mail-rail" }}
-<aside data-mail-sidebar data-importing="{{$.T "folder.dropimporting"}}" data-importing-many="{{$.T "folder.dropimportingmany"}}" data-importing-adding="{{$.T "folder.dropadding"}}" data-importing-none="{{$.T "folder.dropnomail"}}" data-importing-failed="{{$.T "folder.dropfailed"}}" data-importing-where="{{$.T "folder.dropwhere"}}" data-importing-which="{{$.T "folder.dropwhich"}}" data-live-arrived="{{$.T "list.mailarrived"}}" data-live-show="{{$.T "list.showarrived"}}">
+<aside data-mail-sidebar="{{url "mail.sidebar"}}" data-importing="{{$.T "folder.dropimporting"}}" data-importing-many="{{$.T "folder.dropimportingmany"}}" data-importing-adding="{{$.T "folder.dropadding"}}" data-importing-none="{{$.T "folder.dropnomail"}}" data-importing-failed="{{$.T "folder.dropfailed"}}" data-importing-where="{{$.T "folder.dropwhere"}}" data-importing-which="{{$.T "folder.dropwhich"}}" data-live-arrived="{{$.T "list.mailarrived"}}" data-live-show="{{$.T "list.showarrived"}}">
 {{ template "scope-rail" (dict "g" $ "kind" "mail" "path" (url "mail.mailbox" "INBOX") "urlaccount" .GlobalData.Scope "accounts" .GlobalData.Accounts "data" . "new" (dict "href" (url "mail.mailbox.create") "label" ($.T "aside.newfolder") "active" (eq .GlobalData.URL.Path (url "mail.mailbox.create"))) "import" (dict "href" (url "mail.import") "label" ($.T "aside.import") "active" (eq .GlobalData.URL.Path (url "mail.import")))) }}
 </aside>
 {{ end }}
@@ -284,7 +284,7 @@
 {{ define "mbox-node-label" }}
 {{ $n := index . 0 }}{{ $q := index . 1 }}{{ $g := index . 2 }}
 {{ if and $n.Details (not ($n.Details.Info.HasAttr "\\Noselect")) }}
-<a href="{{url "mail.mailbox" $n.Details.Info.Name}}{{$q}}" data-folder="{{url "mail.mailbox" $n.Details.Info.Name}}{{$q}}"{{ template "list-get" (dict "g" $g "href" (printf "%s%s" (url "mail.mailbox" $n.Details.Info.Name) $q)) }}{{ if ge $n.Details.Info.Total 0 }} title="{{$n.Name}} · {{ $g.Tf "aside.folderholds" $n.Details.Info.Total $n.Details.Info.Unseen }}"{{ else }} title="{{$n.Name}}"{{ end }}>{{$n.Name}}</a>
+<a href="{{url "mail.mailbox" $n.Details.Info.Name}}{{$q}}" data-folder="{{url "mail.mailbox" $n.Details.Info.Name}}{{$q}}" data-import="{{url "mail.mailbox.import" $n.Details.Info.Name}}{{$q}}"{{ template "list-get" (dict "g" $g "href" (printf "%s%s" (url "mail.mailbox" $n.Details.Info.Name) $q)) }}{{ if ge $n.Details.Info.Total 0 }} title="{{$n.Name}} · {{ $g.Tf "aside.folderholds" $n.Details.Info.Total $n.Details.Info.Unseen }}"{{ else }} title="{{$n.Name}}"{{ end }}>{{$n.Name}}</a>
 {{- if gt $n.Details.Info.Unseen 0 }} <span class="unseen">{{$g.Num $n.Details.Info.Unseen}}</span>{{ end }}
 {{ else }}
 <span class="noselect">{{$n.Name}}</span>

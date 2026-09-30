@@ -3,6 +3,7 @@ package calendar
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	netmail "net/mail"
@@ -272,7 +273,7 @@ func Export(ctx context.Context, client *caldav.Client, calendarPath string, fro
 	if len(children) == 0 {
 		return nil, pim.ErrNothingToExport
 	}
-	return Encode(children)
+	return Encode(children, nil)
 }
 
 func Components(ctx context.Context, client *caldav.Client, calendarPath string, comps []string, from, to time.Time) ([]*ical.Component, error) {
@@ -300,10 +301,13 @@ func Components(ctx context.Context, client *caldav.Client, calendarPath string,
 	return out, nil
 }
 
-func Encode(children []*ical.Component) ([]byte, error) {
+// Encode writes children as one calendar; left are objects already left out. A component go-ical will
+// not write is left out too, and the error says why; what was written is the file all the same.
+func Encode(children []*ical.Component, left []error) ([]byte, error) {
 	out := ical.NewCalendar()
 	out.Props.SetText(ical.PropProductID, ItipProductID)
 	out.Props.SetText(ical.PropVersion, "2.0")
+	total := len(left)
 	for _, child := range children {
 		// go-ical will not encode an event or task without DTSTAMP; the server's copy is untouched.
 		if (child.Name == ical.CompEvent || child.Name == ical.CompToDo) && child.Props.Get(ical.PropDateTimeStamp) == nil {
@@ -313,14 +317,33 @@ func Encode(children []*ical.Component) ([]byte, error) {
 			}
 			child.Props.SetDateTime(ical.PropDateTimeStamp, stamp)
 		}
+		if child.Name != ical.CompTimezone {
+			total++
+			alone := ical.NewCalendar()
+			alone.Props, alone.Children = out.Props, []*ical.Component{child}
+			if err := ical.NewEncoder(io.Discard).Encode(alone); err != nil {
+				uid, _ := child.Props.Text(ical.PropUID)
+				left = append(left, fmt.Errorf("%s: %w", uid, err))
+				continue
+			}
+		}
 		out.Children = append(out.Children, child)
 	}
-	out.RemoveDuplicateTimezones()
-	var buf bytes.Buffer
-	if err := ical.NewEncoder(&buf).Encode(out); err != nil {
-		return nil, fmt.Errorf("failed to write the calendar: %v", err)
+	var body []byte
+	if written := total - len(left); written > 0 {
+		out.RemoveDuplicateTimezones()
+		var buf bytes.Buffer
+		if err := ical.NewEncoder(&buf).Encode(out); err != nil {
+			return nil, fmt.Errorf("failed to write the calendar: %v", err)
+		}
+		body = buf.Bytes()
+	} else if len(left) == 0 {
+		return nil, pim.ErrNothingToExport
 	}
-	return buf.Bytes(), nil
+	if len(left) > 0 {
+		return body, &pim.LeftOutError{Left: len(left), Err: errors.Join(left...)}
+	}
+	return body, nil
 }
 
 const (

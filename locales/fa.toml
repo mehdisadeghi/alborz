@@ -851,6 +851,7 @@
 "import.fetchfailed" = "تقویم گرفته نشد: %s"
 "import.toolarge" = "پرونده بزرگ‌تر از %d مگابایت است و وارد نمی‌شود."
 "export.empty" = "این مجموعه خالی است؛ چیزی برای صدور نیست."
+"export.leftout" = "%d مورد صادر نشد: %s"
 "import.exportall" = "صدور همه به‌صورت .zip"
 "import.untitled" = "واردشده"
 "import.newon" = "جدید، روی %s"

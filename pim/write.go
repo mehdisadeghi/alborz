@@ -43,6 +43,16 @@ func (e *PartlySavedError) Error() string {
 
 func (e *PartlySavedError) Unwrap() error { return e.Err }
 
+// LeftOutError is an export that left Left objects out; Err says why each was.
+type LeftOutError struct {
+	Left int
+	Err  error
+}
+
+func (e *LeftOutError) Error() string { return fmt.Sprintf("%d left out: %v", e.Left, e.Err) }
+
+func (e *LeftOutError) Unwrap() error { return e.Err }
+
 // MaxImportSize is the most an import reads of one file, whatever it came from: an import is held
 // in memory while parsed and written.
 const MaxImportSize = 16 << 20

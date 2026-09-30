@@ -83,6 +83,9 @@ func TrustedProxies(proxies ...string) Option {
 	return func(c *config) { c.options.TrustedProxies = proxies }
 }
 
+// CacheDir keeps the sealed copies of DAV collections and calendar feeds in dir.
+func CacheDir(dir string) Option { return func(c *config) { c.options.CacheDir = dir } }
+
 // Guarded carries the requests to servers outsiders name.
 func Guarded(rt http.RoundTripper) Option { return func(c *config) { c.options.Guarded = rt } }
 
@@ -102,9 +105,6 @@ func Alborz(t *testing.T, opts ...Option) *App {
 	}
 	if c.options.DataDir == "" {
 		c.options.DataDir = t.TempDir()
-	}
-	if c.options.Cache {
-		c.options.CacheDir = t.TempDir()
 	}
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -151,7 +151,7 @@ func (a *App) Path(route string, args ...any) string {
 		panic(err)
 	}
 	if len(query) > 0 {
-		p += "?" + query.Encode()
+		p += "?" + web.Query(query)
 	}
 	return p
 }

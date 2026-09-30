@@ -10,13 +10,14 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	. "git.mehdix.org/alborz/internal/alborztest"
 )
 
 // servedFeed publishes body as a calendar feed.
-func servedFeed(t *testing.T, body string) *feed {
+func servedFeed(t *testing.T, body string) *httptest.Server {
 	t.Helper()
-	f := &feed{}
-	f.Server = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	f := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte(body))
 	}))
 	t.Cleanup(f.Close)
@@ -71,55 +72,62 @@ func via(lines []string, kind string) string {
 	return ""
 }
 
-// copied posts the copy and returns the copy's page, followed.
-func copied(t *testing.T, c *http.Client, base, object, to string) string {
+// copied posts the copy and returns where it landed.
+func copied(t *testing.T, c *Client, to, route string, args ...any) string {
 	t.Helper()
-	resp, _ := postBody(t, c, base+object, url.Values{"to": {to}}, nil)
+	resp := c.Post(t, route, url.Values{"to": {to}}, args...)
 	if resp.StatusCode != http.StatusFound {
 		t.Fatalf("copying answered %s", resp.Status)
 	}
 	return resp.Header.Get("Location")
 }
 
-// raw is an object's source, read through its page's raw link.
-func raw(t *testing.T, c *http.Client, base, page string) string {
+// raw is an object's source, read through the raw route of the page at path.
+func raw(t *testing.T, a *App, c *Client, path string) string {
 	t.Helper()
-	p, q, _ := strings.Cut(page, "?")
-	return get(t, c, base+p+"/raw?"+q)
+	u, err := url.Parse(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	name, values, ok := a.Server.Match(u)
+	if !ok {
+		t.Fatalf("%s is no route", path)
+	}
+	return c.Page(t, name+".raw", values["path"], u.Query())
 }
 
 // A feed's event taken into one's own calendar is a new event there, no invitation, and says where it came from.
 func TestCopyingAFeedEventMakesAnEventOfOurOwn(t *testing.T) {
 	f := servedFeed(t, clubNight())
-	base := startSubscriber(t, f)
-	c := login(t, base)
-	subscribe(t, c, base, f.URL+"/club.ics")
-	plans := hereAt + strings.TrimPrefix(createCalendar(t, base, c, "Plans", "plans"), base)
+	a, c := subscriber(t, f)
+	subscribe(t, c, f.URL+"/club.ics")
+	plans := Here + c.CreateCalendar(t, "Plans", "")
 
-	events := regexp.MustCompile(`href="(/calendar/%2F[^"?]+)`).FindStringSubmatch(get(t, c, base+"/calendar?view=list"))
-	if events == nil {
+	linked := events(t, a, c)
+	if len(linked) == 0 {
 		t.Fatal("the agenda links no event of the feed")
 	}
-	if page := get(t, c, base+events[1]); !strings.Contains(page, events[1]+"/copy") {
+	event := linked[0]
+	if page := c.Page(t, "calendar.event", event); !strings.Contains(page, a.Path("calendar.event.copy", event)) {
 		t.Fatal("the read-only event's page offers no copy")
 	}
-	chooser := get(t, c, base+events[1]+"/copy")
-	if !strings.Contains(chooser, `value="`+smokeUser+`|`+plans+`"`) || !strings.Contains(chooser, "Club night") {
+	chooser := c.Page(t, "calendar.event.copy", event)
+	if !strings.Contains(chooser, `value="`+User+`|`+plans+`"`) || !strings.Contains(chooser, "Club night") {
 		t.Fatal("the copy page does not offer Plans for Club night")
 	}
 	if strings.Contains(chooser, "Club</option>") {
 		t.Error("the copy page offers the read-only feed")
 	}
 
-	landed := copied(t, c, base, events[1]+"/copy", smokeUser+"|"+plans)
+	landed := copied(t, c, User+"|"+plans, "calendar.event.copy", event)
 	if !strings.Contains(landed, url.PathEscape(plans)) {
 		t.Fatalf("the copy landed on %s, not an event in Plans", landed)
 	}
-	if page := get(t, c, base+landed); !strings.Contains(page, `Copied to “<span class="notice-name">Plans</span>”.`) {
+	if page := c.Follow(t, landed); !strings.Contains(page, `Copied to “<span class="notice-name">Plans</span>”.`) {
 		t.Error("the copy's page does not say where it went")
 	}
 
-	lines := icsLines(raw(t, c, base, landed))
+	lines := icsLines(raw(t, a, c, landed))
 	uids := withName(lines, "UID")
 	if len(uids) != 2 || uids[0] != uids[1] || uids[0] == "UID:club-night" {
 		t.Errorf("the copy's UIDs are %q, want one fresh UID on the series and its moved instance", uids)
@@ -144,24 +152,17 @@ func TestCopyingAFeedEventMakesAnEventOfOurOwn(t *testing.T) {
 
 // A task copies as an event does, and the notice's undo deletes the copy and nothing else.
 func TestCopyingATaskIsUndoneByDeletingTheCopy(t *testing.T) {
-	base := startAlborz(t, startIMAP(t))
-	c := login(t, base)
-	for _, name := range []string{"Chores", "Errands"} {
-		form := url.Values{"account": {smokeUser}, "place": {"here"}, "name": {name}, "color": {"#22aa55"}, "holds": {"tasks"}}
-		if resp := postForm(t, c, base+"/calendars/create", form); resp.StatusCode != http.StatusFound {
-			t.Fatalf("creating %s answered %s", name, resp.Status)
-		}
-	}
-	chores := "/alborz/dav/calendars/" + smokeUser + "/chores/"
-	errands := hereAt + "/alborz/dav/calendars/" + smokeUser + "/errands/"
-	put(t, base, chores+"water.ics", "text/calendar", todo("water", "Water the ferns"))
-	task := "/tasks/" + url.PathEscape(hereAt+chores+"water.ics")
+	a := Alborz(t)
+	c := a.SignIn(t, User)
+	chores := c.CreateCalendar(t, "Chores", "tasks")
+	errands := Here + c.CreateCalendar(t, "Errands", "tasks")
+	a.Put(t, chores+"water.ics", "text/calendar", Todo("water", "Water the ferns"))
 
-	landed := copied(t, c, base, task+"/copy?account="+smokeUser, smokeUser+"|"+errands)
+	landed := copied(t, c, User+"|"+errands, "calendar.task.copy", Here+chores+"water.ics", url.Values{"account": {User}})
 	if !strings.Contains(landed, url.PathEscape(errands)) {
 		t.Fatalf("the copy landed on %s, not a task in Errands", landed)
 	}
-	lines := icsLines(raw(t, c, base, landed))
+	lines := icsLines(raw(t, a, c, landed))
 	if uids := withName(lines, "UID"); len(uids) != 1 || uids[0] == "UID:water" || !slices.Equal(withName(lines, "SUMMARY"), []string{"SUMMARY:Water the ferns"}) {
 		t.Errorf("the copy is %q, want Water the ferns under a fresh UID", lines)
 	}
@@ -169,7 +170,7 @@ func TestCopyingATaskIsUndoneByDeletingTheCopy(t *testing.T) {
 		t.Errorf("the copy links to %q, want the Chores list", got)
 	}
 
-	page := html.UnescapeString(get(t, c, base+landed))
+	page := html.UnescapeString(c.Follow(t, landed))
 	undo := regexp.MustCompile(`<form method="post" action="([^"]+/delete[^"]*)" class="notice-action">\s*((?:<input[^>]+>)+)`).FindStringSubmatch(page)
 	if undo == nil {
 		t.Fatal("the copy's notice offers no undo")
@@ -178,18 +179,21 @@ func TestCopyingATaskIsUndoneByDeletingTheCopy(t *testing.T) {
 	for _, in := range regexp.MustCompile(`name="([^"]+)" value="([^"]*)"`).FindAllStringSubmatch(undo[2], -1) {
 		fields.Add(in[1], in[2])
 	}
-	if resp := postForm(t, c, base+undo[1], fields); resp.StatusCode != http.StatusFound || resp.Header.Get("Location") != fields.Get("next") {
+	if resp := c.PostTo(t, undo[1], fields); resp.StatusCode != http.StatusFound || resp.Header.Get("Location") != fields.Get("next") {
 		t.Fatalf("the undo answered %s to %s", resp.Status, resp.Header.Get("Location"))
 	}
-	copyAt, _, _ := strings.Cut(landed, "?")
-	copyPath, err := url.PathUnescape(strings.TrimPrefix(copyAt, "/tasks/"))
+	u, err := url.Parse(landed)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if resp, _ := dav(t, http.MethodGet, base+strings.TrimPrefix(copyPath, hereAt), nil, ""); resp.StatusCode != http.StatusNotFound {
+	_, values, ok := a.Server.Match(u)
+	if !ok {
+		t.Fatalf("the copy's page %s is no route", landed)
+	}
+	if resp := a.DAV(t, http.MethodGet, strings.TrimPrefix(values["path"], Here), nil, ""); resp.StatusCode != http.StatusNotFound {
 		t.Errorf("the copy is still there after the undo: %s", resp.Status)
 	}
-	if resp, _ := dav(t, http.MethodGet, base+chores+"water.ics", nil, ""); resp.StatusCode != http.StatusOK {
+	if resp := a.DAV(t, http.MethodGet, chores+"water.ics", nil, ""); resp.StatusCode != http.StatusOK {
 		t.Errorf("the undo took the original: %s", resp.Status)
 	}
 }
@@ -197,21 +201,20 @@ func TestCopyingATaskIsUndoneByDeletingTheCopy(t *testing.T) {
 // With nothing writable the form is offered all the same, and the server says why it did nothing.
 func TestCopyingWithNoWritableCalendarIsRefused(t *testing.T) {
 	f := servedFeed(t, clubNight())
-	base := startSubscriber(t, f)
-	c := login(t, base)
-	subscribe(t, c, base, f.URL+"/club.ics")
-	events := regexp.MustCompile(`href="(/calendar/%2F[^"?]+)`).FindStringSubmatch(get(t, c, base+"/calendar?view=list"))
-	if events == nil {
+	a, c := subscriber(t, f)
+	subscribe(t, c, f.URL+"/club.ics")
+	linked := events(t, a, c)
+	if len(linked) == 0 {
 		t.Fatal("the agenda links no event of the feed")
 	}
-	if chooser := get(t, c, base+events[1]+"/copy"); !strings.Contains(chooser, `name="to"`) || strings.Contains(chooser, `value="`+smokeUser+`|`) {
+	if chooser := c.Page(t, "calendar.event.copy", linked[0]); !strings.Contains(chooser, `name="to"`) || strings.Contains(chooser, `value="`+User+`|`) {
 		t.Fatal("the copy page is not an empty choice")
 	}
-	resp, body := postBody(t, c, base+events[1]+"/copy", url.Values{}, nil)
-	if resp.StatusCode != http.StatusUnprocessableEntity || !strings.Contains(body, "Choose where to save it.") {
+	resp := c.Post(t, "calendar.event.copy", url.Values{}, linked[0])
+	if resp.StatusCode != http.StatusUnprocessableEntity || !strings.Contains(resp.Text, "Choose where to save it.") {
 		t.Fatalf("copying to nowhere answered %s, want the form refused with the reason", resp.Status)
 	}
-	if got := listed(t, c, base); len(got) != 1 {
+	if got := c.Listed(t); len(got) != 1 {
 		t.Errorf("the calendars are %v after a refused copy, want the feed alone", got)
 	}
 }

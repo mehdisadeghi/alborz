@@ -114,8 +114,8 @@ func TestAnImportTheServerRefusesSetsANotice(t *testing.T) {
 	})
 	t.Run("a server that does not answer the import page", func(t *testing.T) {
 		resp := c.Upload(t, "calendar.import", url.Values{"collection": {User + "|" + work}}, file("plan.ics", Event("plan", "Plan")))
-		if resp.StatusCode != http.StatusInternalServerError {
-			t.Errorf("the import no server answered gave %s, want 500", resp.Status)
+		if resp.StatusCode != http.StatusBadGateway || !strings.Contains(resp.Text, "The dav server could not be reached.") {
+			t.Errorf("the import no server answered gave %s without naming the server, want 502", resp.Status)
 		}
 	})
 }

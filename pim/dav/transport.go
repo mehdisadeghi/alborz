@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -22,6 +23,23 @@ import (
 )
 
 const requestTimeout = 10 * time.Second
+
+// unanswered names a server that dropped or refused the connection, or ran out the request's time, as one
+// that did not answer; the reader leaving, or a request refused before it left, stays as it was.
+func unanswered(req *http.Request, err error) error {
+	var dropped net.Error
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		return alborz.Unanswered("dav", requestTimeout, err)
+	case errors.Is(err, context.Canceled) || req.Context().Err() != nil:
+		return err
+	case errors.As(err, &dropped) && dropped.Timeout():
+		return alborz.Unanswered("dav", requestTimeout, err)
+	case errors.As(err, &dropped), errors.Is(err, io.EOF), errors.Is(err, io.ErrUnexpectedEOF):
+		return alborz.Unanswered("dav", 0, err)
+	}
+	return err
+}
 
 // maxRedirects is where a redirect chain is taken for a loop.
 const maxRedirects = 10
@@ -323,7 +341,7 @@ func (r sourceRouter) send(req *http.Request, src Source) (*http.Response, error
 			logDAVExchange(r.debug, req, resp, err)
 		}
 		if err != nil {
-			return nil, err
+			return nil, unanswered(req, err)
 		}
 		if resp.StatusCode == http.StatusUnauthorized {
 			resp.Body.Close()

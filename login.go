@@ -58,6 +58,11 @@ func (err UpstreamError) Error() string {
 
 func (err UpstreamError) Unwrap() error { return err.cause }
 
+// Unanswered is a server of service that took no connection, after zero, or gave no answer within after.
+func Unanswered(service string, after time.Duration, cause error) UpstreamError {
+	return UpstreamError{Service: service, After: after, cause: cause}
+}
+
 // BaselineError says the mail server speaks neither IMAP4rev1 nor IMAP4rev2.
 type BaselineError struct {
 	caps []string

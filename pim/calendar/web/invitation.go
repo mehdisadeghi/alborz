@@ -23,9 +23,10 @@ import (
 
 // The invitation is re-read from the message, so what is answered is what was sent.
 func handleInvitationReply(ctx *web.Context) error {
-	mboxName, uid, err := mail.MessageRef(ctx)
+	mboxName := ctx.Param("mbox")
+	uid, err := mail.ParseUID(ctx.Param("uid"))
 	if err != nil {
-		return err
+		return web.NewError(http.StatusBadRequest, err)
 	}
 
 	status := strings.ToUpper(ctx.FormValue("status"))
@@ -63,7 +64,7 @@ func handleInvitationReply(ctx *web.Context) error {
 
 	back := ctx.NextOr(ctx.URL("mail.message", mboxName, uid))
 	subject := fmt.Sprintf(ctx.T("invite.subject"+strings.ToLower(status)), inv.Summary)
-	if err := mail.SendCalendarMessage(ctx, []string{inv.Organizer}, subject, reply); err != nil {
+	if err := mail.SendCalendarMessage(ctx.Request().Context(), ctx.Login, []string{inv.Organizer}, subject, reply); err != nil {
 		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: fmt.Sprintf(ctx.T("form.sendrefused"), err)})
 		return ctx.Redirect(http.StatusFound, back)
 	}
@@ -74,7 +75,7 @@ func handleInvitationReply(ctx *web.Context) error {
 
 // An unparsable invitation is not a page failure: the part is still an attachment.
 func messageInvitation(ctx *web.Context, msg *mail.IMAPMessage, mboxName string, uid imap.UID) *calendar.Invitation {
-	cal, _, err := mail.CalendarPart(ctx, msg, mboxName, uid)
+	cal, _, err := mail.CalendarPart(ctx.Request().Context(), ctx.Login, msg, mboxName, uid)
 	if err != nil {
 		ctx.Logger().Printf("failed to read the calendar part: %v", err)
 		return nil
@@ -92,7 +93,7 @@ func messageInvitation(ctx *web.Context, msg *mail.IMAPMessage, mboxName string,
 
 // invitationAt reads the scheduling message one mail carries; nil for none.
 func invitationAt(ctx *web.Context, mboxName string, uid imap.UID) (*ical.Calendar, error) {
-	cal, _, err := mail.CalendarPartAt(ctx, mboxName, uid)
+	cal, _, err := mail.CalendarPartAt(ctx.Request().Context(), ctx.Login, mboxName, uid)
 	return cal, err
 }
 
@@ -106,7 +107,7 @@ func sendScheduling(ctx *web.Context, msg *ical.Calendar, to []string) error {
 	if itip.Method(msg) == itip.MethodCancel {
 		subject = ctx.T("invite.cancelledsubject") + ": " + summary
 	}
-	return mail.SendCalendarMessage(ctx, to, subject, msg)
+	return mail.SendCalendarMessage(ctx.Request().Context(), ctx.Login, to, subject, msg)
 }
 
 // A meeting this account organizes is withdrawn from its attendees as it goes.
@@ -299,7 +300,11 @@ func (p *plugin) importCalendar(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	raw, _, err := mail.PartAt(ctx, mboxName, uid, ctx.FormValue("part"))
+	part, err := mail.ParsePartPath(ctx.FormValue("part"))
+	if err != nil {
+		return web.NewError(http.StatusBadRequest, err)
+	}
+	raw, _, err := mail.PartAt(ctx.Request().Context(), ctx.Login, mboxName, uid, part)
 	if err != nil {
 		return err
 	}

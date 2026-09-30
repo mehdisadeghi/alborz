@@ -98,7 +98,7 @@ func mailboxRef(ctx *web.Context) (string, error) {
 
 // MessageRef is the message the route's path names.
 func MessageRef(ctx *web.Context) (string, imap.UID, error) {
-	uid, err := parseUid(ctx.Param("uid"))
+	uid, err := ParseUID(ctx.Param("uid"))
 	if err != nil {
 		return "", 0, web.NewError(http.StatusBadRequest, err)
 	}

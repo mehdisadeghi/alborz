@@ -3,6 +3,7 @@ package mail
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"mime"
@@ -164,9 +165,9 @@ func listMailboxes(conn *imapclient.Client) ([]MailboxInfo, error) {
 }
 
 // RoleFolder names the account's folder for a role, empty when it has none.
-func RoleFolder(ctx *web.Context, role string) (string, error) {
+func RoleFolder(ctx context.Context, login *alborz.Login, role string) (string, error) {
 	var name string
-	err := ctx.DoIMAP(func(c *imapclient.Client) error {
+	err := login.DoIMAPContext(ctx, alborz.RoundTripTimeout, func(c *imapclient.Client) error {
 		mbox, err := getMailboxByRole(c, role)
 		if err != nil || mbox == nil {
 			return err
@@ -178,9 +179,9 @@ func RoleFolder(ctx *web.Context, role string) (string, error) {
 }
 
 // MailboxNames lists the account's selectable folders.
-func MailboxNames(ctx *web.Context) ([]string, error) {
+func MailboxNames(ctx context.Context, login *alborz.Login) ([]string, error) {
 	var names []string
-	err := ctx.DoIMAP(func(c *imapclient.Client) error {
+	err := login.DoIMAPContext(ctx, alborz.RoundTripTimeout, func(c *imapclient.Client) error {
 		mailboxes, err := listMailboxes(c)
 		for _, m := range mailboxes {
 			if !slices.Contains(m.Attrs, imap.MailboxAttrNoSelect) {

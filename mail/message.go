@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bufio"
 	"bytes"
+	"context"
 	"fmt"
 	"html"
 	"html/template"
@@ -387,7 +388,7 @@ func handleRaw(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	partPath, err := parsePartPath(ctx.QueryParam("part"))
+	partPath, err := ParsePartPath(ctx.QueryParam("part"))
 	if err != nil {
 		return web.NewError(http.StatusBadRequest, err)
 	}
@@ -403,7 +404,7 @@ func (p *plugin) handleGetPart(ctx *web.Context) error {
 		return err
 	}
 
-	partPath, err := parsePartPath(ctx.QueryParam("part"))
+	partPath, err := ParsePartPath(ctx.QueryParam("part"))
 	if err != nil {
 		return web.NewError(http.StatusBadRequest, err)
 	}
@@ -684,14 +685,10 @@ func unsubscribeHref(settings *Settings, trust deliveryTrust, msg *IMAPMessage) 
 }
 
 // PartAt reads one part of a message as the bytes it was sent as, with its media type.
-func PartAt(ctx *web.Context, mboxName string, uid imap.UID, part string) ([]byte, string, error) {
-	partPath, err := parsePartPath(part)
-	if err != nil {
-		return nil, "", web.NewError(http.StatusBadRequest, err)
-	}
+func PartAt(ctx context.Context, login *alborz.Login, mboxName string, uid imap.UID, partPath []int) ([]byte, string, error) {
 	var raw []byte
 	var mediaType string
-	err = ctx.DoIMAP(func(c *imapclient.Client) error {
+	err := login.DoIMAPContext(ctx, alborz.RoundTripTimeout, func(c *imapclient.Client) error {
 		_, entity, err := getMessagePart(c, mboxName, uid, partPath)
 		if err != nil {
 			return err
@@ -704,9 +701,9 @@ func PartAt(ctx *web.Context, mboxName string, uid imap.UID, part string) ([]byt
 }
 
 // CalendarPartAt reads the scheduling message of one mail, and the part it is.
-func CalendarPartAt(ctx *web.Context, mboxName string, uid imap.UID) (*ical.Calendar, string, error) {
+func CalendarPartAt(ctx context.Context, login *alborz.Login, mboxName string, uid imap.UID) (*ical.Calendar, string, error) {
 	var msg *IMAPMessage
-	if err := ctx.DoIMAP(func(c *imapclient.Client) error {
+	if err := login.DoIMAPContext(ctx, alborz.RoundTripTimeout, func(c *imapclient.Client) error {
 		if err := ensureMailboxSelected(c, mboxName); err != nil {
 			return err
 		}
@@ -724,17 +721,17 @@ func CalendarPartAt(ctx *web.Context, mboxName string, uid imap.UID) (*ical.Cale
 	}); err != nil {
 		return nil, "", err
 	}
-	return CalendarPart(ctx, msg, mboxName, uid)
+	return CalendarPart(ctx, login, msg, mboxName, uid)
 }
 
 // CalendarPart reads the scheduling message of a fetched mail; nil for none.
-func CalendarPart(ctx *web.Context, msg *IMAPMessage, mboxName string, uid imap.UID) (*ical.Calendar, string, error) {
+func CalendarPart(ctx context.Context, login *alborz.Login, msg *IMAPMessage, mboxName string, uid imap.UID) (*ical.Calendar, string, error) {
 	part := invitationPart(msg)
 	if part == nil || part.Cut() {
 		return nil, "", nil
 	}
 	var cal *ical.Calendar
-	err := ctx.DoIMAP(func(c *imapclient.Client) error {
+	err := login.DoIMAPContext(ctx, alborz.RoundTripTimeout, func(c *imapclient.Client) error {
 		if err := ensureMailboxSelected(c, mboxName); err != nil {
 			return err
 		}

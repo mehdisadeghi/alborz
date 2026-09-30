@@ -133,7 +133,11 @@ func (p *plugin) importFromMessage(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	raw, _, err := mail.PartAt(ctx, mboxName, uid, ctx.FormValue("part"))
+	part, err := mail.ParsePartPath(ctx.FormValue("part"))
+	if err != nil {
+		return web.NewError(http.StatusBadRequest, err)
+	}
+	raw, _, err := mail.PartAt(ctx.Request().Context(), ctx.Login, mboxName, uid, part)
 	if err != nil {
 		return err
 	}

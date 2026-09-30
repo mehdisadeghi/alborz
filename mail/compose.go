@@ -273,7 +273,7 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *OutgoingMessage, options *
 	if err != nil {
 		return err
 	}
-	msg.Mailer = mailerName(ctx)
+	msg.Mailer = mailerName()
 
 	if msg.From == "" && strings.ContainsRune(ctx.Login.Username(), '@') {
 		msg.From = fromAddress(settings, ctx.Login.Username())
@@ -409,7 +409,7 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *OutgoingMessage, options *
 		}
 		if original != nil {
 			for _, s := range form.Value["prev_attachments"] {
-				path, err := parsePartPath(s)
+				path, err := ParsePartPath(s)
 				if err != nil {
 					return fmt.Errorf("failed to parse original attachment path: %v", err)
 				}
@@ -756,7 +756,7 @@ func quotablePart(ctx *web.Context, path messagePath, partPath []int) (*IMAPMess
 func (p *plugin) populateMessageFromOriginalMessage(ctx *web.Context, inReplyToPath messagePath) (OutgoingMessage, error) {
 	var ret OutgoingMessage
 
-	partPath, err := parsePartPath(ctx.QueryParam("part"))
+	partPath, err := ParsePartPath(ctx.QueryParam("part"))
 	if err != nil {
 		return ret, web.NewError(http.StatusBadRequest, err)
 	}
@@ -1008,7 +1008,7 @@ func (p *plugin) handleForward(ctx *web.Context) error {
 
 	var msg OutgoingMessage
 	if ctx.Request().Method == http.MethodGet {
-		partPath, err := parsePartPath(ctx.QueryParam("part"))
+		partPath, err := ParsePartPath(ctx.QueryParam("part"))
 		if err != nil {
 			return web.NewError(http.StatusBadRequest, err)
 		}
@@ -1075,7 +1075,7 @@ func (p *plugin) handleEdit(ctx *web.Context) error {
 
 	var msg OutgoingMessage
 	if ctx.Request().Method == http.MethodGet {
-		partPath, err := parsePartPath(ctx.QueryParam("part"))
+		partPath, err := ParsePartPath(ctx.QueryParam("part"))
 		if err != nil {
 			return web.NewError(http.StatusBadRequest, err)
 		}

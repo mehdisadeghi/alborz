@@ -10,7 +10,8 @@ import (
 	"github.com/emersion/go-imap/v2"
 )
 
-func parseUid(s string) (imap.UID, error) {
+// ParseUID reads a message's UID, which is never zero.
+func ParseUID(s string) (imap.UID, error) {
 	uid, err := strconv.ParseUint(s, 10, 32)
 	if err != nil {
 		return 0, fmt.Errorf("invalid UID: %v", err)
@@ -31,14 +32,14 @@ func parseMboxAndUid(mboxString, uidString string) (string, imap.UID, error) {
 	if err != nil {
 		return "", 0, fmt.Errorf("invalid mailbox name: %v", err)
 	}
-	uid, err := parseUid(uidString)
+	uid, err := ParseUID(uidString)
 	return mboxName, uid, err
 }
 
 func parseUidList(values []string) ([]imap.UID, error) {
 	var uids []imap.UID
 	for _, v := range values {
-		uid, err := parseUid(v)
+		uid, err := ParseUID(v)
 		if err != nil {
 			return nil, err
 		}
@@ -47,7 +48,8 @@ func parseUidList(values []string) ([]imap.UID, error) {
 	return uids, nil
 }
 
-func parsePartPath(s string) ([]int, error) {
+// ParsePartPath reads a part's path, as "1.2"; empty is the whole message.
+func ParsePartPath(s string) ([]int, error) {
 	if s == "" {
 		return nil, nil
 	}

@@ -75,7 +75,7 @@ func handleRuleForm(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	if data.Folders, err = mail.MailboxNames(ctx); err != nil {
+	if data.Folders, err = mail.MailboxNames(ctx.Request().Context(), ctx.Login); err != nil {
 		return err
 	}
 	if at := ctx.Param("index"); at != "" {
@@ -152,7 +152,7 @@ func handleRuleSave(ctx *web.Context) error {
 		if derr != nil {
 			return derr
 		}
-		if data.Folders, derr = mail.MailboxNames(ctx); derr != nil {
+		if data.Folders, derr = mail.MailboxNames(ctx.Request().Context(), ctx.Login); derr != nil {
 			return derr
 		}
 		data.Editing, data.Index = r, index
@@ -184,7 +184,7 @@ func handleBlock(ctx *web.Context) error {
 	if value == "" || (domain && strings.ContainsRune(value, '@')) || (!domain && !strings.ContainsRune(value, '@')) {
 		return web.NewError(http.StatusBadRequest, "nothing to block")
 	}
-	junk, err := mail.RoleFolder(ctx, "junk")
+	junk, err := mail.RoleFolder(ctx.Request().Context(), ctx.Login, "junk")
 	if err != nil {
 		return err
 	}

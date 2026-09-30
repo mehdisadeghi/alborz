@@ -6,6 +6,7 @@ import (
 	"sort"
 	"time"
 
+	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/calendar"
 	"git.mehdix.org/alborz/pim/dav"
 	pimweb "git.mehdix.org/alborz/pim/web"
@@ -74,7 +75,7 @@ type monthView struct {
 	dates     []time.Time
 	on        map[time.Time][]calendar.Occurrence
 	day       func(time.Time) time.Time
-	unread    []calendar.Unread
+	unread    []pim.Unread
 }
 
 func (mv monthView) shown() []calendar.Occurrence {
@@ -93,7 +94,7 @@ func (p *plugin) month(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	warnUnread(ctx, mv.unread)
+	pimweb.WarnUnread(ctx, mv.unread)
 	template := "calendar/month"
 	if mv.view != "" {
 		template = "calendar/list"
@@ -243,7 +244,7 @@ func (p *plugin) monthView(ctx *web.Context) (monthView, error) {
 	for _, ev := range events {
 		occurrences, err := calendar.Occurrences(ev, loc, queryStart, queryEnd)
 		if err != nil {
-			unread = append(unread, calendar.Unread{Calendar: ev.Calendar, Err: err})
+			unread = append(unread, pim.Unread{Collection: ev.Calendar, Err: err})
 		}
 		for _, oc := range occurrences {
 			if view != "list" && !web.StarMatches(oc.Star(), view) {

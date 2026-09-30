@@ -43,6 +43,12 @@ type Site[C any] struct {
 // Account is the site's account, whose turn it takes.
 func (s Site[C]) Account() string { return s.Collection.Account }
 
+// Unread is what a page could not read of a collection: all of it, or one object.
+type Unread struct {
+	Collection string
+	Err        error
+}
+
 // Present leaves out the answers of listed collections their server no longer has: deleted by another
 // client, they are gone, not an error, and each one's account is listed afresh on the next page.
 func Present[C, R any](p *dav.Provider, results []dav.Result[Site[C], R]) []dav.Result[Site[C], R] {

@@ -155,7 +155,7 @@ type TaskList struct {
 	Query   string
 	View    string
 	Sorting pimweb.Sorting
-	Unread  []calendar.Unread
+	Unread  []pim.Unread
 }
 
 func (p *plugin) taskList(ctx *web.Context) (TaskList, error) {
@@ -185,13 +185,13 @@ func (p *plugin) taskList(ctx *web.Context) (TaskList, error) {
 	params := pimweb.RowParams(ctx, ctx.Path("calendar.tasks"), pimweb.ListParams(ctx, taskListParams...))
 
 	query := calendar.TaskQuery()
-	var unread []calendar.Unread
+	var unread []pim.Unread
 
 	for _, result := range pim.Present(p.DAV, dav.Across(ctx.Request().Context(), sites, pim.Site[*caldav.Client].Account, func(ctx context.Context, site pim.Site[*caldav.Client]) ([]caldav.CalendarObject, error) {
 		return site.Client.QueryCalendar(ctx, site.Collection.Path, &query)
 	})) {
 		if result.Err != nil {
-			unread = append(unread, calendar.Unread{Calendar: result.Site.Collection.Name, Err: result.Err})
+			unread = append(unread, pim.Unread{Collection: result.Site.Collection.Name, Err: result.Err})
 			continue
 		}
 
@@ -276,7 +276,7 @@ func (p *plugin) tasks(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	warnUnread(ctx, list.Unread)
+	pimweb.WarnUnread(ctx, list.Unread)
 	rows, pager, err := web.Paginate(ctx, list.Rows)
 	if err != nil {
 		return err

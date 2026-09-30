@@ -6,6 +6,7 @@ import (
 	"sort"
 	"time"
 
+	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/calendar"
 	"git.mehdix.org/alborz/pim/dav"
 	pimweb "git.mehdix.org/alborz/pim/web"
@@ -35,7 +36,7 @@ type dayView struct {
 	calendars []dav.Collection
 	events    []calendar.Occurrence
 	accounts  int
-	unread    []calendar.Unread
+	unread    []pim.Unread
 }
 
 func (p *plugin) day(ctx *web.Context) error {
@@ -43,7 +44,7 @@ func (p *plugin) day(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	warnUnread(ctx, dv.unread)
+	pimweb.WarnUnread(ctx, dv.unread)
 	collection, href := pimweb.Labels(ctx, dv.calendars, "calendar.month", "cal", url.Values{"view": {"list"}})
 	invitations, err := p.invitations(ctx)
 	if err != nil {
@@ -101,7 +102,7 @@ func (p *plugin) dayView(ctx *web.Context) (dayView, error) {
 	for _, ev := range events {
 		occurrences, err := calendar.Occurrences(ev, loc, start, end)
 		if err != nil {
-			unread = append(unread, calendar.Unread{Calendar: ev.Calendar, Err: err})
+			unread = append(unread, pim.Unread{Collection: ev.Calendar, Err: err})
 		}
 		for _, oc := range occurrences {
 			if oc.Start.Before(end) && (oc.End.After(start) || !oc.End.After(oc.Start)) {

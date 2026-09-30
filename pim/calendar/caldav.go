@@ -286,29 +286,23 @@ func (p *Calendars) OpenWithFeeds(ctx context.Context, login *alborz.Login) (*ca
 	return p.Open(ctx, login)
 }
 
-// Unread is what a page could not read of a calendar: all of it, or one object.
-type Unread struct {
-	Calendar string
-	Err      error
-}
-
 // Unparsed is the object of calendar the client could not parse.
-func Unparsed(calendar string, obj *caldav.CalendarObject) Unread {
+func Unparsed(calendar string, obj *caldav.CalendarObject) pim.Unread {
 	_, err := ical.NewDecoder(bytes.NewReader(obj.Raw)).Decode()
-	return Unread{calendar, fmt.Errorf("%s: %w", obj.Path, err)}
+	return pim.Unread{Collection: calendar, Err: fmt.Errorf("%s: %w", obj.Path, err)}
 }
 
 // QuerySites asks each site for the objects query matches. A calendar that fails and an object that does not
 // parse are returned as unread, so that they cost the page nothing else.
-func (p *Calendars) QuerySites(ctx context.Context, sites []pim.Site[*caldav.Client], query *caldav.CalendarQuery) ([]CalendarObject, []Unread) {
+func (p *Calendars) QuerySites(ctx context.Context, sites []pim.Site[*caldav.Client], query *caldav.CalendarQuery) ([]CalendarObject, []pim.Unread) {
 	var events []CalendarObject
-	var unread []Unread
+	var unread []pim.Unread
 	for _, r := range pim.Present(p.DAV, dav.Across(ctx, sites, pim.Site[*caldav.Client].Account, func(ctx context.Context, site pim.Site[*caldav.Client]) ([]caldav.CalendarObject, error) {
 		return site.Client.QueryCalendar(ctx, site.Collection.Path, query)
 	})) {
 		name := r.Site.Collection.Name
 		if r.Err != nil {
-			unread = append(unread, Unread{name, r.Err})
+			unread = append(unread, pim.Unread{Collection: name, Err: r.Err})
 			continue
 		}
 		for i := range r.Value {

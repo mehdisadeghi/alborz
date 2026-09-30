@@ -149,3 +149,28 @@ func (l *Login) SetHTTPPassword(ctx context.Context, password string) error {
 	l.httpLocker.Unlock()
 	return nil
 }
+
+// rewrap seals the kept HTTP password under next, the mail password replacing the login's.
+// One the login's password no longer opens stays as it is (ADR 5).
+func (l *Login) rewrap(ctx context.Context, next string) error {
+	var e envelope
+	err := l.store.Get(ctx, httpPasswordKey, &e)
+	if err == ErrNoStoreEntry || (err == nil && e.Secret == "") {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	salt, err := base64.StdEncoding.DecodeString(e.Salt)
+	if err != nil {
+		return err
+	}
+	k := unwrap(e.ByPassword, passwordKey(l.password, salt))
+	if k == nil {
+		return nil
+	}
+	salt = make([]byte, envelopeSalt)
+	rand.Read(salt)
+	e.Salt, e.ByPassword = base64.StdEncoding.EncodeToString(salt), wrap(k, passwordKey(next, salt))
+	return l.store.Put(ctx, httpPasswordKey, &e)
+}

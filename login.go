@@ -74,6 +74,8 @@ func (err AuthError) Error() string {
 	return fmt.Sprintf("authentication failed: %v", err.cause)
 }
 
+func (err AuthError) Unwrap() error { return err.cause }
+
 // Login is an account signed in.
 type Login struct {
 	manager            *loginManager

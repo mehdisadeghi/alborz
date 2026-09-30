@@ -128,3 +128,31 @@ func DeviceName(ua string) Device {
 	}
 	return Device{browser, system}
 }
+
+// PasswordChanged puts login, signed in with the account's new password, in place of the
+// account's login in this browser and keeps the password where the old one was remembered.
+// Every other browser is signed out of the account: what it remembers opens with the old
+// password only, and it holds no secret of this browser to reseal it with.
+func (ctx *Context) PasswordChanged(login *alborz.Login, password string) error {
+	s, account := ctx.Session(), login.Username()
+	s.mu.Lock()
+	_, remembered := s.remember[account]
+	s.mu.Unlock()
+	ctx.AddAccount(login)
+	if remembered {
+		ctx.SetLoginToken(account, password)
+	}
+	signed, err := ctx.Server.Sessions.SignedIn(account, s.ID)
+	if err != nil {
+		return err
+	}
+	for _, other := range signed {
+		if other.Current {
+			continue
+		}
+		if err := ctx.Server.Sessions.SignOut(other.ID, account); err != nil {
+			return err
+		}
+	}
+	return nil
+}

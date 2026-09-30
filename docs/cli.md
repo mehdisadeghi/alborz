@@ -30,6 +30,12 @@ The following URL schemes are supported:
   over plain HTTP)
 * `carddavs` (CardDAV over HTTPS), `carddav+insecure` (CardDAV over plain HTTP)
 * `caldavs` (CalDAV over HTTPS), `caldav+insecure` (CalDAV over plain HTTP)
+* `poppassd` (a poppassd password server over TCP, port 106 by default),
+  `poppassd+unix` (the same on a Unix socket, `poppassd+unix:///run/poppassd.sock`);
+  `?user=local` sends the address's local part as the user name. With one,
+  Settings offers a password change for the domain's accounts. poppassd is
+  plain text, so a `poppassd` host other than `localhost` or a loopback
+  address is refused at startup.
 
 # OPTIONS
 

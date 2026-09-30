@@ -12,6 +12,8 @@ func Mount(g *web.Group) {
 	g.POST("profile.discard", "/settings/profile/discard", handleProfileDiscard)
 	g.GET("sessions", "/settings/sessions", web.Scoped(handleSessions))
 	g.POST("sessions", "/settings/sessions", web.Scoped(handleSessions))
+	g.GET("password", "/settings/password", web.Scoped(handlePassword))
+	g.POST("password", "/settings/password", web.Scoped(handlePassword))
 	g.GET("servers", "/settings/servers", web.Scoped(handleServers))
 	g.GET("server", "/settings/servers/{server}", web.Scoped(handleServer))
 	g.POST("server", "/settings/servers/{server}", web.Scoped(handleServer))

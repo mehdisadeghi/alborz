@@ -122,8 +122,8 @@ func TestASubscriptionIsAReadOnlyCalendar(t *testing.T) {
 	resp := a.DAV(t, "PROPFIND", onDAV, map[string]string{"Depth": "0", "Content-Type": "application/xml"},
 		`<D:propfind xmlns:D="DAV:" xmlns:CS="http://calendarserver.org/ns/"><D:prop>`+
 			`<D:displayname/><D:current-user-privilege-set/><CS:source/></D:prop></D:propfind>`)
-	if resp.StatusCode != http.StatusMultiStatus || !strings.Contains(resp.Text, "Hols") || !strings.Contains(resp.Text, f.URL+"/f.ics") {
-		t.Fatalf("PROPFIND answered %s without the name or the feed:\n%s", resp.Status, resp.Text)
+	if resp.StatusCode != http.StatusMultiStatus || !strings.Contains(resp.Text, "Hols") {
+		t.Fatalf("PROPFIND answered %s without the name:\n%s", resp.Status, resp.Text)
 	}
 	if strings.Contains(resp.Text, "write") {
 		t.Errorf("a DAV client is offered to write the subscription:\n%s", resp.Text)
@@ -131,6 +131,46 @@ func TestASubscriptionIsAReadOnlyCalendar(t *testing.T) {
 	if resp := a.DAV(t, http.MethodPut, onDAV+"mine.ics", map[string]string{"Content-Type": "text/calendar"},
 		Event("mine", "Mine")); resp.StatusCode != http.StatusForbidden {
 		t.Errorf("a PUT into the subscription answered %s, want 403", resp.Status)
+	}
+}
+
+// A feed's address may carry a secret, so a guest of a shared subscription reads its events but never the
+// address, over DAV or on a page; the owner's page still names it.
+func TestASharedSubscriptionKeepsItsFeedFromTheGuest(t *testing.T) {
+	f := startFeed(t, "Feast")
+	a, owner := subscriber(t, f.Server)
+	path := subscribe(t, owner, f.URL+"/f.ics")
+	if resp := owner.Post(t, "calendar.collection.share", url.Values{"to": {User2}, "access": {"read"}}, path); resp.StatusCode != http.StatusFound {
+		t.Fatalf("sharing answered %s", resp.Status)
+	}
+	guest := a.SignIn(t, User2)
+	home := CalendarsOf(User2)
+	guestPath := Here + home + strings.TrimSuffix(strings.TrimPrefix(path, Here+CalendarsOf(User)), "/") + "~" + User + "/"
+	if resp := guest.Post(t, "calendar.collection.accept", url.Values{}, guestPath); resp.StatusCode != http.StatusFound {
+		t.Fatalf("accepting answered %s", resp.Status)
+	}
+
+	req, err := http.NewRequest("PROPFIND", a.URL+home, strings.NewReader(
+		`<D:propfind xmlns:D="DAV:" xmlns:CS="http://calendarserver.org/ns/"><D:prop>`+
+			`<D:resourcetype/><D:displayname/><CS:source/></D:prop></D:propfind>`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.SetBasicAuth(User2, Password)
+	req.Header.Set("Depth", "1")
+	req.Header.Set("Content-Type", "application/xml")
+	resp := a.Client().Do(t, req)
+	if resp.StatusCode != http.StatusMultiStatus || !strings.Contains(resp.Text, strings.TrimPrefix(guestPath, Here)) || !strings.Contains(resp.Text, "Hols") {
+		t.Fatalf("the guest's PROPFIND answered %s without the shared subscription:\n%s", resp.Status, resp.Text)
+	}
+	if strings.Contains(resp.Text, f.URL) {
+		t.Errorf("the guest's PROPFIND names the feed:\n%s", resp.Text)
+	}
+	if page := guest.Page(t, "calendar.collection", guestPath); !strings.Contains(page, "Hols") || strings.Contains(page, f.URL) {
+		t.Error("the guest's page of the subscription names the feed, or is not the subscription")
+	}
+	if page := owner.Page(t, "calendar.collection", path); !strings.Contains(page, f.URL+"/f.ics") {
+		t.Error("the owner's page does not name the feed")
 	}
 }
 

@@ -301,7 +301,7 @@ const enhance = () => {
 	// Priority-plus toolbar: data-yield is "hide", "word", or by default a move into the overflow menu.
 	for (const wrap of document.querySelectorAll(".actions-wrap")) {
 		if (fits.has(wrap)) {
-			fits.get(wrap)();
+			fits.get(wrap).fit();
 			continue;
 		}
 		const details = wrap.querySelector("div.overflow:not(.flag-menu)");
@@ -319,16 +319,20 @@ const enhance = () => {
 		const pin = on => { for (const el of pinned) { el.style.flexShrink = on ? "0" : ""; } };
 		let items = [];
 		let fitting = false;
-		const fit = () => {
-			if (fitting) {
-				return;
-			}
-			fitting = true;
+		const unfit = () => {
 			for (let i = items.length - 1; i >= 0; i--) {
 				items[i].el.hidden = false;
 				items[i].el.classList.remove("no-word");
 				items[i].parent.insertBefore(items[i].el, items[i].next);
 			}
+			items = [];
+		};
+		const fit = () => {
+			if (fitting) {
+				return;
+			}
+			fitting = true;
+			unfit();
 			// Collected after the restore: what the last run moved is back on the row, and a swap may have brought new items.
 			items = own().map(el => ({ el, priority: Number(el.dataset.priority), how: el.dataset.yield, parent: el.parentNode, next: el.nextSibling }));
 			const leaving = items.slice().sort((a, b) => a.priority - b.priority);
@@ -357,7 +361,7 @@ const enhance = () => {
 			}
 			fitting = false;
 		};
-		fits.set(wrap, fit);
+		fits.set(wrap, { fit, unfit });
 		new ResizeObserver(fit).observe(wrap);
 		// Opening the search widens it without resizing the row, which the observer alone would miss.
 		for (const type of ["focusin", "focusout"]) {
@@ -551,6 +555,83 @@ document.addEventListener("htmx:afterSwap", ev => {
 		row.classList.add("active");
 	}
 });
+
+// Back shows the page gone back to at once, from this document's memory, and
+// the server's answer for it follows (ADR 13). Left to htmx, the page being
+// left stays on screen under the address gone back to until the server answers.
+// As many pages as htmx keeps by default.
+const backPages = 10;
+const kept = new Map();
+const pathOf = path => {
+	const u = new URL(path, location.href);
+	return u.pathname + u.search;
+};
+let shown = pathOf(location.href);
+let restoring = null;
+document.addEventListener("htmx:pushedIntoHistory", ev => {
+	shown = pathOf(ev.detail.path);
+});
+document.addEventListener("htmx:replacedInHistory", ev => {
+	shown = pathOf(ev.detail.path);
+});
+// The page as the server sent it: the fit's moves undone, and nothing of a request or a notice still running.
+document.addEventListener("htmx:beforeHistorySave", ev => {
+	const wraps = [...document.querySelectorAll(".actions-wrap")].filter(wrap => fits.has(wrap));
+	for (const wrap of wraps) {
+		fits.get(wrap).unfit();
+	}
+	const page = ev.detail.historyElt.cloneNode(true);
+	for (const wrap of wraps) {
+		fits.get(wrap).fit();
+	}
+	for (const el of page.querySelectorAll(".progress, .notices > div.notice")) {
+		el.remove();
+	}
+	for (const el of page.querySelectorAll(".notices > dialog[open]")) {
+		el.removeAttribute("open");
+	}
+	for (const el of page.querySelectorAll("[aria-busy]")) {
+		el.removeAttribute("aria-busy");
+	}
+	for (const el of page.querySelectorAll("[data-busy]")) {
+		el.removeAttribute("data-busy");
+		el.disabled = false;
+	}
+	kept.delete(shown);
+	kept.set(shown, { html: page.innerHTML, title: document.title, scroll: window.scrollY });
+	if (kept.size > backPages) {
+		kept.delete(kept.keys().next().value);
+	}
+});
+document.addEventListener("htmx:historyCacheMiss", ev => {
+	if (restoring) {
+		restoring.abort();
+		restoring = null;
+	}
+	shown = pathOf(ev.detail.path);
+	const page = kept.get(shown);
+	if (!page) {
+		return;
+	}
+	restoring = ev.detail.xhr;
+	htmx.swap(ev.detail.historyElt, page.html, { swapStyle: "innerHTML", swapDelay: 0, settleDelay: 0 },
+		{ contextElement: ev.detail.historyElt, title: page.title });
+	window.scrollTo(0, page.scroll);
+});
+// Once the reader acts on the kept page, the server's late answer would undo it or take them back.
+for (const event of ["htmx:beforeHistoryUpdate", "pointerdown", "keydown"]) {
+	document.addEventListener(event, () => {
+		if (restoring) {
+			restoring.abort();
+			restoring = null;
+		}
+	});
+}
+for (const event of ["htmx:historyRestore", "htmx:historyCacheMissLoadError"]) {
+	document.addEventListener(event, () => {
+		restoring = null;
+	});
+}
 
 // Mail arriving renews the rail; what the page asks for by itself says so, or it would hold the lock off for ever.
 const rail = document.querySelector("aside");

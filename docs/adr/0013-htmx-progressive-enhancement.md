@@ -26,7 +26,15 @@ blank page per navigation.
    (`htmx-config` meta), so the Content-Security-Policy needs no
    `unsafe-eval`.
 5. Navigation is boosted by `hx-boost="true"` on `body`. History is
-   pushed with the link's own URL; `historyCacheSize` is 0.
+   pushed with the link's own URL. `historyCacheSize` is 0: htmx keeps
+   its snapshots in `sessionStorage`, and a snapshot of a mailbox is
+   the mail itself. The page keeps the last 10 pages it left in its
+   own memory instead. Back swaps the kept page in before the next
+   frame, as the browser's back-forward cache would, and the server's
+   answer for it then replaces it, unless the reader acted first. A
+   kept page is the page as sent: the toolbar fit (ADR 8) undone, no
+   request or notice still running. A page left before a reload is not
+   kept; its back waits for the server.
 6. Forms MUST NOT be boosted (`hx-boost="false"`) when:
    - they have an `id`, i.e. are submitted by buttons outside them
      with `form=` and `formaction` (htmx drops the button's name and
@@ -66,6 +74,7 @@ blank page per navigation.
 - Media Queries Level 5 (`scripting`)
 - ADR 14, ADR 41
 - `templates/layout.html` (`htmx-config`, `body hx-boost`),
+  `templates/assets/helpers.js` (kept pages),
   `web/htmx.go` (`Partial`, `PartialFor`), `web/renderer.go`,
   `web/middleware.go` (CSP), `templates/partials/form.html`,
   `templates/assets/VENDOR.toml`

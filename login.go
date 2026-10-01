@@ -90,7 +90,9 @@ type Login struct {
 	domain             string
 	closed             chan struct{}
 	pings              chan struct{}
-	store              Store
+	// recheck asks the reaper whether a login past its idle limit is still wanted.
+	recheck chan struct{}
+	store   Store
 
 	// httpPassword is cached because opening it costs an Argon2id derivation.
 	httpLocker   sync.Mutex
@@ -170,6 +172,14 @@ func (l *Login) WatchIMAP(onChange func(), onFlags func(seqNum uint32, flags []i
 		return nil, AuthError{err}
 	}
 	return c, nil
+}
+
+// Recheck lets a login past its idle limit go now if nothing keeps it.
+func (l *Login) Recheck() {
+	select {
+	case l.recheck <- struct{}{}:
+	default:
+	}
 }
 
 func (l *Login) Ping() {
@@ -525,6 +535,9 @@ type loginManager struct {
 	keys     *keyring.Ring
 	// unlock opens a new login's own key.
 	unlock func(*Login) error
+	// idle is how long a login outlives its last request unless keep holds it.
+	idle time.Duration
+	keep func(*Login) bool
 
 	locker sync.Mutex
 	// logins are the open ones, for shutdown to close.
@@ -532,8 +545,10 @@ type loginManager struct {
 	warnedNoMetadata bool                // protected by locker
 }
 
-func newLoginManager(dialIMAP, dialTransfer dialIMAPFunc, dialWatch dialIMAPWatchFunc, dialSMTP dialSMTPFunc, dialSieve dialSieveFunc, logger *log.Logger, settings *settingsRecords, keys *keyring.Ring, unlock func(*Login) error) *loginManager {
+func newLoginManager(dialIMAP, dialTransfer dialIMAPFunc, dialWatch dialIMAPWatchFunc, dialSMTP dialSMTPFunc, dialSieve dialSieveFunc, logger *log.Logger, settings *settingsRecords, keys *keyring.Ring, unlock func(*Login) error, idle time.Duration, keep func(*Login) bool) *loginManager {
 	return &loginManager{
+		idle:             idle,
+		keep:             keep,
 		settings:         settings,
 		keys:             keys,
 		unlock:           unlock,
@@ -630,6 +645,7 @@ func (sm *loginManager) put(username, password, from string) (*Login, error) {
 		manager:   sm,
 		closed:    make(chan struct{}),
 		pings:     make(chan struct{}, 5),
+		recheck:   make(chan struct{}, 1),
 		imapConn:  c,
 		transfers: make(chan idleTransfer, maxIMAPTransfers),
 		username:  username,
@@ -662,18 +678,25 @@ func (sm *loginManager) put(username, password, from string) (*Login, error) {
 }
 
 func (sm *loginManager) reap(s *Login) {
-	timer := time.NewTimer(LoginDuration)
+	timer := time.NewTimer(sm.idle)
 
-	alive := true
+	// idle is a login past its limit that something keeps (ADR 74); asked again each period and on recheck.
+	alive, idle := true, false
 	for alive {
 		select {
 		case <-s.pings:
 			if !timer.Stop() {
 				<-timer.C
 			}
-			timer.Reset(LoginDuration)
+			timer.Reset(sm.idle)
+			idle = false
 		case <-timer.C:
-			alive = false
+			idle = true
+			if alive = sm.keep(s); alive {
+				timer.Reset(sm.idle)
+			}
+		case <-s.recheck:
+			alive = !idle || sm.keep(s)
 		case <-s.closed:
 			alive = false
 		}

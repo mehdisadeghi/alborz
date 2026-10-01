@@ -88,6 +88,17 @@ func (ss *Sessions) Holds(id, account string) bool {
 		slices.ContainsFunc(rec.Accounts, func(a alborz.RememberedAccount) bool { return a.Address == account })
 }
 
+// holdsLogin says whether the browser of that session holds the login itself.
+func (ss *Sessions) holdsLogin(id string, login *alborz.Login) bool {
+	s := ss.get(id)
+	if s == nil {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.Contains(s.accounts, login)
+}
+
 // SignOut takes the account out of one browser, and its notifications with it; a browser left with none
 // is forgotten.
 func (ss *Sessions) SignOut(id, account string) error {

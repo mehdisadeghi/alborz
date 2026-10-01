@@ -14,7 +14,8 @@
         <input type="hidden" name="p256dh">
         <input type="hidden" name="auth">
         <p class="hint">{{$.T "notifications.what"}}</p>
-        <p class="hint">{{$.GlobalData.Tf "notifications.when" .Minutes}}</p>
+        <p class="hint">{{$.T "notifications.kept"}}</p>
+        <p class="hint">{{$.GlobalData.Tf "notifications.keptfor" .Days .Minutes}}</p>
         <p class="hint">{{$.T "notifications.privacy"}}</p>
         {{ template "form-actions" (dict "save" ($.T "notifications.on") "cancel" (print (url "settings.notifications") $aq) "cancelLabel" ($.T "common.cancel")) }}
       </form>

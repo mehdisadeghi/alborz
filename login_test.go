@@ -16,7 +16,7 @@ import (
 )
 
 func TestExpiryUnlistsTheLogin(t *testing.T) {
-	sm := newLoginManager(nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	sm := newLoginManager(nil, nil, nil, nil, nil, nil, nil, nil, nil, LoginDuration, nil)
 	s := &Login{manager: sm, closed: make(chan struct{}), pings: make(chan struct{}, 5),
 		username: "a@test.local"}
 	sm.logins[s] = struct{}{}
@@ -53,7 +53,7 @@ func plainManager(t *testing.T) *loginManager {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return newLoginManager(nil, nil, nil, nil, nil, nil, nil, keys, nil)
+	return newLoginManager(nil, nil, nil, nil, nil, nil, nil, keys, nil, LoginDuration, nil)
 }
 
 func TestEnvelopeOpensOnlyWithTheMailPassword(t *testing.T) {

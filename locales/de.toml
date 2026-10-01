@@ -1080,6 +1080,7 @@
 "notifications.failed" = "Der Browser konnte Benachrichtigungen nicht abonnieren."
 "push.mail" = "Neue E-Mail"
 "push.event" = "Termin um %s"
+"notifications.kept" = "Wenn Benachrichtigungen eingeschaltet sind, bleibt dieses Konto auf dem Server angemeldet, damit E-Mails und Erinnerungen auch bei geschlossener App geprüft werden. Das endet, wenn Benachrichtigungen für diesen Browser ausgeschaltet werden oder dieser Browser sich abmeldet."
 ["calendar.more"]
 one = "%d weiteres"
 other = "%d weitere"
@@ -1286,6 +1287,6 @@ other = "%d Termine heute"
 one = "%[2]s"
 other = "Nächster um %[2]s"
 
-["notifications.when"]
-one = "Benachrichtigungen kommen, solange dieses Konto angemeldet ist und genutzt wird. Sie enden %d Minute nach der letzten Nutzung."
-other = "Benachrichtigungen kommen, solange dieses Konto angemeldet ist und genutzt wird. Sie enden %d Minuten nach der letzten Nutzung."
+["notifications.keptfor"]
+one = "Das gilt bis zu %d Tag nach der letzten Nutzung dieses Browsers, wenn er mit „Angemeldet bleiben“ angemeldet wurde, sonst %d Minuten. Ein Neustart des Servers beendet es ebenfalls, bis dieser Browser wieder genutzt wird."
+other = "Das gilt bis zu %d Tage nach der letzten Nutzung dieses Browsers, wenn er mit „Angemeldet bleiben“ angemeldet wurde, sonst %d Minuten. Ein Neustart des Servers beendet es ebenfalls, bis dieser Browser wieder genutzt wird."

@@ -124,6 +124,7 @@ func New(logger *log.Logger, options Options, funcs template.FuncMap) (*Server, 
 	}
 	s.additions = map[reflect.Type][]any{}
 	s.Sessions = newSessions(core.SessionRecords, core.Pushes)
+	core.KeepLogin = s.keepLogin
 	s.funcs = maps.Clone(funcs)
 	s.funcs["url"] = s.templateURL
 	if err := s.load(); err != nil {

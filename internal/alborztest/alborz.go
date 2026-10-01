@@ -93,6 +93,9 @@ func Segments(segments ...web.Segment) Option {
 	return func(c *config) { c.segments = append(c.segments, segments...) }
 }
 
+// LoginIdle is how long a login outlives its last request.
+func LoginIdle(d time.Duration) Option { return func(c *config) { c.options.LoginIdle = d } }
+
 // ReminderTick paces the round that fires event reminders.
 func ReminderTick(d time.Duration) Option { return func(c *config) { c.options.ReminderTick = d } }
 

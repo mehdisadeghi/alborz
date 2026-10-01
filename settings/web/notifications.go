@@ -14,7 +14,8 @@ type NotificationsRenderData struct {
 	web.BaseRenderData
 	Rail    map[string][]web.RailRow
 	Devices []NotifiedDevice
-	Minutes int
+	// Days and Minutes are how long a login is kept for notifications, remembered and not.
+	Days, Minutes int
 }
 
 // NotifiedDevice is a device as the list shows it.
@@ -28,13 +29,10 @@ type NotifiedDevice struct {
 // NotificationRenderData renders notification-create.html.
 type NotificationRenderData struct {
 	web.BaseRenderData
-	Rail    map[string][]web.RailRow
-	Key     string
-	Minutes int
+	Rail          map[string][]web.RailRow
+	Key           string
+	Days, Minutes int
 }
-
-// loginMinutes is how long notifications outlive the account's last use: its login's life.
-const loginMinutes = int(alborz.LoginDuration / time.Minute)
 
 func handleNotifications(ctx *web.Context) error {
 	account := ctx.Login.Username()
@@ -52,7 +50,8 @@ func handleNotifications(ctx *web.Context) error {
 		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("notifications.title")),
 		Rail:           web.SettingsRail(ctx),
 		Devices:        shown,
-		Minutes:        loginMinutes,
+		Days:           int(alborz.CredentialCookieLife() / (24 * time.Hour)),
+		Minutes:        int(ctx.Server.Options.LoginIdle / time.Minute),
 	})
 }
 
@@ -63,7 +62,8 @@ func handleNotificationCreate(ctx *web.Context) error {
 		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("notifications.new")),
 		Rail:           web.SettingsRail(ctx),
 		Key:            ctx.Server.Pushes.Key.Public(),
-		Minutes:        loginMinutes,
+		Days:           int(alborz.CredentialCookieLife() / (24 * time.Hour)),
+		Minutes:        int(ctx.Server.Options.LoginIdle / time.Minute),
 	}
 	if ctx.Request().Method != http.MethodPost {
 		return ctx.Render(http.StatusOK, "settings/notification-create", data)
@@ -104,6 +104,7 @@ func handleNotificationOff(ctx *web.Context) error {
 	if err := ctx.Server.Pushes.Remove(ctx.Login.Username(), ctx.FormValue("device")); err != nil {
 		return err
 	}
+	ctx.Server.Recheck(ctx.Login.Username())
 	ctx.PutNotice(ctx.T("notice.notificationsoff"))
 	return ctx.Redirect(http.StatusFound, ctx.URL("settings.notifications"))
 }

@@ -134,15 +134,16 @@ select {
   --border-faint: #f2f2f2;
   --border-strong: #ccc;
 
-  --link: #15c;
-  --link-read: #66b;
-  --link-unread: #00c;
+  /* The logo's hue: sky #1f4a73 is the light accent, the ice on its snow #a9c4dc the dark one. */
+  --link: #1d63a5;
+  --link-read: #4d6f8f;
+  --link-unread: #1f4a73;
 
   /* Both accents carry white text, so neither may fall under 4.5:1. */
-  --accent-strong: #288528;
-  --accent: #008040;
-  --bg-accent: #f6fff6;
-  --border-accent: #afa;
+  --accent-strong: #286095;
+  --accent: #1f4a73;
+  --bg-accent: #eef3f8;
+  --border-accent: #a9c4dc;
   /* Every flag is an icon; 3:1 on the well is the floor for all of them. */
   --flag: #7a7a80;
   /* Apple Mail's seven flag colours in its order, darkened to clear 3:1 on the well. */
@@ -199,14 +200,14 @@ select {
     --border-faint: #2a2a2a;
     --border-strong: #555;
 
-    --link: #7aa2f7;
-    --link-read: #8d9cd8;
-    --link-unread: #a8c7fa;
+    --link: #7bb4ea;
+    --link-read: #8ea9c2;
+    --link-unread: #acd2f6;
 
-    --accent-strong: #5cc26e;
-    --accent: #3fb968;
-    --bg-accent: #17211a;
-    --border-accent: #2c4a33;
+    --accent-strong: #c5d7e7;
+    --accent: #a9c4dc;
+    --bg-accent: #1f2830;
+    --border-accent: #1f4a73;
     --flag: #9a9aa0;
     --flag-red: #ff4238;
     --flag-orange: #ff9500;
@@ -252,14 +253,14 @@ select {
   --border-faint: #2a2a2a;
   --border-strong: #555;
 
-  --link: #7aa2f7;
-  --link-read: #8d9cd8;
-  --link-unread: #a8c7fa;
+  --link: #7bb4ea;
+  --link-read: #8ea9c2;
+  --link-unread: #acd2f6;
 
-  --accent-strong: #5cc26e;
-  --accent: #3fb968;
-  --bg-accent: #17211a;
-  --border-accent: #2c4a33;
+  --accent-strong: #c5d7e7;
+  --accent: #a9c4dc;
+  --bg-accent: #1f2830;
+  --border-accent: #1f4a73;
   --flag: #9a9aa0;
   --flag-red: #ff4238;
   --flag-orange: #ff9500;

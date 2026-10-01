@@ -80,6 +80,7 @@
         {{ if .PublicURL }}
         <form method="post" action="{{url (printf "%s.unpublish" $.Collection) $.Path}}{{account "?" $.Account}}">
           {{ template "field" (dict "label" ($.T "share.publicaddress") "name" "public-url" "value" .PublicURL "dir" "ltr" "readonly" true "hint" ($.T "share.publichint")) }}
+          <a hx-boost="false" class="button" href="{{.Subscribe}}">{{$.T "calendar.subscribedo"}}</a>
           <button class="button-danger">{{$.T "share.unpublish"}}</button>
         </form>
         {{ else }}

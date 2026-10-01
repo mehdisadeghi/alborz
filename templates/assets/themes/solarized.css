@@ -23,10 +23,11 @@
   --link-read: #4f6490;
   --link-unread: #155e88;
 
-  --accent-strong: #566a00;
-  --accent: #3d7154;
-  --bg-accent: #f5f4dd;
-  --border-accent: #d2d5a8;
+  /* Solarized's blue sits four degrees from the logo's sky. */
+  --accent-strong: #1c6d9c;
+  --accent: #155e88;
+  --bg-accent: #e7f1f8;
+  --border-accent: #a7cbdc;
 
   --flag: #6d7d7d;
   --flag-red: #f20d00;
@@ -73,10 +74,10 @@
     --link-read: #a3b0e0;
     --link-unread: #9ed3ff;
 
-    --accent-strong: #b0c33a;
-    --accent: #93c493;
-    --bg-accent: #0b3b34;
-    --border-accent: #1c5a4a;
+    --accent-strong: #9ed3ff;
+    --accent: #79bdf3;
+    --bg-accent: #0b4053;
+    --border-accent: #155c83;
 
     --flag: #93a1a1;
     --flag-red: #ff6259;
@@ -123,10 +124,10 @@
   --link-read: #a3b0e0;
   --link-unread: #9ed3ff;
 
-  --accent-strong: #b0c33a;
-  --accent: #93c493;
-  --bg-accent: #0b3b34;
-  --border-accent: #1c5a4a;
+  --accent-strong: #9ed3ff;
+  --accent: #79bdf3;
+  --bg-accent: #0b4053;
+  --border-accent: #155c83;
 
   --flag: #93a1a1;
   --flag-red: #ff6259;

@@ -31,11 +31,11 @@
   --link-unread: #083f7a;
 
   --on-accent: #fff;
-  /* Pine, deep enough for white on it at 4.5:1. */
-  --accent-strong: #1f6b4f;
-  --accent: #1b5f46;
-  --bg-accent: rgba(31, 107, 79, 0.08);
-  --border-accent: rgba(31, 107, 79, 0.3);
+  /* The logo's sky by day and its ice by night. */
+  --accent-strong: #286095;
+  --accent: #1f4a73;
+  --bg-accent: rgba(31, 74, 115, 0.08);
+  --border-accent: rgba(31, 74, 115, 0.3);
   --flag: #8a6400;
 
   --notice-fg: #0c4a6e;
@@ -79,11 +79,11 @@
     --link-read: #8fa6c2;
     --link-unread: #b8dbff;
 
-    --on-accent: #06140e;
-    --accent-strong: #6fd3a6;
-    --accent: #5cc496;
-    --bg-accent: rgba(111, 211, 166, 0.12);
-    --border-accent: rgba(111, 211, 166, 0.35);
+    --on-accent: #0d1625;
+    --accent-strong: #c5d7e7;
+    --accent: #a9c4dc;
+    --bg-accent: rgba(169, 196, 220, 0.12);
+    --border-accent: rgba(169, 196, 220, 0.35);
     --flag: #f2c14e;
 
     --notice-fg: #a9dcff;
@@ -127,11 +127,11 @@
   --link-read: #8fa6c2;
   --link-unread: #b8dbff;
 
-  --on-accent: #06140e;
-  --accent-strong: #6fd3a6;
-  --accent: #5cc496;
-  --bg-accent: rgba(111, 211, 166, 0.12);
-  --border-accent: rgba(111, 211, 166, 0.35);
+  --on-accent: #0d1625;
+  --accent-strong: #c5d7e7;
+  --accent: #a9c4dc;
+  --bg-accent: rgba(169, 196, 220, 0.12);
+  --border-accent: rgba(169, 196, 220, 0.35);
   --flag: #f2c14e;
 
   --notice-fg: #a9dcff;

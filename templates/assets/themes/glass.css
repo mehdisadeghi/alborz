@@ -28,11 +28,11 @@
 
   --on-accent: #fff;
 
-  /* Deepened until white reads on it at 4.5:1. */
-  --accent-strong: #1d823b;
-  --accent: #1a7c38;
-  --bg-accent: rgba(52, 199, 89, 0.12);
-  --border-accent: rgba(52, 199, 89, 0.35);
+  /* The logo's sky, its tints let the gradient through. */
+  --accent-strong: #286095;
+  --accent: #1f4a73;
+  --bg-accent: rgba(31, 74, 115, 0.1);
+  --border-accent: rgba(31, 74, 115, 0.3);
   --flag: #9a7400;
 
   /* A notice floats over the page (ADR 41), so it stays opaque. */

@@ -700,3 +700,26 @@ func TestAnExportLeavesOutWhatCannotBeRead(t *testing.T) {
 		}
 	}
 }
+
+// Today's circle holds the day number alone; the month on the first stays outside it, in the language's order.
+func TestADayNumberIsItsOwnElement(t *testing.T) {
+	c := Alborz(t).SignIn(t, User)
+	for _, tc := range []struct{ lang, month, label string }{
+		{"en", "2026-10", `<span class="label-long">Oct </span><span class="day-num">1</span>`},
+		{"de", "2026-10", `<span class="day-num">1</span><span class="label-long">. Okt.</span>`},
+	} {
+		if page := c.Page(t, "calendar.month", url.Values{"month": {tc.month}, "lang": {tc.lang}}); !strings.Contains(page, tc.label) {
+			t.Errorf("%s: the first of the month is not drawn as %s", tc.lang, tc.label)
+		}
+	}
+	today := regexp.MustCompile(`(?s)\bactive\b.*?<span class="day-label">(?:<span class="label-long">[^<]*</span>)?<span class="day-num">([^<]*)</span>`)
+	if m := today.FindStringSubmatch(c.Page(t, "calendar.month")); m == nil || !regexp.MustCompile(`^[0-9]+$`).MatchString(m[1]) {
+		t.Errorf("today's day number is not an element of its own: %q", m)
+	}
+
+	c.Post(t, "settings.profile", url.Values{"calendar": {"shcal"}, "secondary": {"gregorian"}})
+	label := `<span class="day-num">۱</span><span class="label-long"> آبان</span>`
+	if page := c.Page(t, "calendar.month", url.Values{"month": {"1405-08"}, "lang": {"fa"}}); !strings.Contains(page, label) {
+		t.Errorf("fa: the first of Aban is not drawn as %s", label)
+	}
+}

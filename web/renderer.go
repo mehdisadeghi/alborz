@@ -154,6 +154,10 @@ func (g *GlobalRenderData) ShortMonth(cal calsys.System, month int) string {
 	return g.dates().ShortMonth(cal, month)
 }
 
+func (g *GlobalRenderData) DayMonth(cal calsys.System, day, month int) dates.DayMonth {
+	return g.dates().DayMonth(cal, day, month)
+}
+
 func (g *GlobalRenderData) PrimaryCalendar() calsys.System { return g.dates().Calendar() }
 
 func (g *GlobalRenderData) SecondaryCalendar(t time.Time) (calsys.System, bool) {

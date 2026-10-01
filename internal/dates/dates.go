@@ -3,6 +3,7 @@ package dates
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"golang.org/x/text/number"
@@ -95,6 +96,25 @@ func (r Reader) Short(t time.Time) string {
 		return locale.Sprintf(r.Lang, r.t("date.shortyear"), day, month, locale.Year(r.Lang, year))
 	}
 	return locale.Sprintf(r.Lang, r.t("date.short"), day, month)
+}
+
+// DayMonth is a day and its month as Short writes them, split around the day so a page can mark the number alone.
+type DayMonth struct {
+	Before, Day, After string
+}
+
+// DayMonth writes a day of a month of cal in the order the language puts them.
+func (r Reader) DayMonth(cal calsys.System, day, month int) DayMonth {
+	before, after, ok := strings.Cut(r.t("date.short"), "%[1]d")
+	if !ok {
+		panic("date.short in " + r.Lang + " has no %[1]d")
+	}
+	name := r.ShortMonth(cal, month)
+	return DayMonth{
+		Before: strings.ReplaceAll(before, "%[2]s", name),
+		Day:    locale.Num(r.Lang, day),
+		After:  strings.ReplaceAll(after, "%[2]s", name),
+	}
 }
 
 // Clock is the time of day in the reader's zone.

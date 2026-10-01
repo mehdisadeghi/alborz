@@ -200,6 +200,9 @@ func (ctx *Context) Render(code int, name string, data any) error {
 	if err := ctx.Server.renderer().Render(&buf, name, data, ctx); err != nil {
 		return err
 	}
+	// A piece names its shell as a page does, so an open page built on an older one loads whole instead (ADR 19).
+	_, shell := ctx.Server.shell()
+	ctx.response.Header().Set(shellHeader, shell)
 	return ctx.Blob(code, "text/html; charset=UTF-8", buf.Bytes())
 }
 

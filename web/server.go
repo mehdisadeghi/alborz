@@ -265,6 +265,9 @@ var shellAssets = []string{"style.css", "scheme.js", "htmx.js", "helpers.js", "k
 	"favicon-32x32.png", "icon-192.png", "icon-512.png"}
 
 // A page carries the digest so a tab on an older shell can tell and load the page whole.
+// shellHeader names the shell an answer was built for (ADR 19).
+const shellHeader = "Alborz-Shell"
+
 func (s *Server) shell() ([]string, string) {
 	urls := make([]string, 0, len(shellAssets)+1)
 	version := sha256.New()

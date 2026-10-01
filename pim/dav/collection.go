@@ -30,7 +30,7 @@ type Collection struct {
 	Visible, Shown bool
 	// Only marks the sole collection a URL is narrowed to, so pressing its link again widens back.
 	Only bool
-	// Feed is the address a subscribed calendar kept here is filled from; empty for any other.
+	// Feed is the address a subscribed calendar kept here is filled from, for its owner; empty for anyone else.
 	Feed string
 	// Here marks a collection kept in this alborz, which can be shared; SharedBy is its other owner.
 	Here     bool

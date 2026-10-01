@@ -110,10 +110,11 @@ func (p *Provider) Published(collPath string) bool {
 	return err == nil && c.Public != ""
 }
 
-// Feed is the address a calendar kept here is filled from, empty for one that is written to.
-func (p *Provider) Feed(collPath string) string {
+// Feed is the address a calendar kept here is filled from, empty for one that is written to. Only its
+// owner is told, since the address may carry a secret.
+func (p *Provider) Feed(viewer, collPath string) string {
 	ref, _, ok := p.Held(collPath)
-	if !ok {
+	if !ok || !strings.EqualFold(ref.Owner, viewer) {
 		return ""
 	}
 	c, err := p.Store.Collection(ref)

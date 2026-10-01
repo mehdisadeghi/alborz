@@ -3558,6 +3558,13 @@ button,
   background-color: var(--bg-button);
 }
 
+/* A link has no button's centring, so its label would sit at the top of the box. */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .button:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover,
 button:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover,
 .button-link:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover {

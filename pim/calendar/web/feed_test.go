@@ -270,3 +270,23 @@ func TestAnUnsubscribeTravels(t *testing.T) {
 		t.Error("the other alborz still lists the calendar after unsubscribing")
 	}
 }
+
+// A phone hands a webcal: link to its calendar app, which subscribes to the published address.
+func TestAPublishedCalendarOffersAWebcalLink(t *testing.T) {
+	c := Alborz(t).SignIn(t, User)
+	path := Here + c.CreateCalendar(t, "Club", "")
+	if page := c.Page(t, "calendar.collection", path); strings.Contains(page, "webcal:") {
+		t.Fatal("an unpublished calendar offers a webcal: link")
+	}
+	if resp := c.Post(t, "calendar.collection.publish", url.Values{}, path); resp.StatusCode != http.StatusFound {
+		t.Fatalf("publishing answered %s", resp.Status)
+	}
+	page := c.Page(t, "calendar.collection", path)
+	public := regexp.MustCompile(`name="public-url"[^>]* value="https?://([^"]+/pub/[^"]+\.ics)"`).FindStringSubmatch(page)
+	if public == nil {
+		t.Fatal("the published calendar's page shows no public address")
+	}
+	if !strings.Contains(page, `href="webcal://`+public[1]+`"`) {
+		t.Errorf("the page offers no webcal: link to %s", public[1])
+	}
+}

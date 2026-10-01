@@ -107,6 +107,8 @@ type Sharing struct {
 	// PublicURL is the calendar's public address, empty when unpublished; OffersPublic says whether the kind can be.
 	PublicURL    string
 	OffersPublic bool
+	// Subscribe is PublicURL under webcal:, which a phone hands to its calendar app.
+	Subscribe template.URL
 	// To and Until keep what a refused share had typed.
 	To    string
 	Until dates.Field
@@ -129,6 +131,8 @@ func (pg Page) sharing(ctx *web.Context, p *dav.Provider, info dav.Collection) (
 	sharing := &Sharing{Shares: shares, OffersPublic: pg.Ext == ".ics", Until: ctx.Dates().Input(time.Time{})}
 	if c.Public != "" {
 		sharing.PublicURL = ctx.Origin() + store.PublicPath(c.Public)
+		_, address, _ := strings.Cut(sharing.PublicURL, "://")
+		sharing.Subscribe = template.URL("webcal://" + address)
 	}
 	return sharing, nil
 }

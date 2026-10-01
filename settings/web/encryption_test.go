@@ -151,7 +151,7 @@ func TestEncryptedDataFollowsAPasswordChange(t *testing.T) {
 	c := a.SignIn(t, User)
 	cal := c.CreateCalendar(t, "Personal", "")
 	encrypt(t, c, Password)
-	if page := c.Page(t, "settings.encryption", url.Values{"account": {User}}); !strings.Contains(page, "On the mail server") {
+	if page := c.Page(t, "settings.encryption", url.Values{"account": {User}}); !Says(t, page, "encryption.keptserver") {
 		t.Fatal("the page does not say the key is kept on the mail server")
 	}
 	if resp := c.Post(t, "settings.password", change(Password, "fresh-secret", "fresh-secret")); resp.StatusCode != http.StatusFound {
@@ -161,7 +161,7 @@ func TestEncryptedDataFollowsAPasswordChange(t *testing.T) {
 
 	a = Alborz(t, opts...)
 	c, page := signInWith(t, a, "fresh-secret")
-	if strings.Contains(NoticeBar(page), "does not open") || !c.Listed(t)[Here+cal] {
+	if Says(t, NoticeBar(page), "notice.encryptionlocked", User) || !c.Listed(t)[Here+cal] {
 		t.Fatalf("the new password does not open the data:\n%s", NoticeBar(page))
 	}
 }
@@ -179,14 +179,14 @@ func TestTheRecoveryKeyOpensAfterAReset(t *testing.T) {
 	imap.SetPassword(User, "reset")
 	a = Alborz(t, opts...)
 	c, page := signInWith(t, a, "reset")
-	if !strings.Contains(NoticeBar(page), "does not open with this password") {
+	if !Says(t, NoticeBar(page), "notice.encryptionlocked", User) {
 		t.Fatalf("the sign-in does not say the data is shut:\n%s", NoticeBar(page))
 	}
 	if c.Listed(t)[Here+cal] {
 		t.Fatal("the calendar reads without its key")
 	}
 	resp := c.Post(t, "settings.profile", url.Values{"messages_per_page": {"17"}})
-	if resp.StatusCode != http.StatusUnprocessableEntity || !strings.Contains(NoticeBar(resp.Text), "encrypted and not open") {
+	if resp.StatusCode != http.StatusUnprocessableEntity || !Says(t, NoticeBar(resp.Text), "form.savelocked") {
 		t.Fatalf("a settings change while shut answered %s:\n%s", resp.Status, NoticeBar(resp.Text))
 	}
 	if resp := c.Post(t, "settings.encryption.recover", url.Values{"recovery": {"AAAA-BBBB"}, "account": {User}}); resp.StatusCode != http.StatusUnprocessableEntity {
@@ -243,7 +243,7 @@ func TestStartingOverDeletesOnlyWhenConfirmed(t *testing.T) {
 	a = Alborz(t, opts...)
 	c, page := signInWith(t, a, "reset")
 	listed := c.Listed(t)
-	if strings.Contains(NoticeBar(page), "does not open") || !listed[Here+cal] || listed[Here+CalendarsOf(User)+"personal/"] {
+	if Says(t, NoticeBar(page), "notice.encryptionlocked", User) || !listed[Here+cal] || listed[Here+CalendarsOf(User)+"personal/"] {
 		t.Fatalf("after starting over, listed %v:\n%s", listed, NoticeBar(page))
 	}
 }
@@ -272,7 +272,7 @@ func TestStartingOverElsewhereLeavesAnInstancesDataReadable(t *testing.T) {
 	}
 
 	c, page := signInWith(t, held, "reset")
-	if strings.Contains(NoticeBar(page), "does not open") || !c.Listed(t)[Here+heldCal] {
+	if Says(t, NoticeBar(page), "notice.encryptionlocked", User) || !c.Listed(t)[Here+heldCal] {
 		t.Fatalf("the instance holding the old key does not read its data:\n%s", NoticeBar(page))
 	}
 	held.Close()
@@ -283,7 +283,7 @@ func TestStartingOverElsewhereLeavesAnInstancesDataReadable(t *testing.T) {
 
 	recovered = instance(recoveredDir)
 	c, page = signInWith(t, recovered, "reset")
-	if !strings.Contains(NoticeBar(page), "does not open") || c.Listed(t)[Here+recoveredCal] {
+	if !Says(t, NoticeBar(page), "notice.encryptionlocked", User) || c.Listed(t)[Here+recoveredCal] {
 		t.Fatalf("under the old key only, the data reads or the sign-in says nothing:\n%s", NoticeBar(page))
 	}
 	if resp := c.Post(t, "settings.encryption.recover", url.Values{"recovery": {oldRecovery}, "account": {User}}); resp.StatusCode != http.StatusFound {
@@ -337,7 +337,7 @@ func TestAKeyTheServerWillNotKeepIsRefusedOnTheForm(t *testing.T) {
 	if resp.StatusCode != http.StatusUnprocessableEntity {
 		t.Fatalf("turning encryption on answered %s, want 422", resp.Status)
 	}
-	if bar := NoticeBar(resp.Text); !strings.Contains(bar, "The change was not saved. The server said:") || !strings.Contains(bar, "too many entries") {
+	if bar := NoticeBar(resp.Text); !Says(t, bar, "form.saverefused", Any) || !strings.Contains(bar, "too many entries") {
 		t.Errorf("the form does not give the server's refusal:\n%s", bar)
 	}
 	if recoveryKey.MatchString(resp.Text) {
@@ -350,7 +350,7 @@ func TestAKeyThatDoesNotReadSignsInLocked(t *testing.T) {
 	imap := IMAP(t, Metadata())
 	imap.SetEntry(User, "key", "not json")
 	c, page := signInWith(t, Alborz(t, WithIMAP(imap)), Password)
-	if bar := NoticeBar(page); !strings.Contains(bar, "The key to the data alborz keeps for "+User+" could not be read.") {
+	if bar := NoticeBar(page); !Says(t, bar, "notice.keyunread", User) {
 		t.Errorf("the page after signing in does not say why the account is locked:\n%s", bar)
 	}
 	if resp := c.Get(t, "settings.encryption", url.Values{"account": {User}}); resp.StatusCode != http.StatusOK {

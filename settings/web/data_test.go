@@ -120,7 +120,7 @@ func TestAFileThatIsNoArchiveIsRefused(t *testing.T) {
 	c := Alborz(t).SignIn(t, User)
 	resp := c.Upload(t, "settings.data", nil, []File{{Field: "file", Name: "notes.tar.gz", Body: strings.NewReader("notes")}},
 		url.Values{"account": {User}})
-	if resp.StatusCode != http.StatusUnprocessableEntity || !strings.Contains(resp.Text, "not an alborz archive") {
+	if resp.StatusCode != http.StatusUnprocessableEntity || !Says(t, resp.Text, "data.notarchive") {
 		t.Fatalf("a file that is no archive answered %s", resp.Status)
 	}
 }
@@ -162,7 +162,7 @@ func TestAnArchiveImportsWhatItCan(t *testing.T) {
 	if resp.StatusCode != http.StatusFound {
 		t.Fatalf("the import answered %s", resp.Status)
 	}
-	if bar := NoticeBar(c.Follow(t, resp.Header.Get("Location"))); !strings.Contains(bar, "Archive imported.") || !strings.Contains(bar, "The setting broken in the archive could not be read") {
+	if bar := NoticeBar(c.Follow(t, resp.Header.Get("Location"))); !Says(t, bar, "notice.dataimported") || !Says(t, bar, "data.entryunread", 1, "broken") {
 		t.Errorf("the page after the import does not name the entry left out:\n%s", bar)
 	}
 	if got := perPage(t, a.SignIn(t, User)); got != "17" {
@@ -171,7 +171,7 @@ func TestAnArchiveImportsWhatItCan(t *testing.T) {
 
 	imap.RefuseEntries()
 	resp = upload(c, archive)
-	if bar := NoticeBar(c.Follow(t, resp.Header.Get("Location"))); resp.StatusCode != http.StatusFound || !strings.Contains(bar, "The mail server did not keep the setting profile.") {
+	if bar := NoticeBar(c.Follow(t, resp.Header.Get("Location"))); resp.StatusCode != http.StatusFound || !Says(t, bar, "data.entryrefused", 1, "profile") {
 		t.Errorf("the import the server refused answered %s without naming the entry:\n%s", resp.Status, bar)
 	}
 
@@ -181,7 +181,7 @@ func TestAnArchiveImportsWhatItCan(t *testing.T) {
 	a.Close()
 	imap.SetPassword(User, "reset")
 	locked, _ := signInWith(t, Alborz(t, WithIMAP(imap), DataDir(dir)), "reset")
-	if resp := upload(locked, archive); resp.StatusCode != http.StatusUnprocessableEntity || !strings.Contains(NoticeBar(resp.Text), "encrypted and not open") {
+	if resp := upload(locked, archive); resp.StatusCode != http.StatusUnprocessableEntity || !Says(t, NoticeBar(resp.Text), "form.savelocked") {
 		t.Errorf("the import into a locked account answered %s without saying why:\n%s", resp.Status, NoticeBar(resp.Text))
 	}
 }

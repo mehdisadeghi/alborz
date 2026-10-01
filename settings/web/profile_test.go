@@ -58,7 +58,7 @@ func TestSigningInAskedAboutAnotherProfile(t *testing.T) {
 			c := a.SignIn(t, User2)
 			resp := c.Post(t, "auth.login", url.Values{"username": {User}, "password": {Password}}, url.Values{"add": {"1"}})
 			bar := NoticeBar(c.Follow(t, resp.Header.Get("Location")))
-			if !strings.Contains(bar, "Messages per page") || !strings.Contains(bar, "17") || !strings.Contains(bar, "50") {
+			if !Says(t, bar, "settings.perpage") || !strings.Contains(bar, "17") || !strings.Contains(bar, "50") {
 				t.Fatalf("no notice names the differing page size:\n%s", bar)
 			}
 			if got := perPage(t, c); got != "50" {
@@ -111,9 +111,8 @@ func TestAStoredEntryThatDoesNotDecodeIsReadAsFarAsItGoes(t *testing.T) {
 	if signIn.StatusCode != http.StatusFound {
 		t.Fatalf("signing in answered %s", signIn.Status)
 	}
-	const warning = "Some saved settings could not be read."
 	warned := 0
-	if strings.Contains(NoticeBar(c.Follow(t, signIn.Header.Get("Location"))), warning) {
+	if Says(t, NoticeBar(c.Follow(t, signIn.Header.Get("Location"))), "notice.misread") {
 		warned++
 	}
 	for _, route := range []string{"mail.account", "calendar.month", "calendar.tasks", "contacts.list", "mail.mailbox"} {
@@ -125,7 +124,7 @@ func TestAStoredEntryThatDoesNotDecodeIsReadAsFarAsItGoes(t *testing.T) {
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("%s answered %s", route, resp.Status)
 		}
-		if strings.Contains(NoticeBar(resp.Text), warning) {
+		if Says(t, NoticeBar(resp.Text), "notice.misread") {
 			warned++
 		}
 		if route == "mail.account" && !strings.Contains(resp.Text, `value="Ada Lovelace"`) {

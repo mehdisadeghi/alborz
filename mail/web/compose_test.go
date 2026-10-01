@@ -52,7 +52,7 @@ func TestSendHTMLFollowsWhatWasWritten(t *testing.T) {
 	}
 	var listUID string
 	for _, uid := range uids {
-		if strings.Contains(c.Page(t, "mail.message", "INBOX", uid, url.Values{"part": {"1"}}), "Mailing list") {
+		if Says(t, c.Page(t, "mail.message", "INBOX", uid, url.Values{"part": {"1"}}), "list.title") {
 			listUID = uid
 			break
 		}
@@ -328,7 +328,7 @@ func TestAReplyOrForwardShowsThePendingNotice(t *testing.T) {
 		if resp := c.Post(t, "settings.profile", url.Values{"messages_per_page": {"50"}}); resp.StatusCode != http.StatusFound {
 			t.Fatalf("saving the settings: %s", resp.Status)
 		}
-		if body := c.Page(t, route, "INBOX", uids[0]); !strings.Contains(body, "Settings saved.") {
+		if body := c.Page(t, route, "INBOX", uids[0]); !Says(t, body, "notice.settingssaved") {
 			t.Errorf("the %s page lost the notice", route)
 		}
 	}
@@ -586,7 +586,7 @@ func TestUnreadableOriginalIsNotASendRefusal(t *testing.T) {
 		t.Fatalf("an unreadable original answered %s, want 422", resp.Status)
 	}
 	notice := NoticeBar(resp.Text)
-	if !strings.Contains(notice, "could not be read from the mail server") || strings.Contains(notice, "was not sent. The server said") {
+	if !Says(t, notice, "form.originalunreadable", Any) || Says(t, notice, "form.sendrefused", Any) {
 		t.Errorf("the form does not say the original was unreadable:\n%s", notice)
 	}
 	if smtp.Sessions() != 0 {

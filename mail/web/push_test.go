@@ -41,7 +41,7 @@ func TestNewMailPushesEachSignedInBrowser(t *testing.T) {
 	gone.Post(t, "auth.logout", nil)
 
 	got := arrive(t, a, push, endpoint)
-	if got.Title != "New mail" || got.Body != User {
+	if got.Title != T(t, "push.mail") || got.Body != User {
 		t.Fatalf("the push says %q / %q", got.Title, got.Body)
 	}
 	if strings.Contains(got.Title+got.Body, "Hi") || strings.Contains(got.Title+got.Body, "eve@") {

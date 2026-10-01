@@ -18,7 +18,7 @@ func TestCollectionDeleteReportsItsOutcome(t *testing.T) {
 	if resp := c.Post(t, "calendar.collection.delete", nil, held); resp.StatusCode != http.StatusFound {
 		t.Fatalf("a refused delete answered %s, want a redirect not a 500", resp.Status)
 	}
-	if page := c.Page(t, "calendar.collection", held); !strings.Contains(page, "“Personal” could not be deleted.") {
+	if page := c.Page(t, "calendar.collection", held); !Says(t, page, "notice.collectiondeletefailed", "Personal") {
 		t.Errorf("the refused delete left no message on the page")
 	}
 
@@ -26,7 +26,7 @@ func TestCollectionDeleteReportsItsOutcome(t *testing.T) {
 	if resp := c.Post(t, "calendar.collection.delete", nil, held); resp.StatusCode != http.StatusFound {
 		t.Fatalf("delete: %s", resp.Status)
 	}
-	if page := c.Page(t, "calendar.collection", held); !strings.Contains(page, "kept “Personal”") {
+	if page := c.Page(t, "calendar.collection", held); !Says(t, page, "notice.collectionnotdeleted", "Personal") {
 		t.Errorf("a delete the server accepted but ignored was reported as done")
 	}
 
@@ -34,7 +34,7 @@ func TestCollectionDeleteReportsItsOutcome(t *testing.T) {
 	if resp := c.Post(t, "calendar.collection.delete", nil, held); resp.StatusCode != http.StatusFound {
 		t.Fatalf("delete: %s", resp.Status)
 	}
-	if page := c.Page(t, "calendar.month"); !strings.Contains(page, "“Personal” was deleted.") {
+	if page := c.Page(t, "calendar.month"); !Says(t, page, "notice.collectiondeleted", "Personal") {
 		t.Errorf("a completed delete was not confirmed")
 	}
 }

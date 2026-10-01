@@ -12,7 +12,6 @@ import (
 
 // A server refusing the write is an answer for the reader, not an error page.
 func TestAnImportTheServerRefusesSetsANotice(t *testing.T) {
-	const refused = "The change was not saved. The server said:"
 	personal, work, friends, family := DAVHome+"personal/", DAVHome+"work/", DAVBooks+"friends/", DAVBooks+"family/"
 	card := "BEGIN:VCARD\r\nVERSION:4.0\r\nUID:ada\r\nFN:Ada\r\nEND:VCARD\r\n"
 	d := DAV(t, Calendar(personal, "Personal"), Calendar(work, "Work"), Hangup(work), Book(friends, "Friends"), Book(family, "Family"),
@@ -54,12 +53,11 @@ func TestAnImportTheServerRefusesSetsANotice(t *testing.T) {
 			if resp.StatusCode != http.StatusFound {
 				t.Fatalf("the refused import answered %s, want a redirect", resp.Status)
 			}
-			if page := c.Follow(t, resp.Header.Get("Location")); !strings.Contains(page, refused) || !strings.Contains(page, "read-only collection") {
+			if page := c.Follow(t, resp.Header.Get("Location")); !Says(t, page, "form.saverefused", Any) || !strings.Contains(page, "read-only collection") {
 				t.Errorf("the page after the refused import does not give the server's reason")
 			}
 		})
 	}
-	const unreadable = "The file could not be read:"
 	for _, tc := range []struct{ name, ics, reason string }{
 		{"an unreadable file", "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:plan\r\nSUMMARY\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n", "missing colon"},
 		{"a parameter the line ends in", "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:plan\r\nX;A=b\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n", ""},
@@ -67,7 +65,7 @@ func TestAnImportTheServerRefusesSetsANotice(t *testing.T) {
 	} {
 		t.Run(tc.name+" on the import page", func(t *testing.T) {
 			resp := c.Upload(t, "calendar.import", url.Values{"collection": {User + "|" + personal}}, file("plan.ics", tc.ics))
-			if resp.StatusCode != http.StatusUnprocessableEntity || !strings.Contains(resp.Text, unreadable) || !strings.Contains(resp.Text, tc.reason) {
+			if resp.StatusCode != http.StatusUnprocessableEntity || !Says(t, resp.Text, "import.unreadable", Any) || !strings.Contains(resp.Text, tc.reason) {
 				t.Errorf("the file answered %s without saying it could not be read, and why; want 422", resp.Status)
 			}
 		})
@@ -77,7 +75,7 @@ func TestAnImportTheServerRefusesSetsANotice(t *testing.T) {
 		if resp.StatusCode != http.StatusFound {
 			t.Fatalf("the unreadable file answered %s, want a redirect", resp.Status)
 		}
-		if page := c.Follow(t, resp.Header.Get("Location")); !strings.Contains(page, unreadable) || !strings.Contains(page, "no END field") {
+		if page := c.Follow(t, resp.Header.Get("Location")); !Says(t, page, "import.unreadable", Any) || !strings.Contains(page, "no END field") {
 			t.Errorf("the page after the unreadable file does not say it could not be read, and why")
 		}
 	})
@@ -86,7 +84,7 @@ func TestAnImportTheServerRefusesSetsANotice(t *testing.T) {
 		if resp.StatusCode != http.StatusFound {
 			t.Fatalf("the partly refused import answered %s, want a redirect", resp.Status)
 		}
-		if page := c.Follow(t, resp.Header.Get("Location")); !strings.Contains(page, "1 of 2 saved. Not saved:") || !strings.Contains(page, "read-only collection") {
+		if page := c.Follow(t, resp.Header.Get("Location")); !Says(t, page, "import.partly", 1, 2, Any) || !strings.Contains(page, "read-only collection") {
 			t.Errorf("the page after the partly refused import does not say how much was saved, and why the rest was not")
 		}
 		if !strings.Contains(strings.Join(d.Puts(), ""), "UID:ada") {
@@ -114,7 +112,7 @@ func TestAnImportTheServerRefusesSetsANotice(t *testing.T) {
 	})
 	t.Run("a server that does not answer the import page", func(t *testing.T) {
 		resp := c.Upload(t, "calendar.import", url.Values{"collection": {User + "|" + work}}, file("plan.ics", Event("plan", "Plan")))
-		if resp.StatusCode != http.StatusBadGateway || !strings.Contains(resp.Text, "The calendar and contacts server could not be reached.") || !strings.Contains(resp.Text, "<h1>The calendar and contacts server did not answer</h1>") {
+		if resp.StatusCode != http.StatusBadGateway || !Says(t, resp.Text, "upstream.unreachable", T(t, "upstream.dav")) || !Says(t, Between(resp.Text, "<h1>", "</h1>"), "upstream.title", T(t, "upstream.dav")) {
 			t.Errorf("the import no server answered gave %s without naming the server, want 502", resp.Status)
 		}
 	})
@@ -140,7 +138,7 @@ func TestAnImportSkipsTheEventItCannotWrite(t *testing.T) {
 	if resp.StatusCode != http.StatusFound {
 		t.Fatalf("the import answered %s, want a redirect", resp.Status)
 	}
-	if page := c.Follow(t, resp.Header.Get("Location")); !strings.Contains(page, "2 of 3 saved. Not saved: twice:") || !strings.Contains(page, "SUMMARY") {
+	if page := c.Follow(t, resp.Header.Get("Location")); !Says(t, page, "import.partly", 2, 3, "twice:"+Any) || !strings.Contains(page, "SUMMARY") {
 		t.Errorf("the page after the import does not say which event was left out, and why")
 	}
 	puts := strings.Join(d.Puts(), "")

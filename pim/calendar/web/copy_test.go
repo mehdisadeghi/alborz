@@ -12,6 +12,7 @@ import (
 	"time"
 
 	. "git.mehdix.org/alborz/internal/alborztest"
+	"git.mehdix.org/alborz/web"
 )
 
 // servedFeed publishes body as a calendar feed.
@@ -123,7 +124,7 @@ func TestCopyingAFeedEventMakesAnEventOfOurOwn(t *testing.T) {
 	if !strings.Contains(landed, url.PathEscape(plans)) {
 		t.Fatalf("the copy landed on %s, not an event in Plans", landed)
 	}
-	if page := c.Follow(t, landed); !strings.Contains(page, `Copied to “<span class="notice-name">Plans</span>”.`) {
+	if page := c.Follow(t, landed); !Says(t, page, "notice.copiedto", web.NoticeName("Plans")) {
 		t.Error("the copy's page does not say where it went")
 	}
 
@@ -211,7 +212,7 @@ func TestCopyingWithNoWritableCalendarIsRefused(t *testing.T) {
 		t.Fatal("the copy page is not an empty choice")
 	}
 	resp := c.Post(t, "calendar.event.copy", url.Values{}, linked[0])
-	if resp.StatusCode != http.StatusUnprocessableEntity || !strings.Contains(resp.Text, "Choose where to save it.") {
+	if resp.StatusCode != http.StatusUnprocessableEntity || !Says(t, resp.Text, "form.destinationneeded") {
 		t.Fatalf("copying to nowhere answered %s, want the form refused with the reason", resp.Status)
 	}
 	if got := c.Listed(t); len(got) != 1 {

@@ -20,7 +20,7 @@ func TestBlockingASenderLandsOnTheMessage(t *testing.T) {
 	if at := resp.Header.Get("Location"); resp.StatusCode != http.StatusFound || at != inbox {
 		t.Fatalf("block landed on %q with %s, want %s", at, resp.Status, inbox)
 	}
-	if !strings.Contains(c.Follow(t, inbox), "Mail from spam@example.org now goes to Junk.") {
+	if !Says(t, c.Follow(t, inbox), "notice.blocked", "spam@example.org") {
 		t.Errorf("the landing page does not say the sender was blocked")
 	}
 	if rules := sieve.Script("alborz-rules"); !strings.Contains(rules, `address :is "from" "spam@example.org"`) {
@@ -49,7 +49,8 @@ func TestAnUnreachableSieveServerIsNamed(t *testing.T) {
 	c := Alborz(t, Upstream(Domain, "sieve+insecure://"+gone)).SignIn(t, User)
 	for _, route := range []string{"filters.rules", "filters.forwarding", "filters.autoreply"} {
 		resp := c.Get(t, route, url.Values{"account": {User}})
-		if resp.StatusCode != http.StatusBadGateway || !strings.Contains(resp.Text, "The filter server could not be reached.") || !strings.Contains(resp.Text, "<h1>The filter server did not answer</h1>") {
+		server := T(t, "upstream.sieve")
+		if resp.StatusCode != http.StatusBadGateway || !Says(t, resp.Text, "upstream.unreachable", server) || !Says(t, Between(resp.Text, "<h1>", "</h1>"), "upstream.title", server) {
 			t.Errorf("%s answered %s without naming the server", route, resp.Status)
 		}
 	}
@@ -59,7 +60,7 @@ func TestAnUnreachableSieveServerIsNamed(t *testing.T) {
 func TestAFilterOrRuleThatIsNotThere(t *testing.T) {
 	c := Alborz(t, WithSieve(Sieve(t))).SignIn(t, User)
 	account := url.Values{"account": {User}}
-	if resp := c.Get(t, "filters.filter", "gone", account); resp.StatusCode != http.StatusNotFound || !strings.Contains(resp.Text, "There is no filter named gone.") {
+	if resp := c.Get(t, "filters.filter", "gone", account); resp.StatusCode != http.StatusNotFound || !Says(t, resp.Text, "notfound.script", "gone") {
 		t.Errorf("a missing script answered %s without saying so", resp.Status)
 	}
 	for _, route := range []string{"filters.rules", "filters.rules.delete", "filters.rules.move", "filters.rules.toggle", "filters.autoreply", "filters.autoreply.delete"} {

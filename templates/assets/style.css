@@ -122,6 +122,8 @@ select {
   --fg-faint: #707070;
 
   --bg: #fff;
+  /* The top bar's; the browser paints it under the status bar, so the server reads it from here. */
+  --theme-color: #fff;
   --bg-well: #f6f6f6;
   --bg-inset: #eee;
   --bg-button: #f5f5f5;
@@ -198,6 +200,7 @@ select {
     --fg-faint: #8a8a8a;
 
     --bg: #1f1f1f;
+    --theme-color: #1f1f1f;
     --bg-well: #141414;
     --bg-inset: #2a2a2a;
     --bg-button: #2c2c2c;
@@ -252,6 +255,7 @@ select {
   --fg-faint: #8a8a8a;
 
   --bg: #1f1f1f;
+  --theme-color: #1f1f1f;
   --bg-well: #141414;
   --bg-inset: #2a2a2a;
   --bg-button: #2c2c2c;
@@ -428,7 +432,7 @@ header {
   position: relative;
   z-index: 12;
   border-bottom: 1px solid var(--border);
-  background: var(--surface);
+  background: var(--theme-color);
 }
 header nav {
   min-height: var(--toolbar-height);

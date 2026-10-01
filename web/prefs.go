@@ -1,6 +1,8 @@
 package web
 
 import (
+	"errors"
+	"fmt"
 	"io/fs"
 	"path"
 	"slices"
@@ -12,20 +14,63 @@ import (
 )
 
 // The value lands in a stylesheet URL, so only listed themes are accepted.
-func readThemes(files fs.FS) []Theme {
+func readThemes(files fs.FS) (base Theme, themes []Theme, err error) {
 	names, _ := fs.Glob(files, "assets/themes/*.css")
-	themes := make([]Theme, 0, len(names))
+	base, err = readTheme(files, "assets/style.css")
 	for _, name := range names {
-		source, _ := fs.ReadFile(files, name)
-		themes = append(themes, Theme{Name: strings.TrimSuffix(path.Base(name), ".css"), Scheme: pinnedScheme(string(source))})
+		t, terr := readTheme(files, name)
+		themes = append(themes, t)
+		err = errors.Join(err, terr)
 	}
-	return themes
+	return base, themes, err
+}
+
+func readTheme(files fs.FS, name string) (Theme, error) {
+	source, err := fs.ReadFile(files, name)
+	if err != nil {
+		return Theme{}, err
+	}
+	t := Theme{Scheme: pinnedScheme(string(source))}
+	if path.Dir(name) == "assets/themes" {
+		t.Name = strings.TrimSuffix(path.Base(name), ".css")
+	}
+	colors := themeColors(string(source))
+	switch {
+	case t.Scheme != "" && len(colors) == 1:
+		t.Colors = []ThemeColor{{Color: colors[0]}}
+	case t.Scheme == "" && len(colors) >= 2:
+		t.Colors = []ThemeColor{{Scheme: "light", Color: colors[0]}, {Scheme: "dark", Color: colors[len(colors)-1]}}
+	default:
+		return t, fmt.Errorf("%s: %d %s declarations; a theme pinning a scheme needs one, any other a light and a dark", name, len(colors), themeColorToken)
+	}
+	return t, nil
 }
 
 // Theme is one overlay on offer; Scheme is the scheme it pins, empty when it answers to both.
 type Theme struct {
 	Name   string
 	Scheme string
+	// Colors are what the browser paints around the window, per scheme; one with no scheme for a pinned theme.
+	Colors []ThemeColor
+}
+
+// ThemeColor is a theme's colour for the browser's chrome in one scheme, empty for every scheme.
+type ThemeColor struct {
+	Scheme string
+	Color  string
+}
+
+// The token names what it feeds: <meta name="theme-color">.
+const themeColorToken = "--theme-color:"
+
+// themeColors are the token's values in source order: the light scheme's first, the dark scheme's last.
+func themeColors(source string) []string {
+	var colors []string
+	for _, rest := range strings.Split(source, themeColorToken)[1:] {
+		color, _, _ := strings.Cut(rest, ";")
+		colors = append(colors, strings.TrimSpace(color))
+	}
+	return colors
 }
 
 func pinnedScheme(source string) string {
@@ -96,15 +141,15 @@ func (ctx *Context) Themes() []Theme {
 	return ctx.Server.themes
 }
 
-// themeScheme is the scheme the chosen theme pins, empty when it follows the reader.
-func (ctx *Context) themeScheme() string {
+// theme is the chosen overlay, or the base stylesheet when none is.
+func (ctx *Context) theme() Theme {
 	name := ctx.Theme()
 	for _, t := range ctx.Server.themes {
 		if t.Name == name {
-			return t.Scheme
+			return t
 		}
 	}
-	return ""
+	return ctx.Server.base
 }
 
 // Theme returns the user's theme, empty for the default or one not offered.

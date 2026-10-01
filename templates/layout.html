@@ -3,8 +3,9 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
-    <meta name="theme-color" content="#1f1f1f" media="(prefers-color-scheme: dark)">
+    {{- range .GlobalData.ThemeColors}}
+    <meta name="theme-color" content="{{.Color}}"{{with .Scheme}} media="(prefers-color-scheme: {{.}})" data-scheme="{{.}}"{{end}}>
+    {{- end}}
     <title>{{.GlobalData.PageTitle}}</title>
     <meta name="alborz-shell" content="{{.GlobalData.Shell}}">
     {{ with .GlobalData.LockSeconds }}<meta name="alborz-lock" content="{{.}}" data-unlock="{{url "auth.unlock"}}" data-alive="{{url "auth.alive"}}">{{ end }}

@@ -503,7 +503,7 @@ document.addEventListener("click", ev => {
 		return;
 	}
 	const next = button.dataset.next;
-	document.documentElement.dataset.theme = next;
+	applyScheme(next);
 	if (next === "system") {
 		sessionStorage.removeItem("scheme");
 	} else {

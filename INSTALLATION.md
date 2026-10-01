@@ -46,7 +46,8 @@ under the login key, so a restart starts warm. `-cache=false` keeps no cache.
 ## Custom stylesheet
 
 A `custom.css` in the data directory (`-data-dir`, here `/var/lib/alborz`)
-is linked after the theme on every page, so it overrides any style.
+is linked after the theme on every page, so it overrides any style
+except the browser's status bar, which takes the theme's `--theme-color`.
 alborz reads it at startup and on SIGUSR1; without it nothing is linked.
 
 ## DNS

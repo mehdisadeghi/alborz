@@ -80,6 +80,8 @@ type GlobalRenderData struct {
 
 	// SchemePinned hides the scheme toggle for a theme written for one scheme only.
 	SchemePinned bool
+	// ThemeColors are the theme's top bar per scheme, which the browser paints under the status bar.
+	ThemeColors []ThemeColor
 
 	CustomCSS bool
 
@@ -265,7 +267,9 @@ func NewBaseRenderData(ctx *Context) *BaseRenderData {
 	global.Unified = ctx.Unified
 	global.AlignByScript = ctx.alignByScript()
 	global.CustomCSS = len(ctx.Server.loaded.Load().custom) > 0
-	global.SchemePinned = ctx.themeScheme() != ""
+	theme := ctx.theme()
+	global.SchemePinned = theme.Scheme != ""
+	global.ThemeColors = theme.Colors
 	global.URLAccount = ctx.urlAccount
 	global.From = ctx.From()
 	global.Scope, global.Merged = ctx.urlAccount, ctx.Unified

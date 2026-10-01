@@ -24,10 +24,10 @@
   --link-read: #8ba7ad;
   --link-unread: #a6e22e;
 
-  --green: #a6e22e;
-  --green-dark: #a6e22e;
-  --bg-green: #2c2d24;
-  --border-green: #49483e;
+  --accent-strong: #a6e22e;
+  --accent: #a6e22e;
+  --bg-accent: #2c2d24;
+  --border-accent: #49483e;
   --flag: #e6db74;
   --flag-orange: #fd971f;
   --flag-yellow: #e6db74;
@@ -43,5 +43,6 @@
   --alert-bg: #2d2026;
   --warn-fg: #e6db74;
   --warn-bg: #33301f;
+  --warn-border: #4e4a2c;
   --alert-border: #4d2436;
 }

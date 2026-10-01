@@ -138,11 +138,11 @@ select {
   --link-read: #66b;
   --link-unread: #00c;
 
-  /* Both greens carry white text, so neither may fall under 4.5:1. */
-  --green: #288528;
-  --green-dark: #008040;
-  --bg-green: #f6fff6;
-  --border-green: #afa;
+  /* Both accents carry white text, so neither may fall under 4.5:1. */
+  --accent-strong: #288528;
+  --accent: #008040;
+  --bg-accent: #f6fff6;
+  --border-accent: #afa;
   /* Every flag is an icon; 3:1 on the well is the floor for all of them. */
   --flag: #7a7a80;
   /* Apple Mail's seven flag colours in its order, darkened to clear 3:1 on the well. */
@@ -160,35 +160,23 @@ select {
   --notice-fg: #0c5460;
   --notice-bg: #d1ecf1;
   --notice-border: #bee5eb;
-  --warning-fg: #664d03;
-  --warning-bg: #fff3cd;
-  --warning-border: #ffe69c;
   --alert-fg: #721c24;
   --alert-bg: #f8d7da;
   --warn-fg: #6b4e00;
   --warn-bg: #fff3cd;
+  --warn-border: #ffe69c;
   --alert-border: #f5c6cb;
 
   /* The row checkbox and the toolbar's select-all stand in the same track. */
   --check-track: 2.2rem;
   --star-track: 3rem;
 
-  --surface: var(--bg);
   /* A menu must not let through what it floats over; every popover paints on this. */
   --surface-raised: var(--bg);
-  --surface-subtle: var(--bg-well);
-  --surface-inset: var(--bg-inset);
-  --surface-selected: var(--bg-active);
-  --surface-accent: var(--bg-green);
   /* One value for every theme: it darkens whatever is under it. */
   --scrim: rgb(0 0 0 / 0.4);
-  --accent: var(--green-dark);
-  --accent-strong: var(--green);
   /* A theme with a translucent background overrides this with an opaque ink. */
   --on-accent: var(--bg);
-  --danger: var(--alert-fg);
-  --danger-surface: var(--alert-bg);
-  --sig-good: var(--green-dark);
   --focus-ring: color-mix(in srgb, var(--link) 68%, transparent);
 }
 
@@ -215,10 +203,10 @@ select {
     --link-read: #8d9cd8;
     --link-unread: #a8c7fa;
 
-    --green: #5cc26e;
-    --green-dark: #3fb968;
-    --bg-green: #17211a;
-    --border-green: #2c4a33;
+    --accent-strong: #5cc26e;
+    --accent: #3fb968;
+    --bg-accent: #17211a;
+    --border-accent: #2c4a33;
     --flag: #9a9aa0;
     --flag-red: #ff4238;
     --flag-orange: #ff9500;
@@ -231,13 +219,11 @@ select {
     --notice-fg: #9ed6e0;
     --notice-bg: #12343b;
     --notice-border: #1c4a54;
-    --warning-fg: #ffda6a;
-    --warning-bg: #332701;
-    --warning-border: #664d03;
     --alert-fg: #f1aeb5;
     --alert-bg: #35181c;
     --warn-fg: #e6c25a;
     --warn-bg: #3a2f10;
+    --warn-border: #664d03;
     --alert-border: #58232b;
   }
 }
@@ -270,10 +256,10 @@ select {
   --link-read: #8d9cd8;
   --link-unread: #a8c7fa;
 
-  --green: #5cc26e;
-  --green-dark: #3fb968;
-  --bg-green: #17211a;
-  --border-green: #2c4a33;
+  --accent-strong: #5cc26e;
+  --accent: #3fb968;
+  --bg-accent: #17211a;
+  --border-accent: #2c4a33;
   --flag: #9a9aa0;
   --flag-red: #ff4238;
   --flag-orange: #ff9500;
@@ -286,13 +272,11 @@ select {
   --notice-fg: #9ed6e0;
   --notice-bg: #12343b;
   --notice-border: #1c4a54;
-  --warning-fg: #ffda6a;
-  --warning-bg: #332701;
-  --warning-border: #664d03;
   --alert-fg: #f1aeb5;
   --alert-bg: #35181c;
   --warn-fg: #e6c25a;
   --warn-bg: #3a2f10;
+  --warn-border: #664d03;
   --alert-border: #58232b;
 }
 
@@ -352,7 +336,7 @@ select {
 
 body { font-family: var(--font-sans); font-size: var(--text-md); padding: 0; margin: 0;
   min-height: 100vh; display: flex; flex-direction: column;
-  background-color: var(--surface); color: var(--fg);
+  background-color: var(--bg); color: var(--fg);
 }
 
 input[type="text"],
@@ -374,7 +358,7 @@ select {
   min-height: var(--control-height);
   font-size: inherit;
   padding: var(--space-1) var(--space-2);
-  background-color: var(--surface);
+  background-color: var(--bg);
   color: var(--fg);
 }
 
@@ -623,7 +607,7 @@ header nav .account-menu-row .account-signout button {
   color: var(--fg-muted);
   font-size: var(--text-sm);
 }
-header nav .account-menu-row .account-signout button:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover { color: var(--danger); }
+header nav .account-menu-row .account-signout button:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover { color: var(--alert-fg); }
 header a.active {
   font-weight: 650;
   color: var(--fg);
@@ -694,9 +678,9 @@ dialog.notice:not([open]) {
 }
 
 .notice-warning {
-  color: var(--warning-fg);
-  background-color: var(--warning-bg);
-  border-color: var(--warning-border);
+  color: var(--warn-fg);
+  background-color: var(--warn-bg);
+  border-color: var(--warn-border);
 }
 
 .notice-failed {
@@ -876,7 +860,7 @@ footer { text-align: end; }
 aside {
   flex: 0 0 var(--sidebar-width);
   min-width: 0;
-  background: var(--surface);
+  background: var(--bg);
   border-inline-end: 1px solid var(--border-light);
 }
 
@@ -936,7 +920,7 @@ aside .active {
 
 aside .active,
 aside .new.active {
-  background-color: var(--surface-selected);
+  background-color: var(--bg-active);
   border-inline-start: 2px solid var(--accent);
 }
 
@@ -955,7 +939,7 @@ aside .unseen {
 
 aside .new.active {
   color: var(--accent);
-  background: var(--surface-accent);
+  background: var(--bg-accent);
 }
 
 aside button {
@@ -984,7 +968,7 @@ main {
   flex-direction: column;
   padding: 0;
   min-width: 0;
-  background-color: var(--surface-subtle);
+  background-color: var(--bg-well);
   padding-bottom: var(--space-bottom);
 }
 
@@ -994,7 +978,7 @@ main.login {
 
 main.login > section {
   align-self: center;
-  background: var(--surface);
+  background: var(--bg);
   width: min(26rem, 100%);
   padding: var(--space-8);
   border: 1px solid var(--border);
@@ -1025,14 +1009,14 @@ main.login .colophon a:hover { text-decoration: underline; }
 main.create-update {
   align-items: flex-start;
   padding: var(--space-4);
-  background: var(--surface-subtle);
+  background: var(--bg-well);
 }
 
 main.create-update > form,
 main.create-update > section.collection-file {
   width: min(100%, var(--content-form));
   padding: var(--space-4);
-  background: var(--surface);
+  background: var(--bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-raised);
@@ -1126,7 +1110,7 @@ main.create-update > form > label > textarea {
 main.create-update form .field > input[readonly],
 main.create-update > form > label > input[readonly] {
   color: var(--fg-muted);
-  background: var(--surface-inset);
+  background: var(--bg-inset);
 }
 
 /* Never wider: widening drags a textarea out of its column. */
@@ -1213,7 +1197,7 @@ main.create-update #attachment-list .upload button {
 main.create-update #attachment-list .upload .progress {
   position: absolute;
   height: 5px;
-  background: var(--green);
+  background: var(--accent-strong);
   bottom: 0;
   inset-inline-start: 0;
 }
@@ -1259,7 +1243,7 @@ main.create-update .text {
 }
 
 .editor-toolbar [aria-pressed="true"] {
-  background: var(--surface-selected);
+  background: var(--bg-active);
   border-color: var(--border-strong);
 }
 
@@ -1363,7 +1347,7 @@ main.message .shown-image {
 }
 main.message .remote-content,
 main.message .part-cut {
-  background: var(--bg-green);
+  background: var(--bg-accent);
 }
 
 main.message .remote-content td,
@@ -1499,7 +1483,7 @@ main.event .details {
   width: min(calc(100% - 2 * var(--space-4)), var(--content-reading));
   margin: var(--space-4);
   padding: var(--space-4);
-  background: var(--surface);
+  background: var(--bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-raised);
@@ -1824,7 +1808,7 @@ main .details > .subject-row > h1 {
 }
 
 .flag-menu:has(> :popover-open) > button {
-  background: var(--surface-selected);
+  background: var(--bg-active);
 }
 
 .flag-menu > button .flag-star { font-size: 13pt; }
@@ -1897,7 +1881,7 @@ main.create-update > form > .allday-label::before {
   height: 1rem;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
-  background: var(--surface);
+  background: var(--bg);
 }
 
 .allday-toggle:checked + .allday-label::before {
@@ -1960,7 +1944,7 @@ main.create-update > form > .allday-label::before {
   gap: var(--space-2);
   min-height: 2rem;
   padding: var(--row-pad);
-  background: color-mix(in srgb, var(--surface) 58%, var(--surface-subtle));
+  background: color-mix(in srgb, var(--bg) 58%, var(--bg-well));
   border-bottom: 1px solid var(--border-light);
 }
 
@@ -2166,7 +2150,7 @@ main.message h1 {
 }
 
 aside .new {
-  color: var(--green-dark);
+  color: var(--accent);
   font-weight: bold;
   text-decoration: none;
 }
@@ -2209,7 +2193,7 @@ main table tfoot {
   flex-direction: row;
   align-items: center;
   min-height: var(--toolbar-height);
-  background-color: var(--surface);
+  background-color: var(--bg);
   padding: var(--space-1) var(--space-2);
 }
 
@@ -2385,7 +2369,7 @@ aside .filter-row {
 }
 
 aside .filter-row.active {
-  background-color: var(--surface-selected);
+  background-color: var(--bg-active);
   border-inline-start: 2px solid var(--accent);
 }
 
@@ -2465,7 +2449,7 @@ main > .info-explain {
 .info-card {
   margin-top: var(--space-5);
   padding: var(--space-3) var(--space-4);
-  background: var(--surface);
+  background: var(--bg);
   border: 1px solid var(--border-light);
   border-radius: var(--radius-md);
   color: var(--fg-muted);
@@ -2578,10 +2562,10 @@ details.info-card[open] > summary { margin-bottom: var(--space-2); }
   cursor: help;
 }
 
-/* Green only where the domain's key and its signed delivery agree; a key the message brought proves less. */
+/* The accent only where the domain's key and its signed delivery agree; a key the message brought proves less. */
 .sig-verified {
-  color: var(--sig-good);
-  border-color: color-mix(in srgb, var(--sig-good) 40%, transparent);
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
 .sig-good {
@@ -2590,8 +2574,8 @@ details.info-card[open] > summary { margin-bottom: var(--space-2); }
 }
 
 .sig-bad {
-  color: var(--danger);
-  border-color: color-mix(in srgb, var(--danger) 40%, transparent);
+  color: var(--alert-fg);
+  border-color: color-mix(in srgb, var(--alert-fg) 40%, transparent);
 }
 
 /* Bold on the chosen one would change its width, so a transparent border holds the box. */
@@ -2613,7 +2597,7 @@ details.info-card[open] > summary { margin-bottom: var(--space-2); }
 
 .toggle-option.is-current {
   border-color: var(--border-strong);
-  background: var(--surface-selected);
+  background: var(--bg-active);
   color: var(--fg);
 }
 
@@ -2641,7 +2625,7 @@ details.info-card[open] > summary { margin-bottom: var(--space-2); }
 }
 
 .toggle-option:not(.is-current):hover {
-  background: var(--surface-selected);
+  background: var(--bg-active);
   text-decoration: none;
 }
 
@@ -2788,7 +2772,7 @@ main.calendar .actions {
 
 .actions-pagination > strong {
   border-color: var(--border);
-  background: var(--surface-selected);
+  background: var(--bg-active);
   color: var(--fg);
 }
 
@@ -3179,7 +3163,7 @@ aside details.folder-branch details.folder-branch > ul > li {
   min-width: 0;
 }
 
-.event-row:hover > * { background: var(--surface-selected); }
+.event-row:hover > * { background: var(--bg-active); }
 
 .event-time,
 .event-owner { color: var(--fg-muted); }
@@ -3201,7 +3185,7 @@ aside details.folder-branch details.folder-branch > ul > li {
   font-size: var(--text-sm);
   font-weight: 650;
   color: var(--fg-muted);
-  background: var(--surface-subtle);
+  background: var(--bg-well);
   border-bottom: 1px solid var(--border);
 }
 
@@ -3258,7 +3242,7 @@ aside details.folder-branch details.folder-branch > ul > li {
   min-width: 0;
 }
 
-.task-row:hover > * { background: var(--surface-selected); }
+.task-row:hover > * { background: var(--bg-active); }
 
 .task-list-summary a {
   color: inherit;
@@ -3349,7 +3333,7 @@ aside details.folder-branch details.folder-branch > ul > li {
   padding: var(--space-6);
   border: 1px dashed var(--border);
   border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--surface) 52%, transparent);
+  background: color-mix(in srgb, var(--bg) 52%, transparent);
 }
 
 main.calendar .dates {
@@ -3370,24 +3354,24 @@ main.calendar .dates .weekday {
   font-size: var(--text-sm);
   font-weight: 650;
   color: var(--fg-muted);
-  background: var(--surface);
+  background: var(--bg);
 }
 
 main.calendar .date {
   border: 0;
   padding: var(--space-1);
-  background: var(--surface);
+  background: var(--bg);
   display: flex;
   flex-direction: column;
   position: relative;
   min-width: 0;
 }
 
-main.calendar .date:hover { background: var(--surface-selected); }
+main.calendar .date:hover { background: var(--bg-active); }
 
 main.calendar .date.active {
-  background-color: var(--surface-accent);
-  box-shadow: inset 0 0 0 1px var(--border-green);
+  background-color: var(--bg-accent);
+  box-shadow: inset 0 0 0 1px var(--border-accent);
 }
 
 main.calendar .date .date-link {
@@ -3397,7 +3381,7 @@ main.calendar .date .date-link {
 
 /* Dimmed rather than emptied: what is on a day either side still helps place the month. */
 main.calendar .date.extra {
-  background: var(--surface-subtle);
+  background: var(--bg-well);
   opacity: 0.58;
 }
 
@@ -3508,7 +3492,7 @@ main.calendar .date h3 .day-num {
 }
 
 main.calendar .date.active h3 .day-num {
-  background: var(--green);
+  background: var(--accent-strong);
   color: var(--on-accent);
 }
 
@@ -3534,7 +3518,7 @@ main.settings > .info-card {
   width: min(calc(100% - 2 * var(--space-4)), var(--content-form));
   margin: var(--space-4);
   padding: var(--space-4);
-  background: var(--surface);
+  background: var(--bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-raised);
@@ -3580,7 +3564,7 @@ button,
 .button:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover,
 button:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover,
 .button-link:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover {
-  background-color: var(--surface-selected);
+  background-color: var(--bg-active);
   border-color: var(--border-strong);
   text-decoration: none;
 }
@@ -3610,15 +3594,15 @@ button:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover,
 }
 
 .button-danger {
-  color: var(--danger);
-  border-color: color-mix(in srgb, var(--danger) 35%, var(--border));
+  color: var(--alert-fg);
+  border-color: color-mix(in srgb, var(--alert-fg) 35%, var(--border));
   background: transparent;
 }
 
 .button-danger:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover {
-  color: var(--danger);
-  border-color: var(--danger);
-  background: var(--danger-surface);
+  color: var(--alert-fg);
+  border-color: var(--alert-fg);
+  background: var(--alert-bg);
 }
 
 button[disabled] {
@@ -3710,7 +3694,7 @@ header nav .accounts-menu[popover] {
 
 .actions .icon-button:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover,
 .icon-button:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover {
-  background: var(--surface-selected);
+  background: var(--bg-active);
   color: var(--fg);
 }
 
@@ -3725,8 +3709,8 @@ header nav .accounts-menu[popover] {
 
 .actions .icon-button.icon-danger:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover,
 .icon-button.icon-danger:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover {
-  color: var(--danger);
-  background: var(--danger-surface);
+  color: var(--alert-fg);
+  background: var(--alert-bg);
 }
 
 .icon-group {
@@ -3787,7 +3771,7 @@ header nav .accounts-menu[popover] {
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='1.6' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M20 20l-4.4-4.4'/%3E%3C/svg%3E") center / 1.15rem no-repeat;
 }
 
-.actions-search input[type="text"]:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover { background-color: var(--surface-selected); }
+.actions-search input[type="text"]:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover { background-color: var(--bg-active); }
 
 .actions-search input::placeholder { color: transparent; }
 .actions-search button { display: none; }
@@ -3907,7 +3891,7 @@ main.message .actions-end {
 /* Named, not linked, in the same box: bolding it would change its width. */
 .overflow-menu .is-current {
   color: var(--fg);
-  background: var(--surface-selected);
+  background: var(--bg-active);
   border-color: var(--border-strong);
 }
 
@@ -3952,7 +3936,7 @@ main.message .actions-end {
 }
 
 .overflow-menu button:not(.icon-button):not(:disabled):not([aria-disabled="true"]):hover {
-  background-color: var(--surface-selected);
+  background-color: var(--bg-active);
   border-color: var(--border-strong);
 }
 
@@ -3993,7 +3977,7 @@ button:active,
   border-bottom: 1px solid var(--border-light);
 }
 
-.list-item:hover { background: var(--surface-selected); }
+.list-item:hover { background: var(--bg-active); }
 
 .list-item.completed .list-summary {
   text-decoration: line-through;
@@ -4035,8 +4019,8 @@ button:active,
 .checkbox-button.prio-low { border-color: var(--prio-low); }
 
 .checkbox-button.checked {
-  background: var(--green);
-  border-color: var(--green);
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
   color: var(--bg);
 }
 
@@ -4323,7 +4307,7 @@ aside ul.merged-roles {
   line-height: 1.4;
   min-height: 2rem;
   padding: var(--row-pad);
-  background: color-mix(in srgb, var(--surface) 58%, var(--surface-subtle));
+  background: color-mix(in srgb, var(--bg) 58%, var(--bg-well));
   border-bottom: 1px solid var(--border-light);
 }
 

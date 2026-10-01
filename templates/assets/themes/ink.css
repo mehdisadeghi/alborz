@@ -24,10 +24,10 @@
   --link-read: #5c5c5c;
   --link-unread: #000;
 
-  --green: #000;
-  --green-dark: #000;
-  --bg-green: #fff;
-  --border-green: #000;
+  --accent-strong: #000;
+  --accent: #000;
+  --bg-accent: #fff;
+  --border-accent: #000;
   --flag: #000;
 
   --notice-fg: #000;
@@ -37,6 +37,7 @@
   --alert-bg: #fff;
   --warn-fg: #000;
   --warn-bg: #fff;
+  --warn-border: #000;
   --alert-border: #000;
 }
 
@@ -65,10 +66,10 @@
     --link-read: #9a9a9a;
     --link-unread: #fff;
 
-    --green: #fff;
-    --green-dark: #fff;
-    --bg-green: #000;
-    --border-green: #fff;
+    --accent-strong: #fff;
+    --accent: #fff;
+    --bg-accent: #000;
+    --border-accent: #fff;
     --flag: #fff;
 
     --notice-fg: #fff;
@@ -78,6 +79,7 @@
     --alert-bg: #000;
     --warn-fg: #fff;
     --warn-bg: #000;
+  --warn-border: #fff;
     --alert-border: #fff;
   }
 }
@@ -106,10 +108,10 @@
   --link-read: #9a9a9a;
   --link-unread: #fff;
 
-  --green: #fff;
-  --green-dark: #fff;
-  --bg-green: #000;
-  --border-green: #fff;
+  --accent-strong: #fff;
+  --accent: #fff;
+  --bg-accent: #000;
+  --border-accent: #fff;
   --flag: #fff;
 
   --notice-fg: #fff;
@@ -119,6 +121,7 @@
   --alert-bg: #000;
   --warn-fg: #fff;
   --warn-bg: #000;
+  --warn-border: #fff;
   --alert-border: #fff;
 }
 

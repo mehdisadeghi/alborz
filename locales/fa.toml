@@ -395,6 +395,8 @@
 "filters.toomanyreplies" = "حداکثر %d پاسخ خودکار."
 "notice.autoreplyon" = "پاسخ خودکار فعال شد."
 "notice.autoreplydeleted" = "پاسخ خودکار حذف شد."
+"calendar.prevmonth" = "ماه قبل"
+"calendar.nextmonth" = "ماه بعد"
 "calendar.today" = "امروز"
 "calendar.fromtoday" = "از امروز"
 "calendar.wholemonth" = "تمام ماه"

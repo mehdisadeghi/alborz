@@ -168,6 +168,8 @@ func (g *GlobalRenderData) SecondaryDate(t time.Time) string { return g.dates().
 
 func (g *GlobalRenderData) MonthYear(t time.Time) string { return g.dates().MonthYear(t) }
 
+func (g *GlobalRenderData) MonthYearShort(t time.Time) string { return g.dates().MonthYearShort(t) }
+
 func (g *GlobalRenderData) LongDate(t time.Time) string { return g.dates().Long(t) }
 
 func (g *GlobalRenderData) InputDate(t time.Time) dates.Field { return g.dates().Input(t) }

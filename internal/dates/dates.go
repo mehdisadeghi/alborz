@@ -178,10 +178,26 @@ func (r Reader) DateIn(cal calsys.System, t time.Time) string {
 	return locale.Sprintf(r.Lang, "%d %s %s", d, r.t(cal.MonthKey(m)), locale.Year(r.Lang, y))
 }
 
-// MonthYear is the calendar heading for t's month.
+// MonthYear is the calendar heading for t's month, without the current year.
 func (r Reader) MonthYear(t time.Time) string {
-	y, _, _ := calsys.For(r.Calendar(), r.In(t)).Date(r.In(t))
-	return fmt.Sprintf("%s %s", r.Month(t), locale.Year(r.Lang, y))
+	return r.monthYear(t, r.Month(t))
+}
+
+// MonthYearShort is MonthYear with the month abbreviated, for a narrow toolbar.
+func (r Reader) MonthYearShort(t time.Time) string {
+	cal := calsys.For(r.Calendar(), r.In(t))
+	_, m, _ := cal.Date(r.In(t))
+	return r.monthYear(t, r.ShortMonth(cal, m))
+}
+
+func (r Reader) monthYear(t time.Time, month string) string {
+	cal := calsys.For(r.Calendar(), r.In(t))
+	year, _, _ := cal.Date(r.In(t))
+	thisYear, _, _ := cal.Date(r.In(time.Now()))
+	if year == thisYear {
+		return month
+	}
+	return fmt.Sprintf("%s %s", month, locale.Year(r.Lang, year))
 }
 
 // Long is a day heading; time.Format knows only English names.

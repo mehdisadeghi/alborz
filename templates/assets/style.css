@@ -2635,6 +2635,11 @@ details.info-card[open] > summary { margin-bottom: var(--space-2); }
 
 .overflow-menu .actions-pagination { margin-inline-start: 0; }
 
+/* On a phone the toggle is one button to the other view. */
+@media (width <= 600px) {
+  .actions .toggle-option.is-current { display: none; }
+}
+
 .toggle-option:not(.is-current):hover {
   background: var(--surface-selected);
   text-decoration: none;
@@ -2763,7 +2768,7 @@ main.calendar .actions {
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.1rem;
 }
 
 /* Bolding the chosen state would change its width and move the controls after it. */
@@ -2800,7 +2805,9 @@ main.calendar .actions {
   font-weight: 500;
 }
 
+/* A count, not a button: it keeps its distance from the pager's buttons. */
 .pagination-range {
+  margin-inline-end: var(--space-2);
   color: var(--fg-muted);
   white-space: nowrap;
   font-size: 0.85rem;
@@ -2912,6 +2919,11 @@ main.calendar .actions {
 .actions-message h1:not(:last-child) {
   flex: 0 1 var(--title-track);
   min-width: var(--title-floor);
+}
+
+/* A month's name is short; a track held for the longest cost the pager its place on a phone. */
+.month-actions .actions-message h1:not(:last-child) {
+  flex-basis: auto;
 }
 
 .actions-message > .icon-button,
@@ -4781,6 +4793,9 @@ h1.no-word .title-short {
     white-space: nowrap;
     min-height: 2.25rem;
   }
+
+  /* Today keeps the box of the arrows beside it, linked or not. */
+  .actions .actions-pagination > .button-link { min-height: var(--control-height); }
 
   .actions-wrap { min-width: 0; }
   .actions-message { column-gap: 0.3rem; }

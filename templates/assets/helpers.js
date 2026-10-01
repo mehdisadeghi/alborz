@@ -298,7 +298,7 @@ const enhance = () => {
 		fitNav();
 	}
 
-	// Priority-plus toolbar: data-yield is "hide", "word", or by default a move into the overflow menu.
+	// Priority-plus toolbar: data-yield is "hide", "word", "split" (a group whose members move into the menu one by one), or by default a move into the overflow menu.
 	for (const wrap of document.querySelectorAll(".actions-wrap")) {
 		if (fits.has(wrap)) {
 			fits.get(wrap).fit();
@@ -318,8 +318,13 @@ const enhance = () => {
 		const pinned = wrap.querySelectorAll(":scope > .actions-message, :scope > .actions-end, .actions-message h1");
 		const pin = on => { for (const el of pinned) { el.style.flexShrink = on ? "0" : ""; } };
 		let items = [];
+		let parts = [];
 		let fitting = false;
 		const unfit = () => {
+			for (let i = parts.length - 1; i >= 0; i--) {
+				parts[i].parent.insertBefore(parts[i].el, parts[i].next);
+			}
+			parts = [];
 			for (let i = items.length - 1; i >= 0; i--) {
 				items[i].el.hidden = false;
 				items[i].el.classList.remove("no-word");
@@ -355,8 +360,17 @@ const enhance = () => {
 			}
 			pin(false);
 			for (let i = items.length - 1; i >= 0; i--) {
-				if (moved.has(items[i].el)) {
+				if (!moved.has(items[i].el)) {
+					continue;
+				}
+				if (items[i].how !== "split") {
 					menu.prepend(items[i].el);
+					continue;
+				}
+				const members = Array.from(items[i].el.children);
+				for (let k = members.length - 1; k >= 0; k--) {
+					parts.push({ el: members[k], parent: items[i].el, next: members[k].nextSibling });
+					menu.prepend(members[k]);
 				}
 			}
 			fitting = false;

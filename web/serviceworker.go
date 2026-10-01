@@ -48,26 +48,31 @@ self.addEventListener("activate", event => {
 	).then(() => self.clients.claim()));
 });
 
-// Whether the last page came from the network or from here. Pages ask
+// What each page's last request met: "offline" a request that failed,
+// "slow" one given up on, nothing an answer. The worker says which, since a
+// server that takes its time is not a connection that is gone. Pages ask
 // when they load and are told when it changes, so the notice that says
-// "offline" is never a guess made from the radio's state.
-// What the last page request met: "" an answer, "offline" a request
-// that failed, "slow" one given up on. The worker says which, since a
-// server that takes its time is not a connection that is gone.
-let met = "";
-const word = () => ({ alborzOffline: met !== "", alborzSlow: met === "slow" });
-const tell = async state => {
-	if (state === met) {
+// "offline" is never a guess made from the radio's state; and it is per
+// page, since another tab's late answer says nothing of what this one shows.
+const met = new Map();
+const word = client => ({ alborzOffline: met.has(client), alborzSlow: met.get(client) === "slow" });
+const tell = async (client, state) => {
+	if (state === (met.get(client) || "")) {
 		return;
 	}
-	met = state;
-	for (const client of await self.clients.matchAll({ includeUncontrolled: true })) {
-		client.postMessage(word());
+	if (state) {
+		met.set(client, state);
+	} else {
+		met.delete(client);
+	}
+	const page = await self.clients.get(client);
+	if (page) {
+		page.postMessage(word(client));
 	}
 };
 self.addEventListener("message", event => {
 	if (event.data === "alborz-offline?" && event.source) {
-		event.source.postMessage(word());
+		event.source.postMessage(word(event.source.id));
 	}
 });
 
@@ -106,6 +111,8 @@ const savedPage = async key => {
 // what it answers is kept when it is a page. Any answer at all means
 // the server is there, whatever its status.
 const page = async (event, ask) => {
+	// A navigation's answer is the page it opens, not the one it leaves.
+	const client = event.resultingClientId || event.clientId;
 	const key = pageKey(event.request);
 	const saved = await savedPage(key);
 	const patience = new AbortController();
@@ -116,7 +123,7 @@ const page = async (event, ask) => {
 	try {
 		const answer = await ask(patience.signal);
 		clearTimeout(timer);
-		tell("");
+		tell(client, "");
 		// Not the sign-in page: it is what a purge leaves behind, and
 		// offline it would answer for the page the reader asked for.
 		// Nor the pages of a session that locks: what is saved is read
@@ -131,7 +138,7 @@ const page = async (event, ask) => {
 		return answer;
 	} catch (failure) {
 		clearTimeout(timer);
-		tell(patience.signal.aborted ? "slow" : "offline");
+		tell(client, patience.signal.aborted ? "slow" : "offline");
 		if (saved) {
 			return saved;
 		}

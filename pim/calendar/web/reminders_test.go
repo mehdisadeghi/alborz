@@ -31,8 +31,9 @@ func TestEventReminderPushesItsOccurrence(t *testing.T) {
 	a.Put(t, cal+"daily.ics", "text/calendar", alarmed("daily", "\r\nRRULE:FREQ=DAILY;COUNT=3", "DISPLAY", start.AddDate(0, 0, -1)))
 	a.Put(t, cal+"mailed.ics", "text/calendar", alarmed("mailed", "", "EMAIL", start))
 
-	got := push.Await(t, endpoint, "Event at")
-	if want := "Event at " + start.UTC().Format("15:04"); got.Title != want || got.Body != User {
+	want := T(t, "push.event", start.UTC().Format("15:04"))
+	got := push.Await(t, endpoint, want)
+	if got.Title != want || got.Body != User {
 		t.Fatalf("the push says %q / %q, want %q / %q", got.Title, got.Body, want, User)
 	}
 	if strings.Contains(got.Title+got.Body, "Budget") {

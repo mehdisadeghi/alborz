@@ -61,7 +61,7 @@ func subscribe(t *testing.T, c *Client, address string) string {
 	if resp.StatusCode != http.StatusFound {
 		t.Fatalf("subscribing answered %s", resp.Status)
 	}
-	if page := c.Follow(t, resp.Header.Get("Location")); !strings.Contains(page, "Subscribed to ") {
+	if page := c.Follow(t, resp.Header.Get("Location")); !Says(t, page, "notice.subscribed", Any) {
 		t.Error("subscribing says nothing of what it did")
 	}
 	var added []string

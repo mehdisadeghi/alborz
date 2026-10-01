@@ -16,7 +16,7 @@ func turnOn(t *testing.T, c *Client, sub url.Values) {
 	if resp.StatusCode != http.StatusFound {
 		t.Fatalf("turning notifications on: %s\n%s", resp.Status, NoticeBar(resp.Text))
 	}
-	if bar := NoticeBar(c.Follow(t, resp.Header.Get("Location"))); !strings.Contains(bar, "Notifications turned on for this browser.") {
+	if bar := NoticeBar(c.Follow(t, resp.Header.Get("Location"))); !Says(t, bar, "notice.notificationson") {
 		t.Fatalf("no notice says notifications are on:\n%s", bar)
 	}
 }
@@ -43,7 +43,7 @@ func TestNotificationsTurnOnAndOff(t *testing.T) {
 	}
 	marked := 0
 	for _, row := range rows {
-		if strings.Contains(row, "This browser") {
+		if Says(t, row, "sessions.current") {
 			marked++
 		}
 	}
@@ -55,7 +55,7 @@ func TestNotificationsTurnOnAndOff(t *testing.T) {
 		t.Fatalf("signing out: %s", resp.Status)
 	}
 	rows = devices(t, here)
-	if len(rows) != 1 || !strings.Contains(rows[0], "This browser") {
+	if len(rows) != 1 || !Says(t, rows[0], "sessions.current") {
 		t.Fatalf("after the other browser signed out, the rows are %v; its device should be gone", rows)
 	}
 	id := regexp.MustCompile(`name="device" value="([^"]+)"`).FindStringSubmatch(rows[0])[1]
@@ -63,7 +63,7 @@ func TestNotificationsTurnOnAndOff(t *testing.T) {
 	if resp.StatusCode != http.StatusFound {
 		t.Fatalf("turning off: %s", resp.Status)
 	}
-	if bar := NoticeBar(here.Follow(t, resp.Header.Get("Location"))); !strings.Contains(bar, "Notifications turned off.") {
+	if bar := NoticeBar(here.Follow(t, resp.Header.Get("Location"))); !Says(t, bar, "notice.notificationsoff") {
 		t.Fatalf("no notice says notifications are off:\n%s", bar)
 	}
 	if rows := devices(t, here); len(rows) != 0 {
@@ -78,13 +78,13 @@ func TestNotificationsRefuseWhatIsNotASubscription(t *testing.T) {
 	a := Alborz(t)
 	c := a.SignIn(t, User)
 	resp := c.Post(t, "settings.notifications.create", url.Values{})
-	if resp.StatusCode != http.StatusUnprocessableEntity || !strings.Contains(NoticeBar(resp.Text), "Notifications need JavaScript.") {
+	if resp.StatusCode != http.StatusUnprocessableEntity || !Says(t, NoticeBar(resp.Text), "notifications.needsscript") {
 		t.Fatalf("without a script: %s\n%s", resp.Status, NoticeBar(resp.Text))
 	}
 	plain := push.Subscribe(t)
 	plain.Set("endpoint", strings.Replace(plain.Get("endpoint"), "https:", "http:", 1))
 	resp = c.Post(t, "settings.notifications.create", plain)
-	if resp.StatusCode != http.StatusUnprocessableEntity || !strings.Contains(NoticeBar(resp.Text), "subscription was not accepted") {
+	if resp.StatusCode != http.StatusUnprocessableEntity || !Says(t, NoticeBar(resp.Text), "notifications.refused") {
 		t.Fatalf("a plain http endpoint: %s\n%s", resp.Status, NoticeBar(resp.Text))
 	}
 	if rows := devices(t, c); len(rows) != 0 {
@@ -134,7 +134,7 @@ func TestARenewedSubscriptionReplacesTheOld(t *testing.T) {
 	if len(before) != 1 || len(after) != 1 || after[0] == before[0] {
 		t.Fatalf("before %d rows, after %d; the row should be replaced, not added:\n%v\n%v", len(before), len(after), before, after)
 	}
-	if !strings.Contains(after[0], "This browser") {
+	if !Says(t, after[0], "sessions.current") {
 		t.Fatalf("the renewed row is not this browser's: %s", after[0])
 	}
 	afterSecond := second()

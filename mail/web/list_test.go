@@ -332,7 +332,7 @@ func TestFolderSearchOffersEveryFolder(t *testing.T) {
 	c := a.SignIn(t, User)
 	offer := func(page, from, label string) string {
 		t.Helper()
-		m := regexp.MustCompile(`<a class="filter-offer" href="([^"]*)">` + label + `</a>`).FindStringSubmatch(page)
+		m := regexp.MustCompile(`<a class="filter-offer" href="([^"]*)">` + regexp.QuoteMeta(html.EscapeString(label)) + `</a>`).FindStringSubmatch(page)
 		if m == nil {
 			t.Fatalf("%s offers no %q", from, label)
 		}
@@ -356,12 +356,12 @@ func TestFolderSearchOffersEveryFolder(t *testing.T) {
 	}
 	want := []string{"INBOX", "INBOX/Lists"}
 	inbox := a.Path("mail.mailbox", "INBOX", url.Values{"query": {"eve"}})
-	everywhere := offer(c.Follow(t, inbox), inbox, "Search all folders")
+	everywhere := offer(c.Follow(t, inbox), inbox, T(t, "search.allfolders"))
 	results := c.Follow(t, everywhere)
 	if got := folders(results); !slices.Equal(got, want) {
 		t.Fatalf("all folders found eve in %v, want %v", got, want)
 	}
-	whole := c.Follow(t, offer(results, everywhere, "Search the whole message too"))
+	whole := c.Follow(t, offer(results, everywhere, T(t, "mailbox.searchtext")))
 	if got := folders(whole); !slices.Equal(got, want) {
 		t.Errorf("the whole message found eve in %v, want %v", got, want)
 	}
@@ -398,11 +398,11 @@ func TestDeleteNoticeCountsTheRest(t *testing.T) {
 	if fields != nil || action != a.Path("mail.mailbox.empty", "INBOX") {
 		t.Fatalf("a full page's notice offers %q %v", action, fields)
 	}
-	rest := fmt.Sprintf("%d", len(uids)-2)
-	if !strings.Contains(body, "Delete all "+rest+" in this folder") {
+	rest := len(uids) - 2
+	if !Says(t, body, "notice.deleteall", rest) {
 		t.Errorf("the notice does not count the rest: %s", NoticeBar(body))
 	}
-	if page := c.Follow(t, action); !strings.Contains(page, "It holds "+rest+" messages") {
+	if page := c.Follow(t, action); !Says(t, page, "folder.emptycount", rest) {
 		t.Errorf("the empty page does not say what it holds: %s", AlertText(page))
 	}
 	c.Post(t, "mail.messages.delete", url.Values{"uids": uids[2:3]}, "INBOX", url.Values{"ipp": {"2"}})
@@ -528,7 +528,7 @@ func TestAServerDownCostsItsRowsNotThePage(t *testing.T) {
 		for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(50 * time.Millisecond) {
 			c.Post(t, "mail.mailbox.refresh", nil, "INBOX")
 			body = c.Page(t, route, list[1:]...)
-			if strings.Contains(body, "did not answer") {
+			if Says(t, body, "notice.unreachable", 1, Any) {
 				break
 			}
 			if time.Now().After(deadline) {
@@ -693,7 +693,7 @@ func TestADroppedMessageTheServerRefusesIsCounted(t *testing.T) {
 	if n := len(MessageUIDs(page)); n != 2 {
 		t.Errorf("Archive holds %d, want the 2 the server took", n)
 	}
-	if bar := NoticeBar(page); !strings.Contains(bar, "The server refused one.") {
+	if bar := NoticeBar(page); !Says(t, bar, "notice.importrefused", 1) {
 		t.Errorf("the notice does not count the refused message:\n%s", bar)
 	}
 }

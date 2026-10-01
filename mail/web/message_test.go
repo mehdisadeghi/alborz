@@ -231,7 +231,7 @@ func TestEverySenderShapeOfAFileIsListed(t *testing.T) {
 		{"a name on the type alone", []string{text, "Content-Type: application/pdf; name=\"c.pdf\"\r\n" + pdf},
 			"mixed", []string{"c.pdf"}, "Body text.", "", nil, nil},
 		{"no name and not text", []string{text, "Content-Type: application/octet-stream\r\n" + pdf},
-			"mixed", []string{"Unnamed file"}, "Body text.", "", nil, nil},
+			"mixed", []string{html.EscapeString(T(t, "message.unnamedfile"))}, "Body text.", "", nil, nil},
 		{"an attached text file", []string{text,
 			"Content-Type: text/plain; charset=utf-8; name=\"notes.txt\"\r\nContent-Disposition: inline; filename=\"notes.txt\"\r\n\r\nThese are notes.\r\n"},
 			"mixed", []string{"notes.txt"}, "Body text.", "", nil, nil},
@@ -464,7 +464,7 @@ func TestLongPartShowsItsStart(t *testing.T) {
 			if !utf8.ValidString(page) || strings.ContainsRune(page, utf8.RuneError) {
 				t.Error("the cut left a broken character on the page")
 			}
-			if !strings.Contains(page, "The rest of this message part is not shown.") {
+			if !Says(t, page, "message.cut") {
 				t.Error("the page does not say the part is cut")
 			}
 			whole := a.Path("mail.message.raw", "INBOX", uid, url.Values{"part": {"1"}})
@@ -759,7 +759,6 @@ func TestADamagedPartShowsWhatDecodes(t *testing.T) {
 		good+"\r\nVGhl!!!!IHJlc3Q=\r\n")
 	whole := a.IMAP.Append(t, "INBOX", head+"Content-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: base64\r\n\r\n"+good+"\r\n")
 
-	note := "This message part is damaged."
 	for _, route := range []string{"mail.message", "mail.message.reply", "mail.message.forward"} {
 		resp := c.Get(t, route, "INBOX", damaged, url.Values{"part": {"1"}})
 		if resp.StatusCode != http.StatusOK {
@@ -769,10 +768,10 @@ func TestADamagedPartShowsWhatDecodes(t *testing.T) {
 			t.Errorf("%s does not show what decoded", route)
 		}
 	}
-	if page := c.Page(t, "mail.message", "INBOX", damaged, url.Values{"part": {"1"}}); !strings.Contains(page, note) {
+	if page := c.Page(t, "mail.message", "INBOX", damaged, url.Values{"part": {"1"}}); !Says(t, page, "message.damaged") {
 		t.Error("the damaged part carries no note")
 	}
-	if page := c.Page(t, "mail.message", "INBOX", whole, url.Values{"part": {"1"}}); !strings.Contains(page, "The first line decodes.") || strings.Contains(page, note) {
+	if page := c.Page(t, "mail.message", "INBOX", whole, url.Values{"part": {"1"}}); !strings.Contains(page, "The first line decodes.") || Says(t, page, "message.damaged") {
 		t.Error("a whole part is not shown plainly")
 	}
 }

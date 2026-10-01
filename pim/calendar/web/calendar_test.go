@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	. "git.mehdix.org/alborz/internal/alborztest"
+	"git.mehdix.org/alborz/web"
 )
 
 // A date is read in the calendar its field names: typed Solar Hijri beyond the reckoning is refused, a stored date beyond it round-trips in Gregorian.
@@ -282,8 +283,6 @@ const nowruz = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//test//EN\r\nBE
 	"DTSTAMP:20260101T080000Z\r\nDTSTART:20260321T100000Z\r\nDTEND:20260321T110000Z\r\n" +
 	"RRULE:RSCALE=PERSIAN;FREQ=YEARLY;SKIP=BACKWARD\r\nSUMMARY:Nowruz\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
 
-const noRScale = "does not say it can keep a repeat"
-
 // rscaleServer serves alborz with a DAV server holding personal and a Solar Hijri rule in it; personal is
 // the calendar as pages hold it.
 func rscaleServer(t *testing.T, opts ...DAVOption) (a *App, c *Client, d *DAVServer, personal string) {
@@ -312,7 +311,7 @@ func TestASolarHijriRepeatNeedsTheServerToListItsScale(t *testing.T) {
 				"start": {"1405/01/01 10:00"}, "start-calendar": {"shcal"},
 				"end": {"1405/01/01 11:00"}, "end-calendar": {"shcal"}, "repeat": {"yearly"}})
 			if !tc.saved {
-				if resp.StatusCode != http.StatusUnprocessableEntity || !strings.Contains(html.UnescapeString(resp.Text), noRScale) {
+				if resp.StatusCode != http.StatusUnprocessableEntity || !Says(t, resp.Text, "form.repeatscale") {
 					t.Fatalf("saving answered %s, want the form refused with the reason", resp.Status)
 				}
 				if len(d.Puts()) != 0 {
@@ -329,7 +328,7 @@ func TestASolarHijriRepeatNeedsTheServerToListItsScale(t *testing.T) {
 		_, c, d, personal := rscaleServer(t)
 		resp := c.Upload(t, "calendar.import", url.Values{"collection": {User + "|" + personal}},
 			[]File{{Field: "file", Name: "nowruz.ics", Body: strings.NewReader(strings.Replace(nowruz, "UID:nowruz", "UID:imported", 1))}})
-		if resp.StatusCode != http.StatusUnprocessableEntity || !strings.Contains(html.UnescapeString(resp.Text), noRScale) {
+		if resp.StatusCode != http.StatusUnprocessableEntity || !Says(t, resp.Text, "form.repeatscale") {
 			t.Fatalf("the import answered %s, want the form refused with the reason", resp.Status)
 		}
 		if len(d.Puts()) != 0 {
@@ -345,7 +344,7 @@ func TestASolarHijriRepeatNeedsTheServerToListItsScale(t *testing.T) {
 		if resp := c.Post(t, "calendar.tasks.move", url.Values{"paths": {User + "|" + Here + task}, "to": {User + "|" + personal}}); resp.StatusCode != http.StatusFound {
 			t.Fatalf("the move answered %s", resp.Status)
 		}
-		if page := c.Page(t, "calendar.tasks"); !strings.Contains(html.UnescapeString(page), noRScale) {
+		if page := c.Page(t, "calendar.tasks"); !Says(t, page, "form.repeatscale") {
 			t.Errorf("the refused move left no reason on the page")
 		}
 		if len(d.Puts()) != 0 {
@@ -360,7 +359,7 @@ func TestASolarHijriRepeatNeedsTheServerToListItsScale(t *testing.T) {
 		plans := c.CreateCalendar(t, "Plans", "")
 		a.Put(t, plans+"nowruz.ics", "text/calendar", nowruz)
 		resp := c.Post(t, "calendar.event.copy", url.Values{"to": {User + "|" + personal}}, Here+plans+"nowruz.ics")
-		if resp.StatusCode != http.StatusUnprocessableEntity || !strings.Contains(html.UnescapeString(resp.Text), noRScale) {
+		if resp.StatusCode != http.StatusUnprocessableEntity || !Says(t, resp.Text, "form.repeatscale") {
 			t.Fatalf("the copy answered %s, want the form refused with the reason", resp.Status)
 		}
 		if len(d.Puts()) != 0 {
@@ -389,7 +388,7 @@ func TestAMoveTheSourceRefusesLeavesTheTaskWhereItWas(t *testing.T) {
 	if resp := c.Post(t, "calendar.tasks.move", move); resp.StatusCode != http.StatusFound {
 		t.Fatalf("the move answered %s", resp.Status)
 	}
-	if page := c.Page(t, "calendar.tasks"); !strings.Contains(html.UnescapeString(page), "The change was not saved.") {
+	if page := c.Page(t, "calendar.tasks"); !Says(t, page, "form.saverefused", Any) {
 		t.Errorf("the refused move left no reason on the page")
 	}
 	if resp := a.DAV(t, http.MethodGet, chores+"water.ics", nil, ""); resp.StatusCode != http.StatusNotFound {
@@ -528,8 +527,7 @@ func TestACalendarWithAnUnreadableObjectStillShowsTheRest(t *testing.T) {
 					t.Errorf("%s %v shows the event whose start is no date", page.route, page.query)
 				}
 			}
-			said := regexp.MustCompile(`Part of <span class="notice-name">` + calendar + `</span> could not be read\.`)
-			if resp := c.Get(t, "calendar.day", url.Values{"date": {"2026-09-15"}}); !said.MatchString(resp.Text) {
+			if resp := c.Get(t, "calendar.day", url.Values{"date": {"2026-09-15"}}); !Says(t, resp.Text, "notice.unread", 1, web.NoticeName(calendar)) {
 				t.Errorf("the day page does not say %s was read in part", calendar)
 			}
 			if resp := c.Get(t, "core.status", "calendar"); resp.StatusCode != http.StatusOK {
@@ -540,7 +538,7 @@ func TestACalendarWithAnUnreadableObjectStillShowsTheRest(t *testing.T) {
 			}
 			for _, route := range []string{"calendar.event", "calendar.event.update"} {
 				resp := c.Get(t, route, cutEvent)
-				if resp.StatusCode != http.StatusBadGateway || !strings.Contains(resp.Text, "cannot be read") {
+				if resp.StatusCode != http.StatusBadGateway || !Says(t, resp.Text, "unreadable") {
 					t.Errorf("%s of the cut event answered %s, want 502 saying it cannot be read", route, resp.Status)
 				}
 			}
@@ -652,7 +650,7 @@ func TestAnExportLeavesOutWhatCannotBeWritten(t *testing.T) {
 	if !strings.Contains(resp.Text, "UID:plain") || strings.Contains(resp.Text, "UID:twice") {
 		t.Errorf("the export does not hold the plain event alone:\n%s", resp.Text)
 	}
-	if bar := NoticeBar(c.Page(t, "settings.profile")); !strings.Contains(bar, "1 left out of the export: twice:") {
+	if bar := NoticeBar(c.Page(t, "settings.profile")); !Says(t, bar, "export.leftout", 1, "twice:") {
 		t.Errorf("the page after the export does not say what was left out, and why:\n%s", bar)
 	}
 }
@@ -686,16 +684,16 @@ func TestAnExportLeavesOutWhatCannotBeRead(t *testing.T) {
 	for _, tc := range []struct {
 		route string
 		args  []any
-		left  string
+		left  int
 	}{
-		{"calendar.collection.export", []any{d.At() + personal}, "1 left out of the export: "},
-		{"calendar.month.export", []any{url.Values{"month": {"2026-09"}}}, "2 left out of the export: "},
+		{"calendar.collection.export", []any{d.At() + personal}, 1},
+		{"calendar.month.export", []any{url.Values{"month": {"2026-09"}}}, 2},
 	} {
 		resp := c.Get(t, tc.route, tc.args...)
 		if resp.StatusCode != http.StatusOK || !strings.Contains(resp.Text, "UID:plain") || strings.Contains(resp.Text, "UID:cut") {
 			t.Fatalf("%s answered %s without the readable event alone:\n%s", tc.route, resp.Status, resp.Text)
 		}
-		if bar := NoticeBar(c.Page(t, "settings.profile")); !strings.Contains(bar, tc.left) || !strings.Contains(bar, "cut.ics: unexpected EOF") {
+		if bar := NoticeBar(c.Page(t, "settings.profile")); !Says(t, bar, "export.leftout", tc.left, Any) || !strings.Contains(bar, "cut.ics: unexpected EOF") {
 			t.Errorf("%s: the page after does not say what was left out:\n%s", tc.route, bar)
 		}
 	}
@@ -705,10 +703,10 @@ func TestAnExportLeavesOutWhatCannotBeRead(t *testing.T) {
 func TestADayNumberIsItsOwnElement(t *testing.T) {
 	c := Alborz(t).SignIn(t, User)
 	for _, tc := range []struct{ lang, month, label string }{
-		{"en", "2026-10", `<span class="label-long">Oct </span><span class="day-num">1</span>`},
-		{"de", "2026-10", `<span class="day-num">1</span><span class="label-long">. Okt.</span>`},
+		{"en", "2026-10", `<span class="label-long">` + TIn(t, "en", "calendar.gmonthshort.10") + ` </span><span class="day-num">1</span>`},
+		{"de", "2026-10", `<span class="day-num">1</span><span class="label-long">. ` + TIn(t, "de", "calendar.gmonthshort.10") + `</span>`},
 	} {
-		if page := c.Page(t, "calendar.month", url.Values{"month": {tc.month}, "lang": {tc.lang}}); !strings.Contains(page, tc.label) {
+		if page := c.Page(t, "calendar.month", url.Values{"month": {tc.month}, "lang": {tc.lang}}); !strings.Contains(html.UnescapeString(page), tc.label) {
 			t.Errorf("%s: the first of the month is not drawn as %s", tc.lang, tc.label)
 		}
 	}
@@ -718,8 +716,8 @@ func TestADayNumberIsItsOwnElement(t *testing.T) {
 	}
 
 	c.Post(t, "settings.profile", url.Values{"calendar": {"shcal"}, "secondary": {"gregorian"}})
-	label := `<span class="day-num">۱</span><span class="label-long"> آبان</span>`
-	if page := c.Page(t, "calendar.month", url.Values{"month": {"1405-08"}, "lang": {"fa"}}); !strings.Contains(page, label) {
+	label := `<span class="day-num">۱</span><span class="label-long"> ` + TIn(t, "fa", "calendar.shmonth.8") + `</span>`
+	if page := c.Page(t, "calendar.month", url.Values{"month": {"1405-08"}, "lang": {"fa"}}); !strings.Contains(html.UnescapeString(page), label) {
 		t.Errorf("fa: the first of Aban is not drawn as %s", label)
 	}
 }

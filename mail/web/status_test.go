@@ -2,7 +2,10 @@ package web_test
 
 import (
 	"fmt"
+	"html"
 	"net/url"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -23,14 +26,13 @@ func TestTheUnreadSegmentCountsTheInbox(t *testing.T) {
 	c := a.SignIn(t, User)
 	count := func(q url.Values) int {
 		t.Helper()
-		var n int
-		shown := c.Page(t, "core.status", "mail", q)
-		says := shown[strings.Index(shown, "<bdi>")+len("<bdi>"):]
-		if strings.HasPrefix(says, "One unread message<") {
-			return 1
+		says := html.UnescapeString(Between(c.Page(t, "core.status", "mail", q), "<bdi>", "<"))
+		n := 1
+		if digits := regexp.MustCompile(`\d[\d,]*`).FindString(says); digits != "" {
+			n, _ = strconv.Atoi(strings.ReplaceAll(digits, ",", ""))
 		}
-		if _, err := fmt.Sscanf(says, "%d unread messages", &n); err != nil {
-			t.Fatalf("no count in %q: %v", shown, err)
+		if says != T(t, "mail.status.unread", n) {
+			t.Fatalf("no count in %q", says)
 		}
 		return n
 	}
@@ -49,13 +51,13 @@ func TestTheUnreadSegmentCountsTheInbox(t *testing.T) {
 }
 
 func TestTheUnreadSegmentReadsAsTheLanguageCounts(t *testing.T) {
-	want := map[int]map[string]string{
-		0:    {"en": "No unread messages", "es": "No hay mensajes sin leer", "fa": "نامهٔ خوانده‌نشده‌ای نیست"},
-		1:    {"en": "One unread message", "es": "Un mensaje sin leer", "fa": "یک نامهٔ خوانده‌نشده"},
-		2:    {"en": "2 unread messages", "es": "2 mensajes sin leer", "fa": "۲ نامهٔ خوانده‌نشده"},
-		1234: {"en": "1,234 unread messages", "es": "1.234 mensajes sin leer", "fa": "۱٬۲۳۴ نامهٔ خوانده‌نشده"},
+	written := map[int]map[string]string{
+		0:    {"en": "", "es": "", "fa": ""},
+		1:    {"en": "", "es": "", "fa": ""},
+		2:    {"en": "2", "es": "2", "fa": "۲"},
+		1234: {"en": "1,234", "es": "1.234", "fa": "۱٬۲۳۴"},
 	}
-	for unread, says := range want {
+	for unread, numbers := range written {
 		a := Alborz(t)
 		ic := a.IMAP.Dial(t)
 		if _, err := ic.Select("INBOX", nil).Wait(); err != nil {
@@ -70,8 +72,15 @@ func TestTheUnreadSegmentReadsAsTheLanguageCounts(t *testing.T) {
 			a.IMAP.Append(t, "INBOX", fmt.Sprintf("From: eve@example.org\r\nTo: %s\r\nSubject: %d\r\n\r\nHello.\r\n", User, i))
 		}
 		c := a.SignIn(t, User)
-		for lang, text := range says {
-			if shown := c.Page(t, "core.status", "mail", url.Values{"lang": {lang}}); !strings.Contains(shown, `title="`+text+`"`) {
+		for lang, number := range numbers {
+			text := TIn(t, lang, "mail.status.none")
+			if unread > 0 {
+				text = TIn(t, lang, "mail.status.unread", unread)
+			}
+			if !strings.Contains(text, number) {
+				t.Errorf("%d unread in %s: %q does not write the count as %s", unread, lang, text, number)
+			}
+			if shown := c.Page(t, "core.status", "mail", url.Values{"lang": {lang}}); !strings.Contains(html.UnescapeString(shown), `title="`+text+`"`) {
 				t.Errorf("%d unread in %s: the segment does not say %q:\n%s", unread, lang, text, shown)
 			}
 		}

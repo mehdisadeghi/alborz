@@ -6,7 +6,42 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"git.mehdix.org/alborz/internal/locale"
 )
+
+// T is what key says in English, the language a test browser reads, filled with args as the page fills it.
+// A test reads its wording from the locales, so a reworded string never breaks it while a missing key does.
+func T(t *testing.T, key string, args ...any) string {
+	t.Helper()
+	return TIn(t, "en", key, args...)
+}
+
+// TIn is T in lang.
+func TIn(t *testing.T, lang, key string, args ...any) string {
+	t.Helper()
+	if locale.T(lang, key) == key {
+		t.Fatalf("the locales have no %s", key)
+	}
+	return locale.Tf(lang, key, args...)
+}
+
+// Any fills a verb of T with what the test cannot know, such as a server's error.
+const Any = "\x00"
+
+// Says reports whether page shows T(key, args...), each Any in args matching whatever stands there.
+func Says(t *testing.T, page, key string, args ...any) bool {
+	t.Helper()
+	text := html.UnescapeString(page)
+	for _, part := range strings.Split(T(t, key, args...), Any) {
+		i := strings.Index(text, part)
+		if i < 0 {
+			return false
+		}
+		text = text[i+len(part):]
+	}
+	return true
+}
 
 // Between is what s holds between the first start and the end after it, or "".
 func Between(s, start, end string) string {

@@ -197,7 +197,7 @@ func TestUpstreamOutageIsNotOurFailure(t *testing.T) {
 	for {
 		resp := c.Post(t, "mail.messages.flag", url.Values{"uids": {uids[0]}, "flags": {"\\Seen"}}, "INBOX")
 		if resp.StatusCode == http.StatusBadGateway {
-			if !strings.Contains(resp.Text, "did not answer") && !strings.Contains(resp.Text, "could not reach") {
+			if !Says(t, resp.Text, "upstream.title", T(t, "upstream.mail")) {
 				t.Errorf("502 without the upstream page:\n%s", resp.Text[:min(500, len(resp.Text))])
 			}
 			return

@@ -20,7 +20,7 @@ func TestCreateCalendarWithNoneYet(t *testing.T) {
 		t.Fatalf("the new-event form has no empty calendar choice")
 	}
 	resp := c.Post(t, "calendar.event.create", url.Values{"summary": {"Lunch"}, "start": {"2026-09-28T12:00"}, "end": {"2026-09-28T13:00"}, "start-calendar": {"gregorian"}, "end-calendar": {"gregorian"}})
-	if resp.StatusCode != http.StatusUnprocessableEntity || !strings.Contains(resp.Text, "Choose where to save it.") {
+	if resp.StatusCode != http.StatusUnprocessableEntity || !Says(t, resp.Text, "form.destinationneeded") {
 		t.Fatalf("saving an event with nowhere to save answered %s, want the form refused", resp.Status)
 	}
 

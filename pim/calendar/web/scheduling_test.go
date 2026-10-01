@@ -215,7 +215,7 @@ func TestAnInvitationIsAnsweredAsInvited(t *testing.T) {
 	}
 	uid := a.IMAP.Append(t, "INBOX", calendarMail("a@example.com", "Moved", "REQUEST", instanceRequest))
 
-	if page := c.Page(t, "mail.message", "INBOX", uid); !strings.Contains(page, `class="invitation-mine">no answer yet<`) {
+	if page := c.Page(t, "mail.message", "INBOX", uid); !strings.Contains(html.UnescapeString(page), `class="invitation-mine">`+T(t, "invite.partneeds-action")+`<`) {
 		t.Errorf("the page does not show the identity's own answer")
 	}
 	if resp := c.Post(t, "calendar.invite", url.Values{"status": {"ACCEPTED"}}, "INBOX", uid, url.Values{"lang": {"fa"}}); resp.StatusCode != http.StatusFound {
@@ -353,7 +353,7 @@ func TestAMessageTheEventCannotTakeIsRefused(t *testing.T) {
 		if resp.StatusCode != http.StatusFound {
 			t.Fatalf("%s: applying the message answered %s", tc.method, resp.Status)
 		}
-		if bar := NoticeBar(c.Follow(t, resp.Header.Get("Location"))); !strings.Contains(bar, "could not be applied") || !strings.Contains(bar, tc.reason) {
+		if bar := NoticeBar(c.Follow(t, resp.Header.Get("Location"))); !Says(t, bar, "invite.notapplied", Any) || !strings.Contains(bar, tc.reason) {
 			t.Errorf("%s: the page after does not say the message was refused, and why:\n%s", tc.method, bar)
 		}
 	}
@@ -370,7 +370,7 @@ func TestACalendarThatDoesNotReadIsRefused(t *testing.T) {
 	coll := c.CreateCalendar(t, "Plans", "")
 	for _, tc := range []struct{ method, body, reason string }{
 		{"COUNTER", "BEGIN:VCALENDAR\nPRODID:-//Example//EN\nMETHOD:COUNTER\nVERSION:2.0\nBEGIN:VEVENT\nUID:x\nDTSTAMP:20260901T080000Z\nEND:VEVENT\nEND:VCALENDAR\n", "COUNTER"},
-		{"REQUEST", "BEGIN:VCALENDAR\nMETHOD:REQUEST\nBEGIN:VEVENT\nUID:x\nSUMMARY\n", "could not be read"},
+		{"REQUEST", "BEGIN:VCALENDAR\nMETHOD:REQUEST\nBEGIN:VEVENT\nUID:x\nSUMMARY\n", "missing colon"},
 	} {
 		uid := fmt.Sprint(a.IMAP.Append(t, "INBOX", calendarMail("b@example.org", "Plan", tc.method, tc.body)))
 		for _, post := range []func() *Response{
@@ -385,7 +385,7 @@ func TestACalendarThatDoesNotReadIsRefused(t *testing.T) {
 			if resp.StatusCode != http.StatusFound {
 				t.Fatalf("%s: the button answered %s, want a redirect", tc.method, resp.Status)
 			}
-			if bar := NoticeBar(c.Follow(t, resp.Header.Get("Location"))); !strings.Contains(bar, "The calendar in this message could not be read") || !strings.Contains(bar, tc.reason) {
+			if bar := NoticeBar(c.Follow(t, resp.Header.Get("Location"))); !Says(t, bar, "invite.unreadable", Any) || !strings.Contains(bar, tc.reason) {
 				t.Errorf("%s: the page after does not say why:\n%s", tc.method, bar)
 			}
 		}

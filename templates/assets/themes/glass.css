@@ -8,6 +8,8 @@
   --fg-faint: #6e6e76;
 
   --bg: rgba(255, 255, 255, 0.62);
+  /* The header's --bg over the gradient's first stop: a status bar takes no alpha. */
+  --theme-color: #ebf1ff;
   /* A menu floats over the list it must not let through, so it stays opaque. */
   --surface-raised: #fff;
   --bg-well: rgba(255, 255, 255, 0.28);

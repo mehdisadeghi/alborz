@@ -14,7 +14,7 @@ import (
 func PublicRoutes(g *Group) {
 	g = g.Group("", "core")
 	s := g.s
-	// Generated so the name under the icon is BrandName.
+	// Generated so the name under the icon is BrandName, and a launcher paints the base light scheme before any stylesheet.
 	g.GET("manifest", "/manifest.webmanifest", func(ctx *Context) error {
 		worker := ctx.Path("core.worker")
 		icon := func(name, purpose string) map[string]string {
@@ -34,8 +34,8 @@ func PublicRoutes(g *Group) {
 			"start_url":        ctx.Path("mail.home"),
 			"scope":            strings.TrimSuffix(worker, path.Base(worker)),
 			"display":          "minimal-ui",
-			"background_color": brandBackground,
-			"theme_color":      brandColor,
+			"background_color": s.base.Colors[0].Color,
+			"theme_color":      s.base.Colors[0].Color,
 			"icons": []map[string]string{
 				icon("icon-192.png", ""),
 				icon("icon-512.png", ""),

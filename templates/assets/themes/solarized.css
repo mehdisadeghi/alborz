@@ -8,6 +8,7 @@
   --fg-faint: #516870;
 
   --bg: #fdf6e3;      /* base3 */
+  --theme-color: #fdf6e3;
   --bg-well: #f4eeda;
   --bg-inset: #eee8d5; /* base2 */
   --bg-button: #f7f1de;
@@ -59,6 +60,7 @@
     --fg-faint: #a3b0b0;
 
     --bg: #073642;      /* base02 */
+    --theme-color: #073642;
     --bg-well: #002b36; /* base03 */
     --bg-inset: #0a3d4a;
     --bg-button: #0a3d4a;
@@ -110,6 +112,7 @@
   --fg-faint: #a3b0b0;
 
   --bg: #073642;
+  --theme-color: #073642;
   --bg-well: #002b36;
   --bg-inset: #0a3d4a;
   --bg-button: #0a3d4a;

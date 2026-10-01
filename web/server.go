@@ -67,6 +67,8 @@ type Server struct {
 	// files is the templates tree: read from disk in debug mode, so an edit shows on reload, else embedded.
 	files fs.FS
 
+	// base is the stylesheet every theme overlays, standing in for a theme when none is chosen.
+	base   Theme
 	themes []Theme
 }
 
@@ -117,7 +119,9 @@ func New(logger *log.Logger, options Options, funcs template.FuncMap) (*Server, 
 		}
 		s.files = files
 	}
-	s.themes = readThemes(s.files)
+	if s.base, s.themes, err = readThemes(s.files); err != nil {
+		return nil, err
+	}
 	s.additions = map[reflect.Type][]any{}
 	s.Sessions = newSessions(core.SessionRecords)
 	s.funcs = maps.Clone(funcs)
@@ -175,12 +179,6 @@ func (s *Server) Reload() error {
 	s.Logger().Printf("Reloading templates and custom.css")
 	return s.load()
 }
-
-// What a launcher paints before any stylesheet has loaded.
-const (
-	brandColor      = "#ffffff"
-	brandBackground = "#ffffff"
-)
 
 const (
 	themeCookieName    = "alborz_theme"

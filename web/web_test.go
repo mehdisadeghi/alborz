@@ -7,6 +7,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -107,6 +109,46 @@ func TestManifestScopesTheApp(t *testing.T) {
 		t.Errorf("the manifest's scope %q is not the directory of the worker at %q", manifest.Scope, worker)
 	}
 }
+
+// The status bar takes each theme's top bar, per scheme, or once for a theme that pins one.
+func TestThemeColorFollowsTheTheme(t *testing.T) {
+	a := Alborz(t)
+	c := a.SignIn(t, User)
+	light := func(color string) string {
+		return `<meta name="theme-color" content="` + color + `" media="(prefers-color-scheme: light)" data-scheme="light">`
+	}
+	dark := func(color string) string {
+		return `<meta name="theme-color" content="` + color + `" media="(prefers-color-scheme: dark)" data-scheme="dark">`
+	}
+	pinned := func(color string) string { return `<meta name="theme-color" content="` + color + `">` }
+	for _, tc := range []struct {
+		theme string
+		metas []string
+	}{
+		{"", []string{light("#fff"), dark("#1f1f1f")}},
+		{"glass", []string{pinned("#ebf1ff")}},
+		{"ink", []string{light("#fff"), dark("#000")}},
+		{"solarized", []string{light("#fdf6e3"), dark("#073642")}},
+		{"sublime", []string{pinned("#272822")}},
+	} {
+		c.Post(t, "settings.profile", url.Values{"theme": {tc.theme}})
+		if got := themeColorMeta.FindAllString(c.Page(t, "settings.profile"), -1); !slices.Equal(got, tc.metas) {
+			t.Errorf("theme %q: theme-color metas %q, want %q", tc.theme, got, tc.metas)
+		}
+	}
+	var manifest struct {
+		ThemeColor      string `json:"theme_color"`
+		BackgroundColor string `json:"background_color"`
+	}
+	if err := json.Unmarshal([]byte(c.Get(t, "core.manifest").Text), &manifest); err != nil {
+		t.Fatal(err)
+	}
+	if manifest.ThemeColor != "#fff" || manifest.BackgroundColor != "#fff" {
+		t.Errorf("the manifest paints %q on %q, not the default theme's light top bar", manifest.ThemeColor, manifest.BackgroundColor)
+	}
+}
+
+var themeColorMeta = regexp.MustCompile(`<meta name="theme-color"[^>]*>`)
 
 func TestDoneNoticeClosesWithoutAScript(t *testing.T) {
 	c := Alborz(t).SignIn(t, User)

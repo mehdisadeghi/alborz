@@ -39,10 +39,19 @@ outlives the session and is out of alborz's reach.
 7. Bottom-docked elements pad by `env(safe-area-inset-bottom)`.
 8. The manifest's `display` is `minimal-ui`: the browser's address bar
    stays the way out of a page.
+9. The browser paints its chrome (status bar, task switcher) in the
+   top bar's colour: every stylesheet declares `--theme-color`, the
+   top bar's background, light first and dark last, or once for a
+   theme pinning a scheme (ADR 48). The server reads it and renders
+   one `<meta name="theme-color">` per scheme; an override (ADR 50)
+   switches which applies. The manifest carries the default theme's
+   light value. A theme without it fails startup.
 
 ## Consequences
 
 - Swipe actions on list rows are not provided.
+- A translucent top bar (glass) declares an opaque approximation.
+- `custom.css` does not change the chrome's colour.
 
 ## References
 
@@ -50,5 +59,5 @@ outlives the session and is out of alborz's reach.
   section 9.2), CSS View Transitions, CSS `env()`
 - ADR 13, ADR 19, ADR 25, ADR 45
 - `web/serviceworker.go`, `web/routes.go` (`manifest`, `worker`,
-  `events`), `web/live.go` (`handleEvents`),
+  `events`), `web/prefs.go` (`readTheme`), `web/live.go` (`handleEvents`),
   `templates/assets/helpers.js` (EventSource), `templates/layout.html`

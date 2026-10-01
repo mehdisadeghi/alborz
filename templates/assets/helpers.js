@@ -469,19 +469,27 @@ document.addEventListener("htmx:beforeSwap", ev => {
 	}
 });
 
-// A boosted tab keeps its first head across deploys, so a page for another shell loads whole.
-// Only for a GET: a refused form carries what was typed.
+// An open page keeps its first head across deploys, so an answer built for another shell loads whole (ADR 19).
+// Every answer names its shell in a header, pieces and history restores alike.
 const loadedShell = (document.querySelector('meta[name="alborz-shell"]') || {}).content;
+const otherShell = xhr => {
+	const named = xhr.getResponseHeader("Alborz-Shell");
+	return Boolean(loadedShell && named && named !== loadedShell);
+};
+// Only for a GET: a refused form carries what was typed.
 document.addEventListener("htmx:beforeSwap", ev => {
 	const xhr = ev.detail && ev.detail.xhr;
 	const config = ev.detail && ev.detail.requestConfig;
-	if (!loadedShell || !xhr || !config || config.verb !== "get") {
-		return;
-	}
-	const named = /<meta name="alborz-shell" content="([0-9a-f]+)"/.exec(xhr.responseText);
-	if (named && named[1] !== loadedShell) {
+	if (xhr && config && config.verb === "get" && otherShell(xhr)) {
 		ev.detail.shouldSwap = false;
 		location.assign(xhr.responseURL);
+	}
+});
+// htmx swaps a restore without asking, so it lands in a detached element while the page reloads.
+document.addEventListener("htmx:historyCacheMissLoad", ev => {
+	if (otherShell(ev.detail.xhr)) {
+		ev.detail.historyElt = document.createElement("body");
+		location.reload();
 	}
 });
 

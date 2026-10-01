@@ -244,3 +244,36 @@ func TestASessionOpensOnlyToItsOwnSecret(t *testing.T) {
 		t.Fatal("the inbox opened to a cookie holding the id and another secret")
 	}
 }
+
+// Every answer htmx may swap names the shell of the page that asked for it, pieces and restores alike.
+func TestEveryAnswerNamesItsShell(t *testing.T) {
+	a := Alborz(t)
+	c := a.SignIn(t, User)
+	page := c.Page(t, "mail.mailbox", "INBOX")
+	shell := regexp.MustCompile(`<meta name="alborz-shell" content="([0-9a-f]+)">`).FindStringSubmatch(page)
+	if shell == nil {
+		t.Fatal("the page names no shell")
+	}
+	for _, tc := range []struct {
+		name, path string
+		headers    map[string]string
+	}{
+		{"page", a.Path("mail.mailbox", "INBOX"), nil},
+		{"boosted page", a.Path("mail.mailbox", "INBOX"), map[string]string{"HX-Request": "true", "HX-Boosted": "true"}},
+		{"swap into main", a.Path("mail.mailbox", "INBOX", url.Values{"page": {"1"}}), map[string]string{"HX-Request": "true", "HX-Target": "main"}},
+		{"history restore", a.Path("mail.mailbox", "INBOX"), map[string]string{"HX-Request": "true", "HX-History-Restore-Request": "true"}},
+		{"rail", a.Path("mail.sidebar", url.Values{"path": {a.Path("mail.mailbox", "INBOX")}}), map[string]string{"HX-Request": "true", "HX-Target": "aside"}},
+	} {
+		req, _ := http.NewRequest(http.MethodGet, a.URL+tc.path, nil)
+		for k, v := range tc.headers {
+			req.Header.Set(k, v)
+		}
+		resp := c.Do(t, req)
+		if resp.StatusCode != http.StatusOK || resp.Text == "" {
+			t.Fatalf("%s: answered %s with %d bytes", tc.name, resp.Status, len(resp.Text))
+		}
+		if got := resp.Header.Get("Alborz-Shell"); got != shell[1] {
+			t.Errorf("%s: names shell %q, the page %q", tc.name, got, shell[1])
+		}
+	}
+}

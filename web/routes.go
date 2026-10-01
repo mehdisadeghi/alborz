@@ -64,7 +64,7 @@ func PublicRoutes(g *Group) {
 		body := fmt.Sprintf(serviceWorker, version, mustJSON(urls), mustJSON(downloads),
 			mustJSON([]string{ctx.Path("auth.login"), ctx.Path("auth.logout"), ctx.Path("auth.unlock.leave"), ctx.Path("settings.sessions")}),
 			mustJSON(ctx.Path("auth.login")), mustJSON(ctx.Path("core.asset", "")), mustJSON(s.AssetURL("icon-192.png")),
-			mustJSON(s.Pushes.Key.Public()), mustJSON(ctx.Path("settings.notifications.create")))
+			mustJSON(s.Pushes.Key.Public()), mustJSON(ctx.Path("settings.notifications.create")), mustJSON(shellHeader))
 		return ctx.Blob(http.StatusOK, "text/javascript; charset=utf-8", []byte(body))
 	})
 

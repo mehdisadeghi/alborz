@@ -48,8 +48,15 @@ func (p *Mailboxes) Watch(s *alborz.Login, log *log.Logger, changes *alborz.Chan
 		return
 	}
 	go func() {
-		defer p.watchers.Delete(user)
 		p.watch(s, log, changes)
+		p.watchers.Delete(user)
+		// Another browser's login of the account, one kept for notifications among them, follows on.
+		for _, next := range p.server.Logins() {
+			if next.Username() == user {
+				p.Watch(next, log, changes)
+				return
+			}
+		}
 	}()
 }
 

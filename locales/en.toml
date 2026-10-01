@@ -1080,6 +1080,7 @@
 "notifications.failed" = "The browser could not subscribe to notifications."
 "push.mail" = "New mail"
 "push.event" = "Event at %s"
+"notifications.kept" = "Turning notifications on keeps this account signed in on the server, so mail and reminders are checked while the app is closed. It ends when notifications are turned off for this browser or this browser signs out."
 ["calendar.more"]
 one = "%d more"
 other = "%d more"
@@ -1285,6 +1286,6 @@ other = "%d events today"
 one = "%[2]s"
 other = "Next at %[2]s"
 
-["notifications.when"]
-one = "Notifications are sent while this account is signed in and in use. They stop %d minute after it was last used."
-other = "Notifications are sent while this account is signed in and in use. They stop %d minutes after it was last used."
+["notifications.keptfor"]
+one = "This lasts up to %d day after this browser was last used if it signed in with \"Remember me\", and %d minutes otherwise. A restart of the server also ends it until this browser is used again."
+other = "This lasts up to %d days after this browser was last used if it signed in with \"Remember me\", and %d minutes otherwise. A restart of the server also ends it until this browser is used again."

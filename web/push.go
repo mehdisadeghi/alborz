@@ -34,6 +34,30 @@ type PushNote struct {
 	Replaces, Urgent, Badge bool
 }
 
+// keepLogin holds a login past its idle limit while a device of the browser holding it is to be notified.
+func (s *Server) keepLogin(l *alborz.Login) bool {
+	devices, err := s.Pushes.Devices(l.Username())
+	if err != nil {
+		s.Logger().Printf("push %s: %v", l.Username(), err)
+		return false
+	}
+	for _, d := range devices {
+		if s.Sessions.holdsLogin(d.Session, l) {
+			return true
+		}
+	}
+	return false
+}
+
+// Recheck lets the account's logins kept for notifications go, where nothing keeps them now.
+func (s *Server) Recheck(account string) {
+	for _, l := range s.Logins() {
+		if l.Username() == account {
+			l.Recheck()
+		}
+	}
+}
+
 // Push sends the note to every device of the account whose browser is still signed in to it.
 func (s *Server) Push(account string, n PushNote) {
 	devices, err := s.Pushes.Devices(account)

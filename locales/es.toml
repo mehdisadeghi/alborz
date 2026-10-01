@@ -1080,6 +1080,7 @@
 "notifications.failed" = "El navegador no pudo suscribirse a las notificaciones."
 "push.mail" = "Correo nuevo"
 "push.event" = "Evento a las %s"
+"notifications.kept" = "Activar las notificaciones mantiene esta cuenta con la sesión iniciada en el servidor, para comprobar el correo y los recordatorios con la aplicación cerrada. Termina al desactivar las notificaciones de este navegador o al cerrar su sesión."
 ["calendar.more"]
 one = "%d más"
 other = "%d más"
@@ -1286,6 +1287,6 @@ other = "%d eventos hoy"
 one = "%[2]s"
 other = "Siguiente a las %[2]s"
 
-["notifications.when"]
-one = "Las notificaciones se envían mientras esta cuenta tiene la sesión iniciada y está en uso. Se detienen %d minuto después del último uso."
-other = "Las notificaciones se envían mientras esta cuenta tiene la sesión iniciada y está en uso. Se detienen %d minutos después del último uso."
+["notifications.keptfor"]
+one = "Dura hasta %d día después del último uso de este navegador si inició sesión con «Recordarme», y %d minutos si no. Un reinicio del servidor también lo termina hasta que se vuelva a usar este navegador."
+other = "Dura hasta %d días después del último uso de este navegador si inició sesión con «Recordarme», y %d minutos si no. Un reinicio del servidor también lo termina hasta que se vuelva a usar este navegador."

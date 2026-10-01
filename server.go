@@ -94,6 +94,8 @@ type Server struct {
 
 	// Pushes keeps the devices notified and the key signing what they are sent.
 	Pushes *Pushes
+	// KeepLogin holds a login past its idle limit while something needs it: a device to notify (ADR 74).
+	KeepLogin func(*Login) bool
 
 	// Instance names this alborz to another asking whether a DAV server is it; see InstanceHeader.
 	Instance string
@@ -139,6 +141,9 @@ func New(log *log.Logger, options Options) (*Server, error) {
 		Changes: newChanges(), Outgoing: NewOutgoing(), Schedule: newSchedule(), signInRefused: newRefusals(signInTries, signInWindow)}
 	if options.Guarded != nil {
 		s.Outgoing.Guarded = options.Guarded
+	}
+	if s.Options.LoginIdle == 0 {
+		s.Options.LoginIdle = LoginDuration
 	}
 	if s.Options.ReminderTick == 0 {
 		s.Options.ReminderTick = reminderTick
@@ -242,7 +247,8 @@ func New(log *log.Logger, options Options) (*Server, error) {
 		return nil, fmt.Errorf("no usable domains left")
 	}
 
-	s.logins = newLoginManager(s.dialIMAP, s.dialIMAPTransfer, s.dialIMAPWatch, s.dialSMTP, s.dialSieve, log, settings, s.Keys, s.unlock)
+	s.logins = newLoginManager(s.dialIMAP, s.dialIMAPTransfer, s.dialIMAPWatch, s.dialSMTP, s.dialSieve, log, settings, s.Keys, s.unlock, s.Options.LoginIdle,
+		func(l *Login) bool { return s.KeepLogin != nil && s.KeepLogin(l) })
 	return s, nil
 }
 
@@ -479,6 +485,8 @@ type Options struct {
 	Guarded http.RoundTripper
 	// ReminderTick paces the round that fires event reminders; zero is reminderTick.
 	ReminderTick time.Duration
+	// LoginIdle is how long a login outlives its last request; zero is LoginDuration.
+	LoginIdle time.Duration
 }
 
 // CacheFor is how long a cache keeps what it holds: d, or zero with caching off.

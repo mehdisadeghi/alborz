@@ -25,6 +25,7 @@
         {{ end }}
       </section>
       <p class="hint list-option">{{$.T "notifications.what"}}</p>
-      <p class="hint list-option">{{$.GlobalData.Tf "notifications.when" .Minutes}}</p>
+      <p class="hint list-option">{{$.T "notifications.kept"}}</p>
+      <p class="hint list-option">{{$.GlobalData.Tf "notifications.keptfor" .Days .Minutes}}</p>
       <p class="hint list-option">{{$.T "notifications.privacy"}}</p>
 {{ end }}

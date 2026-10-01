@@ -149,7 +149,6 @@ func TestNewestFirstWithoutSort(t *testing.T) {
 
 func TestDatesPastTheSolarHijriReckoningShowGregorian(t *testing.T) {
 	a := Alborz(t)
-	c := a.SignIn(t, User)
 	dates := map[string]string{
 		"Mon, 1 Jan 4000 10:00:00 +0000": "January 1, 4000",
 		"Fri, 1 Jan 0560 10:00:00 +0000": "January 1, 560",
@@ -159,6 +158,8 @@ func TestDatesPastTheSolarHijriReckoningShowGregorian(t *testing.T) {
 		uids = append(uids, a.IMAP.Append(t, "INBOX", "From: a@example.org\r\nTo: "+User+
 			"\r\nSubject: Dated\r\nDate: "+date+"\r\n\r\n"))
 	}
+	// Mail in place before the sign-in, whose first page lists the inbox: this is about dates, not arrival.
+	c := a.SignIn(t, User)
 	for _, reading := range []url.Values{
 		{"calendar": {"shcal"}, "secondary": {""}},
 		{"calendar": {"gregorian"}, "secondary": {"shcal"}},

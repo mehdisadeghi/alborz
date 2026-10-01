@@ -62,7 +62,6 @@ func (p *Mailboxes) Watch(s *alborz.Login, log *log.Logger, changes *alborz.Chan
 
 func (p *Mailboxes) watch(s *alborz.Login, log *log.Logger, changes *alborz.Changes) {
 	backoff := idleRetry
-	reconnect := false
 	for {
 		select {
 		case <-s.Done():
@@ -70,8 +69,7 @@ func (p *Mailboxes) watch(s *alborz.Login, log *log.Logger, changes *alborz.Chan
 		default:
 		}
 
-		err := p.follow(s, changes, reconnect)
-		reconnect = true
+		err := p.follow(s, changes)
 		if err != nil {
 			log.Printf("watch %s: %v (retrying in %v)", s.Username(), err, backoff)
 			select {
@@ -86,7 +84,7 @@ func (p *Mailboxes) watch(s *alborz.Login, log *log.Logger, changes *alborz.Chan
 	}
 }
 
-func (p *Mailboxes) follow(s *alborz.Login, changes *alborz.Changes, reconnect bool) error {
+func (p *Mailboxes) follow(s *alborz.Login, changes *alborz.Changes) error {
 	user := s.Username()
 	changed := make(chan struct{}, 1)
 	var overflowed atomic.Bool
@@ -120,12 +118,10 @@ func (p *Mailboxes) follow(s *alborz.Login, changes *alborz.Changes, reconnect b
 		}
 		validity = selected.UIDValidity
 	}
-	// A reconnection may have missed changes in any folder.
-	if reconnect {
-		p.accountChanged(user)
-		if err := p.warmInbox(s); err != nil {
-			return err
-		}
+	// Listings read before the watch, the sign-in's first page among them, may have missed changes in any folder.
+	p.accountChanged(user)
+	if err := p.warmInbox(s); err != nil {
+		return err
 	}
 	if !idle {
 		return sweepEvery(s.Done(), p.folderSweep(user, c, changes), idleWindow)

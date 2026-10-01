@@ -398,6 +398,8 @@
 "filters.toomanyreplies" = "At most %d auto-replies."
 "notice.autoreplyon" = "Auto-reply activated."
 "notice.autoreplydeleted" = "Auto-reply deleted."
+"calendar.prevmonth" = "Previous month"
+"calendar.nextmonth" = "Next month"
 "calendar.today" = "Today"
 "calendar.fromtoday" = "From today"
 "calendar.wholemonth" = "Whole month"

@@ -3,19 +3,17 @@
 {{$suffix := $scope}}
 {{with .View}}{{$suffix = printf "%s&view=%s" $suffix .}}{{end}}
 {{if and .View (eq .Span "month")}}{{$suffix = printf "%s&span=month" $suffix}}{{end}}
-{{ template "toolbar-head" (dict "g" . "title" ($.GlobalData.MonthYear .Time) "shorttitle" ($.MonthYearShort .Time) "subtitle" ($.SecondaryMonthYear .Time) "selectall" (ne .SelectForm "") "newhref" (url "calendar.event.create") "back" .GlobalData.URL.RequestURI "newlabel" ($.T "calendar.new")) }}
+{{ template "toolbar-head" (dict "g" . "class" "month-actions" "title" ($.GlobalData.MonthYear .Time) "shorttitle" ($.GlobalData.MonthYearShort .Time) "subtitle" ($.SecondaryMonthYear .Time) "selectall" (ne .SelectForm "") "newhref" (url "calendar.event.create") "back" .GlobalData.URL.RequestURI "newlabel" ($.T "calendar.new")) }}
 <span class="icon-group">
-  {{ with .SelectForm }}
-  {{ template "action-icon" (dict "icon" "trash" "label" ($.T "common.delete") "class" "icon-danger" "form" . "formaction" (url "calendar.events.delete") "priority" 11) }}
-  {{ end }}
+  {{ template "action-icon" (dict "icon" "trash" "label" ($.T "common.delete") "class" "icon-danger" "form" .SelectForm "formaction" (and .SelectForm (url "calendar.events.delete")) "priority" 11) }}
   <a hx-boost="false" class="icon-button" href="{{url "calendar.month.export"}}{{ with $.GlobalData.URL.RawQuery }}?{{.}}{{ end }}" title="{{$.T "common.download"}}" aria-label="{{$.T "common.download"}}" data-priority="10">{{ template "icon" "download" }}<span class="label">{{$.T "common.download"}}</span></a>
 </span>
 {{ template "refresh-menu" $ }}
 {{ template "toolbar-end" }}
-    {{ with .FilterRows }}{{ template "filter-menu" (dict "id" "menu-filter" "icon" "list-filter" "title" ($.T "filter.menu") "rows" . "priority" 25 "class" "filter-overflow") }}{{ end }}
-    {{ with .GroupRows }}{{ template "filter-menu" (dict "id" "menu-group" "icon" "group" "title" ($.T "list.groupby") "rows" . "priority" 30 "class" "group-overflow") }}{{ end }}
-    <div class="actions-pagination" data-priority="21">
-      {{ template "pager-link" (dict "step" (dict "href" (printf "?month=%s%s" .PrevPage $suffix) "title" ($.GlobalData.MonthName .PrevTime)) "icon" "prev" "go" "p") }}
+    {{ template "filter-menu" (dict "id" "menu-filter" "icon" "list-filter" "title" ($.T "filter.menu") "rows" .FilterRows "disabled" (not .FilterRows) "priority" 25 "class" "filter-overflow") }}
+    {{ template "filter-menu" (dict "id" "menu-group" "icon" "group" "title" ($.T "list.groupby") "rows" .GroupRows "disabled" (not .GroupRows) "priority" 30 "class" "group-overflow") }}
+    <div class="actions-pagination" data-priority="31" data-yield="split">
+      {{ template "pager-link" (dict "step" (dict "href" (printf "?month=%s%s" .PrevPage $suffix) "title" ($.GlobalData.MonthName .PrevTime) "name" ($.T "calendar.prevmonth")) "icon" "prev" "go" "p") }}
       {{if not .ThisMonth}}
       {{/* localhref, or html/template escapes the whole query as one value. */}}
       {{ $today := (url "calendar.month") }}{{ if $suffix }}{{ $today = printf "%s?%s" (url "calendar.month") (slice $suffix 1) }}{{ end }}
@@ -23,9 +21,9 @@
       {{else}}
       <span class="button-link" aria-disabled="true">{{$.T "calendar.today"}}</span>
       {{end}}
-      {{ template "pager-link" (dict "step" (dict "href" (printf "?month=%s%s" .NextPage $suffix) "title" ($.GlobalData.MonthName .NextTime)) "icon" "next" "go" "n") }}
+      {{ template "pager-link" (dict "step" (dict "href" (printf "?month=%s%s" .NextPage $suffix) "title" ($.GlobalData.MonthName .NextTime) "name" ($.T "calendar.nextmonth")) "icon" "next" "go" "n") }}
     </div>
-    <div class="actions-pagination" data-priority="22">
+    <div class="actions-pagination" data-priority="32">
       {{ template "toggle" (dict "items" (tuple
          (dict "label" ($.T "calendar.month") "icon" "month" "current" (not .View)
                "href" (printf "?month=%s%s" .Page $scope))

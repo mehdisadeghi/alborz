@@ -20,14 +20,6 @@ func (d *CalendarRenderData) Weekdays() []string {
 	return result
 }
 
-// MonthYearShort is MonthYear abbreviated for a narrow toolbar.
-func (d *CalendarRenderData) MonthYearShort(t time.Time) string {
-	g := &d.GlobalData
-	cal := g.PrimaryCalendar()
-	y, m, _ := cal.Date(g.InTimezone(t))
-	return fmt.Sprintf("%s %s", g.ShortMonth(cal, m), g.FormatYear(y))
-}
-
 // SameMonth reports whether two instants fall in one month of the primary calendar.
 func (d *CalendarRenderData) SameMonth(a, b time.Time) bool {
 	g := &d.GlobalData

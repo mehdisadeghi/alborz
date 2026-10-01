@@ -1,6 +1,6 @@
-{{/* dict: g [title shorttitle subtitle selectall newhref newlabel newicon back]; closed by toolbar-end and toolbar-foot. */}}
+{{/* dict: g [class title shorttitle subtitle selectall newhref newlabel newicon back]; closed by toolbar-end and toolbar-foot. */}}
 {{ define "toolbar-head" }}
-<section class="actions" aria-label="{{.g.T "a11y.toolbar"}}">
+<section class="actions{{ with .class }} {{.}}{{ end }}" aria-label="{{.g.T "a11y.toolbar"}}">
 {{ if .selectall }}{{ template "toolbar-select-all" .g }}{{ end }}
 <div class="actions-wrap">
   <div class="actions-message">
@@ -61,8 +61,11 @@
 {{/* dict: target href. */}}
 {{ define "swaps" }}{{ with .target }} hx-get="{{$.href}}" hx-target="#{{.}}" hx-swap="innerHTML show:window:top" hx-push-url="true"{{ end }}{{ end }}
 
-{{/* dict: id icon title rows [target priority class]. */}}
+{{/* dict: id icon title rows [target priority class disabled]. */}}
 {{ define "filter-menu" }}
+{{ if .disabled }}
+<div class="overflow{{ with .class }} {{.}}{{ end }}"{{ with .priority }} data-priority="{{.}}"{{ end }}><button type="button" class="icon-button" disabled title="{{.title}}" aria-label="{{.title}}">{{ template "icon" .icon }}<span class="label">{{.title}}</span></button></div>
+{{ else }}
 <div class="overflow{{ with .class }} {{.}}{{ end }}"{{ with .priority }} data-priority="{{.}}"{{ end }}>
   <button type="button" class="icon-button" title="{{.title}}" aria-label="{{.title}}" popovertarget="{{.id}}">{{ template "icon" .icon }}<span class="label">{{.title}}</span></button>
   <div class="overflow-menu" popover id="{{.id}}">
@@ -71,6 +74,7 @@
     {{ end }}
   </div>
 </div>
+{{ end }}
 {{ end }}
 
 {{ define "sort-mark" }}{{ template "icon" "sort" }}<span class="label">{{.T "mailbox.sortby"}}</span>{{ end }}
@@ -93,7 +97,7 @@
 {{/* dict: g s rows [disabled target thread wide]. */}}
 {{ define "sort-menu" }}
 {{ if .disabled }}
-<span class="overflow sort-overflow{{ if .wide }} sort-wide{{ end }}" data-priority="30"><span class="icon-button" aria-disabled="true" title="{{.g.T "mailbox.sortby"}}" aria-label="{{.g.T "mailbox.sortby"}}">{{ template "sort-mark" .g }}</span></span>
+<div class="overflow sort-overflow{{ if .wide }} sort-wide{{ end }}" data-priority="30"><button type="button" class="icon-button" disabled title="{{.g.T "mailbox.sortby"}}" aria-label="{{.g.T "mailbox.sortby"}}">{{ template "sort-mark" .g }}</button></div>
 {{ else }}
 <div class="overflow sort-overflow{{ if .wide }} sort-wide{{ end }}" data-priority="30">
   <button type="button" class="icon-button" title="{{.g.T "mailbox.sortby"}}" aria-label="{{.g.T "mailbox.sortby"}}" popovertarget="menu-sort">{{ template "sort-mark" .g }}</button>
@@ -128,16 +132,16 @@
 </div>
 {{ end }}
 
-{{/* dict: step(href label) icon [go]. */}}
+{{/* dict: step(href label title [name]) icon [go]; name labels an icon-only step where it stands in a menu. */}}
 {{ define "pager-link" }}
 {{ with .step }}
 {{ if .label }}
 {{ if .href }}<a href="{{localhref .href}}" class="button-link pager-link" data-priority="2" data-yield="word"{{ with $.go }} data-go="{{.}}"{{ end }}{{ template "swaps" (dict "target" $.target "href" (localhref .href)) }}>{{ else }}<span class="button-link pager-link" aria-disabled="true" data-priority="2" data-yield="word">{{ end }}{{ if eq $.icon "prev" }}{{ template "icon" $.icon }}{{ end }}<span>{{.label}}</span>{{ if eq $.icon "next" }}{{ template "icon" $.icon }}{{ end }}{{ if .href }}</a>{{ else }}</span>{{ end }}
 {{ else }}
 {{ if .href }}
-<a href="{{localhref .href}}" class="icon-button" title="{{.title}}" aria-label="{{.title}}"{{ with $.go }} data-go="{{.}}"{{ end }}{{ template "swaps" (dict "target" $.target "href" (localhref .href)) }}>{{ template "icon" $.icon }}</a>
+<a href="{{localhref .href}}" class="icon-button" title="{{.title}}"{{ if not .name }} aria-label="{{.title}}"{{ end }}{{ with $.go }} data-go="{{.}}"{{ end }}{{ template "swaps" (dict "target" $.target "href" (localhref .href)) }}>{{ template "icon" $.icon }}{{ with .name }}<span class="label">{{.}}</span>{{ end }}</a>
 {{ else }}
-<span class="icon-button" aria-disabled="true" title="{{.title}}" aria-label="{{.title}}">{{ template "icon" $.icon }}</span>
+<span class="icon-button" aria-disabled="true" title="{{.title}}"{{ if not .name }} aria-label="{{.title}}"{{ end }}>{{ template "icon" $.icon }}{{ with .name }}<span class="label">{{.}}</span>{{ end }}</span>
 {{ end }}
 {{ end }}
 {{ end }}
@@ -188,11 +192,11 @@
 {{ define "toggle" }}
 {{ $icons := false }}{{ range .items }}{{ if .icon }}{{ $icons = true }}{{ end }}{{ end }}
 <div class="toggle"{{ with .label }} role="group" aria-label="{{.}}"{{ end }}{{ if $icons }} data-priority="3" data-yield="word"{{ end }}>
-  {{ range .items }}
+  {{ range $item := .items }}
   {{ if .current }}
-  <span class="toggle-option is-current" aria-current="true"{{ with .icon }} title="{{$.label}}"{{ end }}>{{ with .icon }}{{ template "icon" . }}{{ end }}<span class="label">{{.label}}</span></span>
+  <span class="toggle-option is-current" aria-current="true"{{ with .icon }} title="{{$item.label}}"{{ end }}>{{ with .icon }}{{ template "icon" . }}{{ end }}<span class="label">{{.label}}</span></span>
   {{ else }}
-  <a class="toggle-option" href="{{.href}}"{{ with .icon }} title="{{$.label}}"{{ end }}>{{ with .icon }}{{ template "icon" . }}{{ end }}<span class="label">{{.label}}</span></a>
+  <a class="toggle-option" href="{{.href}}"{{ with .icon }} title="{{$item.label}}"{{ end }}>{{ with .icon }}{{ template "icon" . }}{{ end }}<span class="label">{{.label}}</span></a>
   {{ end }}
   {{ end }}
 </div>

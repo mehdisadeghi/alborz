@@ -815,6 +815,8 @@
 "title.tasks" = "Tareas"
 "title.update" = "Editar %s"
 "account.notsignedin" = "%s no ha iniciado sesión."
+"calendar.prevmonth" = "Mes anterior"
+"calendar.nextmonth" = "Mes siguiente"
 "calendar.today" = "Hoy"
 "calendar.fromtoday" = "Desde hoy"
 "calendar.wholemonth" = "Mes completo"

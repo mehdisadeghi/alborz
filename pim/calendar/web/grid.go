@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz/internal/calsys"
+	"git.mehdix.org/alborz/internal/dates"
 )
 
 // The month grid's labels, in the reader's primary and secondary calendars.
@@ -25,13 +26,6 @@ func (d *CalendarRenderData) MonthYearShort(t time.Time) string {
 	cal := g.PrimaryCalendar()
 	y, m, _ := cal.Date(g.InTimezone(t))
 	return fmt.Sprintf("%s %s", g.ShortMonth(cal, m), g.FormatYear(y))
-}
-
-// Day is the day number of t in the primary calendar.
-func (d *CalendarRenderData) Day(t time.Time) string {
-	g := &d.GlobalData
-	_, _, day := g.PrimaryCalendar().Date(g.InTimezone(t))
-	return g.Num(day)
 }
 
 // SameMonth reports whether two instants fall in one month of the primary calendar.
@@ -118,12 +112,12 @@ func (d *CalendarRenderData) SecondaryMonthYear(t time.Time) string {
 }
 
 // CalendarDayLabel is a day number, with a compact month name on the first of the month.
-func (d *CalendarRenderData) CalendarDayLabel(t time.Time) string {
+func (d *CalendarRenderData) CalendarDayLabel(t time.Time) dates.DayMonth {
 	g := &d.GlobalData
 	cal := g.PrimaryCalendar()
 	_, m, day := cal.Date(g.InTimezone(t))
 	if day != 1 {
-		return g.Num(day)
+		return dates.DayMonth{Day: g.Num(day)}
 	}
-	return g.Tf("date.short", day, g.ShortMonth(cal, m))
+	return g.DayMonth(cal, day, m)
 }

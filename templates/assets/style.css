@@ -3467,10 +3467,6 @@ main.calendar .date h3 .day-label {
   white-space: nowrap;
 }
 
-main.calendar .date h3 .label-short {
-  display: none;
-}
-
 main.calendar .date h3 .day-secondary {
   grid-area: 2 / 2;
   justify-self: end;
@@ -3491,16 +3487,15 @@ main.calendar .date h3 .day-secondary {
   color: var(--fg-muted);
 }
 
-/* Squared off the larger dimension, so one digit and two sit in the same circle. */
-main.calendar .date.active h3 .day-label {
-  display: inline-grid;
-  place-items: center;
-  aspect-ratio: 1;
-  min-inline-size: 1.6em;
-  padding: 0;
-  /* At line-height 1 the line box is the text, so centring the box centres the digits. */
-  line-height: 1;
+/* Every day number sits in today's circle box, one line high, so marking today moves nothing. */
+main.calendar .date h3 .day-num {
+  display: inline-block;
+  min-inline-size: 1.4rem;
+  text-align: center;
   border-radius: 50%;
+}
+
+main.calendar .date.active h3 .day-num {
   background: var(--green);
   color: var(--on-accent);
 }
@@ -4838,9 +4833,6 @@ h1.no-word .title-short {
   main.calendar .date h3 { font-size: 0.7rem; min-height: 1.35rem; }
   main.calendar .date h3 .day-label { font-size: 0.75rem; min-height: 1.35rem; padding-inline: 2px; }
   main.calendar .date h3 .label-long { display: none; }
-  main.calendar .date h3 .label-short { display: inline; }
-  /* min-height would make the circle an oval. */
-  main.calendar .date.active h3 .day-label { min-height: 0; padding: 0; line-height: 1; }
   main.calendar .date h3 { overflow: hidden; white-space: nowrap; }
   main.calendar .date h3 .day-secondary { font-size: 0.6rem; }
   main.calendar .date ul { padding-inline-start: 0; }

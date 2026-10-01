@@ -29,7 +29,7 @@
           <a href="{{url "calendar.day"}}?date={{.Format "2006-01-02"}}{{ account "&" $base.GlobalData.URLAccount }}" class="date-link" aria-label="{{ $base.GlobalData.LongDate . }}"></a>
           <h3>
             {{ if eq (mod $i 7) 0 }}<span class="weeknum" title="{{$base.WeekTitle $day}}">{{$base.WeekNumber $day}}</span>{{ end }}
-            <span class="day-label">{{ $label := $base.CalendarDayLabel . }}{{ $num := $base.Day . }}{{ if eq $label $num }}{{ $num }}{{ else }}<span class="label-long">{{ $label }}</span><span class="label-short">{{ $num }}</span>{{ end }}</span>
+            <span class="day-label">{{ with $base.CalendarDayLabel . }}{{ with .Before }}<span class="label-long">{{ . }}</span>{{ end }}<span class="day-num">{{ .Day }}</span>{{ with .After }}<span class="label-long">{{ . }}</span>{{ end }}{{ end }}</span>
             {{ if eq (mod $i 7) 0 }}{{ with $base.SecondaryWeek $day }}<span class="weeknum-secondary">{{.}}</span>{{ end }}{{ end }}
             {{ with $base.SecondaryDay . }}<span class="day-secondary">{{.}}</span>{{ end }}
           </h3>

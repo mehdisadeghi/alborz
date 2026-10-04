@@ -58,7 +58,7 @@ func (p *plugin) handleSearch(ctx *web.Context) error {
 	ibase.Mailbox = &mail.MailboxStatus{StatusData: &imap.StatusData{}, Label: title}
 	data.IMAPBaseRenderData = *ibase
 	data.Crumb = []CrumbLink{{Label: title}}
-	return ctx.Render(http.StatusOK, listTemplate(ctx), data)
+	return ctx.Render(http.StatusOK, "mail/mailbox", data)
 }
 
 // searchRows are a page of a search across folders as its list draws them, and the accounts whose

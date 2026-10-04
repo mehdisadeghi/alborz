@@ -3,6 +3,7 @@ package web
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"html/template"
@@ -222,6 +223,14 @@ var aLongTimeAgo = time.Unix(233431200, 0)
 // Relocate makes the page load path whole instead of the piece it asked for.
 func (ctx *Context) Relocate(path string) error {
 	ctx.Response().Header().Set("HX-Redirect", path)
+	return ctx.NoContent(http.StatusOK)
+}
+
+// Redraw answers a piece whose row left its list: the list at path is swapped into main where the reader is,
+// with no step in history, and the notice comes with it (ADR 13).
+func (ctx *Context) Redraw(path string) error {
+	at, _ := json.Marshal(map[string]string{"path": path, "target": "#main", "swap": "innerHTML show:none", "push": "false"})
+	ctx.Response().Header().Set("HX-Location", string(at))
 	return ctx.NoContent(http.StatusOK)
 }
 

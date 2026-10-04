@@ -58,11 +58,14 @@ func Run[C any](ctx *web.Context, a Action[C]) error {
 		}
 		done++
 	}
-	// A boosted form, the notice's Undo, asks for a page, not the row.
-	if a.Piece != nil && ctx.Partial() && ctx.Request().Header.Get("HX-Boosted") != "true" && len(refs) == 1 {
+	// The notice's Undo asks for the list, not the row.
+	if a.Piece != nil && ctx.Fragment() && !ctx.PartialFor("main") && len(refs) == 1 {
 		return a.Piece(ctx, refs[0], next)
 	}
-	if a.Done != nil && done > 0 {
+	switch {
+	case ctx.FormValue("undo") != "":
+		ctx.Notify(web.Notice{Kind: web.NoticeDone, Text: ctx.T("notice.undone")})
+	case a.Done != nil && done > 0:
 		ctx.Notify(a.Done(ctx, refs[:done], next))
 	}
 	return ctx.Redirect(http.StatusFound, next)
@@ -128,7 +131,7 @@ func Star[C any](ctx *web.Context, client func(context.Context, *alborz.Login) (
 			// Changing a star the list is narrowed to takes the row out of the list.
 			if web.StarLeaves(next, name) {
 				ctx.Notify(web.StarNotice(ctx, name, action, url.Values{"color": {was}, "next": {next}}))
-				return ctx.Relocate(next)
+				return ctx.Redraw(next)
 			}
 			label := ctx.T("mailbox.flagcolor")
 			if name != "" {

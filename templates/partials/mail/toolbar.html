@@ -45,9 +45,9 @@
       {{ end }}
     {{ end }}
     <span class="icon-group">
-      {{ template "action-icon" (dict "icon" "archive" "label" ($.T "mailbox.archive") "form" "messages-form" "formaction" $archiveAction "priority" 14) }}
-      {{ template "action-icon" (dict "icon" $junkIcon "label" $junkLabel "form" "messages-form" "formaction" $junkAction "priority" 13) }}
-      {{ with $trashAction }}{{ template "action-icon" (dict "icon" "trash" "label" $trashLabel "class" "icon-danger" "form" "messages-form" "formaction" . "priority" 11 "final" $trashFinal) }}{{ end }}
+      {{ template "action-icon" (dict "icon" "archive" "label" ($.T "mailbox.archive") "form" "messages-form" "formaction" $archiveAction "priority" 14 "swap" true) }}
+      {{ template "action-icon" (dict "icon" $junkIcon "label" $junkLabel "form" "messages-form" "formaction" $junkAction "priority" 13 "swap" true) }}
+      {{ with $trashAction }}{{ template "action-icon" (dict "icon" "trash" "label" $trashLabel "class" "icon-danger" "form" "messages-form" "formaction" . "priority" 11 "final" $trashFinal "swap" true) }}{{ end }}
     </span>
     </span>
 
@@ -56,6 +56,7 @@
        "priority" 12
        "form" "messages-form"
        "action" $flagAction
+       "swap" true
        "title" ($.T "mailbox.flagcolor") "clear" ($.T "mailbox.flagnone") "colors" (flagcolors $) "disabled" $empty) }}
 
     {{ if not .Merged }}
@@ -67,8 +68,8 @@
         <a class="button-link" href="{{ localhref $exportall }}"{{ if $empty }} aria-disabled="true"{{ end }}>{{ if .Query }}{{$.T "mailbox.exportresults"}}{{ else }}{{$.T "mailbox.exportfolder"}}{{ end }}</a>
         {{ end }}
         <button form="refresh-form" title="{{$.T "mailbox.refreshhint"}}">{{$.T "common.forcerefresh"}}</button>
-        <button form="messages-form" formaction="{{url "mail.messages.flag" .Mailbox.Name}}?action=add&to=%5CSeen{{account "&" $.GlobalData.URLAccount}}">{{$.T "mailbox.markread"}}</button>
-        <button form="messages-form" formaction="{{url "mail.messages.flag" .Mailbox.Name}}?action=remove&to=%5CSeen{{account "&" $.GlobalData.URLAccount}}">{{$.T "mailbox.markunread"}}</button>
+        {{ $read := print (url "mail.messages.flag" .Mailbox.Name) "?action=add&to=%5CSeen" (account "&" $.GlobalData.URLAccount) }}<button form="messages-form" formaction="{{$read}}"{{ template "swap-main" $read }}>{{$.T "mailbox.markread"}}</button>
+        {{ $unread := print (url "mail.messages.flag" .Mailbox.Name) "?action=remove&to=%5CSeen" (account "&" $.GlobalData.URLAccount) }}<button form="messages-form" formaction="{{$unread}}"{{ template "swap-main" $unread }}>{{$.T "mailbox.markunread"}}</button>
         <button form="messages-form" formaction="{{url "mail.messages.move" .Mailbox.Name}}{{$aq}}">{{$.T "mailbox.moveto"}}</button>
         {{ if or (and $junk (eq .Mailbox.Name $junk)) (and $trash (eq .Mailbox.Name $trash)) }}
         <form method="post" action="{{url "mail.mailbox.empty" .Mailbox.Name}}{{$aq}}">
@@ -87,8 +88,8 @@
     {{ template "more-open" $ }}
         <button form="messages-form" formaction="{{$act}}?action=export" data-download>{{$.T "mailbox.export"}}</button>
         <button form="refresh-form" title="{{$.T "mailbox.refreshhint"}}">{{$.T "common.forcerefresh"}}</button>
-        <button form="messages-form" formaction="{{$act}}?action=read">{{$.T "mailbox.markread"}}</button>
-        <button form="messages-form" formaction="{{$act}}?action=unread">{{$.T "mailbox.markunread"}}</button>
+        {{ $read := print $act "?action=read" }}<button form="messages-form" formaction="{{$read}}"{{ template "swap-main" $read }}>{{$.T "mailbox.markread"}}</button>
+        {{ $unread := print $act "?action=unread" }}<button form="messages-form" formaction="{{$unread}}"{{ template "swap-main" $unread }}>{{$.T "mailbox.markunread"}}</button>
         {{ if or (eq $path (url "mail.mailbox" "Junk")) (eq $path (url "mail.mailbox" "Trash")) }}
         <form method="post" action="{{url "mail.role.empty" $role}}">
           <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">

@@ -53,17 +53,17 @@
 {{ end }}
 {{ end }}
 
-{{/* dict: colors clear [form action id row]. */}}
+{{/* dict: colors clear [form action id row swap]. */}}
 {{ define "flag-colors-menu" }}
 <div class="overflow-menu flag-colors" popover id="{{ or .id "menu-flag" }}">
   {{ $d := . }}
   {{ range .colors }}
-  <button {{ if $d.row }}type="button"{{ else }}{{ with $d.form }}form="{{.}}"{{ end }}{{ with $d.action }} formaction="{{.}}"{{ end }}
+  <button {{ if $d.row }}type="button"{{ else }}{{ with $d.form }}form="{{.}}"{{ end }}{{ with $d.action }} formaction="{{.}}"{{ if $d.swap }}{{ template "swap-main" . }}{{ end }}{{ end }}
           name="color" value="{{.Name}}"{{ end }} data-color="{{.Name}}">
     <span class="flag-star flag-{{.Name}}">&#9733;</span>{{.Label}}
   </button>
   {{ end }}
-  <button {{ if .row }}type="button"{{ else }}{{ with .form }}form="{{.}}"{{ end }}{{ with .action }} formaction="{{.}}"{{ end }} name="color" value=""{{ end }} data-color="">
+  <button {{ if .row }}type="button"{{ else }}{{ with .form }}form="{{.}}"{{ end }}{{ with .action }} formaction="{{.}}"{{ if $d.swap }}{{ template "swap-main" . }}{{ end }}{{ end }} name="color" value=""{{ end }} data-color="">
     <span class="flag-star">&#9734;</span>{{.clear}}
   </button>
 </div>

@@ -53,10 +53,13 @@
 
 {{ define "action-icon" }}
 {{ if not .formaction }}<button type="button" class="icon-button{{with .class}} {{.}}{{end}}" disabled title="{{.label}}" aria-label="{{.label}}"{{ with .priority }} data-priority="{{.}}"{{ end }}>{{ template "icon" .icon }}<span class="label">{{.label}}</span></button>{{ else }}
-<button class="icon-button{{with .class}} {{.}}{{end}}" form="{{.form}}" formaction="{{.formaction}}" title="{{.label}}" aria-label="{{.label}}"{{ if not .final }}{{ template "icon-key" .icon }}{{ end }}{{ with .priority }} data-priority="{{.}}"{{ end }}{{ if .download }} data-download{{ end }}>{{ template "icon" .icon }}<span class="label">{{.label}}</span></button>{{ end }}
+<button class="icon-button{{with .class}} {{.}}{{end}}" form="{{.form}}" formaction="{{.formaction}}" title="{{.label}}" aria-label="{{.label}}"{{ if not .final }}{{ template "icon-key" .icon }}{{ end }}{{ with .priority }} data-priority="{{.}}"{{ end }}{{ if .download }} data-download{{ end }}{{ if .swap }}{{ template "swap-main" .formaction }}{{ end }}>{{ template "icon" .icon }}<span class="label">{{.label}}</span></button>{{ end }}
 {{ end }}
 
 {{ define "icon-key" }}{{ with index (dict "archive" "e" "trash" "#" "junk" "!" "notjunk" "!") . }} data-key="{{.}}"{{ end }}{{ end }}
+
+{{/* An action posted from the list redraws it where the reader is, without a step in history (ADR 13); without script the form posts whole. */}}
+{{ define "swap-main" }} hx-post="{{.}}" hx-target="#main" hx-swap="innerHTML show:none"{{ end }}
 
 {{/* dict: target href. */}}
 {{ define "swaps" }}{{ with .target }} hx-get="{{$.href}}" hx-target="#{{.}}" hx-swap="innerHTML show:window:top" hx-push-url="true"{{ end }}{{ end }}

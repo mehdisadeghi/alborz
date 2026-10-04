@@ -321,9 +321,6 @@ func (p *plugin) tasks(ctx *web.Context) error {
 func (p *plugin) complete(ctx *web.Context) error {
 	done := wantsDone(ctx)
 	words := func(ctx *web.Context, marked []pim.Ref[*caldav.Client], next string) web.Notice {
-		if ctx.FormValue("undo") != "" {
-			return web.Notice{Kind: web.NoticeDone, Text: ctx.T("notice.undone")}
-		}
 		paths := make([]string, len(marked))
 		for i, ref := range marked {
 			paths[i] = ref.Account + "|" + ref.Path
@@ -344,7 +341,7 @@ func (p *plugin) complete(ctx *web.Context) error {
 			view := pimweb.ListParamsIn(next, "view").Get("view")
 			if view != viewAll && done != (view == viewCompleted) {
 				ctx.Notify(words(ctx, []pim.Ref[*caldav.Client]{ref}, next))
-				return ctx.Relocate(next)
+				return ctx.Redraw(next)
 			}
 			// The same button undoes it, so a marked task answers with its row and no notice.
 			calendars, err := p.DAV.Collections(ctx.Request().Context(), ctx.Login)

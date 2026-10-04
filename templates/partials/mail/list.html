@@ -60,9 +60,9 @@
           {{ end }}
 
           {{ if and (not (.HasFlag "\\Deleted")) .Envelope }}
-          <div class="message-row list-row" role="row"{{ if $.Threaded }} style="--depth: {{.Depth}}"{{ end }}>
+          <div class="message-row list-row" role="row" data-tour="rows"{{ if $.Threaded }} style="--depth: {{.Depth}}"{{ end }}>
           {{ with $.SelectForm }}
-          <div class="message-list-checkbox list-checkbox {{$classes}}" role="cell">
+          <div class="message-list-checkbox list-checkbox {{$classes}}" role="cell" data-tour="rows">
             {{ if $.Merged }}
             <input type="checkbox" name="refs" value="{{$row.Account}}|{{$row.Mailbox}}|{{$row.UID}}" form="{{.}}" aria-label="{{$.T "a11y.selectrow"}}{{with $row.Envelope.Subject}}: {{.}}{{end}}">
             {{ else }}

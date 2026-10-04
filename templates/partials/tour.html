@@ -1,0 +1,21 @@
+{{/* The tour open at its stop; tour.js shows a neighbour on this page in place (ADR 76). */}}
+{{ define "tour" }}
+{{ with .GlobalData.Tour }}
+{{ $g := $ }}{{ $n := len .Stops }}{{ $at := .At }}
+<dialog open id="tour" class="tour" aria-label="{{$g.T "tour.name"}}">
+  {{ range $i, $stop := .Stops }}
+  <section class="tour-step" data-stop="{{.Name}}"{{ with .Target }} data-target="{{.}}"{{ end }} aria-labelledby="tour-{{.Name}}"{{ if ne $i $at }} hidden{{ end }}>
+    <p class="tour-count">{{ $g.GlobalData.Tf "tour.count" .Number $n }}</p>
+    <h2 id="tour-{{.Name}}">{{ $g.T (printf "tour.%s.title" .Name) }}</h2>
+    <p>{{ $g.T (printf "tour.%s.body" .Name) }}</p>
+    <div class="tour-actions">
+      {{ with .Back }}<a class="button-link tour-back" href="{{ localhref .Href }}" data-stop="{{.Name}}">{{ $g.T "tour.back" }}</a>{{ end }}
+      {{ with .Next }}<a class="button button-primary tour-next" href="{{ localhref .Href }}" data-stop="{{.Name}}">{{ $g.T "tour.next" }}</a>
+      {{ else }}<form method="dialog"><button class="button-primary tour-next">{{ $g.T "tour.done" }}</button></form>{{ end }}
+    </div>
+  </section>
+  {{ end }}
+  <form method="dialog" class="notice-dismiss tour-close"><button title="{{$g.T "tour.close"}}" aria-label="{{$g.T "tour.close"}}">{{ template "icon" "x" }}</button></form>
+</dialog>
+{{ end }}
+{{ end }}

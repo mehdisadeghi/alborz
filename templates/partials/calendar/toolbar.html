@@ -23,7 +23,7 @@
       {{end}}
       {{ template "pager-link" (dict "step" (dict "href" (printf "?month=%s%s" .NextPage $suffix) "title" ($.GlobalData.MonthName .NextTime) "name" ($.T "calendar.nextmonth")) "icon" "next" "go" "n") }}
     </div>
-    <div class="actions-pagination" data-priority="32">
+    <div class="actions-pagination" data-priority="32" data-tour="calendar">
       {{ template "toggle" (dict "items" (tuple
          (dict "label" ($.T "calendar.month") "icon" "month" "current" (not .View)
                "href" (printf "?month=%s%s" .Page $scope))

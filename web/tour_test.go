@@ -1,6 +1,8 @@
 package web_test
 
 import (
+	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"testing"
@@ -73,5 +75,25 @@ func TestTourWalk(t *testing.T) {
 				t.Errorf("%s has no %s", lang, key)
 			}
 		}
+	}
+}
+
+// The tour opens by itself at a person's first sign-in only, whichever browser signs in next.
+func TestTourOpensOnceAtSignIn(t *testing.T) {
+	a := Alborz(t)
+	signIn := func() (*Client, string) {
+		c := a.Client()
+		resp := c.Post(t, "auth.login", url.Values{"username": {User}, "password": {Password}})
+		if resp.StatusCode != http.StatusFound {
+			t.Fatalf("signing in answered %s", resp.Status)
+		}
+		return c, resp.Header.Get("Location")
+	}
+	c, first := signIn()
+	if got := shownStop(t, c.Follow(t, first)); got == "" {
+		t.Fatalf("the first sign-in landed on %s, with no tour", first)
+	}
+	if _, again := signIn(); strings.Contains(again, "tour=") {
+		t.Errorf("a second sign-in opened the tour again at %s", again)
 	}
 }

@@ -108,3 +108,21 @@ func withoutTour(u *url.URL) *url.URL {
 	out.RawQuery = strings.Join(kept, "&")
 	return &out
 }
+
+// OfferTour is where a sign-in lands: path, with the tour open at its first stop for a reader it never opened for (ADR 76).
+func (ctx *Context) OfferTour(path string) (string, error) {
+	p := ctx.Profile()
+	if p.Toured {
+		return path, nil
+	}
+	u, err := url.Parse(path)
+	if err != nil {
+		return "", err
+	}
+	p.Toured = true
+	if err := ctx.SetProfile(p); err != nil {
+		ctx.Logger().Printf("tour: no account kept the offer: %v", err)
+		return path, nil
+	}
+	return TourStart(withoutTour(u)), nil
+}

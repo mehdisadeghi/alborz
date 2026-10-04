@@ -1084,6 +1084,16 @@
 "settings.addons" = "Erweiterungen"
 "snow.addon" = "Es schneien lassen"
 "motd.status" = "Text des Tages"
+"moon.status" = "Mondphase"
+"moon.phase.0" = "Neumond"
+"moon.phase.1" = "Zunehmende Sichel"
+"moon.phase.2" = "Erstes Viertel"
+"moon.phase.3" = "Zunehmender Mond"
+"moon.phase.4" = "Vollmond"
+"moon.phase.5" = "Abnehmender Mond"
+"moon.phase.6" = "Letztes Viertel"
+"moon.phase.7" = "Abnehmende Sichel"
+"moon.lit" = "%d %% beleuchtet"
 
 
 "notifications.title" = "Benachrichtigungen"

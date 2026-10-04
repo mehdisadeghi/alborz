@@ -1084,6 +1084,16 @@
 "settings.addons" = "Add-ons"
 "snow.addon" = "Let it snow"
 "motd.status" = "Text of the day"
+"moon.status" = "Moon phase"
+"moon.phase.0" = "New moon"
+"moon.phase.1" = "Waxing crescent"
+"moon.phase.2" = "First quarter"
+"moon.phase.3" = "Waxing gibbous"
+"moon.phase.4" = "Full moon"
+"moon.phase.5" = "Waning gibbous"
+"moon.phase.6" = "Last quarter"
+"moon.phase.7" = "Waning crescent"
+"moon.lit" = "%d%% lit"
 
 
 "notifications.title" = "Notifications"

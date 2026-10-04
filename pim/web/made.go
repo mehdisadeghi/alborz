@@ -19,7 +19,12 @@ func Made(ctx *web.Context, sentence, name, object, list, account string) error 
 	} else {
 		object, list = ctx.AccountPath(object), ctx.AccountPath(list)
 	}
-	ctx.Made(sentence, name, object, ctx.Request().URL.RequestURI())
+	// A quick add's line is already where it lands; there is no form to go back to.
+	again := ctx.Request().URL.RequestURI()
+	if ctx.FormValue("quick") != "" {
+		again = ""
+	}
+	ctx.Made(sentence, name, object, again)
 	return ctx.Redirect(http.StatusFound, ctx.NextOr(list))
 }
 

@@ -249,7 +249,7 @@ func objectsByUID(cal *ical.Calendar) (map[string]*ical.Calendar, error) {
 }
 
 func objectPathByUID(ctx context.Context, client *caldav.Client, calendarPath, uid string) string {
-	for _, comp := range []string{"VEVENT", "VTODO"} {
+	for _, comp := range []string{"VEVENT", "VTODO", "VJOURNAL"} {
 		objects, err := client.QueryCalendar(ctx, calendarPath, &caldav.CalendarQuery{
 			CompRequest: caldav.CalendarCompRequest{Name: "VCALENDAR",
 				Comps: []caldav.CalendarCompRequest{{Name: comp, Props: []string{"UID"}}}},
@@ -265,7 +265,7 @@ func objectPathByUID(ctx context.Context, client *caldav.Client, calendarPath, u
 }
 
 func Export(ctx context.Context, client *caldav.Client, calendarPath string, from, to time.Time) ([]byte, error) {
-	children, left, err := Components(ctx, client, calendarPath, []string{"VEVENT", "VTODO"}, from, to)
+	children, left, err := Components(ctx, client, calendarPath, []string{"VEVENT", "VTODO", "VJOURNAL"}, from, to)
 	if err != nil {
 		return nil, err
 	}
@@ -315,8 +315,8 @@ func Encode(children []*ical.Component, left []error) ([]byte, error) {
 	out.Props.SetText(ical.PropVersion, "2.0")
 	total := len(left)
 	for _, child := range children {
-		// go-ical will not encode an event or task without DTSTAMP; the server's copy is untouched.
-		if (child.Name == ical.CompEvent || child.Name == ical.CompToDo) && child.Props.Get(ical.PropDateTimeStamp) == nil {
+		// go-ical will not encode an event, task or journal entry without DTSTAMP; the server's copy is untouched.
+		if (child.Name == ical.CompEvent || child.Name == ical.CompToDo || child.Name == ical.CompJournal) && child.Props.Get(ical.PropDateTimeStamp) == nil {
 			stamp := time.Now().UTC()
 			if t, err := child.Props.DateTime(ical.PropLastModified, time.UTC); err == nil && !t.IsZero() {
 				stamp = t

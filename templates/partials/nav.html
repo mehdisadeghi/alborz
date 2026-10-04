@@ -36,6 +36,12 @@
       {{ end }}
     title="{{$.T "nav.tasks"}}" aria-label="{{$.T "nav.tasks"}}">{{ template "icon" "tasks" }}<span class="label">{{$.T "nav.tasks"}}</span></a>
     <a
+      href="{{url "calendar.journal"}}{{$q}}" data-go="j"
+      {{ if eq $page "journal" }}
+      class="active" aria-current="page"
+      {{ end }}
+    title="{{$.T "nav.journal"}}" aria-label="{{$.T "nav.journal"}}">{{ template "icon" "journal" }}<span class="label">{{$.T "nav.journal"}}</span></a>
+    <a
       href="{{url "filters.list"}}{{$q}}" data-go="f"
       {{ if eq $page "filters" }}
       class="active" aria-current="page"
@@ -73,7 +79,7 @@
       <dt><kbd>x</kbd></dt><dd>{{$.T "keys.select"}}</dd>
       <dt><kbd>s</kbd></dt><dd>{{$.T "keys.star"}}</dd>
       <dt><kbd>/</kbd></dt><dd>{{$.T "keys.search"}}</dd>
-      <dt><kbd>g</kbd>{{ range tuple "m" "l" "c" "k" "f" "s" }} <kbd data-go-key="{{.}}">{{.}}</kbd>{{ end }}</dt><dd>{{$.T "keys.go"}}</dd>
+      <dt><kbd>g</kbd>{{ range tuple "m" "l" "c" "k" "j" "f" "s" }} <kbd data-go-key="{{.}}">{{.}}</kbd>{{ end }}</dt><dd>{{$.T "keys.go"}}</dd>
       <dt><kbd>g</kbd> <kbd>p</kbd> <kbd>n</kbd></dt><dd>{{$.T "keys.pages"}}</dd>
       <dt><kbd>?</kbd></dt><dd>{{$.T "keys.title"}}</dd>
     </dl>

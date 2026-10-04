@@ -10,6 +10,8 @@ import (
 type Column[T any] struct {
 	Key   string
 	Value func(T) string
+	// Desc says the column starts in descending order, the latest first, where the URL names none.
+	Desc bool
 }
 
 // Last sorts after every value, for a row that has none.

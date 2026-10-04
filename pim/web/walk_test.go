@@ -32,6 +32,8 @@ type walked struct {
 	form                   url.Values
 	bulkExport, listExport string
 	exported               string
+	// note says the object's page takes a dated note.
+	note bool
 }
 
 func card(uid, name string) string {
@@ -43,6 +45,13 @@ func eventToday(uid, summary string) string {
 	return "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//test//EN\r\nBEGIN:VEVENT\r\nUID:" + uid +
 		"\r\nDTSTAMP:20260901T080000Z\r\nDTSTART:" + day + "T100000Z\r\nDTEND:" + day + "T110000Z\r\nSUMMARY:" +
 		summary + "\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+}
+
+func entryToday(uid, summary string) string {
+	day := time.Now().UTC().Format("20060102")
+	return "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//test//EN\r\nBEGIN:VJOURNAL\r\nUID:" + uid +
+		"\r\nDTSTAMP:20260901T080000Z\r\nDTSTART;VALUE=DATE:" + day + "\r\nSUMMARY:" + summary +
+		"\r\nDESCRIPTION:Walked text\r\nCATEGORIES:Walks\r\nEND:VJOURNAL\r\nEND:VCALENDAR\r\n"
 }
 
 func walkedKinds() []walked {
@@ -60,21 +69,32 @@ func walkedKinds() []walked {
 			},
 			collField: "cal", collection: CalendarsOf(User) + "plans/", collName: "Plans", ext: ".ics", mime: "text/calendar", body: eventToday,
 			titleField: "summary", destField: "calendar", form: url.Values{"start": {noon}, "end": {noon}, "start-calendar": {"gregorian"}, "end-calendar": {"gregorian"}},
-			listExport: "calendar.month.export", exported: "BEGIN:VEVENT"},
+			listExport: "calendar.month.export", exported: "BEGIN:VEVENT", note: true},
 		{name: "task", list: "calendar.tasks", object: "calendar.task", edit: "calendar.task.edit",
 			create: "calendar.task.create", bulkDelete: "calendar.tasks.delete",
 			importPage: "calendar.tasks.import", refresh: "calendar.tasks.refresh",
 			sorts:     []string{"summary", "status", "priority", "starred", "account", "calendar", "due", "added"},
 			collField: "cal", collection: CalendarsOf(User) + "chores/", collName: "Chores", ext: ".ics", mime: "text/calendar", body: Todo,
 			titleField: "summary", destField: "calendar", form: url.Values{},
-			bulkExport: "calendar.tasks.export", exported: "BEGIN:VTODO"},
+			bulkExport: "calendar.tasks.export", exported: "BEGIN:VTODO", note: true},
+		{name: "entry", list: "calendar.journal", object: "calendar.entry", edit: "calendar.entry.edit",
+			create: "calendar.entry.create", bulkDelete: "calendar.journal.delete",
+			importPage: "calendar.journal.import", refresh: "calendar.journal.refresh",
+			views: [][]any{
+				{"calendar.journal", url.Values{"category": {"Walks"}}},
+				{"calendar.journal", url.Values{"query": {"walked text"}}},
+			},
+			sorts:     []string{"date", "summary", "starred", "account", "calendar", "added"},
+			collField: "cal", collection: CalendarsOf(User) + "diary/", collName: "Diary", ext: ".ics", mime: "text/calendar", body: entryToday,
+			titleField: "summary", destField: "calendar", form: url.Values{},
+			bulkExport: "calendar.journal.export", exported: "BEGIN:VJOURNAL"},
 		{name: "contact", list: "contacts.list", object: "contacts.contact", edit: "contacts.contact.edit",
 			create: "contacts.contact.create", bulkDelete: "contacts.delete",
 			importPage: "contacts.import", refresh: "contacts.refresh",
 			sorts:     []string{"name", "starred", "email", "phone", "account", "book", "changed"},
 			collField: "book", collection: BooksOf(User) + "people/", collName: "People", ext: ".vcf", mime: "text/vcard", body: card,
 			titleField: "fn", destField: "addressbook", form: url.Values{},
-			bulkExport: "contacts.export", exported: "BEGIN:VCARD"},
+			bulkExport: "contacts.export", exported: "BEGIN:VCARD", note: true},
 	}
 }
 
@@ -100,18 +120,20 @@ func TestEveryDAVObjectRouteAnswers(t *testing.T) {
 			for _, made := range []struct {
 				route string
 				form  url.Values
+				query url.Values
 			}{
-				{"calendar.calendars.create", url.Values{"name": {"Plans"}, "color": {"#22aa55"}}},
-				{"calendar.calendars.create", url.Values{"name": {"Chores"}, "color": {"#22aa55"}, "holds": {"tasks"}}},
-				{"calendar.calendars.create", url.Values{"name": {"Errands"}, "color": {"#22aa55"}, "holds": {"tasks"}}},
-				{"contacts.books.create", url.Values{"name": {"People"}}},
+				{"calendar.calendars.create", url.Values{"name": {"Plans"}, "color": {"#22aa55"}}, nil},
+				{"calendar.calendars.create", url.Values{"name": {"Chores"}, "color": {"#22aa55"}, "holds": {"tasks"}}, nil},
+				{"calendar.calendars.create", url.Values{"name": {"Errands"}, "color": {"#22aa55"}, "holds": {"tasks"}}, nil},
+				{"calendar.calendars.create", url.Values{"name": {"Diary"}, "color": {"#22aa55"}}, url.Values{"for": {"journal"}}},
+				{"contacts.books.create", url.Values{"name": {"People"}}, nil},
 			} {
-				if !strings.Contains(c.Page(t, made.route, scope), `name="place"`) {
+				if !strings.Contains(c.Page(t, made.route, scope, made.query), `name="place"`) {
 					t.Errorf("%s asks for no place", made.route)
 				}
 				made.form.Set("account", User)
 				made.form.Set("place", "here")
-				if resp := c.Post(t, made.route, made.form); resp.StatusCode != http.StatusFound {
+				if resp := c.Post(t, made.route, made.form, made.query); resp.StatusCode != http.StatusFound {
 					t.Fatalf("creating %s answered %s", made.form.Get("name"), resp.Status)
 				}
 			}
@@ -200,8 +222,10 @@ func walk(t *testing.T, a *App, c *Client, k walked, scope url.Values) {
 	}
 	found("the star's piece", starred.Text, `data-current="blue"`)
 
-	moved("the note", c.Post(t, k.object+".note", url.Values{"note": {"Walked note"}, "next": {next}}, object("first"), acct))
-	found("the object's page after a note", c.Page(t, k.object, object("first"), acct), "Walked note")
+	if k.note {
+		moved("the note", c.Post(t, k.object+".note", url.Values{"note": {"Walked note"}, "next": {next}}, object("first"), acct))
+		found("the object's page after a note", c.Page(t, k.object, object("first"), acct), "Walked note")
+	}
 
 	switch k.name {
 	case "task":

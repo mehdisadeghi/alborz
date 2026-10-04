@@ -1,0 +1,28 @@
+{{/* dict: G Row Next Select. */}}
+{{ define "entry-row" }}
+{{ $g := .G }}{{ $next := .Next }}{{ $select := .Select }}{{ with $row := .Row }}
+<div class="journal-row list-row" role="row">
+  {{ with $select }}
+  <div class="journal-list-checkbox list-checkbox list-cell" role="cell">
+    <input type="checkbox" name="paths" value="{{$row.Account}}|{{$row.Path}}" form="{{.}}" aria-label="{{$g.T "a11y.selectentry"}}{{with $row.Summary}}: {{.}}{{end}}">
+  </div>
+  {{ end }}
+  {{ template "row-star-cell" (dict "g" $g "action" (printf "%s%s" (url "calendar.entry.color" .Path) (account "?" .Account)) "star" .Star "next" $next) }}
+  <div class="journal-list-summary list-primary list-cell" role="cell" data-label="{{$g.T "journal.summary"}}">
+    <a href="{{.Href}}" dir="auto"{{ with .AddedBy }} title="{{ printf ($g.T "share.addedby") . }}"{{ end }}>{{.Summary}}</a>
+  </div>
+  {{ template "row-collection" (dict "g" $g "cell" "journal-list-calendar" "label" ($g.T "journal.journal") "list" (url "calendar.journal") "coll" .Calendar "account" .Account) }}
+  {{ template "row-date" (dict "g" $g "cell" "journal-list-date" "label" ($g.T "journal.date") "time" .Date) }}
+  {{ template "row-date" (dict "g" $g "cell" "journal-list-added" "label" ($g.T "common.added") "time" .Added "since" true) }}
+</div>
+{{ end }}
+{{ end }}
+
+{{/* The list page's data. */}}
+{{ define "entry-rows" }}
+          {{range .Entries}}
+          {{ template "entry-row" (dict "G" $ "Row" . "Next" $.GlobalData.URL.RequestURI "Select" $.SelectForm) }}
+          {{end}}
+{{ end }}
+
+{{ define "journal-grid" }}class="journal-grid list-grid{{if .GlobalData.Unified}} multi{{end}}" role="table"{{ end }}

@@ -39,6 +39,11 @@ func SupportsTodo(components []string) bool {
 	return false
 }
 
+// SupportsJournal says a calendar takes journal entries; without a component set it is not a journal.
+func SupportsJournal(components []string) bool {
+	return slices.ContainsFunc(components, func(comp string) bool { return strings.EqualFold(comp, ical.CompJournal) })
+}
+
 func SupportsEvent(components []string) bool {
 	// Servers that advertise no component set are taken to hold events.
 	if len(components) == 0 {
@@ -388,6 +393,37 @@ func FirstTodo(cal *ical.Calendar) *ical.Component {
 	return nil
 }
 
+func FirstJournal(cal *ical.Calendar) *ical.Component {
+	for _, child := range cal.Children {
+		if child.Name == ical.CompJournal {
+			return child
+		}
+	}
+	return nil
+}
+
+// JournalText is a journal entry's every DESCRIPTION, which RFC 5545 3.6.3 lets it carry more than one of.
+func JournalText(journal *ical.Component) string {
+	var texts []string
+	for _, prop := range journal.Props.Values(ical.PropDescription) {
+		if text, err := prop.Text(); err == nil && text != "" {
+			texts = append(texts, text)
+		}
+	}
+	return strings.Join(texts, "\n\n")
+}
+
+// Categories are a component's every CATEGORIES value, of every CATEGORIES property.
+func Categories(comp *ical.Component) []string {
+	var out []string
+	for _, prop := range comp.Props.Values(ical.PropCategories) {
+		if list, err := prop.TextList(); err == nil {
+			out = append(out, list...)
+		}
+	}
+	return out
+}
+
 func EventQuery(start, end time.Time) caldav.CalendarQuery {
 	return caldav.CalendarQuery{
 		CompRequest: caldav.CalendarCompRequest{
@@ -480,7 +516,7 @@ func Join(objects [][]byte) ([]byte, error) {
 	return Encode(children, left)
 }
 
-// WarmAccount reads the login's month around now and its tasks, so the pages open from the mirror.
+// WarmAccount reads the login's month around now, its tasks and its journal, so the pages open from the mirror.
 func (p *Calendars) WarmAccount(ctx context.Context, s *alborz.Login, loc *time.Location) error {
 	c, calendars, err := p.Open(ctx, s)
 	if err != nil {
@@ -489,7 +525,7 @@ func (p *Calendars) WarmAccount(ctx context.Context, s *alborz.Login, loc *time.
 	now := time.Now().In(loc)
 	start := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, loc)
 	events := EventQuery(start.AddDate(0, 0, -7), start.AddDate(0, 1, 0).AddDate(0, 0, 7))
-	tasks := TaskQuery()
+	tasks, journal := TaskQuery(), JournalQuery()
 	type ask struct {
 		path  string
 		query caldav.CalendarQuery
@@ -501,6 +537,9 @@ func (p *Calendars) WarmAccount(ctx context.Context, s *alborz.Login, loc *time.
 		}
 		if SupportsTodo(cal.Components) {
 			asks = append(asks, ask{cal.Path, tasks})
+		}
+		if SupportsJournal(cal.Components) {
+			asks = append(asks, ask{cal.Path, journal})
 		}
 	}
 	for _, r := range dav.Each(ctx, asks, func(ctx context.Context, a ask) (int, error) {
@@ -599,17 +638,21 @@ func MarkTodo(todo *ical.Component, done bool) {
 	}
 }
 
-func TaskQuery() caldav.CalendarQuery {
+func TaskQuery() caldav.CalendarQuery { return wholeQuery(ical.CompToDo) }
+
+func JournalQuery() caldav.CalendarQuery { return wholeQuery(ical.CompJournal) }
+
+// wholeQuery asks for every comp a calendar holds, whole: every column reads a property of it.
+func wholeQuery(comp string) caldav.CalendarQuery {
 	return caldav.CalendarQuery{
 		CompRequest: caldav.CalendarCompRequest{
 			Name:  "VCALENDAR",
 			Props: []string{"VERSION"},
-			// The whole to-do: every column reads a property of it.
-			Comps: []caldav.CalendarCompRequest{{Name: "VTODO", AllProps: true, AllComps: true}},
+			Comps: []caldav.CalendarCompRequest{{Name: comp, AllProps: true, AllComps: true}},
 		},
 		CompFilter: caldav.CompFilter{
 			Name:  "VCALENDAR",
-			Comps: []caldav.CompFilter{{Name: "VTODO"}},
+			Comps: []caldav.CompFilter{{Name: comp}},
 		},
 	}
 }

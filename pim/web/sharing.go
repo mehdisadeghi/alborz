@@ -39,6 +39,8 @@ func (pg Page) kindKey(c *store.Collection) string {
 		return "share.kindaddressbook"
 	case len(c.Components) == 1 && c.Components[0] == "VTODO":
 		return "share.kindtasks"
+	case len(c.Components) == 1 && c.Components[0] == "VJOURNAL":
+		return "share.kindjournal"
 	}
 	return "share.kindcalendar"
 }

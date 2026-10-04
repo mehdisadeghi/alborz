@@ -27,8 +27,11 @@ func (p *plugin) collectionPage() pimweb.Page {
 		Forget:     p.DAV.Forget,
 		Show:       calendar.Show,
 		Rail: func(ctx *web.Context, list string) (pimweb.Rail, error) {
-			if list == ctx.Path("calendar.tasks") {
+			switch list {
+			case ctx.Path("calendar.tasks"):
 				return p.taskRail(ctx)
+			case ctx.Path("calendar.journal"):
+				return p.journalRail(ctx)
 			}
 			return p.eventRail(ctx)
 		},
@@ -40,10 +43,13 @@ func (p *plugin) collectionPage() pimweb.Page {
 			return calendar.Import(ctx.Request().Context(), c, path, raw)
 		},
 		Create: func(ctx *web.Context, list, name, place string) (string, error) {
-			// A task list takes tasks; an imported calendar keeps events and tasks both.
+			// A task list takes tasks, a journal entries; an imported calendar keeps events and tasks both.
 			components := []string{"VEVENT", "VTODO"}
-			if list == ctx.Path("calendar.tasks") {
+			switch list {
+			case ctx.Path("calendar.tasks"):
 				components = []string{"VTODO"}
+			case ctx.Path("calendar.journal"):
+				components = []string{"VJOURNAL"}
 			}
 			return p.DAV.Create(ctx.Request().Context(), ctx.Login, name, dav.DefaultColor, place, components)
 		},
@@ -65,34 +71,50 @@ func (p *plugin) collectionPage() pimweb.Page {
 			}
 			list := collectionList(ctx, *info)
 			label := ctx.T("nav.calendar")
-			if list == ctx.Path("calendar.tasks") {
+			switch list {
+			case ctx.Path("calendar.tasks"):
 				label = ctx.T("nav.tasks")
+			case ctx.Path("calendar.journal"):
+				label = ctx.T("nav.journal")
 			}
 			return *info, p.DAV.CountObjects(ctx.Request().Context(), ctx.Login, info.Path), list, label, nil
 		},
 	}
 }
 
+// collectionList is the first of the calendar, tasks and journal that the collection holds.
 func collectionList(ctx *web.Context, info dav.Collection) string {
-	if !calendar.SupportsEvent(info.Components) {
+	switch {
+	case calendar.SupportsEvent(info.Components):
+		return ctx.Path("calendar.month")
+	case calendar.SupportsTodo(info.Components):
 		return ctx.Path("calendar.tasks")
+	case calendar.SupportsJournal(info.Components):
+		return ctx.Path("calendar.journal")
 	}
-	return ctx.Path("calendar.month")
+	return ctx.Path("calendar.tasks")
 }
 
 func (p *plugin) createForm(ctx *web.Context) (pimweb.CreateForm, error) {
-	forTasks := ctx.QueryParam("for") == "tasks"
 	// Back to the rail that asked, when the new collection shows there.
 	made := func(holds string) (string, string) {
-		if holds == "tasks" {
+		switch holds {
+		case "tasks":
 			return ctx.T("notice.tasklistcreated"), ctx.Path("calendar.tasks")
+		case "journal":
+			return ctx.T("notice.journalcreated"), ctx.Path("calendar.journal")
 		}
 		return ctx.T("notice.calendarcreated"), ctx.Path("calendar.month")
 	}
-	if forTasks {
+	switch ctx.QueryParam("for") {
+	case "tasks":
 		rail, err := p.taskRail(ctx)
 		return pimweb.CreateForm{Rail: rail, Title: ctx.T("tasks.newlist"), Section: ctx.T("nav.tasks"), List: ctx.Path("calendar.tasks"),
 			Holds: "tasks", Made: made}, err
+	case "journal":
+		rail, err := p.journalRail(ctx)
+		return pimweb.CreateForm{Rail: rail, Title: ctx.T("journal.newjournal"), Section: ctx.T("nav.journal"), List: ctx.Path("calendar.journal"),
+			Holds: "journal", Made: made}, err
 	}
 	rail, err := p.eventRail(ctx)
 	return pimweb.CreateForm{Rail: rail, Title: ctx.T("calendar.newcalendar"), Section: ctx.T("nav.calendar"), List: ctx.Path("calendar.month"),

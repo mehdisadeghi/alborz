@@ -87,14 +87,14 @@ type CreateForm struct {
 	Rail           Rail
 	Title, Section string
 	List           string
-	// Holds is "events", "tasks" or "both" as the form opens, empty for an address book.
+	// Holds is "events", "tasks", "journal" or "both" as the form opens, empty for an address book.
 	Holds       string
 	OffersHolds bool
 	// Made is the sentence and list for the collection made, by what it holds.
 	Made func(holds string) (sentence, list string)
 }
 
-var held = map[string][]string{"events": {"VEVENT"}, "tasks": {"VTODO"}, "both": {"VEVENT", "VTODO"}}
+var held = map[string][]string{"events": {"VEVENT"}, "tasks": {"VTODO"}, "journal": {"VJOURNAL"}, "both": {"VEVENT", "VTODO"}}
 
 // HandleCreate adds a collection to the chosen account and place, asking for the component set up front.
 func (pg Page) HandleCreate(p *dav.Provider, form func(*web.Context) (CreateForm, error)) func(*web.Context) error {

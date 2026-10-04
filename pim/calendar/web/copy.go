@@ -19,11 +19,14 @@ import (
 	"github.com/emersion/go-webdav"
 )
 
-// copyTo writes an event or a task into a calendar the reader chooses, as an object of its own (ADR 63).
+// copyTo writes an event, a task or a journal entry into a calendar the reader chooses, as an object of its own (ADR 63).
 func (p *plugin) copyTo(s section) func(*web.Context) error {
 	section, supports, key, first, rail, missing := "nav.calendar", calendar.SupportsEvent, "event", calendar.FirstEvent, p.eventRail, "notfound.event"
-	if s == taskSection {
+	switch s {
+	case taskSection:
 		section, supports, key, first, rail, missing = "nav.tasks", calendar.SupportsTodo, "task", calendar.FirstTodo, p.taskRail, "notfound.task"
+	case journalSection:
+		section, supports, key, first, rail, missing = "nav.journal", calendar.SupportsJournal, "entry", calendar.FirstJournal, p.journalRail, "notfound.entry"
 	}
 	return func(ctx *web.Context) error {
 		src := ctx.Param("path")

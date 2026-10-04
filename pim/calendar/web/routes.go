@@ -38,6 +38,14 @@ func (p *plugin) taskRail(ctx *web.Context) (pimweb.Rail, error) {
 	return rail, err
 }
 
+func (p *plugin) journalRail(ctx *web.Context) (pimweb.Rail, error) {
+	rail, err := p.calendarRail(ctx, calendar.SupportsJournal, calendar.JournalVisibility)
+	rail.Path, rail.Action = ctx.Path("calendar.journal"), ctx.Path("calendar.journal")
+	rail.NewHref, rail.NewLabel = ctx.Path("calendar.calendars.create")+"?for=journal&next="+web.QueryValue(ctx.Request().URL.RequestURI()), ctx.T("journal.newjournal")
+	rail.ImportHref, rail.ImportLabel = ctx.Path("calendar.journal.import"), ctx.T("journal.import")
+	return rail, err
+}
+
 func (p *plugin) calendarRail(ctx *web.Context, kind func([]string) bool, chosen func(*calendar.Settings) (bool, []string)) (pimweb.Rail, error) {
 	rail := pimweb.Rail{Field: "cal", ItemClass: "calendar-item", Edit: "calendar.collection"}
 	accounts, err := p.pooledCalendars(ctx)
@@ -52,12 +60,13 @@ func (p *plugin) calendarRail(ctx *web.Context, kind func([]string) bool, chosen
 	return rail, err
 }
 
-// section is the events or the tasks: the routes of their list and of one of them.
+// section is the events, the tasks or the journal: the routes of their list and of one of them.
 type section struct{ list, object string }
 
 var (
-	eventSection = section{"calendar.month", "calendar.event"}
-	taskSection  = section{"calendar.tasks", "calendar.task"}
+	eventSection   = section{"calendar.month", "calendar.event"}
+	taskSection    = section{"calendar.tasks", "calendar.task"}
+	journalSection = section{"calendar.journal", "calendar.entry"}
 )
 
 func registerRoutes(p *plugin, g *web.Group) {
@@ -78,6 +87,10 @@ func registerRoutes(p *plugin, g *web.Group) {
 	})))
 	POST("refresh", "/calendar/refresh", p.refresh)
 	POST("tasks.refresh", "/tasks/refresh", pimweb.HandleRefresh(p.DAV, "calendar.tasks"))
+	POST("journal", "/journal", pimweb.HandleChoose("calendar.journal", "cal", calendar.Choose(func(s *calendar.Settings, paths []string) {
+		s.JournalFilter, s.VisibleJournals = true, paths
+	})))
+	POST("journal.refresh", "/journal/refresh", pimweb.HandleRefresh(p.DAV, "calendar.journal"))
 	GET("month", "/calendar", p.month)
 	download("month.export", "/calendar/export", p.exportMonth)
 	GET("day", "/calendar/date", p.day)
@@ -86,6 +99,7 @@ func registerRoutes(p *plugin, g *web.Group) {
 
 	download("event.raw", "/calendar/{path}/raw", p.rawObject)
 	download("task.raw", "/tasks/{path}/raw", p.rawObject)
+	download("entry.raw", "/journal/{path}/raw", p.rawObject)
 	GET("subscribe", "/calendars/subscribe", handleSubscribe(p))
 	POST("subscribe", "/calendars/subscribe", handleSubscribe(p))
 	page := p.collectionPage()
@@ -97,9 +111,13 @@ func registerRoutes(p *plugin, g *web.Group) {
 	tasksImport, tasksOver := page.HandleImportPage(p.DAV, "calendar.tasks", "nav.tasks", "tasks.import", "tasks.importhint", "task", false)
 	GET("tasks.import", "/tasks/import", tasksImport)
 	upload("tasks.import", "/tasks/import", tasksImport, tasksOver)
+	journalImport, journalOver := page.HandleImportPage(p.DAV, "calendar.journal", "nav.journal", "journal.import", "journal.importhint", "entry", false)
+	GET("journal.import", "/journal/import", journalImport)
+	upload("journal.import", "/journal/import", journalImport, journalOver)
 	for _, method := range []func(string, string, func(*web.Context) error){GET, POST} {
 		method("exportall", "/calendar/export-all", page.HandleExportAll("calendar.month", "calendars.zip"))
 		method("tasks.exportall", "/tasks/export-all", page.HandleExportAll("calendar.tasks", "task-lists.zip"))
+		method("journal.exportall", "/journal/export-all", page.HandleExportAll("calendar.journal", "journals.zip"))
 	}
 	GET("collection", "/calendars/{path}", page.Handle(p.DAV))
 	POST("collection", "/calendars/{path}", page.Handle(p.DAV))
@@ -119,8 +137,11 @@ func registerRoutes(p *plugin, g *web.Group) {
 	POST("event.update", "/calendar/{path}/update", p.updateEvent)
 	remove := func(s section) func(*web.Context) error {
 		key, do := "notice.eventsdeleted", p.deleteEvent
-		if s == taskSection {
+		switch s {
+		case taskSection:
 			key, do = "notice.tasksdeleted", pimweb.Delete[*caldav.Client]
+		case journalSection:
+			key, do = "notice.entriesdeleted", pimweb.Delete[*caldav.Client]
 		}
 		return pimweb.Handler(pimweb.Action[*caldav.Client]{Client: p.Client, Do: do, List: s.list,
 			Done: func(ctx *web.Context, done []pim.Ref[*caldav.Client], _ string) web.Notice {
@@ -147,6 +168,20 @@ func registerRoutes(p *plugin, g *web.Group) {
 	POST("tasks.move", "/tasks/move", p.move)
 	POST("tasks.export", "/tasks/export", pimweb.HandleExport(p.Client, "calendar.tasks",
 		func(ctx *web.Context) string { return ctx.T("nav.tasks") + ".ics" }, calendar.Join))
+
+	GET("journal", "/journal", p.journal)
+	GET("entry", "/journal/{path}", p.entry)
+	GET("entry.create", "/journal/create", p.updateEntry)
+	POST("entry.create", "/journal/create", p.updateEntry)
+	GET("entry.edit", "/journal/{path}/edit", p.updateEntry)
+	POST("entry.edit", "/journal/{path}/edit", p.updateEntry)
+	POST("entry.delete", "/journal/{path}/delete", remove(journalSection))
+	POST("journal.delete", "/journal/delete", remove(journalSection))
+	GET("entry.copy", "/journal/{path}/copy", p.copyTo(journalSection))
+	POST("entry.copy", "/journal/{path}/copy", p.copyTo(journalSection))
+	POST("journal.export", "/journal/export", pimweb.HandleExport(p.Client, "calendar.journal",
+		func(ctx *web.Context) string { return ctx.T("nav.journal") + ".ics" }, calendar.Join))
+	POST("entry.color", "/journal/{path}/color", p.color(calendar.FirstJournal, journalSection))
 
 	POST("task.note", "/tasks/{path}/note", p.note(calendar.FirstTodo, taskSection))
 	POST("event.note", "/calendar/{path}/note", p.note(calendar.FirstEvent, eventSection))

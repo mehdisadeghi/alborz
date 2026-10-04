@@ -8,7 +8,7 @@ import (
 	"git.mehdix.org/alborz/web"
 )
 
-// Sorting is a list's order; Explicit and DirExplicit say whether the URL asked for it.
+// Sorting is a list's order, Dir the direction in force; Explicit and DirExplicit say whether the URL asked for it.
 type Sorting struct {
 	Key, Dir              string
 	Explicit, DirExplicit bool
@@ -41,6 +41,10 @@ func Sort[T any](ctx *web.Context, rows []T, columns []pim.Column[T], tie func(T
 		s.Params = "&" + web.Query(kept)
 		s.Reset = "?" + web.Query(kept)
 	}
-	pim.Order(rows, columns[at], tie, dir == "desc")
+	desc := dir == "desc" || (dir == "" && columns[at].Desc)
+	if desc {
+		s.Dir = "desc"
+	}
+	pim.Order(rows, columns[at], tie, desc)
 	return s, nil
 }

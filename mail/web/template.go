@@ -1,6 +1,7 @@
 package web
 
 import (
+	"encoding/hex"
 	"fmt"
 	"html/template"
 	"net/url"
@@ -144,6 +145,8 @@ var TemplateFuncs = template.FuncMap{
 		}
 	},
 	"join": strings.Join,
+	// An id built from data, as an address: htmx finds some ids by an unescaped selector, which an @ or a . ends.
+	"idpart": func(s string) string { return hex.EncodeToString([]byte(s)) },
 }
 
 // partQuery picks the part out of its message's page or download; without the account the first signed-in one serves it.

@@ -1084,6 +1084,16 @@
 "settings.addons" = "Complementos"
 "snow.addon" = "Que nieve"
 "motd.status" = "Texto del día"
+"moon.status" = "Fase lunar"
+"moon.phase.0" = "Luna nueva"
+"moon.phase.1" = "Luna creciente"
+"moon.phase.2" = "Cuarto creciente"
+"moon.phase.3" = "Gibosa creciente"
+"moon.phase.4" = "Luna llena"
+"moon.phase.5" = "Gibosa menguante"
+"moon.phase.6" = "Cuarto menguante"
+"moon.phase.7" = "Luna menguante"
+"moon.lit" = "%d %% iluminada"
 
 
 "notifications.title" = "Notificaciones"

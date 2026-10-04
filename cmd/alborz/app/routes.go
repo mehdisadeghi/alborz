@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 
+	moonweb "git.mehdix.org/alborz/addons/moon/web"
 	motdweb "git.mehdix.org/alborz/addons/motd/web"
 	snowweb "git.mehdix.org/alborz/addons/snow/web"
 	authweb "git.mehdix.org/alborz/auth/web"
@@ -60,6 +61,7 @@ func Mount(s *web.Server, options Options) error {
 	web.SearchRoutes(app)
 	// The add-ons compiled in, each under its own name; an operator offers the ones that need a setting.
 	snowweb.Mount(app.Group("/addons", "snow"))
+	moonweb.Mount(app.Group("", "moon"))
 	if options.MOTD != "" {
 		if err := motdweb.Mount(app.Group("", "motd"), options.MOTD); err != nil {
 			return fmt.Errorf("-motd: %w", err)

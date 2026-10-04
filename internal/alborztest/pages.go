@@ -59,7 +59,7 @@ func Between(s, start, end string) string {
 var (
 	noticeBar    = regexp.MustCompile(`(?s)<dialog open class="notice[^"]*"[^>]*>(.*?)</dialog>`)
 	noticeDiv    = regexp.MustCompile(`(?s)<div class="notice[^"]*"[^>]*>(.*?)</div>`)
-	noticeForm   = regexp.MustCompile(`<form method="post" action="([^"]+)" class="notice-action">`)
+	noticeForm   = regexp.MustCompile(`<form method="post" action="([^"]+)" class="notice-action"[^>]*>`)
 	noticeLink   = regexp.MustCompile(`<a class="notice-action" href="([^"]+)">`)
 	hiddenFields = regexp.MustCompile(`name="([^"]+)" value="([^"]*)"`)
 	alert        = regexp.MustCompile(`(?s)<div class="alert"[^>]*>(.*?)</div>`)

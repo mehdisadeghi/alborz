@@ -1,9 +1,11 @@
 package web_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -220,6 +222,54 @@ func walk(t *testing.T, a *App, c *Client, k walked, scope url.Values) {
 		moved("undoing the completion", c.Post(t, "calendar.tasks.complete", url.Values{"paths": {ref("first"), ref("second")}, "next": {all}, "undo": {"1"}}))
 		if page := c.Follow(t, all); strings.Contains(page, "task-row list-row completed") {
 			t.Errorf("a task is still done after the undo")
+		}
+		left := postPiece(t, a, c, url.Values{"next": {next}}, "calendar.task.complete", object("first"), acct)
+		var to struct{ Path, Target, Push string }
+		if err := json.Unmarshal([]byte(left.Header.Get("HX-Location")), &to); err != nil || left.Header.Get("HX-Redirect") != "" || to.Target != "#main" || to.Push != "false" {
+			t.Fatalf("a row leaving its list answered %s, %v", left.Status, left.Header)
+		}
+		// As htmx asks: the list's main block, the page's notices out of band.
+		intoMain := func(method, path string, form url.Values) *Response {
+			t.Helper()
+			req, err := http.NewRequest(method, a.URL+path, strings.NewReader(form.Encode()))
+			if err != nil {
+				t.Fatal(err)
+			}
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			req.Header.Set("HX-Request", "true")
+			req.Header.Set("HX-Target", "main")
+			return c.Do(t, req)
+		}
+		redrawn := intoMain(http.MethodGet, to.Path, nil)
+		if redrawn.StatusCode != http.StatusOK || redrawn.Text == "" {
+			t.Fatalf("the redrawn list answered %s, %d bytes", redrawn.Status, len(redrawn.Text))
+		}
+		found("the redrawn list", redrawn.Text, `hx-swap-oob="true"`)
+		found("the redrawn list", redrawn.Text, "One task marked done.")
+		found("the redrawn list's undo", redrawn.Text, `class="notice-action" hx-post=`)
+		action, fields := NoticeAction(redrawn.Text)
+		if fields.Get("undo") == "" {
+			t.Fatalf("the notice offers no undo: %q %v", action, fields)
+		}
+		undone := intoMain(http.MethodPost, action, fields)
+		if undone.StatusCode != http.StatusFound || undone.Header.Get("HX-Redirect") != "" || undone.Header.Get("Location") != to.Path {
+			t.Fatalf("the undo answered %s, %v", undone.Status, undone.Header)
+		}
+		back := intoMain(http.MethodGet, to.Path, nil)
+		if back.StatusCode != http.StatusOK || back.Text == "" {
+			t.Fatalf("the list after the undo answered %s, %d bytes", back.Status, len(back.Text))
+		}
+		found("the list after the undo", back.Text, "Undone.")
+		found("the list after the undo", back.Text, "Walked again")
+		// The browser scrolls to an element the hash names.
+		quick := regexp.MustCompile(`class="quick-add"[^>]*>\s*<input type="hidden" name="next" value="[^"#]*#([^"]+)"`)
+		page := c.Follow(t, next)
+		m := quick.FindStringSubmatch(page)
+		if m == nil {
+			t.Fatal("the quick add returns to no hash")
+		}
+		if strings.Contains(page, `id="`+m[1]+`"`) {
+			t.Errorf("the quick add's hash %q names an element", m[1])
 		}
 		where := c.Page(t, "calendar.tasks.move", url.Values{"paths": {ref("first")}, "next": {next}})
 		found("the move page", where, `name="to"`)

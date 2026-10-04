@@ -50,7 +50,17 @@ blank page per navigation.
    A page asked for by a swap into `#main` answers its `main` block;
    a calendar, task or contact page adds its rail's tick form and All
    link out of band in a `template`, so their marks and ticks follow
-   the list while the rail and its scroll stay.
+   the list while the rail and its scroll stay. Every swap into `#main`
+   brings the page's notices out of band.
+   A row that leaves its list (a task done where the done are hidden,
+   a star taken off in Starred) is answered with `HX-Location`: the
+   list is swapped into `#main` where the reader is, without a step in
+   history.
+   An Undo that returns to the page it is on posts into `#main` the
+   same way, and the list comes back with "Undone.".
+   The mail list's own actions (archive, junk, delete, star, read)
+   post from their buttons into `#main` the same way (`swap-main`);
+   the form they name still posts whole without script.
    Signing in and unlocking take the window: a piece asked for then is
    answered with `HX-Redirect`. An error keeps its status, which htmx
    does not swap, so the page stays and the failed notice shows.
@@ -76,5 +86,6 @@ blank page per navigation.
 - `templates/layout.html` (`htmx-config`, `body hx-boost`),
   `templates/assets/helpers.js` (kept pages),
   `web/htmx.go` (`Partial`, `PartialFor`), `web/renderer.go`,
+  `web/server.go` (`Relocate`, `Redraw`),
   `web/middleware.go` (CSP), `templates/partials/form.html`,
   `templates/assets/VENDOR.toml`

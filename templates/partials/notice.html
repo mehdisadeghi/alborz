@@ -4,7 +4,8 @@
   <span class="notice-text" role="{{ if eq .kind "failed" }}alert{{ else }}status{{ end }}">{{ if .markup }}{{ .markup }}{{ else }}{{ .text }}{{ end }}</span>
   {{ range .actions }}
     {{ if .Fields }}
-    <form method="post" action="{{.Path}}" class="notice-action">
+    {{/* An undo that returns to this page redraws its list in place, as the action it undoes did (ADR 13). */}}
+    <form method="post" action="{{.Path}}" class="notice-action"{{ if eq (.Fields.Get "next") $.g.GlobalData.URL.RequestURI }}{{ template "swap-main" .Path }}{{ end }}>
       {{ range $name, $values := .Fields }}{{ range $values }}<input type="hidden" name="{{$name}}" value="{{.}}">{{ end }}{{ end }}
       <button class="button-link">{{.Label}}</button>
     </form>
@@ -16,9 +17,9 @@
 </dialog>
 {{ end }}
 
-{{/* dict: g. */}}
+{{/* dict: g [oob]. */}}
 {{ define "notices" }}
-<div class="notices">
+<div class="notices" id="notices"{{ if .oob }} hx-swap-oob="true"{{ end }}>
   {{ with .g.GlobalData.Notice }}{{ template "notice" (dict "g" $.g "kind" .Kind "text" .Text "markup" .Markup "actions" .Actions) }}{{ end }}
   {{ template "notice" (dict "g" .g "kind" "failed" "id" "script-failed" "closed" true) }}
   {{ if .g.GlobalData.LoggedIn }}

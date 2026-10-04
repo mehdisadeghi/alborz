@@ -107,7 +107,7 @@ func (p *plugin) handleUnifiedMailbox(ctx *web.Context) error {
 	data.Crumb = []CrumbLink{{Label: named, URL: ctx.Path("mail.mailbox", role)}}
 	data.Outgoing = role == "Sent" || role == "Drafts"
 	data.Merged, data.Role = true, role
-	return ctx.Render(http.StatusOK, listTemplate(ctx), data)
+	return ctx.Render(http.StatusOK, "mail/mailbox", data)
 }
 
 func listPage(ctx *web.Context, ask mail.ListAsk, l *mail.Listing) *MailboxRenderData {
@@ -180,7 +180,7 @@ func (p *plugin) handleGetMailbox(ctx *web.Context) error {
 	data.Outgoing = mail.Outgoing(sb.Mailboxes, mboxName)
 	data.ThreadSupported = list.ThreadAlgorithm != ""
 	data.Threaded = ask.Sort == mail.SortThread && list.ThreadAlgorithm != ""
-	return ctx.Render(http.StatusOK, listTemplate(ctx), data)
+	return ctx.Render(http.StatusOK, "mail/mailbox", data)
 }
 
 // A star view keeps the narrowing and order already in force.
@@ -682,14 +682,6 @@ func (p *plugin) handleDelete(ctx *web.Context) error {
 	}, landOn(ctx, back))
 }
 
-// Anything but a narrowing gets the whole page (TODO 126).
-func listTemplate(ctx *web.Context) string {
-	if ctx.PartialFor("main") {
-		return "message-list"
-	}
-	return "mail/mailbox"
-}
-
 // StarRenderData is one message's star, re-rendered when a mark is set from a row.
 type StarRenderData struct {
 	web.BaseRenderData
@@ -720,9 +712,12 @@ func (p *plugin) handleSetFlags(ctx *web.Context) error {
 		// A single star renders from what was just stored, without rebuilding the listing.
 		// A star the list is narrowed to, once changed, takes the row out of the list.
 		back := ctx.NextOr(mailboxURL(ctx, mboxName))
-		oneStar := ctx.Partial() && len(uids) == 1
+		oneStar := ctx.Fragment() && !ctx.PartialFor("main") && len(uids) == 1
 		leaves := oneStar && web.StarLeaves(ctx.FormValue("next"), color[0])
 		return runAct(ctx, mail.FolderRefs(ctx.Login.Username(), mboxName, uids), p.Colour(add, del), func(int) web.Notice {
+			if ctx.FormValue("undo") != "" {
+				return web.Notice{Kind: web.NoticeDone, Text: ctx.T("notice.undone")}
+			}
 			if !leaves {
 				return web.Notice{}
 			}
@@ -734,7 +729,7 @@ func (p *plugin) handleSetFlags(ctx *web.Context) error {
 			case !oneStar:
 				return ctx.Redirect(http.StatusFound, back)
 			case leaves || !done:
-				return ctx.Relocate(back)
+				return ctx.Redraw(back)
 			}
 			star := &StarRenderData{
 				BaseRenderData: *web.NewBaseRenderData(ctx),

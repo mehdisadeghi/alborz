@@ -4,9 +4,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
+
+	"golang.org/x/net/html"
 
 	. "git.mehdix.org/alborz/internal/alborztest"
 	"git.mehdix.org/alborz/web"
@@ -134,4 +137,45 @@ func TestAPollFromASignedOutPageDrawsNothing(t *testing.T) {
 	if resp := c.Do(t, req); resp.StatusCode != http.StatusNoContent || resp.Text != "" {
 		t.Errorf("a signed-out page's poll answered %s with %d bytes", resp.Status, len(resp.Text))
 	}
+}
+
+// htmx finds a preserved element, and some targets, by '#'+id unescaped: an id an address went into whole
+// is no selector, and the swap stops half done.
+func TestIdsHtmxSelectAreCSSIdentifiers(t *testing.T) {
+	a := Alborz(t)
+	c := a.SignIn(t, User)
+	turnOn(t, c, "mail", "date-gregorian")
+	doc, err := html.Parse(strings.NewReader(c.Follow(t, a.Path("mail.mailbox", "INBOX")+"?account="+User)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ids []string
+	for n := range doc.Descendants() {
+		for _, attr := range n.Attr {
+			switch {
+			case attr.Key == "hx-preserve":
+				ids = append(ids, attrOf(n, "id"))
+			case attr.Key == "hx-target" && strings.HasPrefix(attr.Val, "#"):
+				ids = append(ids, attr.Val[1:])
+			}
+		}
+	}
+	if len(ids) == 0 {
+		t.Fatal("no preserved or targeted ids on the page; the check is vacuous")
+	}
+	ident := regexp.MustCompile(`^-?[A-Za-z_][A-Za-z0-9_-]*$`)
+	for _, id := range ids {
+		if !ident.MatchString(id) {
+			t.Errorf("id %q is not a CSS identifier", id)
+		}
+	}
+}
+
+func attrOf(n *html.Node, key string) string {
+	for _, attr := range n.Attr {
+		if attr.Key == key {
+			return attr.Val
+		}
+	}
+	return ""
 }

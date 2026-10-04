@@ -196,6 +196,14 @@ func (p *plugin) taskList(ctx *web.Context) (TaskList, error) {
 // request's scope, and every list for the rail, with the lists and tasks it could not read;
 // params go into each row's link.
 func (p *plugin) shownTasks(ctx *web.Context, only map[string]bool, view string, q search.Query, params url.Values) ([]TaskRow, []dav.Collection, []pim.Unread, error) {
+	star := view
+	if view == viewCompleted || view == viewAll || view == viewHigh {
+		star = ""
+	}
+	q, starred, err := web.StarFilter(q, star)
+	if err != nil {
+		return nil, nil, nil, web.NewError(http.StatusBadRequest, err.Error())
+	}
 	accounts, err := p.pooledCalendars(ctx)
 	if err != nil {
 		return nil, nil, nil, err
@@ -220,7 +228,7 @@ func (p *plugin) shownTasks(ctx *web.Context, only map[string]bool, view string,
 				unread = append(unread, calendar.Unparsed(result.Site.Collection.Name, &task))
 				continue
 			}
-			if taskShown(calendar.FirstTodo(task.Data), view, q) {
+			if taskShown(calendar.FirstTodo(task.Data), view, starred, q) {
 				rows = append(rows, taskRow(ctx, &task, result.Site.Collection, loc, params))
 			}
 		}
@@ -232,9 +240,9 @@ func taskTie(row TaskRow) string {
 	return strings.ToLower(row.Task.Account + "\x00" + row.Calendar.Name + "\x00" + row.Summary)
 }
 
-// taskShown says whether a to-do is on the list a view and a query make: open ones unless the view
-// says otherwise, the star the view names, the words in its summary or description.
-func taskShown(todo *ical.Component, view string, q search.Query) bool {
+// taskShown says whether a to-do is on the list a view, its stars and a query make: open ones unless
+// the view says otherwise, the stars kept, the words in its summary or description.
+func taskShown(todo *ical.Component, view string, starred func(string) bool, q search.Query) bool {
 	if todo == nil {
 		return false
 	}
@@ -243,11 +251,7 @@ func taskShown(todo *ical.Component, view string, q search.Query) bool {
 	if (status == "COMPLETED") != (view == viewCompleted) && view != viewAll {
 		return false
 	}
-	star := view
-	if view == viewCompleted || view == viewAll || view == viewHigh {
-		star = ""
-	}
-	if !web.StarMatches(calendar.ComponentColor(todo), star) {
+	if !starred(calendar.ComponentColor(todo)) {
 		return false
 	}
 	if view == viewHigh && calendar.PriorityBand(todo) != calendar.PriorityHigh {

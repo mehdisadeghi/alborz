@@ -92,6 +92,24 @@ func TestSearchFindsARedStarInEverySection(t *testing.T) {
 	if mail, _ := block(t, page, "mail"); strings.Count(mail, `class="message-row`) != 1 {
 		t.Errorf("mail shows %d rows for one red message", strings.Count(mail, `class="message-row`))
 	}
+
+	// The star asked in words, which each section reads itself; the seeded mail has no word Marked.
+	for kind, query := range map[string]string{"mail": "is:red", "events": "is:red Marked", "tasks": "is:red Marked", "contacts": "is:red Marked"} {
+		b, all := block(t, c.Page(t, "core.search", url.Values{"query": {query}}), kind)
+		if all == "" || !strings.Contains(b, "1 result in") {
+			t.Errorf("%s: want one red row for %q, got %q", kind, query, b)
+			continue
+		}
+		if list := c.Follow(t, all); !strings.Contains(list, "flag-red") {
+			t.Errorf("%s's own list at %s shows no red star", kind, all)
+		}
+	}
+	if b, _ := block(t, c.Page(t, "core.search", url.Values{"query": {"-is:red"}}), "tasks"); !strings.Contains(b, "Plain") || strings.Contains(b, "Marked") {
+		t.Errorf("tasks do not leave the red one out of -is:red: %q", b)
+	}
+	if resp := c.Get(t, "core.search", url.Values{"query": {"is:red is:blue"}, "section": {"mail"}}); resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("mail answers two colours with %s", resp.Status)
+	}
 }
 
 // A word is matched by IMAP SEARCH, by the task and event fields, and by a CardDAV query.

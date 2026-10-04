@@ -75,6 +75,10 @@ func searchFilters(ctx *web.Context) []web.Filter {
 // eventSearch is every event in the calendars in scope that a view and a query find, those under way
 // or to come first, soonest first, then the past, latest first.
 func (p *plugin) eventSearch(ctx *web.Context, only map[string]bool, view string, q search.Query) (*EventSearchRenderData, error) {
+	q, starred, err := web.StarFilter(q, view)
+	if err != nil {
+		return nil, web.NewError(http.StatusBadRequest, err.Error())
+	}
 	accounts, err := p.pooledCalendars(ctx)
 	if err != nil {
 		return nil, err
@@ -93,7 +97,7 @@ func (p *plugin) eventSearch(ctx *web.Context, only map[string]bool, view string
 			unread = append(unread, pim.Unread{Collection: obj.Calendar, Err: err})
 		}
 		for _, oc := range occurrences {
-			if eventShown(oc, view, q) {
+			if eventShown(oc, starred, q) {
 				found = append(found, oc)
 			}
 		}
@@ -123,8 +127,8 @@ func (p *plugin) eventSearch(ctx *web.Context, only map[string]bool, view string
 }
 
 // eventShown says whether an occurrence answers a view and a query in its summary, description or place.
-func eventShown(oc calendar.Occurrence, view string, q search.Query) bool {
-	if !web.StarMatches(oc.Star(), view) {
+func eventShown(oc calendar.Occurrence, starred func(string) bool, q search.Query) bool {
+	if !starred(oc.Star()) {
 		return false
 	}
 	description, _ := oc.Event.Props.Text(ical.PropDescription)
@@ -134,6 +138,9 @@ func eventShown(oc calendar.Occurrence, view string, q search.Query) bool {
 
 // foundEvents is the events' part in the search across sections.
 func (p *plugin) foundEvents(ctx *web.Context, q search.Query, view string, limit int) (web.Found, error) {
+	if unasked := web.StarUnasked(q); unasked != nil {
+		return web.Found{Unasked: unasked}, nil
+	}
 	data, err := p.eventSearch(ctx, nil, view, q)
 	if err != nil {
 		return web.Found{}, err
@@ -146,6 +153,9 @@ func (p *plugin) foundEvents(ctx *web.Context, q search.Query, view string, limi
 
 // foundTasks is the tasks' part in the search across sections, in the list's own order.
 func (p *plugin) foundTasks(ctx *web.Context, q search.Query, view string, limit int) (web.Found, error) {
+	if unasked := web.StarUnasked(q); unasked != nil {
+		return web.Found{Unasked: unasked}, nil
+	}
 	params := pimweb.ListParams(ctx, taskListParams...)
 	params.Set("from", ctx.Request().URL.RequestURI())
 	rows, _, unread, err := p.shownTasks(ctx, nil, view, q, params)

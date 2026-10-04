@@ -103,6 +103,34 @@ func TestAddToContactsWritesTheChosenBook(t *testing.T) {
 	}
 }
 
+// A copy kept while alborz was down may be any age behind its server: refilled there under a new
+// token, as a seed recreates a book, it shows the server's cards on its first read, not the old ones.
+func TestABookRefilledWhileAlborzWasDownShowsItsNewCards(t *testing.T) {
+	book := DAVBooks + "contacts/"
+	card := func(uid, name string) string {
+		return "BEGIN:VCARD\r\nVERSION:3.0\r\nUID:" + uid + "\r\nFN:" + name + "\r\nEND:VCARD\r\n"
+	}
+	d := DAV(t, Book(book, "Contacts"),
+		Object(book+"ada.vcf", card("ada", "Ada Lovelace")), Object(book+"emmy.vcf", card("emmy", "Emmy Noether")))
+	data, cache := DataDir(t.TempDir()), CacheDir(t.TempDir())
+
+	a := Alborz(t, WithDAV(d), data, cache)
+	page := a.SignIn(t, User).Page(t, "contacts.list")
+	if !strings.Contains(page, "Ada Lovelace") || !strings.Contains(page, "Emmy Noether") {
+		t.Fatalf("the list does not show both cards before the book is refilled")
+	}
+	a.Close()
+
+	d.Apply(Removed(book+"ada.vcf", book+"emmy.vcf"), Object(book+"parvin.vcf", card("parvin", "Parvin Etesami")), SyncToken("2"))
+	page = Alborz(t, WithDAV(d), data, cache).SignIn(t, User).Page(t, "contacts.list")
+	if !strings.Contains(page, "Parvin Etesami") {
+		t.Errorf("the list does not show the card the server holds now")
+	}
+	if strings.Contains(page, "Ada Lovelace") || strings.Contains(page, "Emmy Noether") {
+		t.Errorf("the list still shows cards the server no longer holds")
+	}
+}
+
 // A card alborz cannot read costs the page only itself and a notice naming its book, and a book its
 // server cannot serve costs only itself; the card's own page says it cannot be read, and nothing is
 // written over it.

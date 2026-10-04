@@ -316,7 +316,12 @@ const enhance = () => {
 		const ownItems = menu.children.length;
 		// Held at full size while measuring: a flex-shrunk title spills unseen by scrollWidth.
 		const pinned = wrap.querySelectorAll(":scope > .actions-message, :scope > .actions-end, .actions-message h1");
-		const pin = on => { for (const el of pinned) { el.style.flexShrink = on ? "0" : ""; } };
+		const pin = on => {
+			for (const el of pinned) {
+				el.style.flexShrink = on ? "0" : "";
+				el.style.width = on ? "auto" : "";
+			}
+		};
 		let items = [];
 		let parts = [];
 		let fitting = false;

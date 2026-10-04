@@ -1106,6 +1106,7 @@
 "push.event" = "Event at %s"
 "notifications.kept" = "Turning notifications on keeps this account signed in on the server, so mail and reminders are checked while the app is closed. It ends when notifications are turned off for this browser or this browser signs out."
 "nav.journal" = "Journal"
+"journal.search" = "Journal"
 "title.journal" = "Journal"
 "journal.journal" = "Journal"
 "journal.new" = "New entry"

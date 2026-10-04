@@ -83,6 +83,7 @@ func walkedKinds() []walked {
 			views: [][]any{
 				{"calendar.journal", url.Values{"category": {"Walks"}}},
 				{"calendar.journal", url.Values{"query": {"walked text"}}},
+				{"core.search", url.Values{"query": {"walked text"}}},
 			},
 			sorts:     []string{"date", "summary", "starred", "account", "calendar", "added"},
 			collField: "cal", collection: CalendarsOf(User) + "diary/", collName: "Diary", ext: ".ics", mime: "text/calendar", body: entryToday,

@@ -173,3 +173,26 @@ func (p *plugin) foundTasks(ctx *web.Context, q search.Query, view string, limit
 	}
 	return web.Found{Rows: &TasksRenderData{Tasks: shown}, Total: len(rows), All: ctx.SearchURL("calendar.tasks", q, view)}, nil
 }
+
+// foundJournal is the journal's part in the search across sections, in the list's own order.
+func (p *plugin) foundJournal(ctx *web.Context, q search.Query, view string, limit int) (web.Found, error) {
+	if unasked := web.StarUnasked(q); unasked != nil {
+		return web.Found{Unasked: unasked}, nil
+	}
+	params := pimweb.ListParams(ctx, journalListParams...)
+	params.Set("from", ctx.Request().URL.RequestURI())
+	rows, _, unread, err := p.shownEntries(ctx, nil, view, "", q, params)
+	if err != nil {
+		return web.Found{}, err
+	}
+	pimweb.WarnUnread(ctx, unread)
+	if _, err := pimweb.Sort(ctx, rows, entryColumns, entryTie); err != nil {
+		return web.Found{}, err
+	}
+	shown := rows[:min(limit, len(rows))]
+	addedBy := p.DAV.AddedBy(ctx.Login.Username())
+	for i := range shown {
+		shown[i].AddedBy = addedBy(shown[i].Calendar.Account, shown[i].Path)
+	}
+	return web.Found{Rows: &JournalRenderData{Entries: shown}, Total: len(rows), All: ctx.SearchURL("calendar.journal", q, view)}, nil
+}

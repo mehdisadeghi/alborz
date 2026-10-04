@@ -26,9 +26,9 @@ func handleLogin(ctx *web.Context) error {
 		Add:            add,
 	}
 	if add {
-		renderData.BaseRenderData.WithTitle(ctx.T("login.add"))
+		renderData.WithTitle(ctx.T("login.add"))
 	} else {
-		renderData.BaseRenderData.WithTitle(ctx.T("login.short"))
+		renderData.WithTitle(ctx.T("login.short"))
 	}
 
 	// Remembered credentials re-login existing accounts; they cannot add one.
@@ -37,7 +37,7 @@ func handleLogin(ctx *web.Context) error {
 	}
 
 	if ctx.Request().Method == http.MethodPost && (username == "" || password == "") {
-		renderData.BaseRenderData.GlobalData.Notice = &web.Notice{Kind: web.NoticeFailed, Text: ctx.T("notice.loginmissing")}
+		renderData.GlobalData.Notice = &web.Notice{Kind: web.NoticeFailed, Text: ctx.T("notice.loginmissing")}
 		return ctx.Render(http.StatusUnprocessableEntity, "login", &renderData)
 	}
 
@@ -50,7 +50,7 @@ func handleLogin(ctx *web.Context) error {
 			if text == "" {
 				return fmt.Errorf("failed to put connection in pool: %w", err)
 			}
-			renderData.BaseRenderData.GlobalData.Notice = &web.Notice{Kind: web.NoticeFailed, Text: text}
+			renderData.GlobalData.Notice = &web.Notice{Kind: web.NoticeFailed, Text: text}
 			return ctx.Render(status, "login", &renderData)
 		}
 		ctx.AddAccount(s)

@@ -159,6 +159,6 @@ func (p passwdServer) change(user, current, next string) error {
 		return err
 	}
 	// The password has changed; how the server takes leave does not matter.
-	ask("quit")
+	_ = ask("quit")
 	return nil
 }

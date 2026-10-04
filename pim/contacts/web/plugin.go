@@ -41,7 +41,7 @@ func Mount(g *web.Group, st *store.Store) error {
 	srv.Searchers = append(srv.Searchers, web.Searcher{Kind: "contacts", Answers: []string{web.StarKey}, Rows: "contacts-found", Search: p.found})
 	web.Extend(srv, p.collectionPage().ShowOffer(p.DAV))
 	// Calendar registers first, so the collections on alborz come last.
-	srv.OnServers = append(srv.OnServers, pimweb.Cards(p.DAV, "settings.davcontacts", bookAbilities), pimweb.HereCard(p.DAV))
+	srv.OnServers = append(srv.OnServers, pimweb.Cards(p.DAV, "settings.davcontacts", bookAbilities), pimweb.HereCard)
 	srv.OnAccountReady = append(srv.OnAccountReady, p.warm, p.seed)
 
 	// A card attached to a mail is filed from its own row.

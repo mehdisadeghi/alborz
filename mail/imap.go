@@ -796,9 +796,8 @@ func (node IMAPPartNode) IsText() bool {
 func (node IMAPPartNode) String() string {
 	if node.Filename != "" {
 		return fmt.Sprintf("%s (%s)", node.Filename, node.MIMEType)
-	} else {
-		return node.MIMEType
 	}
+	return node.MIMEType
 }
 
 func imapPartTree(msg *IMAPMessage, bs imap.BodyStructure, path []int) *IMAPPartNode {
@@ -1593,10 +1592,6 @@ func (node IMAPPartNode) Cut() bool {
 	return node.octets > partReadMax
 }
 
-func getMessagePart(conn *imapclient.Client, mboxName string, uid imap.UID, partPath []int) (*IMAPMessage, *message.Entity, error) {
-	return fetchMessagePart(conn, mboxName, uid, partPath, false)
-}
-
 // getShownPart is the part as a page reads it, cut at partReadMax.
 func getShownPart(conn *imapclient.Client, mboxName string, uid imap.UID, partPath []int) (*IMAPMessage, *message.Entity, error) {
 	return fetchMessagePart(conn, mboxName, uid, partPath, true)
@@ -1751,7 +1746,7 @@ func streamSection(c *imapclient.Client, uid imap.UID, options *imap.FetchOption
 			if err := use(lit); err != nil {
 				// The client waits for the literal to be read out; closed, it ends at once.
 				go c.Close()
-				io.Copy(io.Discard, lit)
+				_, _ = io.Copy(io.Discard, lit)
 				return err
 			}
 		}
@@ -1810,7 +1805,7 @@ type MessageAttachment struct {
 
 func (a *MessageAttachment) WriteTo(w io.Writer) (n int64, err error) {
 	err = a.transfer(func(c *imapclient.Client) error {
-		n, err = copySection(w, c, a.Path.Mailbox, a.Path.Uid, nil, "")
+		n, err = copySection(w, c, a.Path.Mailbox, a.Path.UID, nil, "")
 		return err
 	})
 	return n, err
@@ -1944,7 +1939,7 @@ func appendMessage(c *imapclient.Client, body io.ReadSeeker, role string) (*Mail
 		return nil, 0, err
 	}
 	if mbox == nil {
-		return nil, 0, fmt.Errorf("Unable to resolve mailbox")
+		return nil, 0, errors.New("unable to resolve mailbox")
 	}
 
 	size, err := body.Seek(0, io.SeekEnd)

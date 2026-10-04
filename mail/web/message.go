@@ -243,7 +243,7 @@ func (p *plugin) handleGetPart(ctx *web.Context) error {
 
 	ibase := assembleIMAPBase(ctx, web.NewBaseRenderData(ctx), mboxName, shown.Rail, railView)
 	ibase.SidebarAccounts = p.sidebarAccounts(ctx)
-	ibase.BaseRenderData.WithTitle(msg.Envelope.Subject).WithItem()
+	ibase.WithTitle(msg.Envelope.Subject).WithItem()
 	mbox := ibase.Mailbox
 
 	nav := neighbours(ctx, mbox.Name(), shown.Place)

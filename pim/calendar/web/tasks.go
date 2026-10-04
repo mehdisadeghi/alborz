@@ -133,11 +133,11 @@ func quickListOf(ctx *web.Context, calendars []dav.Collection) *quickList {
 }
 
 func taskRows(ctx *web.Context, view string) []web.FilterRow {
-	clear := ctx.WithoutParam("view")
+	reset := ctx.WithoutParam("view")
 	row := func(label, name string) web.FilterRow {
 		href := ctx.WithParam("view", name)
 		if name == view {
-			href = clear
+			href = reset
 		}
 		return web.FilterRow{Label: label, Href: href, Current: name == view}
 	}
@@ -146,7 +146,7 @@ func taskRows(ctx *web.Context, view string) []web.FilterRow {
 		row(ctx.T("tasks.all"), viewAll),
 		row(ctx.T("tasks.priorityhigh"), viewHigh),
 	}
-	return append(rows, web.ViewRows(ctx, view, false, clear)...)
+	return append(rows, web.ViewRows(ctx, view, false, reset)...)
 }
 
 // TaskList is the list page's rows in order, their lists, and what shaped them.
@@ -306,7 +306,7 @@ func (p *plugin) tasks(ctx *web.Context) error {
 		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("title.tasks")),
 		Quick:          quickListOf(ctx, list.Calendars),
 		View:           list.View,
-		Filters:        calendarFilters(ctx, list.Calendars),
+		Filters:        calendarFilters(ctx),
 		FilterRows:     taskRows(ctx, list.View),
 		Calendars:      list.Calendars,
 		Tasks:          rows,

@@ -29,7 +29,7 @@ type EventRenderData struct {
 	web.BaseRenderData
 	Rail     pimweb.Rail
 	Calendar *dav.Collection
-	Event    calendar.CalendarObject
+	Event    calendar.Object
 	// Authors are who added and last changed the object, where another account.
 	Authors dav.Authors
 	// List is the view the page was opened from.
@@ -209,7 +209,7 @@ func (p *plugin) event(ctx *web.Context) error {
 		List:           eventList(ctx),
 		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(summary).WithItem(),
 		Calendar:       coll,
-		Event:          calendar.CalendarObject{CalendarObject: event, ReadOnly: !coll.Writable},
+		Event:          calendar.Object{CalendarObject: event, ReadOnly: !coll.Writable},
 		Star:           calendar.ComponentColor(vevents[0].Component),
 		Neighbours:     pimweb.Around(items, path),
 		Authors:        p.DAV.Authors(event.Path, ctx.Login.Username()),
@@ -345,7 +345,7 @@ func (p *plugin) updateEvent(ctx *web.Context) error {
 			if start.After(end) {
 				return reject(ctx.T("form.endbeforestart"))
 			}
-			if start == end {
+			if start.Equal(end) {
 				end = start.Add(24 * time.Hour)
 			}
 		}

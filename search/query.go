@@ -55,7 +55,7 @@ func bareTerms(run string) []Term {
 		value, not := strings.CutPrefix(word, "-")
 		quoted := strings.HasPrefix(value, `"`)
 		value = strings.ReplaceAll(value, `"`, "")
-		if value == "" || !(not || quoted) {
+		if value == "" || !not && !quoted {
 			words = append(words, word)
 			continue
 		}
@@ -140,7 +140,9 @@ func splitSearchTokens(buf []byte, atEOF bool) (int, []byte, error) {
 			term = i
 			break
 		}
-		for i = word; i < len(rest) && rest[i] == ' '; i++ {
+		i = word
+		for i < len(rest) && rest[i] == ' ' {
+			i++
 		}
 	}
 	switch {

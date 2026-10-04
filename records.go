@@ -44,11 +44,11 @@ func (v vault) read(sealed []byte, out any) bool {
 }
 
 func (v vault) load(k string, out any) (ok bool) {
-	v.db.View(func(tx kv.Tx) error {
+	err := v.db.View(func(tx kv.Tx) error {
 		ok = v.read(tx.Get(k), out)
 		return nil
 	})
-	return ok
+	return err == nil && ok
 }
 
 // save keeps what a newer version put there (ADR 26).

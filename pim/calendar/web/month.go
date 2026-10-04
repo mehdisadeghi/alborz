@@ -24,7 +24,7 @@ type CalendarRenderData struct {
 	ThisMonth          bool
 	Dates              []time.Time
 	Calendars          []dav.Collection
-	Events             []calendar.CalendarObject
+	Events             []calendar.Object
 	Page               string
 	View               string
 	PrevPage, NextPage string
@@ -71,7 +71,7 @@ type monthView struct {
 	nextTime  time.Time
 	accounts  int
 	calendars []dav.Collection
-	events    []calendar.CalendarObject
+	events    []calendar.Object
 	dates     []time.Time
 	on        map[time.Time][]calendar.Occurrence
 	day       func(time.Time) time.Time
@@ -135,7 +135,7 @@ func (p *plugin) month(ctx *web.Context) error {
 			}
 			return mv.view
 		}(),
-		Filters:    calendarFilters(ctx, mv.calendars),
+		Filters:    calendarFilters(ctx),
 		FilterRows: agendaRows(ctx, mv),
 		GroupRows:  groupRows(ctx, mv),
 		Group:      mv.group,

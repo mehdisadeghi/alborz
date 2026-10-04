@@ -48,7 +48,7 @@ func (o Outgoing) Remote(timeout time.Duration) *http.Client {
 	return &http.Client{
 		Timeout:   timeout,
 		Transport: httpsOnly{o.Guarded},
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		CheckRedirect: func(_ *http.Request, via []*http.Request) error {
 			if len(via) >= maxRemoteRedirects {
 				return errors.New("too many redirects")
 			}
@@ -140,7 +140,7 @@ func (t httpsOnly) RoundTrip(req *http.Request) (*http.Response, error) {
 }
 
 // refuseLocal refuses loopback, link-local and private addresses at dial time.
-func refuseLocal(network, address string, _ syscall.RawConn) error {
+func refuseLocal(_, address string, _ syscall.RawConn) error {
 	host, _, err := net.SplitHostPort(address)
 	if err != nil {
 		return err

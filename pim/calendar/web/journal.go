@@ -174,8 +174,8 @@ func entryRow(ctx *web.Context, obj *caldav.CalendarObject, cal dav.Collection, 
 	}
 }
 
-func journalFilters(ctx *web.Context, calendars []dav.Collection) []web.Filter {
-	out := calendarFilters(ctx, calendars)
+func journalFilters(ctx *web.Context) []web.Filter {
+	out := calendarFilters(ctx)
 	if f, ok := ctx.FilterOn("category", ctx.T("filter.category")); ok {
 		out = append(out, f)
 	}
@@ -203,7 +203,7 @@ func (p *plugin) journal(ctx *web.Context) error {
 	return ctx.Render(http.StatusOK, "journal/list", &JournalRenderData{
 		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("title.journal")),
 		View:           list.View,
-		Filters:        journalFilters(ctx, list.Calendars),
+		Filters:        journalFilters(ctx),
 		FilterRows:     web.ViewRows(ctx, list.View, false, ctx.WithoutParam("view")),
 		Calendars:      list.Calendars,
 		Entries:        rows,

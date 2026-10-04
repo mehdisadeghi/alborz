@@ -705,12 +705,12 @@ func (sm *loginManager) reap(s *Login) {
 	timer.Stop()
 	s.Close()
 
-	s.imapLocker.acquire(context.Background(), nil, false)
+	_ = s.imapLocker.acquire(context.Background(), nil, false)
 	if s.imapConn != nil {
 		s.imapConn.Close()
 	}
 	s.imapLocker.release()
-	s.workLocker.acquire(context.Background(), nil, false)
+	_ = s.workLocker.acquire(context.Background(), nil, false)
 	if s.workConn != nil {
 		s.workConn.Close()
 	}

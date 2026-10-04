@@ -279,34 +279,32 @@ func (pg Page) HandleImportTooLarge(ctx *web.Context) error {
 }
 
 // HandleImport writes an uploaded file into the collection.
-func (pg Page) HandleImport(p *dav.Provider) func(*web.Context) error {
-	return func(ctx *web.Context) error {
-		collPath := ctx.Param("path")
-		collPath = dav.CanonicalCollectionPath(collPath)
-		if _, _, _, _, err := pg.Lookup(ctx, collPath); err != nil {
-			return err
-		}
-		back := ctx.NextOr(pg.pageOf(ctx, collPath))
-		file, err := ctx.FormFile("file")
-		if err == nil && file.Size() > pim.MaxImportSize {
-			ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: importTooLarge(ctx)})
-			return ctx.Redirect(http.StatusFound, back)
-		}
-		if err != nil {
-			return web.NewError(http.StatusBadRequest, "no file was sent")
-		}
-		raw, err := io.ReadAll(file.Open())
-		if err != nil {
-			return err
-		}
-		if err := pg.importRaw(ctx, collPath, raw); pim.ImportAnswered(err) {
-			ctx.Notify(ImportRefused(ctx, err))
-			return ctx.Redirect(http.StatusFound, back)
-		} else if err != nil {
-			return err
-		}
+func (pg Page) HandleImport(ctx *web.Context) error {
+	collPath := ctx.Param("path")
+	collPath = dav.CanonicalCollectionPath(collPath)
+	if _, _, _, _, err := pg.Lookup(ctx, collPath); err != nil {
+		return err
+	}
+	back := ctx.NextOr(pg.pageOf(ctx, collPath))
+	file, err := ctx.FormFile("file")
+	if err == nil && file.Size() > pim.MaxImportSize {
+		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: importTooLarge(ctx)})
 		return ctx.Redirect(http.StatusFound, back)
 	}
+	if err != nil {
+		return web.NewError(http.StatusBadRequest, "no file was sent")
+	}
+	raw, err := io.ReadAll(file.Open())
+	if err != nil {
+		return err
+	}
+	if err := pg.importRaw(ctx, collPath, raw); pim.ImportAnswered(err) {
+		ctx.Notify(ImportRefused(ctx, err))
+		return ctx.Redirect(http.StatusFound, back)
+	} else if err != nil {
+		return err
+	}
+	return ctx.Redirect(http.StatusFound, back)
 }
 
 // fetchAddress reads a calendar from an address once, unlike a subscription; webcal: is https:.
@@ -659,48 +657,46 @@ func (pg Page) HandleImportPage(p *dav.Provider, list, section, title, hint, key
 }
 
 // HandleExport sends the collection as one file; a date range narrows a calendar.
-func (pg Page) HandleExport(p *dav.Provider) func(*web.Context) error {
-	return func(ctx *web.Context) error {
-		collPath := ctx.Param("path")
-		collPath = dav.CanonicalCollectionPath(collPath)
-		info, _, _, _, err := pg.Lookup(ctx, collPath)
-		if err != nil {
-			return err
-		}
-		var from, to time.Time
-		for _, bound := range []struct {
-			name string
-			into *time.Time
-		}{{"from", &from}, {"to", &to}} {
-			if v := ctx.QueryParam(bound.name); v != "" {
-				t, err := time.Parse("2006-01-02", v)
-				if err != nil {
-					return web.NewError(http.StatusBadRequest, err)
-				}
-				*bound.into = t
-			}
-		}
-		if !to.IsZero() {
-			// The form names the last day; the range ends after it.
-			to = to.AddDate(0, 0, 1)
-		}
-		body, err := pg.Export(ctx, collPath, from, to)
-		if errors.Is(err, pim.ErrNothingToExport) {
-			ctx.Notify(web.Notice{Kind: web.NoticeWarning, Text: ctx.T("export.empty")})
-			return ctx.Redirect(http.StatusFound, pg.pageOf(ctx, collPath))
-		}
-		if err := LeftOut(ctx, err); err != nil {
-			return err
-		}
-		if len(body) == 0 {
-			return ctx.Redirect(http.StatusFound, pg.pageOf(ctx, collPath))
-		}
-		name := info.Name
-		if name == "" {
-			name = "export"
-		}
-		return Download(ctx, name+pg.Ext, body)
+func (pg Page) HandleExport(ctx *web.Context) error {
+	collPath := ctx.Param("path")
+	collPath = dav.CanonicalCollectionPath(collPath)
+	info, _, _, _, err := pg.Lookup(ctx, collPath)
+	if err != nil {
+		return err
 	}
+	var from, to time.Time
+	for _, bound := range []struct {
+		name string
+		into *time.Time
+	}{{"from", &from}, {"to", &to}} {
+		if v := ctx.QueryParam(bound.name); v != "" {
+			t, err := time.Parse("2006-01-02", v)
+			if err != nil {
+				return web.NewError(http.StatusBadRequest, err)
+			}
+			*bound.into = t
+		}
+	}
+	if !to.IsZero() {
+		// The form names the last day; the range ends after it.
+		to = to.AddDate(0, 0, 1)
+	}
+	body, err := pg.Export(ctx, collPath, from, to)
+	if errors.Is(err, pim.ErrNothingToExport) {
+		ctx.Notify(web.Notice{Kind: web.NoticeWarning, Text: ctx.T("export.empty")})
+		return ctx.Redirect(http.StatusFound, pg.pageOf(ctx, collPath))
+	}
+	if err := LeftOut(ctx, err); err != nil {
+		return err
+	}
+	if len(body) == 0 {
+		return ctx.Redirect(http.StatusFound, pg.pageOf(ctx, collPath))
+	}
+	name := info.Name
+	if name == "" {
+		name = "export"
+	}
+	return Download(ctx, name+pg.Ext, body)
 }
 
 // HandleExportAll zips every readable collection of the section whose list is the route list.
@@ -747,7 +743,9 @@ func (pg Page) HandleExportAll(list, filename string) func(*web.Context) error {
 			return err
 		}
 		if left.Left > 0 {
-			LeftOut(ctx, &left)
+			if err := LeftOut(ctx, &left); err != nil {
+				return err
+			}
 		}
 		return Download(ctx, filename, buf.Bytes())
 	}

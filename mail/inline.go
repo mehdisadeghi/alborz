@@ -17,15 +17,15 @@ import (
 
 var imageSrc = regexp.MustCompile(`(?i)(<img\b[^>]*?\bsrc=")([^"]*)(")`)
 
-type inlineImage struct {
+type InlineImage struct {
 	Src       string
 	ContentID string
 	Attachment
 }
 
 // InlineImages are the images an HTML body shows, each once, as parts to send with it; open reads what a src names.
-func InlineImages(body, messageID string, open func(src string) (Attachment, error)) ([]inlineImage, error) {
-	var images []inlineImage
+func InlineImages(body, messageID string, open func(src string) (Attachment, error)) ([]InlineImage, error) {
+	var images []InlineImage
 	seen := map[string]bool{}
 	for _, m := range imageSrc.FindAllStringSubmatch(body, -1) {
 		src := html.UnescapeString(m[2])
@@ -37,7 +37,7 @@ func InlineImages(body, messageID string, open func(src string) (Attachment, err
 		if err != nil {
 			return nil, err
 		}
-		images = append(images, inlineImage{
+		images = append(images, InlineImage{
 			Src:        src,
 			ContentID:  fmt.Sprintf("%d.%s", len(images)+1, strings.Trim(messageID, "<>")),
 			Attachment: att,
@@ -63,7 +63,7 @@ func PartImage(ctx context.Context, login *alborz.Login, mboxName string, uid im
 	}
 	return &IMAPAttachment{
 		Mailbox:  mboxName,
-		Uid:      uid,
+		UID:      uid,
 		Node:     node,
 		Encoding: part.Encoding,
 		transfer: transferOf(ctx, login),
@@ -73,7 +73,7 @@ func PartImage(ctx context.Context, login *alborz.Login, mboxName string, uid im
 // ErrNotImage is a part a composed message shows that is no image.
 var ErrNotImage = errors.New("not an image")
 
-func cidImages(body string, images []inlineImage) string {
+func cidImages(body string, images []InlineImage) string {
 	cids := map[string]string{}
 	for _, im := range images {
 		cids[im.Src] = im.ContentID

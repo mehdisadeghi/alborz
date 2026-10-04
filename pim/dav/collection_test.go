@@ -107,7 +107,7 @@ func TestCreateCollectionWalksToAFreeAddress(t *testing.T) {
 
 	other := errors.New("server down")
 	if _, err := CreateCollection(context.Background(), "/cal/u/", "", "calendar",
-		func(_ context.Context, path string) error { return other }); !errors.Is(err, other) {
+		func(context.Context, string) error { return other }); !errors.Is(err, other) {
 		t.Errorf("a failure that is not a taken address was retried: %v", err)
 	}
 }

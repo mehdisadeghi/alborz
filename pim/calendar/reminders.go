@@ -45,7 +45,7 @@ func (p *Calendars) Reminders(ctx context.Context, login *alborz.Login, loc *tim
 			continue
 		}
 		for i := range objects {
-			occurrences, err := Occurrences(CalendarObject{CalendarObject: &objects[i]}, loc, start, end)
+			occurrences, err := Occurrences(Object{CalendarObject: &objects[i]}, loc, start, end)
 			errs = append(errs, err)
 			for _, o := range occurrences {
 				for _, alarm := range o.Event.Children {

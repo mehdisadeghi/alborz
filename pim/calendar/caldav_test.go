@@ -32,7 +32,7 @@ END:VCALENDAR
 	if err != nil {
 		t.Fatal(err)
 	}
-	obj := CalendarObject{CalendarObject: &caldav.CalendarObject{Data: cal}}
+	obj := Object{CalendarObject: &caldav.CalendarObject{Data: cal}}
 	from := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
 	got, err := Occurrences(obj, time.UTC, from, from.AddDate(0, 0, 7))
 	if err != nil {
@@ -83,7 +83,7 @@ END:VCALENDAR
 	if err != nil {
 		t.Fatal(err)
 	}
-	obj := CalendarObject{CalendarObject: &caldav.CalendarObject{Data: cal}}
+	obj := Object{CalendarObject: &caldav.CalendarObject{Data: cal}}
 	from := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
 	got, err := Occurrences(obj, time.UTC, from, from.AddDate(0, 0, 7))
 	if err != nil {

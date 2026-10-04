@@ -137,7 +137,7 @@ func FuzzSMIME(f *testing.F) {
 	f.Add(sig)
 	f.Add(sig[:len(sig)/2])
 	f.Add([]byte("not a signature at all"))
-	f.Fuzz(func(t *testing.T, sig []byte) {
+	f.Fuzz(func(_ *testing.T, sig []byte) {
 		smime("body", sig, []string{"gil@example.org"})
 	})
 }

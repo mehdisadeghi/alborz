@@ -88,7 +88,7 @@ func parseAttachedRef(s string) (mail.MessagePath, error) {
 	}
 	var p mail.MessagePath
 	var err error
-	p.Mailbox, p.Uid, err = mail.ParseMessageRef(s[:i], s[i+1:])
+	p.Mailbox, p.UID, err = mail.ParseMessageRef(s[:i], s[i+1:])
 	return p, err
 }
 
@@ -147,7 +147,7 @@ func attachedList(msg *mail.OutgoingMessage) []AttachedMessage {
 }
 
 func attachedRef(p mail.MessagePath) string {
-	return fmt.Sprintf("%s/%v", url.PathEscape(p.Mailbox), p.Uid)
+	return fmt.Sprintf("%s/%v", url.PathEscape(p.Mailbox), p.UID)
 }
 
 // The form shows only names; the send fetches the messages.
@@ -215,8 +215,8 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *mail.OutgoingMessage, opti
 			return err
 		}
 		render := func(status int, signature, errText string) error {
-			ibase.BaseRenderData.WithTitle(ctx.T("aside.compose"))
-			ibase.BaseRenderData.Refused(errText)
+			ibase.WithTitle(ctx.T("aside.compose"))
+			ibase.Refused(errText)
 			return ctx.Render(status, "mail/compose", &ComposeRenderData{
 				IMAPBaseRenderData: *ibase,
 				Message:            msg,
@@ -349,7 +349,7 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *mail.OutgoingMessage, opti
 
 			attachment := ctx.PeekAttachment(uuid)
 			if attachment == nil {
-				return fmt.Errorf("Unable to retrieve message attachment %s from session", uuid)
+				return fmt.Errorf("unable to retrieve message attachment %s from session", uuid)
 			}
 			msg.Attachments = append(msg.Attachments, formAttachment(attachment, uuid))
 			uploads = append(uploads, uuid)
@@ -381,7 +381,7 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *mail.OutgoingMessage, opti
 		})
 	}
 
-	ibase.BaseRenderData.WithTitle(ctx.T("aside.compose"))
+	ibase.WithTitle(ctx.T("aside.compose"))
 	data := &ComposeRenderData{
 		Identities:         composeIdentities(ctx, msg.From),
 		IMAPBaseRenderData: *ibase,
@@ -511,7 +511,7 @@ func handleCancelAttachment(ctx *web.Context) error {
 func (p *plugin) handleReply(ctx *web.Context) error {
 	var inReplyToPath mail.MessagePath
 	var err error
-	inReplyToPath.Mailbox, inReplyToPath.Uid, err = MessageRef(ctx)
+	inReplyToPath.Mailbox, inReplyToPath.UID, err = MessageRef(ctx)
 	if err != nil {
 		return err
 	}
@@ -737,7 +737,7 @@ func (p *plugin) handleForwardAttached(ctx *web.Context) error {
 	}
 	paths := make([]mail.MessagePath, len(uids))
 	for i, uid := range uids {
-		paths[i] = mail.MessagePath{Mailbox: mboxName, Uid: uid}
+		paths[i] = mail.MessagePath{Mailbox: mboxName, UID: uid}
 	}
 	var msg mail.OutgoingMessage
 	if ctx.Request().Method == http.MethodGet {
@@ -754,7 +754,7 @@ func (p *plugin) handleForwardAttached(ctx *web.Context) error {
 func (p *plugin) handleForward(ctx *web.Context) error {
 	var sourcePath mail.MessagePath
 	var err error
-	sourcePath.Mailbox, sourcePath.Uid, err = MessageRef(ctx)
+	sourcePath.Mailbox, sourcePath.UID, err = MessageRef(ctx)
 	if err != nil {
 		return err
 	}
@@ -807,7 +807,7 @@ func (p *plugin) handleForward(ctx *web.Context) error {
 		for i := range attachments {
 			msg.Attachments = append(msg.Attachments, &mail.IMAPAttachment{
 				Mailbox: sourcePath.Mailbox,
-				Uid:     sourcePath.Uid,
+				UID:     sourcePath.UID,
 				Node:    &attachments[i],
 			})
 		}
@@ -819,7 +819,7 @@ func (p *plugin) handleForward(ctx *web.Context) error {
 func (p *plugin) handleEdit(ctx *web.Context) error {
 	var sourcePath mail.MessagePath
 	var err error
-	sourcePath.Mailbox, sourcePath.Uid, err = MessageRef(ctx)
+	sourcePath.Mailbox, sourcePath.UID, err = MessageRef(ctx)
 	if err != nil {
 		return err
 	}
@@ -869,7 +869,7 @@ func (p *plugin) handleEdit(ctx *web.Context) error {
 		for i := range attachments {
 			msg.Attachments = append(msg.Attachments, &mail.IMAPAttachment{
 				Mailbox: sourcePath.Mailbox,
-				Uid:     sourcePath.Uid,
+				UID:     sourcePath.UID,
 				Node:    &attachments[i],
 			})
 		}

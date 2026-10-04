@@ -71,7 +71,7 @@ var (
 
 func registerRoutes(p *plugin, g *web.Group) {
 	guard := func(h func(*web.Context) error) func(*web.Context) error {
-		return pimweb.Guarded(p.DAV, calendar.ErrNoCalendar, "calendar.calendars.create", h)
+		return pimweb.Guarded(calendar.ErrNoCalendar, "calendar.calendars.create", h)
 	}
 	GET := func(name, path string, h func(*web.Context) error) { g.GET(name, path, guard(h)) }
 	POST := func(name, path string, h func(*web.Context) error) { g.POST(name, path, guard(h)) }
@@ -122,8 +122,8 @@ func registerRoutes(p *plugin, g *web.Group) {
 	GET("collection", "/calendars/{path}", page.Handle(p.DAV))
 	POST("collection", "/calendars/{path}", page.Handle(p.DAV))
 	POST("collection.delete", "/calendars/{path}/delete", page.HandleDelete(p.DAV))
-	upload("collection.import", "/calendars/{path}/import", page.HandleImport(p.DAV), page.HandleImportTooLarge)
-	download("collection.export", "/calendars/{path}/export", page.HandleExport(p.DAV))
+	upload("collection.import", "/calendars/{path}/import", page.HandleImport, page.HandleImportTooLarge)
+	download("collection.export", "/calendars/{path}/export", page.HandleExport)
 	POST("collection.share", "/calendars/{path}/share", page.HandleShare(p.DAV))
 	POST("collection.unshare", "/calendars/{path}/unshare", page.HandleUnshare(p.DAV))
 	POST("collection.access", "/calendars/{path}/access", page.HandleAccess(p.DAV))
@@ -208,7 +208,7 @@ func (p *plugin) note(comp func(*ical.Calendar) *ical.Component, s section) func
 	}
 }
 
-func calendarFilters(ctx *web.Context, calendars []dav.Collection) []web.Filter {
+func calendarFilters(ctx *web.Context) []web.Filter {
 	var out []web.Filter
 	if f, ok := ctx.FilterOn("view", ctx.T("filter.color")); ok && f.Value != "list" {
 		switch f.Value {

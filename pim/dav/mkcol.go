@@ -14,7 +14,7 @@ import (
 const MaxCreateAttempts = 20
 
 // CreateCollection makes a collection at the first free address under homeSet, walking past taken ones.
-func CreateCollection(ctx context.Context, homeSet, name, fallback string, make func(ctx context.Context, path string) error) (string, error) {
+func CreateCollection(ctx context.Context, homeSet, name, fallback string, create func(ctx context.Context, path string) error) (string, error) {
 	segment := url.PathEscape(strings.ToLower(strings.ReplaceAll(strings.TrimSpace(name), " ", "-")))
 	if segment == "" {
 		segment = fallback
@@ -26,7 +26,7 @@ func CreateCollection(ctx context.Context, homeSet, name, fallback string, make 
 			try = fmt.Sprintf("%s-%d", segment, attempt)
 		}
 		path := home + try + "/"
-		err := make(ctx, path)
+		err := create(ctx, path)
 		if err == nil {
 			return path, nil
 		}

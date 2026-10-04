@@ -98,6 +98,12 @@ func (r Reader) Short(t time.Time) string {
 	return locale.Sprintf(r.Lang, r.t("date.short"), day, month)
 }
 
+// ShortDay is Short led by the weekday, for a title too narrow for Long.
+func (r Reader) ShortDay(t time.Time) string {
+	weekday := r.t(fmt.Sprintf("calendar.weekdayshort.%d", r.In(t).Weekday()))
+	return locale.Sprintf(r.Lang, r.t("date.shortday"), weekday, r.Short(t))
+}
+
 // DayMonth is a day and its month as Short writes them, split around the day so a page can mark the number alone.
 type DayMonth struct {
 	Before, Day, After string

@@ -110,7 +110,7 @@
       <ul>
         {{ $d := . }}
         {{ range .rows }}
-        <li{{ if .Active }} class="active"{{ end }}><a href="{{.Href}}" dir="auto">{{.Label}}</a>{{ with .Edit }}<a class="filter-edit" href="{{.}}" title="{{$d.editlabel}}">{{$d.editlabel}}</a>{{ end }}</li>
+        <li{{ if .Active }} class="active"{{ end }}><a href="{{.Href}}" dir="auto">{{.Label}}</a>{{ with .Edit }}<a class="filter-edit icon-button" href="{{.}}" title="{{$d.editlabel}}" aria-label="{{$d.editlabel}}">{{ template "icon" "edit" }}</a>{{ end }}</li>
         {{ end }}
         {{ with .new }}<li><a class="aside-create" href="{{.href}}">{{.label}}</a></li>{{ end }}
       </ul>
@@ -146,10 +146,10 @@
 {{ $base := printf "%s?%s=%s" .action .field ($i.Path | qv) }}{{ with .keep }}{{ $base = printf "%s%s" $base . }}{{ end }}
 <div class="filter-row{{ if .nested }} nested{{ end }}{{ if $i.Only }} active{{ end }}">
   <a class="filter-name {{.itemclass}}" href="{{ localhref (printf "%s%s" $base (account "&" $i.Account)) }}" title="{{$i.Name}}"{{ if $i.Only }} aria-current="true"{{ end }}>
-    <span>{{$i.Name}}</span>
+    <span dir="auto">{{$i.Name}}</span>
     {{ template "collection-mark" (dict "g" $.g "c" $i) }}
   </a>
-  <a class="filter-edit" href="{{url .edit $i.Path}}{{account "?" $i.Account}}" title="{{.editlabel}}" hx-boost="false">{{.editlabel}}</a>
+  <a class="filter-edit icon-button" href="{{url .edit $i.Path}}{{account "?" $i.Account}}" title="{{.editlabel}}" aria-label="{{.editlabel}}" hx-boost="false">{{ template "icon" "edit" }}</a>
   <label class="filter-tick" title="{{.shown}}">
     <input type="checkbox" id="rail-{{$i.Account}}{{$i.Path}}" name="{{.field}}" value="{{$i.Path}}" {{ if $i.Visible }}checked{{ end }} data-source-item data-submit-on-change {{ if $i.Color }}style="accent-color:{{$i.Color}}"{{ end }} aria-label="{{.shown}}: {{$i.Name}}">
   </label>

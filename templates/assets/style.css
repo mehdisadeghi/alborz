@@ -4328,19 +4328,25 @@ aside ul.merged-roles {
   inset-inline: 0;
   display: flex;
   align-items: center;
+  gap: var(--space-2);
   padding-inline: var(--space-4);
   font-size: var(--text-sm);
   font-weight: 600;
+  color: var(--fg-muted);
+  background: var(--bg-inset);
 }
 
-.swipe-away {
-  justify-content: flex-end;
+.swipe-away { justify-content: flex-end; }
+
+.swipe-toward { justify-content: flex-start; }
+
+/* Grey until letting go would act. */
+.swipe-away.armed {
   color: var(--alert-fg);
   background: var(--alert-bg);
 }
 
-.swipe-toward {
-  justify-content: flex-start;
+.swipe-toward.armed {
   color: var(--warn-fg);
   background: var(--warn-bg);
 }

@@ -87,13 +87,18 @@
 
 	// A swipe presses the toolbar's own control, so it gets its notice and Undo.
 	// Rows laid out as grid cells (display: contents) cannot move.
-	const SWIPE_START = 12;
-	const SWIPE_ACT = 1 / 3;
+	// Let go short of the threshold, the row slides back and nothing acts.
+	const SWIPE_START = 12; // px: a thumb landing wobbles less than this
+	const SWIPE_ACT = 1 / 3; // of the row: far enough to be meant, short enough for one thumb
+	const SWIPE_SETTLE = 150; // ms: the slide back is seen, not waited on
+	const still = matchMedia("(prefers-reduced-motion: reduce)");
 	let swipe = null;
 	const hintFor = (row, control, side) => {
 		const hint = document.createElement("div");
 		hint.className = "swipe-hint swipe-" + side;
-		hint.textContent = control.getAttribute("aria-label") || control.getAttribute("title") || "";
+		const label = document.createElement("span");
+		label.textContent = control.getAttribute("aria-label") || control.getAttribute("title") || "";
+		hint.append(control.querySelector("svg").cloneNode(true), label);
 		hint.style.top = row.offsetTop + "px";
 		hint.style.height = row.offsetHeight + "px";
 		row.parentElement.append(hint);
@@ -102,14 +107,20 @@
 	const endSwipe = act => {
 		const { row, hint, control } = swipe;
 		swipe = null;
-		row.classList.remove("swiping");
-		row.style.transform = "";
-		if (hint) {
-			hint.remove();
-		}
 		if (!act || !control) {
+			const back = row.animate([{ transform: row.style.transform }, { transform: "none" }], { duration: still.matches ? 0 : SWIPE_SETTLE, easing: "ease-out" });
+			row.style.transform = "";
+			back.finished.then(() => {
+				row.classList.remove("swiping");
+				if (hint) {
+					hint.remove();
+				}
+			});
 			return;
 		}
+		row.classList.remove("swiping");
+		row.style.transform = "";
+		hint.remove();
 		for (const box of document.querySelectorAll('input[type="checkbox"][form]:checked')) {
 			box.click();
 		}
@@ -129,7 +140,7 @@
 			return;
 		}
 		const row = ev.pointerType === "touch" && rowOf(ev.target);
-		if (!row || !row.classList.contains("message-row") || getComputedStyle(row).display === "contents") {
+		if (!row || !row.classList.contains("message-row") || getComputedStyle(row).display === "contents" || row.getAnimations().length) {
 			return;
 		}
 		swipe = { id: ev.pointerId, row, x: ev.clientX, y: ev.clientY, dx: 0, hint: null, control: null, live: false };
@@ -163,6 +174,9 @@
 		}
 		swipe.dx = swipe.control ? dx : 0;
 		swipe.row.style.transform = `translateX(${swipe.dx}px)`;
+		if (swipe.hint) {
+			swipe.hint.classList.toggle("armed", Math.abs(swipe.dx) > swipe.row.offsetWidth * SWIPE_ACT);
+		}
 	});
 	for (const name of ["pointerup", "pointercancel"]) {
 		document.addEventListener(name, ev => {

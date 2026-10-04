@@ -10,6 +10,8 @@ type Profile struct {
 	Reading Reading
 	Writing Writing
 	Display Display
+	// Toured is set once a sign-in has opened the tour; it opens by itself only once (ADR 76).
+	Toured bool
 }
 
 type Reading struct {

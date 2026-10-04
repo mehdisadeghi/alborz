@@ -33,6 +33,7 @@ type DAVServer struct {
 	gone      map[string]bool
 	rscales   []string
 	objects   map[string]string
+	token     string
 	schedules bool
 	puts      []string
 }
@@ -68,6 +69,18 @@ func RScales(scales ...string) DAVOption {
 // Object serves body at path.
 func Object(path, body string) DAVOption { return func(d *DAVServer) { d.objects[path] = body } }
 
+// Removed serves the objects at paths no more.
+func Removed(paths ...string) DAVOption {
+	return func(d *DAVServer) {
+		for _, p := range paths {
+			delete(d.objects, p)
+		}
+	}
+}
+
+// SyncToken is the token a sync-collection answers with; one asked from another is refused (RFC 6578 3.2).
+func SyncToken(token string) DAVOption { return func(d *DAVServer) { d.token = token } }
+
 // Schedules advertises calendar-auto-schedule: the server sends invitations itself (RFC 6638 2).
 func Schedules() DAVOption { return func(d *DAVServer) { d.schedules = true } }
 
@@ -82,7 +95,7 @@ func set(paths []string) map[string]bool {
 func DAV(t *testing.T, opts ...DAVOption) *DAVServer {
 	t.Helper()
 	d := &DAVServer{cals: map[string]string{}, books: map[string]string{}, objects: map[string]string{},
-		refuse: map[string]bool{}, hangup: map[string]bool{}, failing: map[string]bool{}, keep: map[string]bool{}, gone: map[string]bool{}}
+		refuse: map[string]bool{}, hangup: map[string]bool{}, failing: map[string]bool{}, keep: map[string]bool{}, gone: map[string]bool{}, token: "1"}
 	d.Apply(opts...)
 	d.Server = httptest.NewServer(d)
 	t.Cleanup(d.Close)
@@ -205,6 +218,11 @@ func (d *DAVServer) report(w http.ResponseWriter, r *http.Request, body string) 
 		multistatus(w)
 		return
 	}
+	if m := syncToken.FindStringSubmatch(body); m != nil && m[1] != "" && m[1] != d.token {
+		w.WriteHeader(http.StatusForbidden)
+		io.WriteString(w, `<?xml version="1.0"?><error xmlns="DAV:"><valid-sync-token/></error>`)
+		return
+	}
 	element := `C:calendar-data`
 	if _, inBook := d.books[path.Dir(r.URL.Path)+"/"]; book || inBook {
 		element = `A:address-data xmlns:A="urn:ietf:params:xml:ns:carddav"`
@@ -222,12 +240,15 @@ func (d *DAVServer) report(w http.ResponseWriter, r *http.Request, body string) 
 		resps = append(resps, propResponse(p, `<getetag>"1"</getetag><`+element+`>`+data.String()+"</"+strings.Fields(element)[0]+">"))
 	}
 	if strings.Contains(body, "sync-collection") {
-		resps = append(resps, "<sync-token>1</sync-token>")
+		resps = append(resps, "<sync-token>"+d.token+"</sync-token>")
 	}
 	multistatus(w, resps...)
 }
 
-var textMatch = regexp.MustCompile(`text-match[^>]*>([^<]*)<`)
+var (
+	textMatch = regexp.MustCompile(`text-match[^>]*>([^<]*)<`)
+	syncToken = regexp.MustCompile(`sync-token[^>]*>([^<]*)<`)
+)
 
 func multistatus(w http.ResponseWriter, responses ...string) {
 	w.Header().Set("Content-Type", "application/xml")

@@ -97,6 +97,8 @@ type collection struct {
 	writes uint64
 	// read says it was read since start, so the loop keeps it in step.
 	read bool
+	// tried says a sync ended since start; nothing kept a copy from before in step while alborz was down.
+	tried bool
 }
 
 // waiting says a failed sync is not tried again until the round would, so a down server is not asked on every read.
@@ -402,7 +404,8 @@ func (t tripper) read(req *http.Request) (*http.Response, error) {
 	return respond(t.m.wire.handler(target.Path, objects), req), nil
 }
 
-// ready says whether the copy can answer: a held one can, however old; one not held is synced first.
+// ready says whether the copy can answer: a held one can, however old, once a sync since start
+// was tried; one not held, or held from before, is synced first.
 func (m *Mirror) ready(ctx context.Context, u string, target *url.URL) (bool, error) {
 	h, ok, err := m.held(u, target.Path)
 	if err != nil {
@@ -411,16 +414,16 @@ func (m *Mirror) ready(ctx context.Context, u string, target *url.URL) (bool, er
 	m.mu.Lock()
 	c := m.reader(u).coll(target.Path)
 	c.read = true
-	failed := c.waiting(time.Now(), m.poll)
+	tried, failed := c.tried, c.waiting(time.Now(), m.poll)
 	m.mu.Unlock()
-	if ok {
+	if ok && tried {
 		if time.Since(h.Synced) > m.poll && !failed {
 			m.start(alborz.Background(context.Background()), u, target)
 		}
 		return true, nil
 	}
 	if failed {
-		return false, nil
+		return ok, nil
 	}
 	done, _ := m.start(context.WithoutCancel(ctx), u, target)
 	select {
@@ -455,7 +458,7 @@ func (m *Mirror) start(ctx context.Context, u string, target *url.URL) (done <-c
 		err := m.sync(ctx, r, u, target, out, written)
 		cancel()
 		m.mu.Lock()
-		c.syncing, c.failed = nil, time.Time{}
+		c.syncing, c.failed, c.tried = nil, time.Time{}, true
 		if err != nil {
 			c.failed = time.Now()
 		}

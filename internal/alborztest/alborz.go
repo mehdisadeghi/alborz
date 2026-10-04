@@ -84,6 +84,9 @@ func LoginKey(key string) Option { return func(c *config) { c.options.LoginKey =
 // DataDir keeps alborz.db in dir, for an alborz that starts again over it.
 func DataDir(dir string) Option { return func(c *config) { c.options.DataDir = dir } }
 
+// CacheDir keeps the copies in dir, for an alborz that starts again over them.
+func CacheDir(dir string) Option { return func(c *config) { c.options.CacheDir = dir } }
+
 func TrustedProxies(proxies ...string) Option {
 	return func(c *config) { c.options.TrustedProxies = proxies }
 }
@@ -122,7 +125,7 @@ func Alborz(t *testing.T, opts ...Option) *App {
 	if c.options.DataDir == "" {
 		c.options.DataDir = t.TempDir()
 	}
-	if c.options.Cache {
+	if c.options.Cache && c.options.CacheDir == "" {
 		c.options.CacheDir = t.TempDir()
 	}
 	ln, err := net.Listen("tcp", "127.0.0.1:0")

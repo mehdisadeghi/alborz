@@ -4710,9 +4710,11 @@ h1.no-word .title-short {
 
   .task-header-row { display: none; }
 
+  /* As the event row: the due date spans the star's track instead of
+     sizing it, so the summary ends on one edge in every row. */
   .task-row {
     display: grid;
-    grid-template-columns: auto 2rem minmax(0, 1fr) auto;
+    grid-template-columns: auto 2rem minmax(0, 1fr) auto var(--control-height);
     grid-template-rows: auto auto;
     column-gap: var(--space-2);
     padding: var(--space-2);
@@ -4743,7 +4745,7 @@ h1.no-word .title-short {
 
 
   .task-row .list-star {
-    grid-column: 4;
+    grid-column: 5;
     grid-row: 1;
     justify-self: end;
     align-self: center;
@@ -4756,7 +4758,7 @@ h1.no-word .title-short {
   }
 
   .task-row .task-list-summary {
-    grid-column: 3;
+    grid-column: 3 / 5;
     grid-row: 1;
     font-weight: 600;
   }
@@ -4770,7 +4772,7 @@ h1.no-word .title-short {
   .task-row .task-list-due { display: block; }
 
   .task-row .task-list-due {
-    grid-column: 4;
+    grid-column: 4 / 6;
     grid-row: 2;
     justify-self: end;
   }

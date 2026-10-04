@@ -146,6 +146,8 @@ func (g *GlobalRenderData) FormatDate(t time.Time) string { return g.dates().Ful
 
 func (g *GlobalRenderData) ShortDate(t time.Time) string { return g.dates().Short(t) }
 
+func (g *GlobalRenderData) ShortDay(t time.Time) string { return g.dates().ShortDay(t) }
+
 func (g *GlobalRenderData) FormatTime(t time.Time) string { return g.dates().Clock(t) }
 
 func (g *GlobalRenderData) InTimezone(t time.Time) time.Time { return g.dates().In(t) }

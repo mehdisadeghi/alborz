@@ -3035,7 +3035,7 @@ main.calendar .actions {
 
 /* A month's name is short; a track held for the longest cost the pager its place on a phone. */
 .month-actions .actions-message h1:not(:last-child) {
-  flex-basis: auto;
+  flex-basis: max-content;
 }
 
 .actions-message > .icon-button,
@@ -3044,9 +3044,12 @@ main.calendar .actions {
 }
 
 
+/* No width of its own, so the row's minimum holds the title's floor and not its length (ADR 8); the basis keeps its length. */
 .actions-message h1 {
   margin: 0;
   flex-grow: 1;
+  flex-basis: max-content;
+  width: 0;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -4952,7 +4955,7 @@ h1.no-word .title-short {
   .actions-message { column-gap: 0.3rem; }
   /* Named as the track rule is, or that more specific rule wins. */
   .actions-message h1,
-  .actions-message h1:not(:last-child) { flex: 1 1 auto; max-width: none; }
+  .actions-message h1:not(:last-child) { flex: 1 1 max-content; max-width: none; }
 
   .actions-wrap .action-group { margin-inline-start: 0; }
   .actions-pagination { margin-inline-start: auto; }

@@ -1106,6 +1106,7 @@
 "push.event" = "Evento a las %s"
 "notifications.kept" = "Activar las notificaciones mantiene esta cuenta con la sesión iniciada en el servidor, para comprobar el correo y los recordatorios con la aplicación cerrada. Termina al desactivar las notificaciones de este navegador o al cerrar su sesión."
 "nav.journal" = "Diario"
+"journal.search" = "Diario"
 "title.journal" = "Diario"
 "journal.journal" = "Diario"
 "journal.new" = "Nueva entrada"

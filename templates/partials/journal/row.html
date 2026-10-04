@@ -26,3 +26,10 @@
 {{ end }}
 
 {{ define "journal-grid" }}class="journal-grid list-grid{{if .GlobalData.Unified}} multi{{end}}" role="table"{{ end }}
+
+{{/* A search's first rows on the search across sections. */}}
+{{ define "journal-found" }}
+<div {{ template "journal-grid" . }}>
+{{ template "entry-rows" . }}
+</div>
+{{ end }}

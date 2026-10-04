@@ -22,7 +22,8 @@ func Mount(g *web.Group, st *store.Store) error {
 	registerRoutes(p, g)
 	srv.Searchers = append(srv.Searchers,
 		web.Searcher{Kind: "events", Answers: []string{web.StarKey}, Rows: "events-found", Search: p.foundEvents},
-		web.Searcher{Kind: "tasks", Answers: []string{web.StarKey}, Rows: "tasks-found", Search: p.foundTasks})
+		web.Searcher{Kind: "tasks", Answers: []string{web.StarKey}, Rows: "tasks-found", Search: p.foundTasks},
+		web.Searcher{Kind: "journal", Answers: []string{web.StarKey}, Rows: "journal-found", Search: p.foundJournal})
 	p.registerScheduling(g)
 	web.Extend(srv, p.collectionPage().ShowOffer(p.DAV))
 	srv.OnServers = append(srv.OnServers, pimweb.Cards(p.DAV, "settings.davcalendar", davAbilities))

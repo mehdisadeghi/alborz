@@ -1106,6 +1106,7 @@
 "push.event" = "Termin um %s"
 "notifications.kept" = "Wenn Benachrichtigungen eingeschaltet sind, bleibt dieses Konto auf dem Server angemeldet, damit E-Mails und Erinnerungen auch bei geschlossener App geprüft werden. Das endet, wenn Benachrichtigungen für diesen Browser ausgeschaltet werden oder dieser Browser sich abmeldet."
 "nav.journal" = "Journal"
+"journal.search" = "Journal"
 "title.journal" = "Journal"
 "journal.journal" = "Journal"
 "journal.new" = "Neuer Eintrag"

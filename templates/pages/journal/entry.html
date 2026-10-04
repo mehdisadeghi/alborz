@@ -1,0 +1,40 @@
+{{ define "rail" }}
+  {{ template "dav-rail" (dict "g" $ "rail" .Rail) }}
+{{ end }}
+
+{{ define "main-class" }} class="entry"{{ end }}
+
+{{ define "main" }}
+      {{ $acct := .GlobalData.AccountQuery }}
+      {{ template "object-toolbar" (dict "g" $ "object" "calendar.entry" "id" .Path "acct" $acct "list" .List "new" (url "calendar.entry.create") "newlabel" ($.T "journal.new") "edit" "edit" "ext" ".ics" "readonly" false
+         "copy" (printf "%s%s" (url "calendar.entry.copy" .Path) $acct)
+         "section" ($.T "nav.journal") "home" (url "calendar.journal") "field" "cal" "collection" .Calendar.Name "path" .Calendar.Path) }}
+
+      {{ template "next-form" (dict "id" "entry-color-form" "next" $.GlobalData.URL.RequestURI) }}
+      <section class="details">
+        {{ template "object-title" (dict "g" $ "title" .Summary "form" "entry-color-form" "action" (printf "%s%s" (url "calendar.entry.color" .Path) $acct) "current" .Star) }}
+        <dl>
+          {{ if not .Date.IsZero }}
+          <dt>{{$.T "journal.date"}}</dt>
+          <dd>{{ if .Timed }}{{ template "date-full" (dict "g" $.Global "time" .Date) }}{{ else }}{{ template "date-day" (dict "g" $.Global "time" .Date) }}{{ end }}</dd>
+          {{ end }}
+          {{ with .Status }}
+          <dt>{{$.T "journal.status"}}</dt>
+          <dd>{{ $.T (printf "journal.status.%s" .) }}</dd>
+          {{ end }}
+          {{ with .Categories }}
+          <dt>{{$.T "aside.categories"}}</dt>
+          <dd>{{ range $i, $word := . }}{{ if $i }}, {{ end }}<a href="{{url "calendar.journal"}}?category={{$word | qv}}{{ account "&" $.GlobalData.URLAccount }}" dir="auto">{{$word}}</a>{{ end }}</dd>
+          {{ end }}
+          {{ with .Text }}
+          <dt>{{$.T "common.description"}}</dt>
+          <dd>{{ template "user-text" . }}</dd>
+          {{ end }}
+        </dl>
+        {{ template "object-dates" (dict "g" $.Global
+           "created" (.Journal.Props.DateTime "CREATED" nil)
+           "modified" (.Journal.Props.DateTime "LAST-MODIFIED" nil)
+           "createdLabel" ($.T "common.created") "modifiedLabel" ($.T "common.modified")
+           "authors" .Authors "bylabel" ($.T "common.by")) }}
+      </section>
+{{ end }}

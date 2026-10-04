@@ -15,6 +15,8 @@ type Settings struct {
 	VisibleCalendars []string
 	TaskFilter       bool
 	VisibleTasks     []string
+	JournalFilter    bool
+	VisibleJournals  []string
 }
 
 const (
@@ -48,7 +50,7 @@ func Show(ctx context.Context, store alborz.Store, path string) error {
 	if err != nil {
 		return err
 	}
-	if !settings.CalendarFilter && !settings.TaskFilter {
+	if !settings.CalendarFilter && !settings.TaskFilter && !settings.JournalFilter {
 		return nil
 	}
 	if settings.CalendarFilter {
@@ -57,12 +59,17 @@ func Show(ctx context.Context, store alborz.Store, path string) error {
 	if settings.TaskFilter {
 		settings.VisibleTasks = append(settings.VisibleTasks, path)
 	}
+	if settings.JournalFilter {
+		settings.VisibleJournals = append(settings.VisibleJournals, path)
+	}
 	return store.Put(ctx, settingsKey, settings)
 }
 
 func EventVisibility(s *Settings) (bool, []string) { return s.CalendarFilter, s.VisibleCalendars }
 
 func TaskVisibility(s *Settings) (bool, []string) { return s.TaskFilter, s.VisibleTasks }
+
+func JournalVisibility(s *Settings) (bool, []string) { return s.JournalFilter, s.VisibleJournals }
 
 func Visible(ctx context.Context, accounts []pim.Account[*caldav.Client], scope string, only map[string]bool, kind func([]string) bool, chosen func(*Settings) (filter bool, paths []string)) ([]dav.Collection, []pim.Site[*caldav.Client], error) {
 	return pim.Visible(accounts, scope, only, func(acc pim.Account[*caldav.Client]) ([]dav.Collection, bool, []string, error) {

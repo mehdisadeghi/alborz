@@ -1594,6 +1594,7 @@ main.message .message-header .parts li {
 
 main.contact .details,
 main.task .details,
+main.entry .details,
 main.event .details {
   width: min(calc(100% - 2 * var(--space-4)), var(--content-reading));
   margin: var(--space-4);
@@ -1606,6 +1607,7 @@ main.event .details {
 
 main.contact .details h1,
 main.task .details h1,
+main.entry .details h1,
 main.event .details h1 {
   margin: 0 0 var(--space-4);
   font-size: var(--text-xl);
@@ -1613,7 +1615,8 @@ main.event .details h1 {
 }
 
 main.contact dl,
-main.task dl {
+main.task dl,
+main.entry dl {
   display: grid;
   /* minmax(0, ...), or a long address widens the track past the card. */
   grid-template-columns: auto minmax(0, 1fr);
@@ -1622,13 +1625,15 @@ main.task dl {
 }
 
 main.contact dl dt,
-main.task dl dt {
+main.task dl dt,
+main.entry dl dt {
   font-weight: 500;
   color: var(--fg-muted);
 }
 
 main.contact dl dd,
-main.task dl dd {
+main.task dl dd,
+main.entry dl dd {
   margin: 0;
   min-width: 0;
   overflow-wrap: anywhere;
@@ -3168,6 +3173,8 @@ main.calendar .actions {
 .contact-list-phone,
 .task-list-summary a,
 .task-list-calendar,
+.journal-list-summary a,
+.journal-list-calendar,
 .event-summary a,
 .event-owner a {
   overflow: hidden;
@@ -3334,21 +3341,23 @@ aside details.folder-branch details.folder-branch > ul > li {
 .event-grid .empty-list { grid-column: 1 / -1; }
 
 /* Rows that offer no selection draw no box; the empty track takes nothing. A phone's rows are grids of their own. */
-:is(.message-grid, .task-grid, .contact-grid):not(:has(.list-checkbox)) { --check-track: 0rem; }
+:is(.message-grid, .task-grid, .journal-grid, .contact-grid):not(:has(.list-checkbox)) { --check-track: 0rem; }
 
 @media (width > 600px) {
-  :is(.message-grid, .task-grid, .contact-grid):not(:has(.list-checkbox)) > .list-row > .list-cell:first-child {
+  :is(.message-grid, .task-grid, .journal-grid, .contact-grid):not(:has(.list-checkbox)) > .list-row > .list-cell:first-child {
     grid-column-start: 2;
   }
 }
 
-.task-list {
+.task-list,
+.journal-list {
   flex-grow: 1;
   display: flex;
   flex-direction: column;
 }
 
-.task-list .tasks { flex-grow: 1; }
+.task-list .tasks,
+.journal-list .journal { flex-grow: 1; }
 
 /* Capped tracks take their maximum before a bare fr track gets anything. */
 .task-grid {
@@ -3384,7 +3393,32 @@ aside details.folder-branch details.folder-branch > ul > li {
   .task-grid .task-list-due { display: none; }
 }
 
-.task-row > * {
+.journal-grid {
+  display: grid;
+  grid-template-columns:
+    var(--check-track) var(--star-track) minmax(8rem, 1fr) minmax(5rem, 0.5fr)
+    minmax(4.5rem, 7rem) minmax(4.5rem, 6rem);
+}
+
+@media (width < 60rem) {
+  .journal-grid {
+    grid-template-columns: var(--check-track) var(--star-track) minmax(8rem, 1fr) minmax(5rem, 0.5fr) minmax(4.5rem, 7rem);
+  }
+
+  .journal-grid .journal-list-added { display: none; }
+}
+
+@media (width < 52rem) {
+  .journal-grid {
+    grid-template-columns: var(--check-track) var(--star-track) minmax(8rem, 1fr) minmax(4.5rem, 7rem);
+  }
+
+  /* A journal reads by its days, so the journal's name leaves first. */
+  .journal-grid .journal-list-calendar { display: none; }
+}
+
+.task-row > *,
+.journal-row > * {
   min-height: 2.5rem;
   padding: var(--row-pad);
   border-bottom: 1px solid var(--border-light);
@@ -3393,9 +3427,11 @@ aside details.folder-branch details.folder-branch > ul > li {
   min-width: 0;
 }
 
-.task-row:hover > * { background: var(--bg-active); }
+.task-row:hover > *,
+.journal-row:hover > * { background: var(--bg-active); }
 
-.task-list-summary a {
+.task-list-summary a,
+.journal-list-summary a {
   color: inherit;
   text-decoration: none;
   overflow: hidden;
@@ -3403,7 +3439,8 @@ aside details.folder-branch details.folder-branch > ul > li {
   white-space: nowrap;
 }
 
-.task-list-summary a:hover { text-decoration: underline; }
+.task-list-summary a:hover,
+.journal-list-summary a:hover { text-decoration: underline; }
 
 .task-row.completed .task-list-summary a {
   color: var(--fg-faint);
@@ -3426,7 +3463,9 @@ aside details.folder-branch details.folder-branch > ul > li {
 .task-grid .task-list-status .status-sort:has(.sort-arrow) { width: auto; }
 .task-list-status .task-checkbox { margin: 0; }
 .task-list-calendar,
-.task-list-due {
+.task-list-due,
+.journal-list-calendar,
+.journal-list-date {
   color: var(--fg-muted);
   font-size: var(--text-sm);
 }
@@ -4327,6 +4366,7 @@ aside ul.merged-roles {
 
 /* The separator is the element's own mark: bidi puts a literal dash between runs wherever it likes. */
 .task-list-calendar .row-account::before,
+.journal-list-calendar .row-account::before,
 .event-owner .row-account::before,
 .contact-list-book .row-account::before,
 .info-card .row-account::before,
@@ -4779,6 +4819,63 @@ h1.no-word .title-short {
 
   .task-row .task-list-added { display: none; }
 
+  .journal-grid { display: block; }
+
+  .journal-header-row { display: none; }
+
+  /* As the task row: the date spans the star's track instead of sizing
+     it, so the summary ends on one edge in every row. */
+  .journal-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto var(--control-height);
+    grid-template-rows: auto auto;
+    column-gap: var(--space-2);
+    padding: var(--space-2);
+    border-bottom: 1px solid var(--border-light);
+  }
+
+  .journal-row > * {
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+
+  .journal-row:hover > * { background: transparent; }
+
+  .journal-row .journal-list-checkbox {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: center;
+  }
+
+  .journal-row .list-star {
+    grid-column: 4;
+    grid-row: 1;
+    justify-self: end;
+    align-self: center;
+  }
+
+  .journal-row .journal-list-summary {
+    grid-column: 2 / 4;
+    grid-row: 1;
+    font-weight: 600;
+  }
+
+  .journal-row .journal-list-calendar {
+    display: flex;
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .journal-row .journal-list-date {
+    grid-column: 3 / 5;
+    grid-row: 2;
+    justify-self: end;
+  }
+
+  .journal-row .journal-list-added { display: none; }
+
 
   main.create-update > form,
   main.create-update > section.collection-file {
@@ -4790,6 +4887,7 @@ h1.no-word .title-short {
   main.settings > .info-card,
   main.contact .details,
   main.task .details,
+  main.entry .details,
   main.event .details {
     width: calc(100% - 2 * var(--space-2));
     margin: var(--space-2);
@@ -4845,7 +4943,7 @@ h1.no-word .title-short {
   }
 
   /* No box: the empty first track's gap stands in for the card's padding. */
-  :is(.message-row, .task-row, .contact-row):not(:has(> .list-checkbox)) { padding-inline-start: 0; }
+  :is(.message-row, .task-row, .journal-row, .contact-row):not(:has(> .list-checkbox)) { padding-inline-start: 0; }
   .contact-row > .list-star { grid-area: star; align-self: center; }
   .contact-row > .contact-list-photo { grid-area: photo; }
   .contact-row > .contact-list-name { grid-area: name; }
@@ -4915,6 +5013,7 @@ h1.no-word .title-short {
   .message-list .actions,
   .contact-list .actions,
   .task-list .actions,
+  .journal-list .actions,
   main.calendar .actions,
   main.list .actions {
     flex-wrap: nowrap;

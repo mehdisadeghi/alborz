@@ -64,19 +64,22 @@ func NoticeLink(name, href string) string {
 		template.HTMLEscapeString(name) + `</a>`
 }
 
-// Made notifies that something was made, linking it and offering another.
+// Made notifies that something was made, linking it and offering another from again, unless empty.
 func (ctx *Context) Made(sentence, name, href, again string) {
 	// A folder is its own list, so there is nowhere for the name to lead.
 	marked := NoticeName(name)
 	if href != "" {
 		marked = NoticeLink(name, href)
 	}
-	ctx.Notify(Notice{
-		Kind:    NoticeDone,
-		Text:    fmt.Sprintf(sentence, name),
-		Markup:  template.HTML(fmt.Sprintf(sentence, marked)),
-		Actions: []*NoticeAction{{Label: ctx.T("common.addanother"), Path: again}},
-	})
+	n := Notice{
+		Kind:   NoticeDone,
+		Text:   fmt.Sprintf(sentence, name),
+		Markup: template.HTML(fmt.Sprintf(sentence, marked)),
+	}
+	if again != "" {
+		n.Actions = []*NoticeAction{{Label: ctx.T("common.addanother"), Path: again}}
+	}
+	ctx.Notify(n)
 }
 
 // SaveRefusal is the alert for a settings write the store did not keep.

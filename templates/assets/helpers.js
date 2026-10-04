@@ -414,8 +414,9 @@ const enhance = () => {
 };
 
 enhance();
-// A quick add lands back at #quick so the next line can be typed straight away.
-if (location.hash === "#quick") {
+// A quick add lands back at #quick-add so the next line can be typed straight away.
+// The hash names no element: one that did would scroll the page to it.
+if (location.hash === "#quick-add") {
 	document.getElementById("quick")?.focus();
 }
 document.addEventListener("htmx:load", enhance);

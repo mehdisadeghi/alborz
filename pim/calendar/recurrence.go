@@ -43,7 +43,7 @@ func FormRepeat(r dates.Reader, event *ical.Event, loc *time.Location) Repeat {
 	}
 	var until time.Time
 	if rule.Until != nil {
-		until = rule.Until.Time.In(loc)
+		until = rule.Until.In(loc)
 		if rule.Until.Kind != recur.DateTime {
 			until = time.Date(rule.Until.Year(), rule.Until.Month(), rule.Until.Day(), rule.Until.Hour(), rule.Until.Minute(), rule.Until.Second(), 0, loc)
 		}

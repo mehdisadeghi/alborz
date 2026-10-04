@@ -1,0 +1,18 @@
+version: "2"
+linters:
+  settings:
+    errcheck:
+      exclude-functions:
+        # A failed write to a response means the client left; there is no one to tell.
+        - (net/http.ResponseWriter).Write
+        # A deadline fails to set only on a closed connection, whose next read or write says so.
+        - (net.Conn).SetDeadline
+        - (net.Conn).SetReadDeadline
+  exclusions:
+    presets:
+      # Deferred Close of what was only read, and fmt.Fprint to a response or a terminal.
+      - std-error-handling
+    rules:
+      # Fake servers and fixtures: a step that fails there fails the test that relies on it.
+      - path: (_test\.go|^internal/alborztest/)
+        linters: [errcheck]

@@ -560,7 +560,8 @@ func domainURL(srv *alborz.Server, kind Kind, domain string) (*url.URL, string, 
 func unpublished(ctx context.Context, service, domain string) bool {
 	_, addrs, err := net.DefaultResolver.LookupSRV(ctx, service, "tcp", domain)
 	var dnsErr *net.DNSError
-	if err != nil && !(errors.As(err, &dnsErr) && dnsErr.IsNotFound) {
+	notFound := errors.As(err, &dnsErr) && dnsErr.IsNotFound
+	if err != nil && !notFound {
 		return false
 	}
 	return len(addrs) == 0 || len(addrs) == 1 && addrs[0].Target == "."

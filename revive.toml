@@ -1,0 +1,13 @@
+enableDefaultRules = true
+
+# Doc comments say why, and only where the name does not (CLAUDE.md, comments);
+# the stutter check stays.
+[rule.exported]
+arguments = ["disableChecksOnConstants", "disableChecksOnFunctions", "disableChecksOnMethods", "disableChecksOnTypes", "disableChecksOnVariables"]
+
+[rule.package-comments]
+Disabled = true
+
+# Tests read the harness's names as their own vocabulary.
+[rule.dot-imports]
+arguments = [{ allowedPackages = ["git.mehdix.org/alborz/internal/alborztest"] }]

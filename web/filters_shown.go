@@ -267,11 +267,11 @@ func StarNotice(ctx *Context, star, action string, undo url.Values) Notice {
 }
 
 // ViewRows are the views a list's filter menu offers.
-func ViewRows(ctx *Context, current string, unread bool, clear string) []FilterRow {
+func ViewRows(ctx *Context, current string, unread bool, reset string) []FilterRow {
 	row := func(label, view, star string) FilterRow {
 		href := ctx.WithParam("view", view)
 		if view == current {
-			href = clear
+			href = reset
 		}
 		return FilterRow{Label: label, Href: href, Current: view == current, Star: star}
 	}

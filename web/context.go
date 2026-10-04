@@ -38,9 +38,6 @@ type Context struct {
 	accountsLoaded bool
 	lostAccounts   []string
 
-	// A cookie written to the answer is not in the request, so a handler reads its own writes here.
-	prefs map[string]string
-
 	timing *alborz.Timing
 
 	urlAccount string
@@ -76,7 +73,7 @@ func (ctx *Context) QueryParams() url.Values {
 
 // FormValue is as net/http's, a form that does not parse reading as empty.
 func (ctx *Context) FormValue(name string) string {
-	ctx.parseForm()
+	_ = ctx.parseForm()
 	return ctx.request.FormValue(name)
 }
 

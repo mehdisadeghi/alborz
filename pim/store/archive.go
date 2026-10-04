@@ -34,7 +34,7 @@ func (s *Store) Export(owner string, put func(name string, data []byte) error) e
 	}
 	var files []file
 	err := s.db.View(func(tx kv.Tx) error {
-		return tx.Scan(s.collectionsOf(owner), func(k string, raw []byte) error {
+		return tx.Scan(s.collectionsOf(owner), func(_ string, raw []byte) error {
 			var c Collection
 			if err := json.Unmarshal(raw, &c); err != nil {
 				return err

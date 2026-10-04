@@ -63,7 +63,7 @@ func httpClient(ctx context.Context, p *Provider, login *alborz.Login) *http.Cli
 			},
 			colls: func(req *http.Request) ([]Collection, error) { return p.Collections(req.Context(), login) },
 		},
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		CheckRedirect: func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
 	}

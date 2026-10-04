@@ -786,16 +786,16 @@ type imapArg struct {
 func imapArgs(cmd string) []imapArg {
 	var out []imapArg
 	for i := 0; i < len(cmd); {
-		switch c := cmd[i]; {
-		case c == ' ' || c == '\r' || c == '\n':
+		switch cmd[i] {
+		case ' ', '\r', '\n':
 			i++
-		case c == '(':
+		case '(':
 			out = append(out, imapArg{open: true})
 			i++
-		case c == ')':
+		case ')':
 			out = append(out, imapArg{close: true})
 			i++
-		case c == '"':
+		case '"':
 			var b strings.Builder
 			for i++; i < len(cmd) && cmd[i] != '"'; i++ {
 				if cmd[i] == '\\' {
@@ -805,7 +805,7 @@ func imapArgs(cmd string) []imapArg {
 			}
 			out = append(out, imapArg{s: b.String()})
 			i++
-		case c == '{':
+		case '{':
 			end := strings.Index(cmd[i:], "}\r\n")
 			n, _ := strconv.Atoi(strings.TrimSuffix(cmd[i+1:i+end], "+"))
 			start := i + end + 3

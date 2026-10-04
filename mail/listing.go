@@ -279,12 +279,12 @@ type ListAsk struct {
 	Thread imap.UID
 }
 
-func (a ListAsk) spec(folder string) listingSpec {
-	return listingSpec{mbox: folder, query: a.Query, view: a.View, sortKey: a.Sort, sortDir: a.Dir, thread: a.Thread}
+func (ask ListAsk) spec(folder string) listingSpec {
+	return listingSpec{mbox: folder, query: ask.Query, view: ask.View, sortKey: ask.Sort, sortDir: ask.Dir, thread: ask.Thread}
 }
 
 // Descending says the list runs from its last row: as asked, else as its order runs by default.
-func (a ListAsk) Descending() bool { return a.spec("").reverse() }
+func (ask ListAsk) Descending() bool { return ask.spec("").reverse() }
 
 // KnownSort says whether a list can be ordered by key.
 func KnownSort(key string) bool {
@@ -386,14 +386,14 @@ func (p *Mailboxes) Search(ctx context.Context, logins []*alborz.Login, settings
 }
 
 // An order the server cannot sort by is no order at all here.
-func (l ListAsk) order() (sortKey string, reverse bool) {
-	sortKey = l.Sort
+func (ask ListAsk) order() (sortKey string, reverse bool) {
+	sortKey = ask.Sort
 	if _, ok := sortKeys[sortKey]; !ok || sortKey == SortThread {
 		return "", true
 	}
 	reverse = sortKeys[sortKey].descends
-	if l.Dir != "" {
-		reverse = l.Dir == "desc"
+	if ask.Dir != "" {
+		reverse = ask.Dir == "desc"
 	}
 	return sortKey, reverse
 }

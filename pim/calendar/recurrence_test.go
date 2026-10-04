@@ -78,7 +78,7 @@ func TestRSCALE(t *testing.T) {
 		cal := ical.NewCalendar()
 		cal.Children = append(cal.Children, event.Component)
 		// A rule not read is drawn at its start and named in the error.
-		occurrences, _ := Occurrences(CalendarObject{CalendarObject: &caldav.CalendarObject{Data: cal}}, time.UTC, c.first, c.to)
+		occurrences, _ := Occurrences(Object{CalendarObject: &caldav.CalendarObject{Data: cal}}, time.UTC, c.first, c.to)
 		var got []time.Time
 		for _, o := range occurrences {
 			got = append(got, o.Start)

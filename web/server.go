@@ -357,7 +357,7 @@ func renderUpstreamDown(ctx *Context, cause alborz.UpstreamError) error {
 		Waited:         cause.After > 0,
 		Retry:          ctx.Request().URL.RequestURI(),
 	}
-	data.BaseRenderData.WithTitle(ctx.Tf("upstream.title", data.Service))
+	data.WithTitle(ctx.Tf("upstream.title", data.Service))
 	return ctx.Render(http.StatusBadGateway, "upstream", &data)
 }
 

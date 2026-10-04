@@ -65,7 +65,7 @@ func (p *plugin) search(ctx *web.Context) error {
 }
 
 func searchFilters(ctx *web.Context) []web.Filter {
-	out := calendarFilters(ctx, nil)
+	out := calendarFilters(ctx)
 	if f, ok := ctx.FilterOn("query", ctx.T("filter.search")); ok {
 		out = append([]web.Filter{f}, out...)
 	}

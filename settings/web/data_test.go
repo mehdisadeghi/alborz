@@ -37,9 +37,9 @@ func unpack(t *testing.T, archive string) map[string][]byte {
 	}
 }
 
-// comparable drops what an import moves on purpose: the ctag, so a client looks again, and when and where
+// stable drops what an import moves on purpose: the ctag, so a client looks again, and when and where
 // the archive was made.
-func comparable(t *testing.T, files map[string][]byte) map[string]string {
+func stable(t *testing.T, files map[string][]byte) map[string]string {
 	t.Helper()
 	out := map[string]string{}
 	for name, data := range files {
@@ -102,7 +102,7 @@ func TestAnArchiveReproducesTheAccountOnAnotherAlborz(t *testing.T) {
 		t.Fatalf("import answered %s", resp.Status)
 	}
 
-	got, want := comparable(t, unpack(t, exported(t, d))), comparable(t, archive)
+	got, want := stable(t, unpack(t, exported(t, d))), stable(t, archive)
 	for name, data := range want {
 		if got[name] != data {
 			t.Errorf("%s after the import:\n%s\nwant\n%s", name, got[name], data)

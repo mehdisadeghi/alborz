@@ -72,7 +72,7 @@ func HandleRefresh(p *dav.Provider, list string) func(*web.Context) error {
 }
 
 // Guarded sends an account with none of the kind to create its first, at the route create, instead of failing.
-func Guarded(p *dav.Provider, none error, create string, h func(*web.Context) error) func(*web.Context) error {
+func Guarded(none error, create string, h func(*web.Context) error) func(*web.Context) error {
 	return func(ctx *web.Context) error {
 		if err := h(ctx); !errors.Is(err, none) {
 			return err
@@ -121,17 +121,15 @@ func card(ctx *web.Context, p *dav.Provider, servers *web.Servers, title string,
 }
 
 // HereCard puts the collections kept here among the account's servers.
-func HereCard(p *dav.Provider) func(*web.Context, *web.Servers) error {
-	return func(ctx *web.Context, servers *web.Servers) error {
-		servers.Cards = append(servers.Cards, web.ServerCard{
-			Group: web.ServerDAV, Title: ctx.T("settings.davhere"), Source: "servers.onalborz",
-			Rows: []map[string]any{
-				{"label": ctx.T("settings.davhereaddress"), "value": ctx.Origin() + ctx.Path("dav.collections")},
-				{"label": ctx.T("settings.davhereuser"), "value": ctx.Login.Username()},
-			},
-		})
-		return nil
-	}
+func HereCard(ctx *web.Context, servers *web.Servers) error {
+	servers.Cards = append(servers.Cards, web.ServerCard{
+		Group: web.ServerDAV, Title: ctx.T("settings.davhere"), Source: "servers.onalborz",
+		Rows: []map[string]any{
+			{"label": ctx.T("settings.davhereaddress"), "value": ctx.Origin() + ctx.Path("dav.collections")},
+			{"label": ctx.T("settings.davhereuser"), "value": ctx.Login.Username()},
+		},
+	})
+	return nil
 }
 
 // RailInvitations are a section's open invitations and the route of the collection page their answers post under.

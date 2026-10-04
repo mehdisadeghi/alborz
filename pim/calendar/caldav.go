@@ -125,7 +125,7 @@ func (p *Calendars) Open(ctx context.Context, login *alborz.Login) (*caldav.Clie
 	return dav.Opened(ctx, p.DAV, login, p.Client)
 }
 
-type CalendarObject struct {
+type Object struct {
 	*caldav.CalendarObject
 
 	Account string
@@ -142,7 +142,7 @@ type Alarm struct {
 }
 
 // Alarms resolves the object's triggers to the moments they fire.
-func (ao CalendarObject) Alarms() []Alarm {
+func (ao Object) Alarms() []Alarm {
 	var comp *ical.Component
 	for _, child := range ao.Data.Children {
 		if child.Name == ical.CompEvent || child.Name == ical.CompToDo {
@@ -172,7 +172,7 @@ func (ao CalendarObject) Alarms() []Alarm {
 
 // Occurrence is one instance of an event: a component and the moment it falls on.
 type Occurrence struct {
-	CalendarObject
+	Object
 	Event *ical.Event
 	Start time.Time
 	End   time.Time
@@ -219,7 +219,7 @@ func SetComponentColor(comp *ical.Component, name string) {
 
 // Occurrences places obj's events between start and end. The error names each series not read, whose components
 // are drawn at their own start or, where that does not read either, left out; it never stops the others.
-func Occurrences(obj CalendarObject, loc *time.Location, start, end time.Time) ([]Occurrence, error) {
+func Occurrences(obj Object, loc *time.Location, start, end time.Time) ([]Occurrence, error) {
 	var out []Occurrence
 	var errs []error
 	seen := make(map[string]bool)
@@ -251,7 +251,7 @@ var lastDay = time.Date(9999, time.December, 31, 0, 0, 0, 0, time.UTC)
 
 // Shown is each event of an object at the occurrence a list across all time shows: the one under way
 // or next at now, else the last. The error names each series not read, as Occurrences does.
-func Shown(obj CalendarObject, loc *time.Location, now time.Time) ([]Occurrence, error) {
+func Shown(obj Object, loc *time.Location, now time.Time) ([]Occurrence, error) {
 	var out []Occurrence
 	var errs []error
 	seen := make(map[string]bool)
@@ -291,15 +291,15 @@ func Shown(obj CalendarObject, loc *time.Location, now time.Time) ([]Occurrence,
 	return out, errors.Join(errs...)
 }
 
-func instance(obj CalendarObject, series *ical.Series, inst recur.Instance) Occurrence {
+func instance(obj Object, series *ical.Series, inst recur.Instance) Occurrence {
 	return Occurrence{
-		CalendarObject: obj, Event: &ical.Event{Component: series.Component(inst)},
+		Object: obj, Event: &ical.Event{Component: series.Component(inst)},
 		Start: inst.Start, End: inst.End,
 	}
 }
 
 // A series not read here shows each component once, at its own start: a wrong instance is worse than a missing one.
-func ownStarts(obj CalendarObject, uid string, loc *time.Location) []Occurrence {
+func ownStarts(obj Object, uid string, loc *time.Location) []Occurrence {
 	var out []Occurrence
 	for _, event := range obj.Data.Events() {
 		if id, _ := event.Props.Text(ical.PropUID); id == uid {
@@ -309,14 +309,14 @@ func ownStarts(obj CalendarObject, uid string, loc *time.Location) []Occurrence 
 			}
 			// An end that does not read leaves the event at its start.
 			last, _ := event.DateTimeEnd(loc)
-			out = append(out, Occurrence{CalendarObject: obj, Event: &event, Start: first, End: last})
+			out = append(out, Occurrence{Object: obj, Event: &event, Start: first, End: last})
 		}
 	}
 	return out
 }
 
 // AllDay reports whether the object's start is a bare date.
-func (ao CalendarObject) AllDay() bool {
+func (ao Object) AllDay() bool {
 	events := ao.Data.Events()
 	if len(events) == 0 {
 		return false
@@ -354,8 +354,8 @@ func Unparsed(calendar string, obj *caldav.CalendarObject) pim.Unread {
 
 // QuerySites asks each site for the objects query matches. A calendar that fails and an object that does not
 // parse are returned as unread, so that they cost the page nothing else.
-func (p *Calendars) QuerySites(ctx context.Context, sites []pim.Site[*caldav.Client], query *caldav.CalendarQuery) ([]CalendarObject, []pim.Unread) {
-	var events []CalendarObject
+func (p *Calendars) QuerySites(ctx context.Context, sites []pim.Site[*caldav.Client], query *caldav.CalendarQuery) ([]Object, []pim.Unread) {
+	var events []Object
 	var unread []pim.Unread
 	for _, r := range pim.Present(p.DAV, dav.Across(ctx, sites, pim.Site[*caldav.Client].Account, func(ctx context.Context, site pim.Site[*caldav.Client]) ([]caldav.CalendarObject, error) {
 		return site.Client.QueryCalendar(ctx, site.Collection.Path, query)
@@ -370,7 +370,7 @@ func (p *Calendars) QuerySites(ctx context.Context, sites []pim.Site[*caldav.Cli
 				unread = append(unread, Unparsed(name, &r.Value[i]))
 				continue
 			}
-			events = append(events, CalendarObject{CalendarObject: &r.Value[i], Account: r.Site.Collection.Account,
+			events = append(events, Object{CalendarObject: &r.Value[i], Account: r.Site.Collection.Account,
 				Calendar: name, ReadOnly: !r.Site.Collection.Writable})
 		}
 	}

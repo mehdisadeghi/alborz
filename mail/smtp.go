@@ -199,7 +199,7 @@ func (att *FormAttachment) Filename() string {
 // IMAPAttachment is a part of a message on the server, sent again as it is.
 type IMAPAttachment struct {
 	Mailbox  string
-	Uid      imap.UID
+	UID      imap.UID
 	Node     *IMAPPartNode
 	Encoding string
 	transfer transfer
@@ -207,7 +207,7 @@ type IMAPAttachment struct {
 
 func (att *IMAPAttachment) WriteTo(w io.Writer) (n int64, err error) {
 	err = att.transfer(func(c *imapclient.Client) error {
-		n, err = copySection(w, c, att.Mailbox, att.Uid, att.Node.Path, att.Encoding)
+		n, err = copySection(w, c, att.Mailbox, att.UID, att.Node.Path, att.Encoding)
 		return err
 	})
 	return n, err
@@ -278,7 +278,7 @@ type OutgoingMessage struct {
 	// QuoteRich opens the editor on QuoteHTML.
 	QuoteRich bool
 	// Inline are the images the HTML shows, resolved for the send.
-	Inline []inlineImage
+	Inline []InlineImage
 	// SendHTML adds an HTML alternative carrying each paragraph's direction.
 	SendHTML    bool
 	Attachments []Attachment
@@ -593,7 +593,7 @@ func sendMessage(c *smtp.Client, msg *OutgoingMessage, body io.ReadSeeker) error
 }
 
 // The plain part comes first: multipart/alternative orders least preferred first (RFC 2046 5.1.4).
-func writeAlternative(mw *mail.Writer, th mail.InlineHeader, body, htmlBody string, images []inlineImage) error {
+func writeAlternative(mw *mail.Writer, th mail.InlineHeader, body, htmlBody string, images []InlineImage) error {
 	iw, err := mw.CreateInline()
 	if err != nil {
 		return fmt.Errorf("failed to create alternative part: %v", err)
@@ -640,7 +640,7 @@ func writeAlternative(mw *mail.Writer, th mail.InlineHeader, body, htmlBody stri
 	return iw.Close()
 }
 
-func writeRelated(iw *mail.InlineWriter, htmlBody string, images []inlineImage) error {
+func writeRelated(iw *mail.InlineWriter, htmlBody string, images []InlineImage) error {
 	var rh mail.InlineHeader
 	rh.Set("Content-Type", `multipart/related; type="text/html"`)
 	// Left unset, the writer would pick base64 for a multipart, which is never encoded.

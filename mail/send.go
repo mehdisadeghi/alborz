@@ -18,7 +18,7 @@ import (
 // MessagePath names a message by its folder and UID.
 type MessagePath struct {
 	Mailbox string
-	Uid     imap.UID
+	UID     imap.UID
 }
 
 // ComposeOptions are the messages a composed one stands in for or answers.
@@ -43,7 +43,7 @@ func (p *Mailboxes) Submit(ctx context.Context, account, sender *alborz.Login, m
 
 	if inReplyTo := options.InReplyTo; inReplyTo != nil {
 		err = account.DoIMAPContext(ctx, alborz.RoundTripTimeout, func(c *imapclient.Client) error {
-			return markMessageAnswered(c, inReplyTo.Mailbox, inReplyTo.Uid)
+			return markMessageAnswered(c, inReplyTo.Mailbox, inReplyTo.UID)
 		})
 		if err != nil {
 			return nil, 0, nil, fmt.Errorf("failed to mark original message as answered: %w", err)
@@ -53,7 +53,7 @@ func (p *Mailboxes) Submit(ctx context.Context, account, sender *alborz.Login, m
 	// A keyword the server may refuse after the send: note the refusal, do not fail the send.
 	if forward := options.Forward; forward != nil {
 		err = account.DoIMAPContext(ctx, alborz.RoundTripTimeout, func(c *imapclient.Client) error {
-			return markMessageForwarded(c, forward.Mailbox, forward.Uid)
+			return markMessageForwarded(c, forward.Mailbox, forward.UID)
 		})
 		if err != nil {
 			p.server.Logger().Printf("failed to mark original message as forwarded: %v", err)
@@ -73,7 +73,7 @@ func (p *Mailboxes) Submit(ctx context.Context, account, sender *alborz.Login, m
 
 	if draft := options.Draft; draft != nil {
 		err = account.DoIMAPContext(ctx, alborz.RoundTripTimeout, func(c *imapclient.Client) error {
-			return deleteMessage(c, draft.Mailbox, draft.Uid)
+			return deleteMessage(c, draft.Mailbox, draft.UID)
 		})
 		if err != nil {
 			return nil, 0, nil, fmt.Errorf("failed to delete draft: %w", err)
@@ -168,7 +168,7 @@ func fileDraft(c *imapclient.Client, body io.ReadSeeker, messageID string, repla
 		return nil, 0, err
 	}
 	if replaces != nil {
-		if err := deleteMessage(c, replaces.Mailbox, replaces.Uid); err != nil {
+		if err := deleteMessage(c, replaces.Mailbox, replaces.UID); err != nil {
 			return nil, 0, err
 		}
 	}
@@ -246,7 +246,7 @@ func AttachMessages(ctx context.Context, login *alborz.Login, msg *OutgoingMessa
 		var env *imap.Envelope
 		err := login.DoIMAPContext(ctx, alborz.RoundTripTimeout, func(c *imapclient.Client) error {
 			var err error
-			env, err = fetchEnvelope(c, p.Mailbox, p.Uid)
+			env, err = fetchEnvelope(c, p.Mailbox, p.UID)
 			return err
 		})
 		if err != nil {
@@ -264,7 +264,7 @@ func AttachPart(ctx context.Context, login *alborz.Login, msg *OutgoingMessage, 
 	var part *imap.BodyStructureSinglePart
 	err := login.DoIMAPContext(ctx, alborz.RoundTripTimeout, func(c *imapclient.Client) error {
 		var err error
-		part, err = singlePart(c, from.Mailbox, from.Uid, path)
+		part, err = singlePart(c, from.Mailbox, from.UID, path)
 		return err
 	})
 	if err != nil {
@@ -272,7 +272,7 @@ func AttachPart(ctx context.Context, login *alborz.Login, msg *OutgoingMessage, 
 	}
 	msg.Attachments = append(msg.Attachments, &IMAPAttachment{
 		Mailbox:  from.Mailbox,
-		Uid:      from.Uid,
+		UID:      from.UID,
 		Node:     newIMAPPartNode(nil, path, part),
 		Encoding: part.Encoding,
 		transfer: transferOf(ctx, login),
@@ -290,7 +290,7 @@ func Quotable(ctx context.Context, login *alborz.Login, path MessagePath, partPa
 	fetch := func(p []int) error {
 		return login.DoIMAPContext(ctx, alborz.RoundTripTimeout, func(c *imapclient.Client) error {
 			var err error
-			msg, part, err = getShownPart(c, path.Mailbox, path.Uid, p)
+			msg, part, err = getShownPart(c, path.Mailbox, path.UID, p)
 			return err
 		})
 	}
@@ -329,7 +329,7 @@ func QuotedHTML(ctx context.Context, login *alborz.Login, path MessagePath, msg 
 		if pieces := msg.HTMLPieces(node.Path); pieces != nil {
 			part, err = joinedHTML(c, msg, pieces)
 		} else {
-			_, part, err = getShownPart(c, path.Mailbox, path.Uid, node.Path)
+			_, part, err = getShownPart(c, path.Mailbox, path.UID, node.Path)
 		}
 		if err != nil {
 			return err
@@ -348,7 +348,7 @@ func MessageListID(ctx context.Context, login *alborz.Login, path MessagePath) (
 	var id string
 	err := login.DoIMAPContext(ctx, alborz.RoundTripTimeout, func(c *imapclient.Client) error {
 		var err error
-		id, err = listIDOf(c, path.Mailbox, path.Uid)
+		id, err = listIDOf(c, path.Mailbox, path.UID)
 		return err
 	})
 	return id, err

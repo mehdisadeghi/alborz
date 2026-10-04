@@ -324,7 +324,8 @@ func (lc *listingCache) message(user, view string, uid imap.UID, perPage int) (*
 	defer lc.mu.Unlock()
 	var found *listingEntry
 	for k, e := range lc.entries {
-		if k.user != user || !(k.view == view || strings.HasPrefix(k.view, view+listingSep+"page=")) || e.perPage != perPage || e.row(uid) == nil {
+		inView := k.view == view || strings.HasPrefix(k.view, view+listingSep+"page=")
+		if k.user != user || !inView || e.perPage != perPage || e.row(uid) == nil {
 			continue
 		}
 		if found == nil || e.fetched.After(found.fetched) {

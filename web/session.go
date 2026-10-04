@@ -226,11 +226,6 @@ func (ss *Sessions) Save(s *Session) error {
 	return ss.records.Save(s.record())
 }
 
-// sweep drops the records nobody has come back to.
-func (ss *Sessions) sweep(before time.Time) error {
-	return ss.records.Sweep(before)
-}
-
 // sessionDuration matches the login's so nothing changes hands while signed in.
 const sessionDuration = alborz.LoginDuration
 
@@ -482,4 +477,4 @@ func (ctx *Context) PopAttachment(id string) *File {
 // MaxAttachmentSize bounds unsent attachments per session and per upload.
 const MaxAttachmentSize = 32 << 20
 
-var ErrAttachmentCacheSize = errors.New("Attachments on session exceed maximum file size")
+var ErrAttachmentCacheSize = errors.New("attachments on session exceed maximum file size")

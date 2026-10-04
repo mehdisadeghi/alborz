@@ -135,7 +135,7 @@ func (p *plugin) exportPage(ctx *web.Context, uids []imap.UID, form url.Values) 
 	if err != nil {
 		return err
 	}
-	ibase.BaseRenderData.WithTitle(fmt.Sprintf(ctx.T("folder.exporttitle"), ibase.Mailbox.Label))
+	ibase.WithTitle(fmt.Sprintf(ctx.T("folder.exporttitle"), ibase.Mailbox.Label))
 	data := &ExportRenderData{IMAPBaseRenderData: *ibase, Count: len(uids), UIDs: uids}
 	if _, _, whole := wholeView(form); whole {
 		data.UIDs, data.Everything = nil, form.Get("next")
@@ -152,7 +152,7 @@ func (p *plugin) handleExportPage(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	ibase.BaseRenderData.WithTitle(fmt.Sprintf(ctx.T("folder.exporttitle"), mboxName))
+	ibase.WithTitle(fmt.Sprintf(ctx.T("folder.exporttitle"), mboxName))
 	data := &ExportRenderData{IMAPBaseRenderData: *ibase, Query: ctx.QueryParam("query")}
 	if ibase.ListView != "" {
 		data.ViewName = viewTitle(ctx, ibase.ListView)
@@ -181,7 +181,7 @@ func (p *plugin) handleImport(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	ibase.BaseRenderData.WithTitle(ctx.T("folder.import"))
+	ibase.WithTitle(ctx.T("folder.import"))
 	selectedAccount := ctx.Login.Username()
 	if ctx.URLAccount() != "" {
 		selectedAccount = ctx.URLAccount()
@@ -196,7 +196,7 @@ func (p *plugin) handleImport(ctx *web.Context) error {
 	}
 	name := ""
 	render := func(status int, errText string) error {
-		ibase.BaseRenderData.Refused(errText)
+		ibase.Refused(errText)
 		return ctx.Render(status, "mail/import", &NewMailboxRenderData{
 			IMAPBaseRenderData: *ibase,
 			Name:               name,

@@ -79,7 +79,7 @@ func ActiveReply(c alborz.SieveClient, items []Reply) (active int, loaded string
 
 // ReplaceReply sends v at once if the reply at index in was is the one being sent.
 func ReplaceReply(c alborz.SieveClient, loaded string, was []Reply, index int, v Reply) (sent bool, err error) {
-	err = rewrite(c, VacationScript, loaded, func(current string, exists bool) (string, error) {
+	err = rewrite(c, VacationScript, loaded, func(current string, _ bool) (string, error) {
 		if activeIndex(was, current) != index {
 			return current, nil
 		}
@@ -91,7 +91,7 @@ func ReplaceReply(c alborz.SieveClient, loaded string, was []Reply, index int, v
 
 // WithdrawReply stops gone if it is the reply being sent.
 func WithdrawReply(c alborz.SieveClient, loaded string, gone Reply) error {
-	return rewrite(c, VacationScript, loaded, func(current string, exists bool) (string, error) {
+	return rewrite(c, VacationScript, loaded, func(current string, _ bool) (string, error) {
 		if sent, ok := readReply(current); ok && sent.script() == gone.script() {
 			return "", nil
 		}
@@ -171,8 +171,13 @@ func replyEntity(text string) string {
 	for _, part := range []struct{ kind, body string }{{"text/plain", text + "\n"}, {"text/html", lang.HTMLAlternative(text)}} {
 		fmt.Fprintf(&b, "--%s\nContent-Type: %s; charset=utf-8\nContent-Transfer-Encoding: quoted-printable\n\n", replyBoundary, part.kind)
 		w := quotedprintable.NewWriter(&b)
-		w.Write([]byte(part.body))
-		w.Close()
+		_, err := io.WriteString(w, part.body)
+		if err == nil {
+			err = w.Close()
+		}
+		if err != nil {
+			panic(err) // a strings.Builder takes every write
+		}
 		b.WriteString("\n")
 	}
 	fmt.Fprintf(&b, "--%s--\n", replyBoundary)

@@ -16,7 +16,7 @@ import (
 
 func registerRoutes(p *plugin, g *web.Group) {
 	guard := func(h func(*web.Context) error) func(*web.Context) error {
-		return pimweb.Guarded(p.DAV, contacts.ErrNoAddressBook, "contacts.books.create", h)
+		return pimweb.Guarded(contacts.ErrNoAddressBook, "contacts.books.create", h)
 	}
 	GET := func(name, path string, h func(*web.Context) error) { g.GET(name, path, guard(h)) }
 	POST := func(name, path string, h func(*web.Context) error) { g.POST(name, path, guard(h)) }
@@ -42,8 +42,8 @@ func registerRoutes(p *plugin, g *web.Group) {
 	GET("book", "/address-books/{path}", page.Handle(p.DAV))
 	POST("book", "/address-books/{path}", page.Handle(p.DAV))
 	POST("book.delete", "/address-books/{path}/delete", page.HandleDelete(p.DAV))
-	upload("book.import", "/address-books/{path}/import", pimweb.ImportBodySize, page.HandleImport(p.DAV), page.HandleImportTooLarge)
-	download("book.export", "/address-books/{path}/export", page.HandleExport(p.DAV))
+	upload("book.import", "/address-books/{path}/import", pimweb.ImportBodySize, page.HandleImport, page.HandleImportTooLarge)
+	download("book.export", "/address-books/{path}/export", page.HandleExport)
 	POST("book.share", "/address-books/{path}/share", page.HandleShare(p.DAV))
 	POST("book.unshare", "/address-books/{path}/unshare", page.HandleUnshare(p.DAV))
 	POST("book.access", "/address-books/{path}/access", page.HandleAccess(p.DAV))
@@ -68,7 +68,7 @@ func registerRoutes(p *plugin, g *web.Group) {
 	POST("add", "/contacts/add", p.addAddress)
 }
 
-func (p *plugin) warm(ctx *web.Context, s *alborz.Login) {
+func (p *plugin) warm(_ *web.Context, s *alborz.Login) {
 	p.DAV.Warm(s, func(bg context.Context) error { return p.WarmAccount(bg, s) })
 }
 

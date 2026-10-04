@@ -172,7 +172,7 @@ func (p *plugin) handleGetMailbox(ctx *web.Context) error {
 	if ask.View != "" && ibase.Mailbox != nil {
 		ibase.Mailbox.Label = title
 	}
-	ibase.BaseRenderData.WithTitle(title)
+	ibase.WithTitle(title)
 
 	data := listPage(ctx, ask, list)
 	data.IMAPBaseRenderData = *ibase
@@ -338,7 +338,7 @@ func (p *plugin) handleNewMailbox(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	ibase.BaseRenderData.WithTitle(ctx.T("folder.create"))
+	ibase.WithTitle(ctx.T("folder.create"))
 	selectedAccount := ctx.Login.Username()
 	if ctx.URLAccount() != "" {
 		selectedAccount = ctx.URLAccount()
@@ -353,7 +353,7 @@ func (p *plugin) handleNewMailbox(ctx *web.Context) error {
 	}
 	name := ""
 	render := func(status int, errText string) error {
-		ibase.BaseRenderData.Refused(errText)
+		ibase.Refused(errText)
 		return ctx.Render(status, "mail/folder-create", &NewMailboxRenderData{
 			IMAPBaseRenderData: *ibase,
 			Name:               name,
@@ -438,12 +438,12 @@ func (p *plugin) handleDeleteMailbox(ctx *web.Context) error {
 	}
 
 	mbox := ibase.Mailbox
-	ibase.BaseRenderData.WithTitle(fmt.Sprintf(ctx.T("folder.deletetitle"), mbox.Name()))
+	ibase.WithTitle(fmt.Sprintf(ctx.T("folder.deletetitle"), mbox.Name()))
 
 	if ctx.Request().Method == http.MethodPost {
 		// Some deletions are refused; claiming success would send the reader looking for a folder still there.
 		if err := p.DeleteFolder(ctx.Request().Context(), ctx.Login, mbox.Name()); err != nil {
-			ibase.BaseRenderData.Refused(err.Error())
+			ibase.Refused(err.Error())
 			return ctx.Render(http.StatusUnprocessableEntity, "mail/folder-delete", &DeleteMailboxRenderData{
 				IMAPBaseRenderData: *ibase,
 			})
@@ -464,10 +464,10 @@ func (p *plugin) handleRenameMailbox(ctx *web.Context) error {
 		return err
 	}
 	mbox := ibase.Mailbox
-	ibase.BaseRenderData.WithTitle(fmt.Sprintf(ctx.T("folder.renametitle"), mbox.Label))
+	ibase.WithTitle(fmt.Sprintf(ctx.T("folder.renametitle"), mbox.Label))
 	name := mbox.Label
 	render := func(status int, errText string) error {
-		ibase.BaseRenderData.Refused(errText)
+		ibase.Refused(errText)
 		return ctx.Render(status, "mail/folder-rename", &RenameMailboxRenderData{
 			IMAPBaseRenderData: *ibase,
 			Name:               name,
@@ -550,7 +550,7 @@ func (p *plugin) handleMove(ctx *web.Context) error {
 		if err != nil {
 			return err
 		}
-		ibase.BaseRenderData.WithTitle(ctx.T("folder.moveask"))
+		ibase.WithTitle(ctx.T("folder.moveask"))
 		return ctx.Render(http.StatusOK, "mail/move", &MoveRenderData{
 			IMAPBaseRenderData: *ibase,
 			UIDs:               uids,
@@ -604,7 +604,7 @@ func (p *plugin) handleEmptyMailbox(ctx *web.Context) error {
 		if err != nil {
 			return err
 		}
-		ibase.BaseRenderData.WithTitle(fmt.Sprintf(ctx.T("folder.emptytitle"), mboxName))
+		ibase.WithTitle(fmt.Sprintf(ctx.T("folder.emptytitle"), mboxName))
 		count := 0
 		if ibase.Mailbox.NumMessages != nil {
 			count = int(*ibase.Mailbox.NumMessages)

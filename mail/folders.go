@@ -269,7 +269,7 @@ func startSidebar(c *imapclient.Client, mboxName, selectMbox string, subs []stri
 	l.sb.Mailboxes, err = finishListMailboxes(list)
 	if err != nil {
 		if sel != nil {
-			sel.Wait()
+			_, _ = sel.Wait()
 		}
 		return nil, err
 	}

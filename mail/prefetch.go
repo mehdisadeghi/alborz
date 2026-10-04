@@ -57,7 +57,7 @@ func (p *Mailboxes) prefetchPage(s *alborz.Login, settings *Settings, spec listi
 	}
 	go func() {
 		defer p.listings.release(s.Username(), key)
-		p.listings.load(context.Background(), s.Username(), key, page.Size, true, readOn(s, alborz.IMAPBackground, alborz.RoundTripTimeout, func(c *imapclient.Client) (*listingEntry, error) {
+		_, _ = p.listings.load(context.Background(), s.Username(), key, page.Size, true, readOn(s, alborz.IMAPBackground, alborz.RoundTripTimeout, func(c *imapclient.Client) (*listingEntry, error) {
 			return p.fetchListing(c, s.Username(), spec, settings, page)
 		}))
 		// Only visited pages get bodies; speculative ones would evict the page in use.

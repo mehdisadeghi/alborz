@@ -2513,13 +2513,23 @@ aside .filter-tick input {
   margin: 0;
 }
 
+/* The tick's box: a browser draws a checkbox at 13px whatever the text size. */
 aside .filter-edit {
+  --tick-box: 13px;
   flex: none;
-  padding-inline: var(--space-1);
+  width: var(--tick-box);
+  height: var(--tick-box);
+  min-width: var(--tick-box);
+  min-height: var(--tick-box);
+  border: 0;
   color: var(--fg-faint);
-  font-size: var(--text-sm);
   opacity: 0;
 }
+
+aside .filter-edit .icon { width: 100%; height: 100%; }
+
+/* The gap a filter row's flex gives it; a list row has none. */
+aside li > .filter-edit { margin-inline-start: var(--space-1); }
 
 aside .filter-row:hover .filter-edit,
 aside .filter-edit:focus-visible { opacity: 1; }
@@ -3153,7 +3163,7 @@ main.calendar .actions {
 .task-list-summary a,
 .task-list-calendar,
 .event-summary a,
-.event-owner {
+.event-owner a {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -3280,6 +3290,12 @@ aside details.folder-branch details.folder-branch > ul > li {
 
 .event-row:hover > * { background: var(--bg-active); }
 
+/* A read-only event has no star; its row keeps the star's height. */
+.event-row .list-star::before {
+  content: "";
+  block-size: var(--control-height);
+}
+
 .event-time,
 .event-owner { color: var(--fg-muted); }
 
@@ -3292,6 +3308,10 @@ aside details.folder-branch details.folder-branch > ul > li {
 }
 
 .event-summary a:hover { text-decoration: underline; }
+
+/* The collection's mark stays beside its name, not at the cell's end. */
+.event-owner a,
+.contact-list-book a { flex-grow: 0; }
 
 .event-grid .event-day-header,
 .search-kind {
@@ -4627,9 +4647,11 @@ h1.no-word .title-short {
 
   .event-header-row { display: none; }
 
+  /* Each line spans the flexible track, so the calendar's name does not
+     size the star's column and narrow the summary above it. */
   .event-row {
     display: grid;
-    grid-template-columns: auto auto minmax(0, 1fr) auto;
+    grid-template-columns: auto auto auto minmax(0, 1fr) auto;
     column-gap: var(--space-2);
     padding: var(--space-2);
     border-bottom: 1px solid var(--border-light);
@@ -4651,13 +4673,13 @@ h1.no-word .title-short {
   .event-row:hover > * { background: transparent; }
 
   .event-row .event-summary {
-    grid-column: 2 / 4;
+    grid-column: 2 / 5;
     grid-row: 1;
     font-weight: 600;
   }
 
   .event-row .list-star {
-    grid-column: 4;
+    grid-column: 5;
     grid-row: 1;
     justify-self: end;
     align-self: center;
@@ -4671,10 +4693,9 @@ h1.no-word .title-short {
   }
 
   .event-row .event-owner {
-    grid-column: 4;
+    grid-column: 4 / 6;
     grid-row: 2;
-    justify-self: end;
-    white-space: nowrap;
+    justify-content: flex-end;
   }
 
   .event-grid-grouped .event-row .event-time { grid-column: 2 / 4; }

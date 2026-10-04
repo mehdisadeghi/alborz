@@ -209,6 +209,9 @@ func readListAskAt(ctx *web.Context, q url.Values, also string) (mail.ListAsk, e
 	if err != nil {
 		return mail.ListAsk{}, err
 	}
+	if err := readStars(q.Get("query"), view); err != nil {
+		return mail.ListAsk{}, err
+	}
 	sortKey, sortDir, err := readSort(q, also)
 	if err != nil {
 		return mail.ListAsk{}, err
@@ -247,6 +250,18 @@ func readView(q url.Values) (string, error) {
 		return "", web.NewError(http.StatusBadRequest, "unknown view")
 	}
 	return view, nil
+}
+
+// readStars refuses a query whose star terms and view name two colours, as every section's search does;
+// the search itself is listCriteria's.
+func readStars(query, view string) error {
+	if !mail.StarView(view) {
+		view = ""
+	}
+	if _, _, err := web.StarFilter(search.Parse(query), view); err != nil {
+		return web.NewError(http.StatusBadRequest, err.Error())
+	}
+	return nil
 }
 
 func viewTitle(ctx *web.Context, view string) string {

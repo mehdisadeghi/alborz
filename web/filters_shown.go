@@ -1,15 +1,18 @@
 package web
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"slices"
 	"sort"
 	"strconv"
+	"strings"
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/internal/locale"
+	"git.mehdix.org/alborz/search"
 )
 
 // Filter is one narrowing in force on a listing, with the page without it.
@@ -198,6 +201,50 @@ func StarMatches(star, view string) bool {
 		return star != ""
 	}
 	return star == view
+}
+
+// StarKey is the key whose star values every section reads, as mail's search reads them.
+const StarKey = "is"
+
+// StarFilter is what a query's star terms and view keep of the stars, and the query less those terms;
+// of view and the terms the narrower wins, two colours are no view, and a negated term leaves its
+// star out. A term naming no star stays in the query.
+func StarFilter(q search.Query, view string) (search.Query, func(star string) bool, error) {
+	var rest search.Query
+	var not []string
+	for _, term := range q {
+		value := strings.ToLower(term.Value)
+		if value == "flagged" {
+			value = alborz.ViewStarred
+		}
+		switch {
+		case term.Key != StarKey || (value != alborz.ViewStarred && !slices.Contains(alborz.FlagColors[:], value)):
+			rest = append(rest, term)
+		case term.Not:
+			not = append(not, value)
+		case view == "" || view == alborz.ViewStarred:
+			view = value
+		case value != alborz.ViewStarred && value != view:
+			return nil, nil, errors.New("no such view")
+		}
+	}
+	return rest, func(star string) bool {
+		for _, left := range not {
+			if StarMatches(star, left) {
+				return false
+			}
+		}
+		return StarMatches(star, view)
+	}, nil
+}
+
+// StarUnasked is the star key where the query gives it what is not a star, so that a section reading
+// stars alone searches nothing; two colours are the view's error, StarFilter's to report.
+func StarUnasked(q search.Query) []string {
+	if rest, _, _ := StarFilter(q, ""); slices.Contains(rest.Keys(), StarKey) {
+		return []string{StarKey}
+	}
+	return nil
 }
 
 // StarLeaves says whether a row with this star leaves the list at next.

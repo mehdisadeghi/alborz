@@ -160,7 +160,11 @@ func (p *plugin) shownCards(ctx *web.Context, only map[string]bool, view, queryT
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	query := contacts.Query(queryText)
+	words, starred, err := web.StarFilter(search.Parse(queryText), view)
+	if err != nil {
+		return nil, nil, nil, nil, web.NewError(http.StatusBadRequest, err.Error())
+	}
+	query := contacts.Query(words.String())
 	for _, result := range pim.Present(p.DAV, dav.Across(ctx.Request().Context(), sites, pim.Site[*carddav.Client].Account, func(ctx context.Context, site pim.Site[*carddav.Client]) ([]carddav.AddressObject, error) {
 		return site.Client.QueryAddressBook(ctx, site.Collection.Path, &query)
 	})) {
@@ -181,7 +185,7 @@ func (p *plugin) shownCards(ctx *web.Context, only map[string]bool, view, queryT
 				continue
 			}
 			// A colour is a view, as in the mail rail; starred is any colour.
-			if web.StarMatches(ao.Color(), view) {
+			if starred(ao.Color()) {
 				aos = append(aos, ao)
 			}
 		}
@@ -284,6 +288,9 @@ func searchFilter(ctx *web.Context, list ContactList) []web.Filter {
 
 // found is the contacts' part in the search across sections, in the list's own order.
 func (p *plugin) found(ctx *web.Context, q search.Query, view string, limit int) (web.Found, error) {
+	if unasked := web.StarUnasked(q); unasked != nil {
+		return web.Found{Unasked: unasked}, nil
+	}
 	cards, _, books, unread, err := p.shownCards(ctx, nil, view, q.String())
 	if err != nil {
 		return web.Found{}, err

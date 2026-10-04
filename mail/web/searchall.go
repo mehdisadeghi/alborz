@@ -94,6 +94,9 @@ func spanningPage(ctx *web.Context, ask mail.ListAsk, list *mail.Listing) *Mailb
 
 // found is mail's part in the search across sections: a search of every folder.
 func (p *plugin) found(ctx *web.Context, q search.Query, view string, limit int) (web.Found, error) {
+	if err := readStars(q.String(), view); err != nil {
+		return web.Found{}, err
+	}
 	ask := mail.ListAsk{Page: alborz.Page{Size: limit}, Query: q.String(), View: view}
 	data, down, err := p.searchRows(ctx, ask)
 	if err != nil {

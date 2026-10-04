@@ -14,6 +14,9 @@ import (
 // In is the key that names the folders a search covers.
 const In = "in"
 
+// Is is the key that names a message's state.
+const Is = "is"
+
 // Everywhere is the in: value that searches every folder.
 const Everywhere = "anywhere"
 
@@ -38,7 +41,7 @@ var operators = map[string]operator{
 	"text": func(value string, _ time.Time) *imap.SearchCriteria {
 		return &imap.SearchCriteria{Text: []string{value}}
 	},
-	"is": func(value string, _ time.Time) *imap.SearchCriteria {
+	Is: func(value string, _ time.Time) *imap.SearchCriteria {
 		state, ok := messageStates[strings.ToLower(value)]
 		if !ok {
 			return nil

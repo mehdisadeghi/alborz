@@ -36,6 +36,8 @@ type Found struct {
 	Total int
 	All   string
 	Down  []string
+	// Unasked are the query's keys with a value the section cannot read, so it searched nothing.
+	Unasked []string
 }
 
 // searchLimit is how many rows each section shows: enough to spot what was meant, the rest are on
@@ -185,6 +187,7 @@ func (ctx *Context) searchSections(searchers []Searcher, q search.Query, view st
 		if errs[i] != nil {
 			return nil, errs[i]
 		}
+		blocks[i].Unasked = append(blocks[i].Unasked, found[i].Unasked...)
 		if found[i].Rows == nil {
 			continue
 		}

@@ -36,12 +36,26 @@ func ViewCriteria(view string) *imap.SearchCriteria {
 	return &imap.SearchCriteria{Flag: add, NotFlag: del}
 }
 
+// A colour is a view, so is:<colour> asks what that view asks.
 func listCriteria(c *imapclient.Client, settings *Settings, query, view string) *imap.SearchCriteria {
 	criteria := ViewCriteria(view)
-	if query != "" {
-		criteria = imapsearch.And(criteria, imapsearch.Of(search.Parse(query), SearchesIndex(c, settings), time.Now()))
+	if query == "" {
+		return criteria
 	}
-	return criteria
+	var rest search.Query
+	for _, term := range search.Parse(query) {
+		colour := strings.ToLower(term.Value)
+		if term.Key != imapsearch.Is || !slices.Contains(alborz.FlagColors[:], colour) {
+			rest = append(rest, term)
+			continue
+		}
+		one := ViewCriteria(colour)
+		if term.Not {
+			one = &imap.SearchCriteria{Not: []imap.SearchCriteria{*one}}
+		}
+		criteria = imapsearch.And(criteria, one)
+	}
+	return imapsearch.And(criteria, imapsearch.Of(rest, SearchesIndex(c, settings), time.Now()))
 }
 
 // queryDays names the days a query's dates resolve to at now: newer_than:

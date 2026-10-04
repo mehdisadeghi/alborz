@@ -114,8 +114,7 @@ func (ss *Sessions) SignOut(id, account string) error {
 		}
 		s.forget(account)
 		if live, _ := s.Accounts(); len(live) == 0 && !s.remembered() {
-			ss.delete(id)
-			return nil
+			return ss.delete(id)
 		}
 		return ss.Save(s)
 	}

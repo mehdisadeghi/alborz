@@ -44,7 +44,7 @@ func serveProfiles(addr string) error {
 	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
 	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
 	server := &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second}
-	go server.Serve(ln)
+	go func() { log.Printf("profiles: %v", server.Serve(ln)) }()
 	return nil
 }
 

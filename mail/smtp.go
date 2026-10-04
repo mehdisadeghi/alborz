@@ -224,7 +224,9 @@ func (att *IMAPAttachment) Filename() string {
 // NewMessageID is a Message-ID for a message written here.
 func NewMessageID() string {
 	var hdr mail.Header
-	hdr.GenerateMessageID()
+	if err := hdr.GenerateMessageID(); err != nil {
+		panic(err)
+	}
 	id, _ := hdr.MessageID()
 	return "<" + id + ">"
 }

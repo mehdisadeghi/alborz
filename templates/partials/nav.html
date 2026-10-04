@@ -8,11 +8,11 @@
   {{ range tuple "message" "compose" "mail" "import" "new-mailbox" "rename-mailbox" "delete-mailbox" }}{{ if eq $page . }}{{ $section = "mailbox" }}{{ end }}{{ end }}
   <nav>
     {{ if .GlobalData.LoggedIn }}
-    <label for="sidebar" class="sidebar-button" aria-hidden="true">☰</label>
+    <label for="sidebar" class="sidebar-button" aria-hidden="true" data-tour="rail accounts settings">☰</label>
     <span class="header-brand">{{ template "brand" (dict "g" $ "build" .GlobalData.Revision) }}</span>
     {{ end }}
     {{$q := account "?" .GlobalData.Scope}}
-    <a href="{{url "mail.mailbox" "INBOX"}}{{$q}}" data-go="m"
+    <a href="{{url "mail.mailbox" "INBOX"}}{{$q}}" data-go="m" data-tour="sections"
       {{ if eq $section "mailbox" }}
       class="active" aria-current="page"
       {{ end }}
@@ -48,17 +48,18 @@
       {{ end }}
     title="{{$.T "nav.filters"}}" aria-label="{{$.T "nav.filters"}}">{{ template "icon" "filter" }}<span class="label">{{$.T "nav.filters"}}</span></a>
     {{ if .GlobalData.LoggedIn }}
-    <button type="button" class="nav-search-open" commandfor="search-dialog" command="show-modal" title="{{$.T "search.title"}}" aria-label="{{$.T "search.title"}}">{{ template "icon" "search" }}<span class="label">{{$.T "search.placeholder"}}</span><kbd aria-hidden="true">/</kbd></button>
+    <button type="button" class="nav-search-open" data-tour="search" commandfor="search-dialog" command="show-modal" title="{{$.T "search.title"}}" aria-label="{{$.T "search.title"}}">{{ template "icon" "search" }}<span class="label">{{$.T "search.placeholder"}}</span><kbd aria-hidden="true">/</kbd></button>
     <div>
       {{ template "nav-menus" (dict "g" $ "page" $page "drawer" false) }}
       {{ template "nav-menus" (dict "g" $ "page" $page "drawer" true) }}
-      <a href="{{url "settings.profile"}}"{{ if or (eq $page "settings") (eq $page "signatures") }} class="active" aria-current="page"{{ end }}>{{$.T "nav.settings"}}</a>
+      <a href="{{url "settings.profile"}}" data-tour="settings"{{ if or (eq $page "settings") (eq $page "signatures") }} class="active" aria-current="page"{{ end }}>{{$.T "nav.settings"}}</a>
     </div>
     {{ template "scheme-toggle" $ }}
     {{ end }}
   </nav>
   {{ if .GlobalData.LoggedIn }}{{ template "flag-colors-menu" (dict "id" "row-colors" "row" true "colors" (flagcolors $) "clear" ($.T "mailbox.flagnone")) }}{{ end }}
   {{ template "notices" (dict "g" $) }}
+  {{ if .GlobalData.LoggedIn }}{{ template "tour" $ }}{{ end }}
   {{ if .GlobalData.LoggedIn }}
   <dialog id="search-dialog" class="search-dialog" closedby="any" aria-label="{{$.T "search.title"}}">
     <form method="get" action="{{url "core.search"}}" role="search" hx-boost="false">
@@ -96,7 +97,7 @@
 {{ define "nav-menus" }}
 {{ $g := .g }}{{ $page := .page }}
 <div class="{{ if .drawer }}nav-menus-drawer{{ else }}nav-menus{{ end }}">
-  {{ if .drawer }}<details class="accounts"><summary>{{ if $g.GlobalData.Scope }}{{ template "ltr" $g.GlobalData.Scope }}{{ else if $g.GlobalData.Merged }}{{$g.T "nav.allaccounts"}}{{ else }}{{ template "ltr" $g.GlobalData.Username }}{{ end }}</summary>{{ else }}<div class="accounts"><button type="button" class="accounts-button" popovertarget="menu-accounts"><span class="label">{{ if $g.GlobalData.Scope }}{{ template "ltr" $g.GlobalData.Scope }}{{ else if $g.GlobalData.Merged }}{{$g.T "nav.allaccounts"}}{{ else }}{{ template "ltr" $g.GlobalData.Username }}{{ end }}</span>{{ template "icon" "down" }}</button>{{ end }}
+  {{ if .drawer }}<details class="accounts"><summary>{{ if $g.GlobalData.Scope }}{{ template "ltr" $g.GlobalData.Scope }}{{ else if $g.GlobalData.Merged }}{{$g.T "nav.allaccounts"}}{{ else }}{{ template "ltr" $g.GlobalData.Username }}{{ end }}</summary>{{ else }}<div class="accounts"><button type="button" class="accounts-button" data-tour="accounts" popovertarget="menu-accounts"><span class="label">{{ if $g.GlobalData.Scope }}{{ template "ltr" $g.GlobalData.Scope }}{{ else if $g.GlobalData.Merged }}{{$g.T "nav.allaccounts"}}{{ else }}{{ template "ltr" $g.GlobalData.Username }}{{ end }}</span>{{ template "icon" "down" }}</button>{{ end }}
   <div class="accounts-menu"{{ if not .drawer }} popover id="menu-accounts"{{ end }}>
     {{ $section := printf "/%s" $page }}
     {{ $merged := $section }}
@@ -117,6 +118,7 @@
     {{ end }}
     <a href="{{url "auth.login"}}?add=1">{{$g.T "nav.addaccount"}}</a>
     <button type="button" class="keys-open" commandfor="keys-help" command="show-modal">{{$g.T "keys.title"}}</button>
+    <a href="{{ localhref $g.GlobalData.TourStart }}">{{$g.T "tour.take"}}</a>
     {{ if $g.GlobalData.LockSeconds }}
     <form method="post" action="{{url "auth.lock"}}" hx-boost="false">
       <button type="submit">{{$g.T "lock.now"}}</button>
@@ -144,7 +146,7 @@
 
 {{ define "scheme-toggle" }}
 {{ if not .GlobalData.SchemePinned }}
-<span class="scheme-toggle">
+<span class="scheme-toggle" data-tour="scheme">
   <button type="button" class="icon-button" data-scheme="system" data-next="light"
           title="{{$.T "scheme.tolight"}}" aria-label="{{$.T "scheme.tolight"}}">{{ template "icon" "system" }}</button>
   <button type="button" class="icon-button" data-scheme="light" data-next="dark"

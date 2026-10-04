@@ -4418,7 +4418,8 @@ aside ul.merged-roles {
 }
 
 .keys-help,
-.form-dialog {
+.form-dialog,
+.tour {
   max-width: min(32rem, calc(100vw - 2 * var(--space-4)));
   padding: var(--space-4);
   color: var(--fg);
@@ -4458,6 +4459,66 @@ aside ul.merged-roles {
   background: var(--bg-inset);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
+}
+
+/* The tour: the keys help's box, centred, or hung from the control it points at (ADR 76). */
+.tour {
+  position: fixed;
+  z-index: 14;
+  inset: 0;
+  width: 22rem;
+  height: fit-content;
+  margin: auto;
+}
+
+.tour-anchored {
+  inset: auto;
+  margin: var(--space-2);
+  position-anchor: --tour;
+  position-area: block-end span-inline-end;
+  position-try-fallbacks: flip-block, flip-inline, flip-block flip-inline, inline-end center;
+}
+
+.tour-step { animation: notice-in 120ms ease-out; }
+.tour-count { margin: 0; color: var(--fg-muted); font-size: var(--text-xs); }
+.tour h2 { margin: var(--space-1) 0 var(--space-2); padding-inline-end: var(--space-6); font-size: var(--text-lg); }
+.tour p { margin-block-end: 0; }
+
+.tour-actions {
+  display: flex;
+  justify-content: end;
+  align-items: center;
+  gap: var(--space-2);
+  margin-block-start: var(--space-3);
+}
+
+.tour-actions form { margin: 0; }
+
+.tour-close {
+  position: absolute;
+  inset-block-start: var(--space-4);
+  inset-inline-end: var(--space-4);
+  color: var(--fg-muted);
+}
+
+/* Inside the box: a control on the viewport's edge would lose an outer ring. */
+.tour-target {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* A sheet along the bottom; what it points at keeps clear of it. */
+@media (width <= 600px) {
+  .tour,
+  .tour-anchored {
+    inset: auto var(--space-2) var(--space-2);
+    width: auto;
+    max-width: none;
+    margin: 0;
+    position-area: none;
+  }
+
+  .tour-target { scroll-margin-block-end: 16rem; }
 }
 
 /* In the crumb's box: a bar arriving above the rows would move them under the hand. */

@@ -1,12 +1,12 @@
 {{/* dict: g [class title shorttitle subtitle selectall newhref newlabel newicon back]; closed by toolbar-end and toolbar-foot. */}}
 {{ define "toolbar-head" }}
-<section class="actions{{ with .class }} {{.}}{{ end }}" aria-label="{{.g.T "a11y.toolbar"}}">
+<section class="actions{{ with .class }} {{.}}{{ end }}" data-tour="toolbar" aria-label="{{.g.T "a11y.toolbar"}}">
 {{ if .selectall }}{{ template "toolbar-select-all" .g }}{{ end }}
 <div class="actions-wrap">
   <div class="actions-message">
     {{ with .title }}<h1 title="{{.}}"{{ if $.shorttitle }} data-priority="20" data-yield="word"{{ end }}>{{ with $.shorttitle }}<span class="title-long">{{ $.title }}</span><span class="title-short">{{.}}</span>{{ else }}{{.}}{{ end }}{{ with $.subtitle }}<span class="title-secondary">{{.}}</span>{{ end }}</h1>{{ end }}
     {{ if and .title .newhref }}<span class="toolbar-rule" aria-hidden="true"></span>{{ end }}
-    {{ with .newhref }}{{ $href := . }}{{ with $.back }}{{ $href = printf "%s%snext=%s" $href (qsep $href) (qv .) }}{{ end }}<a class="icon-button" href="{{ localhref $href }}" title="{{$.newlabel}}" aria-label="{{$.newlabel}}" data-key="c">{{ template "icon" (or $.newicon "plus") }}<span class="label">{{$.newlabel}}</span></a>{{ end }}
+    {{ with .newhref }}{{ $href := . }}{{ with $.back }}{{ $href = printf "%s%snext=%s" $href (qsep $href) (qv .) }}{{ end }}<a class="icon-button" href="{{ localhref $href }}" title="{{$.newlabel}}" aria-label="{{$.newlabel}}" data-key="c" data-tour="new">{{ template "icon" (or $.newicon "plus") }}<span class="label">{{$.newlabel}}</span></a>{{ end }}
 {{ end }}
 
 {{ define "toolbar-end" }}

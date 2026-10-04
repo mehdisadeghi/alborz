@@ -37,7 +37,7 @@
       {{ template "filter-chips" (dict "filters" .Filters "remove" ($.T "filter.remove")) }}
 
       {{ with .Quick }}
-      <form method="post" action="{{url "calendar.task.create"}}" class="quick-add" hx-boost="false">
+      <form method="post" action="{{url "calendar.task.create"}}" class="quick-add" hx-boost="false" data-tour="tasks">
         <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}#quick-add">
         <input type="hidden" name="quick" value="1">
         {{ $one := .Only }}

@@ -101,6 +101,10 @@ type GlobalRenderData struct {
 
 	// Swap says the page answers a swap into main: its main block, and the rail rows it moves (ADR 13).
 	Swap bool
+
+	// Tour is the tour open on this page, nil for none; TourStart opens it here (ADR 76).
+	Tour      *Tour
+	TourStart string
 }
 
 // Dir is the writing direction of the UI language.
@@ -252,7 +256,7 @@ func NewBaseRenderData(ctx *Context) *BaseRenderData {
 	global := GlobalRenderData{
 		Path:           strings.Split(ctx.Request().URL.Path, "/")[1:],
 		Title:          alborz.BrandName,
-		URL:            ctx.Request().URL,
+		URL:            withoutTour(ctx.Request().URL),
 		FirstDayOfWeek: alborz.Reading{}.WeekStart(),
 		Lang:           lang,
 		Swap:           ctx.PartialFor("main"),
@@ -286,7 +290,7 @@ func NewBaseRenderData(ctx *Context) *BaseRenderData {
 	global.From = ctx.From()
 	global.Scope, global.Merged = ctx.urlAccount, ctx.Unified
 	// Values.Encode would escape the raw values again.
-	req := ctx.Request().URL
+	req := global.URL
 	kept := slices.DeleteFunc(strings.Split(req.RawQuery, "&"), func(p string) bool {
 		return p == "" || strings.HasPrefix(p, "from=")
 	})
@@ -315,6 +319,8 @@ func NewBaseRenderData(ctx *Context) *BaseRenderData {
 		global.StatusSeconds = int(statusEvery / time.Second)
 		global.SearchBlocks = ctx.waitingBlocks()
 		global.Scripts = ctx.scripts()
+		global.Tour = ctx.tour(global.URL, global.Scope)
+		global.TourStart = TourStart(global.URL)
 	}
 
 	return &BaseRenderData{GlobalData: global}

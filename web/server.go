@@ -274,7 +274,7 @@ func (s *Server) AssetURL(name string) string {
 	return s.mustPath("core.asset", name)
 }
 
-var shellAssets = []string{"style.css", "scheme.js", "htmx.js", "helpers.js", "keys.js", "print.css",
+var shellAssets = []string{"style.css", "scheme.js", "htmx.js", "helpers.js", "keys.js", "tour.js", "print.css",
 	"favicon-32x32.png", "icon-192.png", "icon-512.png"}
 
 // A page carries the digest so a tab on an older shell can tell and load the page whole.

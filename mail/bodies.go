@@ -1,6 +1,7 @@
 package mail
 
 import (
+	"log"
 	"maps"
 	"slices"
 	"sync"
@@ -308,7 +309,7 @@ func (p *Mailboxes) markHeldSeen(s *alborz.Login, mailbox string, uid imap.UID, 
 			}
 			p.bodies.mu.Unlock()
 		}()
-		s.DoIMAP(func(c *imapclient.Client) error {
+		err := s.DoIMAP(func(c *imapclient.Client) error {
 			p.bodies.mu.Lock()
 			current := p.bodies.seen[k] == token
 			p.bodies.mu.Unlock()
@@ -321,5 +322,8 @@ func (p *Mailboxes) markHeldSeen(s *alborz.Login, mailbox string, uid imap.UID, 
 			p.messageRead(s.Username(), mailbox, uid)
 			return nil
 		})
+		if err != nil {
+			log.Printf("mark seen %s: %v", s.Username(), err)
+		}
 	}()
 }

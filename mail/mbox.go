@@ -134,7 +134,9 @@ func copyWithoutAttachments(w *message.Writer, e *message.Entity, note string) e
 			if err := copyWithoutAttachments(pw, part, note); err != nil {
 				return err
 			}
-			pw.Close()
+			if err := pw.Close(); err != nil {
+				return err
+			}
 			continue
 		}
 		size, _ := io.Copy(io.Discard, part.Body)
@@ -144,8 +146,12 @@ func copyWithoutAttachments(w *message.Writer, e *message.Entity, note string) e
 		if err != nil {
 			return err
 		}
-		fmt.Fprintf(pw, "[%s: %s, %s, %d B]\r\n", note, name, mediaType, size)
-		pw.Close()
+		if _, err := fmt.Fprintf(pw, "[%s: %s, %s, %d B]\r\n", note, name, mediaType, size); err != nil {
+			return err
+		}
+		if err := pw.Close(); err != nil {
+			return err
+		}
 	}
 }
 

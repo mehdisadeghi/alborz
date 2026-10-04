@@ -60,7 +60,6 @@ func streamMbox(ctx *web.Context, refs []mail.Ref, name string, strip bool) erro
 	res := ctx.Response()
 	archive := mbox.NewWriter(res)
 	archive.Mboxrd = true
-	defer archive.Close()
 	begin := func() {
 		if !res.Committed {
 			res.Header().Set("Content-Disposition", downloadName(name, "messages", ".mbox"))
@@ -86,7 +85,7 @@ func streamMbox(ctx *web.Context, refs []mail.Ref, name string, strip bool) erro
 			return streamed(ctx, err)
 		}
 	}
-	return nil
+	return streamed(ctx, archive.Close())
 }
 
 const maxDownloadName = 80

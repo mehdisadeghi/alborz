@@ -1,0 +1,33 @@
+{{/* Cells a row of a DAV object's list draws the same in every list. */}}
+
+{{/* dict: g action star next. */}}
+{{ define "row-star-cell" }}
+  <div class="list-star list-cell" role="cell">
+    {{ template "card-star" (dict
+       "Action" .action
+       "Current" .star
+       "Next" .next
+       "Label" (or (and .star (.g.T "mailbox.flagnone")) (.g.T "mailbox.flagcolor"))
+       "MenuLabel" (.g.T "mailbox.flagcolor")) }}
+  </div>
+{{ end }}
+
+{{/* dict: g cell label list coll account. The collection links to the list narrowed to it. */}}
+{{ define "row-collection" }}
+  {{ $g := .g }}{{ $cq := printf "%v" (account "?" (or .account $g.GlobalData.URLAccount)) }}
+  <div class="{{.cell}} list-cell" role="cell" data-label="{{.label}}">
+    {{if .coll.Color}}<span class="color-dot" style="background:{{.coll.Color}}"></span>{{end}}<a href="{{.list}}{{$cq}}{{qsep $cq}}cal={{.coll.Path | qv}}">{{.coll.Name}}</a>{{ template "collection-mark" (dict "g" $g "c" .coll) }}{{if $g.GlobalData.Unified}}<span class="row-account" title="{{.account}}">{{ template "ltr" ($g.GlobalData.AccountLabel .account) }}</span>{{end}}
+  </div>
+{{ end }}
+
+{{/* dict: g cell label time [since]. The day, or with since how long ago; the full date on hover. */}}
+{{ define "row-date" }}
+  {{ $g := .g }}
+  {{/* Built before the tag: the escaper cannot follow an attribute only some branches write. */}}
+  {{ $text := "" }}{{ $title := "" }}
+  {{ if not .time.IsZero }}
+  {{ if .since }}{{ $text = $g.GlobalData.Since .time }}{{ $title = $g.GlobalData.FormatDate .time }}{{ else }}{{ $text = $g.GlobalData.ShortDate .time }}{{ $title = $g.GlobalData.LongDate .time }}{{ end }}
+  {{ with $g.GlobalData.SecondaryDate .time }}{{ $title = printf "%s (%s)" $title . }}{{ end }}
+  {{ end }}
+  <div class="{{.cell}} list-cell" role="cell" data-label="{{.label}}" title="{{$title}}">{{$text}}</div>
+{{ end }}

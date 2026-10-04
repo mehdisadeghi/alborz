@@ -7,14 +7,7 @@
     <input type="checkbox" name="paths" value="{{$row.Task.Account}}|{{$row.Task.Path}}" form="{{.}}" aria-label="{{$g.T "a11y.selecttask"}}{{with $row.Summary}}: {{.}}{{end}}">
   </div>
   {{ end }}
-  <div class="list-star list-cell" role="cell">
-    {{ template "card-star" (dict
-       "Action" (printf "%s%s" (url "calendar.task.color" .Task.Path) (account "?" .Task.Account))
-       "Current" .Star
-       "Next" $next
-       "Label" (or (and .Star ($g.T "mailbox.flagnone")) ($g.T "mailbox.flagcolor"))
-       "MenuLabel" ($g.T "mailbox.flagcolor")) }}
-  </div>
+  {{ template "row-star-cell" (dict "g" $g "action" (printf "%s%s" (url "calendar.task.color" .Task.Path) (account "?" .Task.Account)) "star" .Star "next" $next) }}
   <div class="task-list-status list-cell" role="cell" data-label="{{$g.T "tasks.status"}}">
     {{ $mark := $g.T "tasks.markcomplete" }}{{ if .Completed }}{{ $mark = $g.T "tasks.markincomplete" }}{{ end }}
     {{ with .Priority }}{{ $mark = printf "%s · %s" $mark ($g.T (printf "tasks.priority.%s" .)) }}{{ end }}
@@ -31,17 +24,9 @@
   <div class="task-list-summary list-primary list-cell" role="cell" data-label="{{$g.T "tasks.summary"}}">
     <a href="{{.Href}}" dir="auto"{{ with .AddedBy }} title="{{ printf ($g.T "share.addedby") . }}"{{ end }}>{{.Summary}}</a>
   </div>
-  {{ $cq := printf "%v" (account "?" (or .Task.Account $g.GlobalData.URLAccount)) }}
-  <div class="task-list-calendar list-cell" role="cell" data-label="{{$g.T "common.calendar"}}">
-    {{if .Calendar.Color}}<span class="color-dot" style="background:{{.Calendar.Color}}"></span>{{end}}<a href="{{url "calendar.tasks"}}{{$cq}}{{qsep $cq}}cal={{.Calendar.Path | qv}}">{{.Calendar.Name}}</a>{{ template "collection-mark" (dict "g" $g "c" .Calendar) }}{{if $g.GlobalData.Unified}}<span class="row-account" title="{{.Task.Account}}">{{ template "ltr" ($g.GlobalData.AccountLabel .Task.Account) }}</span>{{end}}
-  </div>
-  {{/* Built before the tag: the escaper cannot follow an attribute only some branches write. */}}
-  {{ $due := "" }}{{ $dueTitle := "" }}
-  {{ if not .Due.IsZero }}{{ $due = $g.GlobalData.ShortDate .Due }}{{ $dueTitle = $g.GlobalData.LongDate .Due }}{{ with $g.GlobalData.SecondaryDate .Due }}{{ $dueTitle = printf "%s (%s)" $dueTitle . }}{{ end }}{{ end }}
-  <div class="task-list-due list-cell" role="cell" data-label="{{$g.T "tasks.duedate"}}" title="{{$dueTitle}}">{{$due}}</div>
-  {{ $added := "" }}{{ $addedTitle := "" }}
-  {{ if not .Added.IsZero }}{{ $added = $g.GlobalData.Since .Added }}{{ $addedTitle = $g.GlobalData.FormatDate .Added }}{{ with $g.GlobalData.SecondaryDate .Added }}{{ $addedTitle = printf "%s (%s)" $addedTitle . }}{{ end }}{{ end }}
-  <div class="task-list-added list-cell" role="cell" data-label="{{$g.T "common.added"}}" title="{{$addedTitle}}">{{$added}}</div>
+  {{ template "row-collection" (dict "g" $g "cell" "task-list-calendar" "label" ($g.T "common.calendar") "list" (url "calendar.tasks") "coll" .Calendar "account" .Task.Account) }}
+  {{ template "row-date" (dict "g" $g "cell" "task-list-due" "label" ($g.T "tasks.duedate") "time" .Due) }}
+  {{ template "row-date" (dict "g" $g "cell" "task-list-added" "label" ($g.T "common.added") "time" .Added "since" true) }}
 </div>
 {{ end }}
 {{ end }}

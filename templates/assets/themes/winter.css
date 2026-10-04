@@ -154,9 +154,23 @@
 
 body {
   background:
-    var(--winter-land) bottom / 100% auto no-repeat fixed,
     var(--winter-flakes) fixed,
     var(--winter-sky) fixed;
+}
+
+/* The land is a layer of its own so it can mirror with the page: the
+   house stands at the inline end, clear of the rail at the inline start. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: var(--winter-land) bottom / 100% auto no-repeat;
+}
+
+:root:dir(rtl) body::before {
+  transform: scaleX(-1);
 }
 
 /* No backdrop-filter on the header: it would become the containing

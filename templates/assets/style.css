@@ -78,6 +78,10 @@ select {
 
   /* What the season add-on lets fall (ADR 77): a kind beside its script, or none. */
   --season-weather: snow;
+  /* Its mean wind in CSS pixels a second towards the inline end, the way
+     the smoke drifts: wind you see, not one that sweeps the page to one
+     edge. */
+  --season-wind: 10;
 
   /* A theme sets the Latin face, the Persian one, or both; the join is here only. */
   --font-latin: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;

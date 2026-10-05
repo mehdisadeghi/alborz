@@ -42,8 +42,6 @@ const LEAF_STEP = 0.1;
 // Time units integrated before a leaf is first seen, so none is seen
 // being let go: the regimes settle within a few periods.
 const LEAF_SETTLE = 40;
-// How hard the wind pushes, in pixels a second at the strongest gust.
-const LEAF_WIND = 14;
 // The smallest and largest leaf, as the sprite's length in pixels.
 const LEAF_SMALL = 18;
 const LEAF_LARGE = 32;
@@ -213,20 +211,32 @@ export default {
 			state: state,
 			length: length,
 			sprite: Math.floor(Math.random() * sprites.length),
+			// The wind it last felt, in the model's units; a new leaf is let go in still air.
+			air: 0,
 			x: Math.random() * view.w,
 			y: Math.random() * view.h,
 		};
 	},
 	step: (leaf, dt, wind, view) => {
 		const a = leaf.unit;
-		const before = leaf.state;
+		// The model moves the leaf through still air, so the wind carries
+		// the whole frame. A change of wind changes the air, not the leaf:
+		// its speed through the air takes the difference, in its own axes,
+		// and the lift and torque that follow tilt it into a gust.
+		const air = wind * leaf.time / a;
+		const gust = air - leaf.air;
+		leaf.air = air;
+		const [vx, vy, w, th, px, py] = leaf.state;
+		const c = Math.cos(th);
+		const n = Math.sin(th);
+		const before = [vx - gust * c, vy + gust * n, w, th, px, py];
 		const steps = Math.ceil(dt / leaf.time / LEAF_STEP);
+		leaf.state = before;
 		for (let i = 0; i < steps; i++) {
 			leaf.state = advance(leaf.state, leaf.I, dt / leaf.time / steps);
 		}
-		// Wind adds to the lab position: exact for a steady wind, near
-		// enough for a gust. The model's y points up, the screen's down.
-		leaf.x += (leaf.state[4] - before[4]) * a + wind * LEAF_WIND * dt;
+		// The model's y points up, the screen's down.
+		leaf.x += (leaf.state[4] - before[4]) * a + wind * dt;
 		leaf.y -= (leaf.state[5] - before[5]) * a;
 		const size = leaf.length;
 		if (leaf.y - size > view.h) {

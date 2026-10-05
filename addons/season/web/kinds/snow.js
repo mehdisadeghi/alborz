@@ -30,9 +30,9 @@ const SNOW_STEPS = 4000;
 // a half, which is a window in falling snow rather than a screensaver.
 const SNOW_FALL_SLOW = 0.12;
 const SNOW_FALL_FAST = 0.26;
-// How hard it blows, in pixels a frame at the strongest gust. Snow
-// falling in a room's worth of air slants; it does not fly across.
-const SNOW_WIND = 0.16;
+// How far a flake's own air wanders, in pixels a frame: it slants a
+// flake's path, it does not fly it across.
+const SNOW_WANDER = 0.064;
 // The frame the numbers here count in. A step counts the frames of this
 // length its time spans, so a 120 Hz screen does not fall twice as fast.
 const SNOW_FRAME = 1 / 60;
@@ -253,8 +253,8 @@ export default {
 		// clean sine - shedding wanders in period as well as phase.
 		const wander = f.drift(dt);
 		f.beatPhase += f.beat * (1 + wander * 0.3) * frames;
-		const air = wind * SNOW_WIND * f.z
-			+ wander * SNOW_WIND * 0.4
+		const air = wind * SNOW_FRAME * f.z
+			+ wander * SNOW_WANDER
 			+ Math.sin(f.beatPhase) * f.swing * f.fall;
 		f.vx += (air - f.vx) * (1 - (1 - f.pull) ** frames);
 		f.x += f.vx * frames;

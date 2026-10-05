@@ -1540,8 +1540,7 @@ main.message .message-header .parts > summary::before,
 .info-explain > summary::before,
 details.info-card > summary::before,
 aside details.folder-branch summary::after,
-aside details.acct-folders > summary::after,
-aside div.acct-folders > a.aside-account::after {
+aside details.acct-folders > summary::after {
   content: "\203A";
   transition: transform 0.1s ease-out;
 }
@@ -1549,20 +1548,17 @@ main.message .message-header .parts[open] > summary::before,
 .info-explain[open] > summary::before,
 details.info-card[open] > summary::before,
 aside details.folder-branch[open] > summary::after,
-aside details.acct-folders[open] > summary::after,
-aside div.acct-folders.open > a.aside-account::after { transform: rotate(90deg); }
+aside details.acct-folders[open] > summary::after { transform: rotate(90deg); }
 :root:dir(rtl) main.message .message-header .parts > summary::before,
 :root:dir(rtl) .info-explain > summary::before,
 :root:dir(rtl) details.info-card > summary::before,
 :root:dir(rtl) aside details.folder-branch summary::after,
-:root:dir(rtl) aside details.acct-folders > summary::after,
-:root:dir(rtl) aside div.acct-folders > a.aside-account::after { transform: rotate(180deg); }
+:root:dir(rtl) aside details.acct-folders > summary::after { transform: rotate(180deg); }
 :root:dir(rtl) main.message .message-header .parts[open] > summary::before,
 :root:dir(rtl) .info-explain[open] > summary::before,
 :root:dir(rtl) details.info-card[open] > summary::before,
 :root:dir(rtl) aside details.folder-branch[open] > summary::after,
-:root:dir(rtl) aside details.acct-folders[open] > summary::after,
-:root:dir(rtl) aside div.acct-folders.open > a.aside-account::after { transform: rotate(90deg); }
+:root:dir(rtl) aside details.acct-folders[open] > summary::after { transform: rotate(90deg); }
 
 main.message .message-header .parts > summary::before {
   flex: none;
@@ -4304,9 +4300,8 @@ aside a.aside-account:hover {
   text-decoration: underline;
 }
 
-/* The heading is the link itself, in the summary's colour, its chevron at the summary's end. */
+/* An account out of scope is a link alone: it has no rows to disclose, so no chevron (ADR 64). */
 aside div.acct-folders > a.aside-account {
-  justify-content: space-between;
   color: var(--fg-muted);
 }
 
@@ -4314,8 +4309,7 @@ aside details.acct-folders > summary::-webkit-details-marker {
   display: none;
 }
 
-aside details.acct-folders > summary::after,
-aside div.acct-folders > a.aside-account::after {
+aside details.acct-folders > summary::after {
   flex: none;
   width: 1.5rem;
   margin-inline-end: -0.5rem;

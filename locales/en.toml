@@ -1093,7 +1093,7 @@
 "settings.addons" = "Add-ons"
 "settings.place" = "Place"
 "settings.placenone" = "None"
-"snow.addon" = "Let it snow"
+"season.addon" = "Season's weather"
 "motd.status" = "Text of the day"
 "moon.status" = "Moon phase"
 "moon.phase.0" = "New moon"

@@ -152,15 +152,15 @@ func TestThemeColorFollowsTheTheme(t *testing.T) {
 			t.Errorf("theme %q: theme-color metas %q, want %q", tc.theme, got, tc.metas)
 		}
 	}
-	var manifest struct {
-		ThemeColor      string `json:"theme_color"`
-		BackgroundColor string `json:"background_color"`
-	}
+	var manifest map[string]any
 	if err := json.Unmarshal([]byte(c.Get(t, "core.manifest").Text), &manifest); err != nil {
 		t.Fatal(err)
 	}
-	if manifest.ThemeColor != "#fff" || manifest.BackgroundColor != "#fff" {
-		t.Errorf("the manifest paints %q on %q, not the default theme's light top bar", manifest.ThemeColor, manifest.BackgroundColor)
+	if manifest["background_color"] != "#fff" {
+		t.Errorf("the manifest's background is %v, not the default theme's light top bar", manifest["background_color"])
+	}
+	if color, ok := manifest["theme_color"]; ok {
+		t.Errorf("the manifest paints the status bar %v in both schemes", color)
 	}
 }
 

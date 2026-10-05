@@ -29,13 +29,15 @@ func PublicRoutes(g *Group) {
 		}
 		ctx.Response().Header().Set("Content-Type", "application/manifest+json")
 		return ctx.JSON(http.StatusOK, map[string]any{
-			"name":             alborz.BrandName,
-			"short_name":       alborz.BrandName,
-			"start_url":        ctx.Path("mail.home"),
-			"scope":            strings.TrimSuffix(worker, path.Base(worker)),
-			"display":          "minimal-ui",
+			"name":       alborz.BrandName,
+			"short_name": alborz.BrandName,
+			"start_url":  ctx.Path("mail.home"),
+			"scope":      strings.TrimSuffix(worker, path.Base(worker)),
+			"display":    "minimal-ui",
+			// No theme_color: a manifest has one for both schemes, so Android would paint the light
+			// one in dark mode until a page's own theme-color applies; without it, it takes its
+			// default for the system's scheme.
 			"background_color": s.base.Colors[0].Color,
-			"theme_color":      s.base.Colors[0].Color,
 			"icons": []map[string]string{
 				icon("icon-192.png", ""),
 				icon("icon-512.png", ""),

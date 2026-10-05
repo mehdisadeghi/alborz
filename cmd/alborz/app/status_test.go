@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"log"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -40,6 +41,30 @@ func TestEverySegmentAndAddonIsNamedInEveryLanguage(t *testing.T) {
 		for _, addon := range a.Server.Addons {
 			if !strings.Contains(string(text), `"`+addon.Name+`.addon"`) {
 				t.Errorf("%s does not name the add-on %s", name, addon.Name)
+			}
+		}
+	}
+}
+
+// The settings name a theme by a key put together from its file name, which no template check sees.
+func TestEveryThemeIsNamedInEveryLanguage(t *testing.T) {
+	themes, err := fs.Glob(alborz.Templates, "templates/assets/themes/*.css")
+	if err != nil || len(themes) == 0 {
+		t.Fatalf("no themes: %v", err)
+	}
+	files, err := fs.Glob(locales.FS, "*.toml")
+	if err != nil || len(files) == 0 {
+		t.Fatalf("no locales: %v", err)
+	}
+	for _, name := range files {
+		text, err := fs.ReadFile(locales.FS, name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, theme := range themes {
+			key := "theme." + strings.TrimSuffix(path.Base(theme), ".css")
+			if !strings.Contains(string(text), `"`+key+`"`) {
+				t.Errorf("%s does not name the theme %s", name, key)
 			}
 		}
 	}

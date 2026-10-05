@@ -82,7 +82,7 @@
           <select name="theme" id="theme">
             <option value="" {{if eq .Theme ""}}selected{{end}}>{{$.T "settings.themedefault"}}</option>
             {{ range .Themes }}
-            <option value="{{.Name}}" {{if eq $.Theme .Name}}selected{{end}}>{{ themename .Name }}{{ with .Scheme }} · {{ if eq . "dark" }}{{$.T "settings.dark"}}{{ else }}{{$.T "settings.light"}}{{ end }}{{ end }}</option>
+            <option value="{{.Name}}" {{if eq $.Theme .Name}}selected{{end}}>{{$.T (printf "theme.%s" .Name)}}{{ with .Scheme }} · {{ if eq . "dark" }}{{$.T "settings.dark"}}{{ else }}{{$.T "settings.light"}}{{ end }}{{ end }}</option>
             {{ end }}
           </select>
         </div>

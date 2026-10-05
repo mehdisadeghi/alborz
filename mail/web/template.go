@@ -34,8 +34,6 @@ var TemplateFuncs = template.FuncMap{
 	"humansize": mail.FormatSize,
 	"partquery": partQuery,
 	"sub":       func(a, b int) int { return a - b },
-	// A theme's name is a proper noun, so it is not a locale string.
-	"themename": web.ThemeName,
 	// A crumb step may already carry a query.
 	"qsep": func(raw string) string {
 		if strings.Contains(raw, "?") {

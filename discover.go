@@ -1,6 +1,7 @@
 package alborz
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/url"
@@ -13,7 +14,9 @@ func srvName(service, domain string) string {
 }
 
 func discoverTCP(service, name string) (string, error) {
-	_, addrs, err := net.LookupSRV(service, "tcp", name)
+	ctx, cancel := context.WithTimeout(context.Background(), RoundTripTimeout)
+	defer cancel()
+	_, addrs, err := net.DefaultResolver.LookupSRV(ctx, service, "tcp", name)
 	if dnsErr, ok := err.(*net.DNSError); ok {
 		if dnsErr.IsTemporary {
 			return "", err

@@ -542,6 +542,7 @@
 "settings.tzhint" = "Leave empty to auto-detect from browser"
 "settings.theme" = "Theme"
 "settings.themedefault" = "Default"
+"theme.autumn" = "Autumn"
 "theme.glass" = "Glass"
 "theme.ink" = "Ink"
 "theme.solarized" = "Solarized"

@@ -469,7 +469,7 @@ document.addEventListener("htmx:beforeSwap", ev => {
 // An error page alborz wrote is shown; the notice is for no answer.
 document.addEventListener("htmx:beforeSwap", ev => {
 	const xhr = ev.detail && ev.detail.xhr;
-	if (!xhr || xhr.status < 500 || !ev.detail.boosted) {
+	if (!xhr || xhr.status < 400 || !ev.detail.boosted) {
 		return;
 	}
 	if (/<meta name="alborz-shell"/.test(xhr.responseText)) {

@@ -239,6 +239,7 @@
 "compose.to" = "به"
 "compose.cc" = "رونوشت"
 "compose.bcc" = "رونوشت پنهان"
+"compose.notmailto" = "این پیوند نشانی mailto نیست."
 "compose.replyto" = "پاسخ به"
 "compose.subject" = "موضوع"
 "compose.dragdrop" = "پیوست‌ها را اینجا بکشید و رها کنید"

@@ -239,6 +239,7 @@
 "compose.to" = "Para"
 "compose.cc" = "Cc"
 "compose.bcc" = "Cco"
+"compose.notmailto" = "El enlace no es una dirección mailto."
 "compose.replyto" = "Responder a"
 "compose.subject" = "Asunto"
 "compose.dragdrop" = "Arrastra los adjuntos aquí"

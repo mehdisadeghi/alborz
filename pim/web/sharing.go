@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/internal/dates"
 	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/pim"
@@ -253,7 +254,7 @@ func (pg Page) HandleAccess(p *dav.Provider) func(*web.Context) error {
 		}
 		sh, err := p.Store.Share(ref, ctx.FormValue("to"))
 		if errors.Is(err, store.ErrNotFound) {
-			return web.NewError(http.StatusNotFound, "no such share")
+			return alborz.NotFound("notfound.share")
 		}
 		if err != nil {
 			return err
@@ -294,10 +295,10 @@ func (pg Page) HandleAnswer(p *dav.Provider, accept bool) func(*web.Context) err
 		ref, home, here := p.Held(collPath)
 		account := strings.ToLower(ctx.Login.Username())
 		if !here || home != account {
-			return web.NewError(http.StatusNotFound, "no such invitation")
+			return alborz.NotFound("notfound.invitation")
 		}
 		if _, err := p.Store.Share(ref, account); err != nil {
-			return web.NewError(http.StatusNotFound, "no such invitation")
+			return alborz.NotFound("notfound.invitation")
 		}
 		c, err := p.Store.Collection(ref)
 		if err != nil {

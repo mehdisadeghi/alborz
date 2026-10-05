@@ -56,7 +56,7 @@ func (s *Server) fail(ctx *Context, err error) {
 		}
 	}
 	if code == http.StatusNotFound {
-		message := err.Error()
+		message := ctx.T("notfound.page")
 		var missing *alborz.NotFoundError
 		if errors.As(err, &missing) {
 			message = ctx.Tf(missing.Key, missing.Args...)

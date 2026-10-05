@@ -17,6 +17,8 @@ type Segment struct {
 	End bool
 	// Show says what the segment holds now, in the request's account or every one merged.
 	Show func(*Context) (Shown, error)
+	// Page names the route of the segment's own settings, a row of the settings rail; empty has none.
+	Page string
 }
 
 // Shown is a segment as the bar draws it: runs of text, each isolated from the next, a title

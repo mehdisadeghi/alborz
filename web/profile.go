@@ -241,6 +241,7 @@ func (ctx *Context) profileDiff(theirs, ours alborz.Profile) []profileChange {
 	add("settings.addons", func(p alborz.Profile) string {
 		return selectedLabels(g, ctx.Server.Addons, p.Display.Addons, func(a Addon) string { return a.Name }, ".addon")
 	})
+	add("settings.place", func(p alborz.Profile) string { return or(p.Place.Name, "settings.placenone") })
 	add("settings.language", func(p alborz.Profile) string {
 		return or(locale.Name(p.Display.Language), "settings.langauto")
 	})
@@ -268,6 +269,11 @@ func SettingsRail(ctx *Context) map[string][]RailRow {
 		{Label: ctx.T("settings.general"), Href: ctx.Path("settings.profile"), Active: path == ctx.Path("settings.profile")},
 		{Label: ctx.T("passkeys.title"), Href: ctx.Path("settings.passkeys"), Active: strings.HasPrefix(path, ctx.Path("settings.passkeys"))},
 	}}
+	for _, s := range ctx.Server.Status {
+		if s.Page != "" {
+			rows[""] = append(rows[""], RailRow{Label: ctx.T(s.Name + ".status"), Href: ctx.Path(s.Page), Active: path == ctx.Path(s.Page)})
+		}
+	}
 	for _, account := range ctx.Accounts() {
 		scoped := ctx.Login != nil && account.Username == ctx.Login.Username()
 		q := AccountQuery(account.Username)

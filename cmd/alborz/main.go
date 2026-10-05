@@ -22,6 +22,7 @@ import (
 	_ "time/tzdata"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/addons/weather"
 	"git.mehdix.org/alborz/cmd/alborz/app"
 )
 
@@ -95,6 +96,14 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout 
 		"where the footer's project name links; unset prints the name alone")
 	fs.StringVar(&options.MOTD, "motd", "",
 		"directory of message-of-the-day collections, in the format of addons/motd/example.toml, offered as a status bar segment; unset offers none")
+	fs.StringVar(&options.Weather.Stations, "weather-stations", weather.DefaultStations,
+		"DWD's MOSMIX station catalogue, for the weather segment")
+	fs.StringVar(&options.Weather.Forecasts, "weather-forecasts", weather.DefaultForecasts,
+		"directory of DWD's MOSMIX_L single-station forecasts, for the weather segment")
+	fs.StringVar(&options.Weather.Places, "weather-places", "",
+		"Nominatim server finding the weather segment's places by name; unset searches DWD's station catalogue")
+	fs.StringVar(&options.Weather.PlacesPolicy, "weather-places-policy", "",
+		"usage policy of the -weather-places server, linked above its search; unset links none")
 	fs.Usage = func() {
 		fmt.Fprint(fs.Output(), `usage: alborz [options...] <upstreams...>
 

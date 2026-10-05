@@ -80,6 +80,18 @@ language in the format of `addons/motd/example.toml`, offered as a status bar
 segment; a directory alborz cannot read stops it starting (default: unset, no
 segment)
 
+**-weather-stations**, **-weather-forecasts**: where the weather segment asks:
+DWD's MOSMIX station catalogue and the directory of its MOSMIX_L single-station
+forecasts (default: DWD's public services)
+
+**-weather-places**: a Nominatim server finding the weather segment's places by
+name, such as `https://nominatim.openstreetmap.org/`; the weather page names it
+above its search (default: unset, the search looks up stations in DWD's
+catalogue and asks no other service)
+
+**-weather-places-policy**: the usage policy of the **-weather-places** server,
+linked above the search (default: unset, no link)
+
 **-h**, **--help**: show help message and exit
 
 # SIGNALS

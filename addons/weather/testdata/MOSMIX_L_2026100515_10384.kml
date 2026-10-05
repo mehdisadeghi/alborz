@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="ISO-8859-1" standalone="yes"?>
+<kml:kml xmlns:dwd="https://opendata.dwd.de/weather/lib/pointforecast_dwd_extension_V1_0.xsd" xmlns:gx="http://www.google.com/kml/ext/2.2" xmlns:xal="urn:oasis:names:tc:ciq:xsdschema:xAL:2.0" xmlns:kml="http://www.opengis.net/kml/2.2" xmlns:atom="http://www.w3.org/2005/Atom">
+    <kml:Document>
+        <kml:ExtendedData>
+            <dwd:ProductDefinition>
+                <dwd:Issuer>Deutscher Wetterdienst</dwd:Issuer>
+                <dwd:ProductID>MOSMIX</dwd:ProductID>
+                <dwd:GeneratingProcess>DWD MOSMIX hourly, Version 1.0</dwd:GeneratingProcess>
+                <dwd:IssueTime>2026-10-05T15:00:00.000Z</dwd:IssueTime>
+                <dwd:ReferencedModel>
+                    <dwd:Model dwd:name="ICON" dwd:referenceTime="2026-10-05T12:00:00Z"/>
+                    <dwd:Model dwd:name="ECMWF/IFS" dwd:referenceTime="2026-10-05T00:00:00Z"/>
+                </dwd:ReferencedModel>
+                <dwd:ForecastTimeSteps>
+                    <dwd:TimeStep>2026-10-05T16:00:00.000Z</dwd:TimeStep>
+                    <dwd:TimeStep>2026-10-05T17:00:00.000Z</dwd:TimeStep>
+                    <dwd:TimeStep>2026-10-05T18:00:00.000Z</dwd:TimeStep>
+                    <dwd:TimeStep>2026-10-05T19:00:00.000Z</dwd:TimeStep>
+                    <dwd:TimeStep>2026-10-05T20:00:00.000Z</dwd:TimeStep>
+                    <dwd:TimeStep>2026-10-05T21:00:00.000Z</dwd:TimeStep>
+                </dwd:ForecastTimeSteps>
+                <dwd:FormatCfg>
+                    <dwd:DefaultUndefSign>-</dwd:DefaultUndefSign>
+                </dwd:FormatCfg>
+            </dwd:ProductDefinition>
+        </kml:ExtendedData>
+        <kml:Placemark>
+            <kml:name>10384</kml:name>
+            <kml:description>BERLIN-TEMPELHOF</kml:description>
+            <kml:ExtendedData>
+                <dwd:Forecast dwd:elementName="PPPP">
+                    <dwd:value>  102110.00  102140.00  102120.00  102130.00  102120.00  102110.00</dwd:value>
+                </dwd:Forecast>
+                <dwd:Forecast dwd:elementName="TTT">
+                    <dwd:value>      293.95     291.65     289.85     288.65     287.85     286.85</dwd:value>
+                </dwd:Forecast>
+                <dwd:Forecast dwd:elementName="FF">
+                    <dwd:value>         2.57       2.06       2.06       2.06       2.06       2.06</dwd:value>
+                </dwd:Forecast>
+                <dwd:Forecast dwd:elementName="Neff">
+                    <dwd:value>      55.00      56.00      49.00      36.00      42.00      47.00</dwd:value>
+                </dwd:Forecast>
+                <dwd:Forecast dwd:elementName="ww">
+                    <dwd:value>         1.00       1.00       1.00       1.00       1.00       1.00</dwd:value>
+                </dwd:Forecast>
+                <dwd:Forecast dwd:elementName="wwP">
+                    <dwd:value>        1.00       1.00       1.00       1.00       1.00       1.00</dwd:value>
+                </dwd:Forecast>
+                <dwd:Forecast dwd:elementName="WPcd1">
+                    <dwd:value>         -          -          -          -          -          -</dwd:value>
+                </dwd:Forecast>
+            </kml:ExtendedData>
+            <kml:Point>
+                <kml:coordinates>13.4,52.47,50.0</kml:coordinates>
+            </kml:Point>
+        </kml:Placemark>
+    </kml:Document>
+</kml:kml>

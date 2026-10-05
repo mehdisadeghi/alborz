@@ -2564,7 +2564,11 @@ aside .filter-edit {
 aside .filter-edit .icon { width: 100%; height: 100%; }
 
 /* The gap a filter row's flex gives it; a list row has none. */
-aside li > .filter-edit { margin-inline-start: var(--space-1); }
+aside li > .filter-edit,
+aside li > .filter-tick,
+aside details.folder-branch summary > .filter-tick { margin-inline-start: var(--space-1); }
+/* After the branch's chevron, so every tick in the account sits on one edge. */
+aside details.folder-branch summary > .filter-tick { order: 2; }
 
 aside .filter-row:hover .filter-edit,
 aside .filter-edit:focus-visible { opacity: 1; }

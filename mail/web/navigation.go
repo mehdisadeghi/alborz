@@ -46,6 +46,9 @@ func mergedOrigin(ctx *web.Context) *mail.Origin {
 	if route != "mail.mailbox" || len(logins) < 2 {
 		return nil
 	}
+	if logins, err = merging(ctx, logins, values["mbox"]); err != nil {
+		return nil
+	}
 	return &mail.Origin{Role: values["mbox"], Logins: logins, Ask: ask}
 }
 

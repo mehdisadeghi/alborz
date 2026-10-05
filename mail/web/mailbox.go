@@ -1,6 +1,7 @@
 package web
 
 import (
+	"errors"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -57,8 +58,6 @@ type MailboxRenderData struct {
 	ListPath string
 }
 
-var unifiedRoles = []string{"INBOX", "Drafts", "Sent", "Junk", "Trash", "Archive"}
-
 // A merged folder is a role in every account, or a folder by name in the accounts that hold it.
 func (p *plugin) handleUnifiedMailbox(ctx *web.Context) error {
 	role, err := mailboxRef(ctx)
@@ -78,17 +77,25 @@ func (p *plugin) handleUnifiedMailbox(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	// A search costs a round trip per account, so it most wants the cache.
-	list, found, down, err := p.Merged(ctx.Request().Context(), ctx.Logins(), settings, role, ask, ctx.Request().Method == http.MethodGet)
+	fed, err := merging(ctx, ctx.Logins(), role)
 	if err != nil {
 		return err
+	}
+	// Every account left out of a role is an empty merged folder, not a missing one.
+	list, found, down := &mail.Listing{Page: ask.Page}, true, []string(nil)
+	if len(fed) > 0 {
+		// A search costs a round trip per account, so it most wants the cache.
+		list, found, down, err = p.Merged(ctx.Request().Context(), fed, settings, role, ask, ctx.Request().Method == http.MethodGet)
+		if err != nil {
+			return err
+		}
 	}
 	ctx.Unreachable(down)
 	if !found {
 		return alborz.NotFound("notfound.folder", role)
 	}
 	named := role
-	if slices.Contains(unifiedRoles, role) {
+	if slices.Contains(mail.Roles, role) {
 		named = ctx.T("aside." + strings.ToLower(role))
 	}
 	title := named
@@ -108,6 +115,23 @@ func (p *plugin) handleUnifiedMailbox(ctx *web.Context) error {
 	data.Outgoing = role == "Sent" || role == "Drafts"
 	data.Merged, data.Role = true, role
 	return ctx.Render(http.StatusOK, "mail/mailbox", data)
+}
+
+// merging is the accounts whose folder for role feeds the merged folder; only a role can be left out (ADR 80).
+func merging(ctx *web.Context, logins []*alborz.Login, role string) ([]*alborz.Login, error) {
+	var fed []*alborz.Login
+	for _, s := range logins {
+		settings, err := mail.LoadSettings(ctx.Request().Context(), s.Store())
+		// A silent server keeps its place, and the merge names it as not answering (ADR 1).
+		var upstream alborz.UpstreamError
+		if err != nil && !errors.As(err, &upstream) {
+			return nil, err
+		}
+		if err != nil || settings.Merges(role) {
+			fed = append(fed, s)
+		}
+	}
+	return fed, nil
 }
 
 func listPage(ctx *web.Context, ask mail.ListAsk, l *mail.Listing) *MailboxRenderData {
@@ -633,13 +657,17 @@ func emptiedNotice(ctx *web.Context, removed int) web.Notice {
 
 func (p *plugin) handleEmptyAllMailbox(ctx *web.Context) error {
 	role := ctx.Param("role")
-	if !slices.Contains(unifiedRoles, role) {
+	if !slices.Contains(mail.Roles, role) {
 		return alborz.NotFound("notfound.folder", role)
 	}
 
+	fed, err := merging(ctx, ctx.Logins(), role)
+	if err != nil {
+		return err
+	}
 	var failed []string
 	var removed int
-	for _, s := range ctx.Logins() {
+	for _, s := range fed {
 		n, err := p.EmptyRole(s, role)
 		removed += n
 		if err != nil {

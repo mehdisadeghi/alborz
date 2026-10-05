@@ -9,7 +9,10 @@ import (
 func (p *plugin) showUnread(ctx *web.Context) (web.Shown, error) {
 	logins := []*alborz.Login{ctx.Login}
 	if ctx.Unified {
-		logins = ctx.Logins()
+		var err error
+		if logins, err = merging(ctx, ctx.Logins(), "INBOX"); err != nil {
+			return web.Shown{}, err
+		}
 	}
 	unread := 0
 	for _, login := range logins {

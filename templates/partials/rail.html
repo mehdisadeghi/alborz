@@ -214,7 +214,7 @@
 {{ $all := $.GlobalData.Merged }}
 <details class="acct-folders aggregate-folders" data-rail-key="__merged" open>
 <summary class="aside-account"><a href="{{url "mail.mailbox" "INBOX"}}">{{$.T "nav.allaccounts"}}</a></summary>
-<ul class="merged-roles"{{ template "list-swap" . }}>
+<ul id="merged-roles" class="merged-roles"{{ template "list-swap" . }}>
   {{ range tuple (tuple "aside.inbox" "INBOX") (tuple "aside.drafts" "Drafts") (tuple "aside.sent" "Sent") (tuple "aside.junk" "Junk") (tuple "aside.trash" "Trash") (tuple "aside.archive" "Archive") }}
   {{ $role := index . 1 }}
   <li {{ if and $all (eq $active $role) (not $view) }}class="active"{{ end }}>
@@ -234,9 +234,14 @@
 {{ $active := "" }}{{ with $d.Mailbox }}{{ $active = .Name }}{{ end }}
 {{ $q := printf "?account=%s" .account }}
 {{ range $d.SidebarAccounts }}{{ if eq .Account $.account }}
+{{/* A tick redraws these rows, the merged counts and the list in place (ADR 35, ADR 80); its links keep their own targets. */}}
+<form id="merged-{{$.account}}" class="aside-filter" method="post" action="{{url "mail.merged"}}{{ account "?" $.account }}" hx-post="{{url "mail.merged"}}{{ account "?" $.account }}" hx-target="this" hx-select="form[id='merged-{{$.account}}']" hx-select-oob="#main,#merged-roles" hx-swap="outerHTML show:none" hx-disinherit="*">
+<input type="hidden" name="next" value="{{$d.GlobalData.URL.RequestURI}}">
 <ul{{ template "list-swap" $d }}>
   {{ template "mbox-list" (tuple .Categorized $q (eq $d.GlobalData.Scope $.account) $view $active $d.GlobalData) }}
 </ul>
+<button>{{$d.T "common.apply"}}</button>
+</form>
 {{ end }}{{ end }}
 {{ end }}
 
@@ -292,6 +297,12 @@
 {{ if and $n.Details (not ($n.Details.Info.HasAttr "\\Noselect")) }}
 <a href="{{url "mail.mailbox" $n.Details.Info.Name}}{{$q}}" data-folder="{{url "mail.mailbox" $n.Details.Info.Name}}{{$q}}" data-import="{{url "mail.mailbox.import" $n.Details.Info.Name}}{{$q}}"{{ template "list-get" (dict "g" $g "href" (printf "%s%s" (url "mail.mailbox" $n.Details.Info.Name) $q)) }}{{ if ge $n.Details.Info.Total 0 }} title="{{$n.Name}} · {{ $g.Tf "aside.folderholds" $n.Details.Info.Total $n.Details.Info.Unseen }}"{{ else }} title="{{$n.Name}}"{{ end }}>{{$n.Name}}</a>
 {{- if gt $n.Details.Info.Unseen 0 }} <span class="unseen">{{$g.Num $n.Details.Info.Unseen}}</span>{{ end }}
+{{- with $n.Details.Info.Merge }}
+<label class="filter-tick" title="{{$g.T "common.shown"}}">
+  <input type="hidden" name="shown" value="{{.}}">
+  <input type="checkbox" id="merged{{$q}}-{{.}}" name="merged" value="{{.}}"{{ if $n.Details.Info.InMerged }} checked{{ end }} data-submit-on-change aria-label="{{$g.T "common.shown"}}: {{$n.Name}}">
+</label>
+{{- end }}
 {{ else }}
 <span class="noselect">{{$n.Name}}</span>
 {{ end }}

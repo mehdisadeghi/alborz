@@ -38,6 +38,25 @@ type MailboxInfo struct {
 
 	// Label is the display name; the wire name stays in URLs and values.
 	Label string
+
+	// Merge is the merged folder this one can be left out of, set only where the rail offers that choice.
+	Merge string
+	// InMerged says it feeds Merge.
+	InMerged bool
+}
+
+// Roles are the merged folders the rail lists, each a role's folder in every account.
+var Roles = []string{"INBOX", "Drafts", "Sent", "Junk", "Trash", "Archive"}
+
+// MergedRole is the merged folder this one is its account's for; "" for a folder of no role.
+func (mbox *MailboxInfo) MergedRole() string {
+	role := mbox.Role()
+	for _, r := range Roles {
+		if strings.EqualFold(r, role) {
+			return r
+		}
+	}
+	return ""
 }
 
 // Role is what the folder is for: inbox, drafts, sent, junk, trash or archive; "" for none.

@@ -77,6 +77,10 @@ func (p *plugin) mergedSelection(ctx *web.Context, role string, form url.Values)
 			return nil, web.NewError(http.StatusBadRequest, "no such account")
 		}
 		logins = []*alborz.Login{s}
+	} else if !spanning {
+		if logins, err = merging(ctx, logins, role); err != nil {
+			return nil, err
+		}
 	}
 	var refs []mail.Ref
 	for _, s := range logins {

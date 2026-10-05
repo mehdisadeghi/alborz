@@ -79,7 +79,7 @@ func (d *IMAPBaseRenderData) AllUnseen(role string) int {
 		case "Archive":
 			details = c.Archive
 		}
-		if details != nil && details.Info != nil && details.Info.Unseen > 0 {
+		if details != nil && details.Info != nil && details.Info.InMerged && details.Info.Unseen > 0 {
 			sum += details.Info.Unseen
 		}
 	}
@@ -115,7 +115,18 @@ func (p *plugin) sidebarAccounts(ctx *web.Context) []AccountSidebar {
 			ctx.Logger().Printf("sidebar for %q: %v", s.Username(), err)
 			continue
 		}
-		ib := assembleIMAPBase(ctx, &web.BaseRenderData{}, "", sb.Clone(), "")
+		settings, err := mail.LoadSettings(ctx.Request().Context(), s.Store())
+		if err != nil {
+			ctx.Logger().Printf("merged folders of %q: %v", s.Username(), err)
+			settings = &mail.Settings{}
+		}
+		sb = sb.Clone()
+		for i := range sb.Mailboxes {
+			mbox := &sb.Mailboxes[i]
+			mbox.Merge = mbox.MergedRole()
+			mbox.InMerged = settings.Merges(mbox.Merge)
+		}
+		ib := assembleIMAPBase(ctx, &web.BaseRenderData{}, "", sb, "")
 		accounts = append(accounts, AccountSidebar{
 			Account:     s.Username(),
 			Categorized: ib.CategorizedMailboxes,
@@ -230,4 +241,29 @@ func mailboxCrumb(mailboxes []mail.MailboxInfo, name, account string, folder fun
 		crumb = append(crumb, step)
 	}
 	return crumb
+}
+
+// handleMerged keeps which of an account's role folders feed the merged folders, and lands back where the tick was.
+func handleMerged(ctx *web.Context) error {
+	form, err := ctx.FormParams()
+	if err != nil {
+		return web.NewError(http.StatusBadRequest, err)
+	}
+	for _, role := range form["shown"] {
+		if !slices.Contains(mail.Roles, role) {
+			return web.NewError(http.StatusBadRequest, fmt.Sprintf("%q is not a merged folder", role))
+		}
+	}
+	settings, err := mail.LoadSettings(ctx.Request().Context(), ctx.Login.Store())
+	if err != nil {
+		return err
+	}
+	settings.ChooseMerged(form["shown"], form["merged"])
+	if err := mail.SaveSettings(ctx.Request().Context(), ctx.Login.Store(), settings); err != nil {
+		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: ctx.SaveRefusal(err)})
+	} else {
+		// The rail and the list come back holding what was chosen.
+		ctx.Quiet()
+	}
+	return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.Path("mail.mailbox", "INBOX")))
 }

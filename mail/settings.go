@@ -2,6 +2,7 @@ package mail
 
 import (
 	"context"
+	"slices"
 
 	"git.mehdix.org/alborz"
 )
@@ -38,6 +39,23 @@ type Settings struct {
 
 	// IndexedSearch is the reader stating the server has a full-text index it does not announce.
 	IndexedSearch bool
+
+	// Unmerged are the merged folders, by role, this account is left out of (ADR 80).
+	Unmerged []string
+}
+
+// Merges says whether the account's folder for a merged folder feeds it.
+func (s *Settings) Merges(role string) bool { return !slices.Contains(s.Unmerged, role) }
+
+// ChooseMerged takes the ticked roles of those the form showed; a role the form did not show keeps its choice.
+func (s *Settings) ChooseMerged(shown, ticked []string) {
+	kept := slices.DeleteFunc(slices.Clone(s.Unmerged), func(role string) bool { return slices.Contains(shown, role) })
+	for _, role := range shown {
+		if !slices.Contains(ticked, role) && !slices.Contains(kept, role) {
+			kept = append(kept, role)
+		}
+	}
+	s.Unmerged = kept
 }
 
 func LoadSettings(ctx context.Context, s alborz.Store) (*Settings, error) {

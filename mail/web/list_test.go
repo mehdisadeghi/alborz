@@ -717,3 +717,39 @@ func TestADroppedMessageTheServerRefusesIsCounted(t *testing.T) {
 		t.Errorf("the notice does not count the refused message:\n%s", bar)
 	}
 }
+
+// An account left out of the merged inbox takes its rows, its share of the
+// total and its unread count with it; its own inbox keeps them.
+func TestAnAccountLeftOutOfTheMergedInbox(t *testing.T) {
+	c := bothAccounts(t, Alborz(t))
+	merged := func() (map[string]int, string, string) {
+		body := c.Page(t, "mail.mailbox", "INBOX", url.Values{"ipp": {"100"}})
+		of := regexp.MustCompile(`\d+–\d+ of (\d+)`).FindStringSubmatch(body)
+		unseen := regexp.MustCompile(`(?s)<ul id="merged-roles".*?href="/mailbox/INBOX"[^>]*>[^<]*</a>\s*(?:<span class="unseen">(\d+)</span>)?`).FindStringSubmatch(body)
+		if of == nil || unseen == nil {
+			t.Fatalf("the merged inbox shows no total or no rail row")
+		}
+		return rowAccounts(body), of[1], unseen[1]
+	}
+	rows, total, unseen := merged()
+	if rows[User] == 0 || rows[User2] == 0 || unseen == "" {
+		t.Fatalf("the merged inbox is not both accounts with unread mail: %v, %s unread", rows, unseen)
+	}
+	resp := c.Post(t, "mail.merged", url.Values{"shown": {"INBOX"}, "next": {"/mailbox/INBOX"}}, url.Values{"account": {User2}})
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("leaving the inbox out answered %s", resp.Status)
+	}
+	after, afterTotal, afterUnseen := merged()
+	if after[User] != rows[User] || after[User2] != 0 {
+		t.Errorf("rows by account are %v, want %d of %s's and none of %s's", after, rows[User], User, User2)
+	}
+	if want := fmt.Sprint(rows[User]); afterTotal != want {
+		t.Errorf("the total is %s, was %s, want %s", afterTotal, total, want)
+	}
+	if afterUnseen == unseen {
+		t.Errorf("the rail still counts %s unread", unseen)
+	}
+	if own := rowUIDs(c.Page(t, "mail.mailbox", "INBOX", url.Values{"account": {User2}})); len(own) != rows[User2] {
+		t.Errorf("%s's own inbox lists %d rows, want %d", User2, len(own), rows[User2])
+	}
+}

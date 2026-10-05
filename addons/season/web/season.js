@@ -12,19 +12,27 @@
 //   opacity   of the whole canvas
 //   sprites(style)                    what it paints, from the canvas's computed style
 //   make(view, sprites, noise)        one thing somewhere in the window
-//   step(thing, wind, view)           moves it one frame on
+//   step(thing, dt, wind, view)       moves it dt seconds on
 //   draw(context, thing, sprites)
 const kinds = new URL("season/", document.currentScript.src);
+// The longest step a frame takes, in seconds. A longer gap is a stall or a
+// tab coming back, not time the air moved, and stepping it whole would
+// throw everything across the window at once.
+const MAX_STEP = 0.05;
+// How fast the gust and the squall wander, in keyframes a second: the
+// rates snow was tuned at, a frame at sixty a second.
+const GUST_RATE = 0.096;
+const SQUALL_RATE = 0.024;
 
-// Interpolated noise: a walk between random keyframes, smoothed. One
-// gust is a wave; weather is not - and a fresh random number every
-// frame is not weather either, it is jitter.
+// Interpolated noise: a walk between random keyframes, smoothed, rate
+// keyframes a second. One gust is a wave; weather is not - and a fresh
+// random number every frame is not weather either, it is jitter.
 const noiseField = (rate) => {
 	let from = 0;
 	let to = (Math.random() * 2 - 1);
 	let at = 0;
-	return () => {
-		at += rate;
+	return (dt) => {
+		at += rate * dt;
 		if (at >= 1) {
 			at -= 1;
 			from = to;
@@ -66,8 +74,9 @@ const fall = async () => {
 	let things = [];
 	let sprites = [];
 	let running = false;
-	const gust = noiseField(0.0016);
-	const squall = noiseField(0.0004);
+	let last = 0;
+	const gust = noiseField(GUST_RATE);
+	const squall = noiseField(SQUALL_RATE);
 
 	const resize = () => {
 		const dpr = window.devicePixelRatio || 1;
@@ -83,15 +92,17 @@ const fall = async () => {
 		}
 	};
 
-	const frame = () => {
+	const frame = (now) => {
 		if (!running) {
 			return;
 		}
+		const dt = last ? Math.min((now - last) / 1000, MAX_STEP) : 0;
+		last = now;
 		// The wind is a slow squall with a gust on top of it.
-		const wind = squall() * 1.4 + gust() * 0.6;
+		const wind = squall(dt) * 1.4 + gust(dt) * 0.6;
 		ctx2d.clearRect(0, 0, view.w, view.h);
 		for (const t of things) {
-			kind.step(t, wind, view);
+			kind.step(t, dt, wind, view);
 			kind.draw(ctx2d, t, sprites);
 		}
 		ctx2d.globalAlpha = 1;
@@ -102,6 +113,7 @@ const fall = async () => {
 			return;
 		}
 		running = true;
+		last = 0;
 		requestAnimationFrame(frame);
 	};
 	// A hidden tab is a tab drawing nothing: the browser throttles the

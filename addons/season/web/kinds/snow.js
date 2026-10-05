@@ -33,6 +33,9 @@ const SNOW_FALL_FAST = 0.26;
 // How hard it blows, in pixels a frame at the strongest gust. Snow
 // falling in a room's worth of air slants; it does not fly across.
 const SNOW_WIND = 0.16;
+// The frame the numbers here count in. A step counts the frames of this
+// length its time spans, so a 120 Hz screen does not fall twice as fast.
+const SNOW_FRAME = 1 / 60;
 
 // One crystal on the hexagonal lattice. Rows are offset, so a cell's
 // six neighbours are the two beside it and two on each of the rows
@@ -234,27 +237,28 @@ export default {
 			swing: 0.25 + Math.random() * 0.5,
 			// And the air itself is never still: a slow wander of
 			// this flake's own, smooth rather than shaken.
-			drift: noise(0.004 + Math.random() * 0.004),
+			drift: noise((0.004 + Math.random() * 0.004) / SNOW_FRAME),
 			// The angle it hangs at, which the rocking works about.
 			rest: Math.random() * Math.PI * 2,
 			turn: 0,
 		};
 	},
-	step: (f, wind, view) => {
+	step: (f, dt, wind, view) => {
+		const frames = dt / SNOW_FRAME;
 		// Where the air is taking it: the wind, its own slow wander,
 		// and the side-to-side beat of the vortices it sheds. The
 		// flake lags all three, which is what keeps the path smooth.
 		// The same slow wander that pushes it sideways also stretches
 		// and squeezes the beat, so the flutter never comes out as a
 		// clean sine - shedding wanders in period as well as phase.
-		const wander = f.drift();
-		f.beatPhase += f.beat * (1 + wander * 0.3);
+		const wander = f.drift(dt);
+		f.beatPhase += f.beat * (1 + wander * 0.3) * frames;
 		const air = wind * SNOW_WIND * f.z
 			+ wander * SNOW_WIND * 0.4
 			+ Math.sin(f.beatPhase) * f.swing * f.fall;
-		f.vx += (air - f.vx) * f.pull;
-		f.x += f.vx;
-		f.y += f.fall;
+		f.vx += (air - f.vx) * (1 - (1 - f.pull) ** frames);
+		f.x += f.vx * frames;
+		f.y += f.fall * frames;
 		// A fluttering plate rocks with the beat rather than
 		// spinning: the turn follows the same phase, a quarter of a
 		// cycle behind, and never goes right round.

@@ -665,7 +665,7 @@ for (const event of ["htmx:historyRestore", "htmx:historyCacheMissLoadError"]) {
 const rail = document.querySelector("aside");
 if (rail && window.EventSource) {
 	let due = null;
-	const live = new EventSource(document.body.dataset.events);
+	let live = null;
 
 	const listing = () => document.querySelector("main.message-list [data-live-folder]");
 
@@ -703,13 +703,13 @@ if (rail && window.EventSource) {
 	};
 
 	// A lock taken in another tab.
-	live.addEventListener("locked", () => location.reload());
+	const locked = () => location.reload();
 	// A stream the server closed for good; the lock's script knows how to ask.
-	live.addEventListener("error", () => {
+	const failed = () => {
 		if (live.readyState === EventSource.CLOSED) {
 			document.dispatchEvent(new Event("alborz:streamclosed"));
 		}
-	});
+	};
 
 	// Back in mail, the page landed on was fetched after the mail came.
 	let away = false;
@@ -724,7 +724,7 @@ if (rail && window.EventSource) {
 		away = false;
 	});
 
-	live.addEventListener("mailbox", ev => {
+	const changed = ev => {
 		const [account, ...rest] = String(ev.data || "").split(" ");
 		const folder = rest.join(" ");
 		// Mail arrives in bursts; the counts are fetched once per burst.
@@ -748,6 +748,21 @@ if (rail && window.EventSource) {
 				offer(list);
 			}
 		}, 2000);
+	};
+
+	const listen = () => {
+		live = new EventSource(document.body.dataset.events);
+		live.addEventListener("locked", locked);
+		live.addEventListener("error", failed);
+		live.addEventListener("mailbox", changed);
+	};
+	listen();
+	// A page in the back-forward cache would hold its stream, and with it one of the host's few HTTP/1.1 connections.
+	window.addEventListener("pagehide", () => live.close());
+	window.addEventListener("pageshow", ev => {
+		if (ev.persisted) {
+			listen();
+		}
 	});
 }
 

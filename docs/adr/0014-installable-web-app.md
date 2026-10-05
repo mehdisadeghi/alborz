@@ -25,6 +25,9 @@ outlives the session and is out of alborz's reach.
 3. Each browser opens one Server-Sent Events stream, `/events`. An
    event carries an account and a mailbox name (`event: mailbox`), or
    `event: locked`. It MUST NOT carry markup or message content.
+   A page closes its stream on `pagehide` and opens it again when
+   restored from the back-forward cache: a cached page holding one
+   would take one of the six connections HTTP/1.1 allows per host.
 4. On an event a page refreshes the rail. A list showing that mailbox
    MAY reload when the reader is not using it; one in use (scrolled,
    a row selected, a field focused, not the first page) MUST NOT

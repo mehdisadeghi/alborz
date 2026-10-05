@@ -50,8 +50,7 @@
     {{ if .GlobalData.LoggedIn }}
     <button type="button" class="nav-search-open" data-tour="search" commandfor="search-dialog" command="show-modal" title="{{$.T "search.title"}}" aria-label="{{$.T "search.title"}}">{{ template "icon" "search" }}<span class="label">{{$.T "search.placeholder"}}</span><kbd aria-hidden="true">/</kbd></button>
     <div>
-      {{ template "nav-menus" (dict "g" $ "page" $page "drawer" false) }}
-      {{ template "nav-menus" (dict "g" $ "page" $page "drawer" true) }}
+      {{ template "nav-menus" (dict "g" $ "page" $page) }}
       <a href="{{url "settings.profile"}}" data-tour="settings"{{ if or (eq $page "settings") (eq $page "signatures") }} class="active" aria-current="page"{{ end }}>{{$.T "nav.settings"}}</a>
     </div>
     {{ template "scheme-toggle" $ }}
@@ -102,12 +101,12 @@
 {{ end }}
 {{ end }}
 
-{{/* dict: g page drawer. */}}
+{{/* dict: g page. */}}
 {{ define "nav-menus" }}
 {{ $g := .g }}{{ $page := .page }}
-<div class="{{ if .drawer }}nav-menus-drawer{{ else }}nav-menus{{ end }}">
-  {{ if .drawer }}<details class="accounts"><summary>{{ if $g.GlobalData.Scope }}{{ template "ltr" $g.GlobalData.Scope }}{{ else if $g.GlobalData.Merged }}{{$g.T "nav.allaccounts"}}{{ else }}{{ template "ltr" $g.GlobalData.Username }}{{ end }}</summary>{{ else }}<div class="accounts"><button type="button" class="accounts-button" data-tour="accounts" popovertarget="menu-accounts"><span class="label">{{ if $g.GlobalData.Scope }}{{ template "ltr" $g.GlobalData.Scope }}{{ else if $g.GlobalData.Merged }}{{$g.T "nav.allaccounts"}}{{ else }}{{ template "ltr" $g.GlobalData.Username }}{{ end }}</span>{{ template "icon" "down" }}</button>{{ end }}
-  <div class="accounts-menu"{{ if not .drawer }} popover id="menu-accounts"{{ end }}>
+<div class="nav-menus">
+  <div class="accounts"><button type="button" class="accounts-button" data-tour="accounts" popovertarget="menu-accounts"><span class="label">{{ if $g.GlobalData.Scope }}{{ template "ltr" $g.GlobalData.Scope }}{{ else if $g.GlobalData.Merged }}{{$g.T "nav.allaccounts"}}{{ else }}{{ template "ltr" $g.GlobalData.Username }}{{ end }}</span>{{ template "icon" "down" }}</button>
+  <div class="accounts-menu" popover id="menu-accounts">
     {{ $section := printf "/%s" $page }}
     {{ $merged := $section }}
     {{ if or (eq $page "mailbox") (eq $page "message") (eq $page "compose") }}{{ $section = url "mail.mailbox" "INBOX" }}{{ $merged = $section }}{{ end }}
@@ -134,9 +133,9 @@
     </form>
     {{ end }}
   </div>
-  {{ if .drawer }}</details>{{ else }}</div>{{ end }}
-  {{ if .drawer }}<details class="accounts lang-menu"><summary>{{ with $g.GlobalData.LanguageName }}{{.}}{{ else }}{{$g.T "settings.langauto"}}{{ end }}</summary>{{ else }}<div class="accounts lang-menu"><button type="button" class="accounts-button" popovertarget="menu-language"><span class="label">{{ with $g.GlobalData.LanguageName }}{{.}}{{ else }}{{$g.T "settings.langauto"}}{{ end }}</span>{{ template "icon" "down" }}</button>{{ end }}
-  <div class="accounts-menu"{{ if not .drawer }} popover id="menu-language"{{ end }}>
+  </div>
+  <div class="accounts lang-menu"><button type="button" class="accounts-button" popovertarget="menu-language"><span class="label">{{ with $g.GlobalData.LanguageName }}{{.}}{{ else }}{{$g.T "settings.langauto"}}{{ end }}</span>{{ template "icon" "down" }}</button>
+  <div class="accounts-menu" popover id="menu-language">
     {{/* A whole page: lang and dir live on the root, which a swap keeps. */}}
     <form method="post" action="{{url "settings.language"}}" hx-boost="false">
       <input type="hidden" name="next" value="{{$g.GlobalData.URL.RequestURI}}">
@@ -149,7 +148,7 @@
     </form>
     {{ end }}
   </div>
-  {{ if .drawer }}</details>{{ else }}</div>{{ end }}
+  </div>
 </div>
 {{ end }}
 

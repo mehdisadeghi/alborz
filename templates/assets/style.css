@@ -314,6 +314,17 @@ select {
     --border-strong: #707070;
   }
 
+  :root[data-theme="dark"] {
+    --fg-dim: #e0e0e0;
+    --fg-muted: #d0d0d0;
+    --fg-faint: #b0b0b0;
+    --fg-faint-accent: #b0b0b0;
+    --border: #808080;
+    --border-strong: #a0a0a0;
+  }
+}
+
+@media (prefers-contrast: more) and (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --fg-dim: #e0e0e0;
     --fg-muted: #d0d0d0;

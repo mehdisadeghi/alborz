@@ -47,8 +47,12 @@ outlives the session and is out of alborz's reach.
    top bar's background, light first and dark last, or once for a
    theme pinning a scheme (ADR 48). The server reads it and renders
    one `<meta name="theme-color">` per scheme; an override (ADR 50)
-   switches which applies. The manifest carries the default theme's
-   light value. A theme without it fails startup.
+   switches which applies. A theme without it fails startup.
+10. The manifest carries no `theme_color`: Chrome on Android paints it
+    in both schemes until a page's meta applies and reads no dark
+    variant, so without it Chrome takes its own white or black by the
+    system's scheme. `background_color` is the default theme's light
+    value; the splash screen has no dark variant either.
 
 ## Consequences
 

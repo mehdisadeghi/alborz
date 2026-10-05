@@ -3681,6 +3681,13 @@ main.calendar .date h3 .day-num {
   border-radius: 50%;
 }
 
+/* Beside a month name the box's spare room would split "1. Okt."; only a circle needs it. */
+@media (width > 600px) {
+  main.calendar .date:not(.active) h3 .day-label:has(.label-long) .day-num {
+    min-inline-size: 0;
+  }
+}
+
 main.calendar .date.active h3 .day-num {
   background: var(--accent-strong);
   color: var(--on-accent);

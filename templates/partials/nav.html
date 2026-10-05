@@ -105,7 +105,7 @@
 {{ define "nav-menus" }}
 {{ $g := .g }}{{ $page := .page }}
 <div class="nav-menus">
-  <div class="accounts"><button type="button" class="accounts-button" data-tour="accounts" popovertarget="menu-accounts"><span class="label">{{ if $g.GlobalData.Scope }}{{ template "ltr" $g.GlobalData.Scope }}{{ else if $g.GlobalData.Merged }}{{$g.T "nav.allaccounts"}}{{ else }}{{ template "ltr" $g.GlobalData.Username }}{{ end }}</span>{{ template "icon" "down" }}</button>
+  <div class="accounts"><button type="button" class="accounts-button" data-tour="accounts" popovertarget="menu-accounts"><span class="label"{{ if or $g.GlobalData.Scope (not $g.GlobalData.Merged) }} dir="ltr"{{ end }}>{{ if $g.GlobalData.Scope }}{{ template "ltr" $g.GlobalData.Scope }}{{ else if $g.GlobalData.Merged }}{{$g.T "nav.allaccounts"}}{{ else }}{{ template "ltr" $g.GlobalData.Username }}{{ end }}</span>{{ template "icon" "down" }}</button>
   <div class="accounts-menu" popover id="menu-accounts">
     {{ $section := printf "/%s" $page }}
     {{ $merged := $section }}
@@ -114,7 +114,7 @@
     {{ range $g.GlobalData.Accounts }}
     <div class="account-menu-row">
     {{ $to := printf "%s%s" $section (account "?" .Username) }}{{ if and $g.GlobalData.Item (eq .Username $g.GlobalData.URLAccount) }}{{ $to = $g.GlobalData.Own }}{{ end }}
-    <a href="{{ localhref $to }}"{{ if eq .Username $g.GlobalData.Scope }} class="active" aria-current="true"{{ end }}>{{ template "ltr" .Username }}</a>
+    <a href="{{ localhref $to }}" dir="ltr"{{ if eq .Username $g.GlobalData.Scope }} class="active" aria-current="true"{{ end }}>{{ template "ltr" .Username }}</a>
     <form method="post" action="{{url "auth.logout"}}" class="account-signout">
       <button type="submit" name="account" value="{{.Username}}" title="{{$g.T "nav.signout"}} {{.Username}}">{{$g.T "nav.signout"}}</button>
     </form>

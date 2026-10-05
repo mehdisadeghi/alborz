@@ -620,6 +620,8 @@ header nav .account-menu-row > a {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Left to right, so the ellipsis cuts the end of the address, yet on the menu's edge. */
+header nav .account-menu-row:dir(rtl) > a { text-align: right; }
 header nav .account-menu-row > form:first-child { grid-column: 1; }
 header nav .account-menu-row .account-signout { grid-column: 2; }
 header nav .account-menu-row .account-signout button {

@@ -578,16 +578,11 @@ header nav .accounts:has(> :popover-open) > .accounts-button {
   border: 0;
   color: var(--fg);
 }
-/* Hangs from the trailing edge, or a wide panel leaves the canvas. */
-.nav-menus-drawer { display: none; }
-header nav .accounts summary { cursor: pointer; color: var(--fg-muted); }
-header nav .accounts-menu:not([popover]),
 header nav .accounts-menu:popover-open {
   display: flex;
   flex-direction: column;
   align-items: stretch;
   gap: var(--space-1);
-  min-width: max-content;
   padding: var(--space-2);
   background-color: var(--surface-raised);
   border: 1px solid var(--border);
@@ -4713,8 +4708,16 @@ h1.no-word .title-short {
   header nav > div { float: none; display: none; }
   /* The trailing group is out of the row here, so the button pushes itself. */
   header nav > div ~ .scheme-toggle { margin-inline-start: auto; }
-  .nav-menus { display: none; }
-  .nav-menus-drawer { display: contents; }
+  .nav-menus { display: contents; }
+  header nav .accounts { max-width: 100%; }
+  /* The dock sits at the bottom, so its menus open upward across the viewport. */
+  header nav .accounts-menu[popover] {
+    position-area: block-start span-all;
+    justify-self: stretch;
+    inset-inline: var(--space-2);
+    width: auto;
+    margin-block: 0 2px;
+  }
   header nav .header-brand { display: none; }
 
   .rail-brand {
@@ -4744,13 +4747,6 @@ h1.no-word .title-short {
   }
 
   .sidebar-toggle:checked ~ header nav > div > a { margin-inline-start: 0; }
-
-  .sidebar-toggle:checked ~ header .accounts-menu {
-    padding-block: 0;
-    padding-inline: 1rem 0;
-    border: 0;
-    box-shadow: none;
-  }
 
   /* They float over the page, so they paint on the opaque raised surface. */
   aside {

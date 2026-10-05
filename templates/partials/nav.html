@@ -66,8 +66,17 @@
       {{ with .GlobalData.Scope }}<input type="hidden" name="account" value="{{.}}">{{ end }}
       {{ template "icon" "search" }}
       <input type="text" name="query" dir="auto" autocomplete="off" enterkeyhint="search" autofocus placeholder="{{$.T "search.placeholder"}}" aria-label="{{$.T "search.placeholder"}}">
+      {{/* Drawn by helpers.js: without a script the dialog never holds a view. */}}
+      <button type="button" class="attach-chip filter-chip search-dialog-view" hidden aria-label="{{$.T "filter.remove"}}: {{$.T "filter.color"}}">
+        <span class="filter-chip-label">{{$.T "filter.color"}}</span>
+        <span class="filter-chip-value"></span>
+        <span class="filter-chip-x" aria-hidden="true">&times;</span>
+      </button>
+      {{/* First, so Enter submits the query and not a view. */}}
       <button type="submit">{{$.T "mailbox.search"}}</button>
+      {{ template "filter-menu" (dict "id" "menu-search-view" "icon" "list-filter" "title" ($.T "filter.menu") "rows" .GlobalData.SearchViews "name" "view") }}
     </form>
+    <p class="hint search-dialog-hint">{{$.T "search.starhint"}} <code dir="ltr">is:starred</code> <code dir="ltr">is:red</code> <code dir="ltr">-is:red</code></p>
     <div class="search-dialog-found" data-failed="{{$.T "search.failed"}}" hidden>
       {{ template "search-found" (dict "g" $ "id" "search-dialog" "blocks" .GlobalData.SearchBlocks) }}
     </div>

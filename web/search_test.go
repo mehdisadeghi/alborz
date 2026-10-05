@@ -238,3 +238,39 @@ func TestHeaderSearchAsksEachSection(t *testing.T) {
 		t.Errorf("a plain request for one section is not the page with that section")
 	}
 }
+
+// The header's filter menu submits its view with the form, so a script-less reader gets every
+// section's starred rows with no word typed.
+func TestHeaderSearchOffersTheStarViews(t *testing.T) {
+	a := Alborz(t)
+	c := a.SignIn(t, User)
+	made := sections(t, a, c, "Marked", "Plain")
+	acct := url.Values{"account": {User}}
+	for i, route := range []string{"calendar.event.color", "calendar.task.color", "contacts.contact.color"} {
+		if resp := c.Post(t, route, url.Values{"color": {"blue"}, "next": {"/"}}, made["Marked"][i], acct); resp.StatusCode != http.StatusFound {
+			t.Fatalf("%s answered %s", route, resp.Status)
+		}
+	}
+	uids := MessageUIDs(c.Page(t, "mail.mailbox", "INBOX"))
+	if len(uids) == 0 {
+		t.Fatal("the rig seeded no messages")
+	}
+	c.Post(t, "mail.messages.flag", url.Values{"uids": {uids[0]}, "color": {"blue"}, "next": {"/"}}, "INBOX")
+
+	form := Between(c.Page(t, "mail.mailbox", "INBOX"), `<dialog id="search-dialog"`, "</form>")
+	views := regexp.MustCompile(`<button type="submit" class="button-link" name="view" value="([a-z]+)"`).FindAllStringSubmatch(form, -1)
+	if len(views) != 8 || views[0][1] != "starred" || views[7][1] != "grey" {
+		t.Fatalf("the dialog's filter menu offers %v, want starred and the seven colours", views)
+	}
+	if strings.Index(form, `<button type="submit">`) > strings.Index(form, `name="view"`) {
+		t.Error("a view comes before the search button, so Enter would submit it")
+	}
+
+	page := c.Page(t, "core.search", url.Values{"query": {""}, "view": {"starred"}})
+	for _, kind := range kinds {
+		b, all := block(t, page, kind)
+		if all == "" || !strings.Contains(b, "1 result in") || !strings.Contains(b, "flag-blue") {
+			t.Errorf("%s: want its one starred row, got %q", kind, b)
+		}
+	}
+}

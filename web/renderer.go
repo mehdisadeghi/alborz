@@ -27,6 +27,8 @@ type GlobalRenderData struct {
 	LoggedIn bool
 	// SearchBlocks are the header search's sections, waiting to be asked.
 	SearchBlocks []SearchBlock
+	// SearchViews are the header search's filter menu.
+	SearchViews []FilterRow
 
 	Username string
 	Accounts []Account
@@ -318,6 +320,7 @@ func NewBaseRenderData(ctx *Context) *BaseRenderData {
 		global.StatusStart, global.StatusEnd = ctx.statusOn()
 		global.StatusSeconds = int(statusEvery / time.Second)
 		global.SearchBlocks = ctx.waitingBlocks()
+		global.SearchViews = ViewRows(ctx, "", false, "")
 		global.Scripts = ctx.scripts()
 		global.Tour = ctx.tour(global.URL, global.Scope)
 		global.TourStart = TourStart(global.URL)

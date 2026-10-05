@@ -213,7 +213,7 @@ func (ctx *Context) profileDiff(theirs, ours alborz.Profile) []profileChange {
 		if p.Display.Theme == "" {
 			return g.T("settings.themedefault")
 		}
-		return ThemeName(p.Display.Theme)
+		return g.T("theme." + p.Display.Theme)
 	})
 	add("settings.textsize", func(p alborz.Profile) string {
 		return g.T("settings.text" + cmp.Or(p.Display.TextSize, "default"))
@@ -247,15 +247,6 @@ func (ctx *Context) profileDiff(theirs, ours alborz.Profile) []profileChange {
 		return or(locale.Name(p.Display.Language), "settings.langauto")
 	})
 	return out
-}
-
-// ThemeName returns a theme's file name as a reader reads it.
-func ThemeName(name string) string {
-	name = strings.ReplaceAll(name, "-", " ")
-	if name == "" {
-		return name
-	}
-	return strings.ToUpper(name[:1]) + name[1:]
 }
 
 // SettingsRail is the settings pages' rail: what this browser keeps, then each account's pages.

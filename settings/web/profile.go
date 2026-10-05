@@ -107,7 +107,7 @@ func handleProfile(ctx *web.Context) error {
 	if v, ok := given("secondary"); ok {
 		reading.Secondary = calsys.Known(v)
 	}
-	if reading.Secondary == reading.Primary {
+	if reading.Secondary == calsys.Of(reading.Primary).Name() {
 		reading.Secondary = ""
 	}
 	if v, ok := given("reply_position"); ok {

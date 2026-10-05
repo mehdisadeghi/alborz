@@ -53,10 +53,10 @@
         </div>
         <div class="action-group">
           <label for="secondary">{{$.T "settings.secondary"}}</label>
-          <select name="secondary" id="secondary">
+          <select name="secondary" id="secondary" data-excludes="calendar">
             <option value="" {{if eq .Reading.Secondary ""}}selected{{end}}>{{$.T "settings.secondarynone"}}</option>
-            <option value="gregorian" {{if eq .Reading.Secondary "gregorian"}}selected{{end}}>{{$.T "settings.gregorian"}}</option>
-            <option value="shcal" {{if eq .Reading.Secondary "shcal"}}selected{{end}}>{{$.T "settings.shcal"}}</option>
+            <option value="gregorian" {{if eq .Reading.Secondary "gregorian"}}selected{{end}}{{if ne .Reading.Primary "shcal"}} hidden{{end}}>{{$.T "settings.gregorian"}}</option>
+            <option value="shcal" {{if eq .Reading.Secondary "shcal"}}selected{{end}}{{if eq .Reading.Primary "shcal"}} hidden{{end}}>{{$.T "settings.shcal"}}</option>
           </select>
           {{ template "hint" (dict "text" ($.T "settings.secondaryhint")) }}
         </div>

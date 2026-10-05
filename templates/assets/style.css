@@ -725,6 +725,10 @@ header nav.is-icons .nav-search-open :is(.label, kbd) { display: none; }
 .search-dialog > form > input[type="text"]:focus-visible { outline: none; }
 .search-dialog > form:has(input:focus-visible) { border-bottom-color: var(--link); }
 
+.search-dialog > form > :is(.filter-chip, div.overflow) { flex: none; }
+.search-dialog-view { min-height: 0; background: none; }
+.search-dialog-hint { margin: 0; padding: var(--space-2) var(--space-3); }
+
 .search-dialog-found { overflow-y: auto; }
 
 /* An answer under way leaves the last one readable, dimmed as not yet this query's. */

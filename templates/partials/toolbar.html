@@ -64,7 +64,7 @@
 {{/* dict: target href. */}}
 {{ define "swaps" }}{{ with .target }} hx-get="{{$.href}}" hx-target="#{{.}}" hx-swap="innerHTML show:window:top" hx-push-url="true"{{ end }}{{ end }}
 
-{{/* dict: id icon title rows [target priority class disabled]. */}}
+{{/* dict: id icon title rows [target priority class disabled name]; with name the rows submit their Value under it. */}}
 {{ define "filter-menu" }}
 {{ if .disabled }}
 <div class="overflow{{ with .class }} {{.}}{{ end }}"{{ with .priority }} data-priority="{{.}}"{{ end }}><button type="button" class="icon-button" disabled title="{{.title}}" aria-label="{{.title}}">{{ template "icon" .icon }}<span class="label">{{.title}}</span></button></div>
@@ -73,12 +73,18 @@
   <button type="button" class="icon-button" title="{{.title}}" aria-label="{{.title}}" popovertarget="{{.id}}">{{ template "icon" .icon }}<span class="label">{{.title}}</span></button>
   <div class="overflow-menu" popover id="{{.id}}">
     {{ range .rows }}
-    <a class="button-link{{ if .Current }} is-current{{ end }}" href="{{ localhref .Href }}"{{ if .Current }} aria-current="true"{{ end }}{{ template "swaps" (dict "target" $.target "href" (localhref .Href)) }}>{{ with .Star }}<span class="flag-star flag-{{.}}">&#9733;</span> {{ end }}{{.Label}}</a>
+    {{ if $.name }}
+    <button type="submit" class="button-link{{ if .Current }} is-current{{ end }}" name="{{$.name}}" value="{{.Value}}"{{ if .Current }} aria-current="true"{{ end }}>{{ template "filter-row" . }}</button>
+    {{ else }}
+    <a class="button-link{{ if .Current }} is-current{{ end }}" href="{{ localhref .Href }}"{{ if .Current }} aria-current="true"{{ end }}{{ template "swaps" (dict "target" $.target "href" (localhref .Href)) }}>{{ template "filter-row" . }}</a>
+    {{ end }}
     {{ end }}
   </div>
 </div>
 {{ end }}
 {{ end }}
+
+{{ define "filter-row" }}{{ with .Star }}<span class="flag-star flag-{{.}}">&#9733;</span> {{ end }}{{.Label}}{{ end }}
 
 {{ define "sort-mark" }}{{ template "icon" "sort" }}<span class="label">{{.T "mailbox.sortby"}}</span>{{ end }}
 

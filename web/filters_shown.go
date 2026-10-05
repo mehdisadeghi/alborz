@@ -30,6 +30,8 @@ type FilterRow struct {
 	Current bool
 	// Star is the colour a row names.
 	Star string
+	// Value is what the row submits where its menu belongs to a form.
+	Value string
 }
 
 // WithoutParam returns this page with one query parameter and the page number dropped.
@@ -273,7 +275,7 @@ func ViewRows(ctx *Context, current string, unread bool, reset string) []FilterR
 		if view == current {
 			href = reset
 		}
-		return FilterRow{Label: label, Href: href, Current: view == current, Star: star}
+		return FilterRow{Label: label, Href: href, Current: view == current, Star: star, Value: view}
 	}
 	var rows []FilterRow
 	if unread {

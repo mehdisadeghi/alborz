@@ -66,6 +66,7 @@
 "search.searching" = "Searching..."
 "search.failed" = "Search failed."
 "search.superseded" = "A newer search replaced this one."
+"search.starhint" = "By star:"
 "mail.search" = "Email"
 "events.search" = "Events"
 "tasks.search" = "Tasks"

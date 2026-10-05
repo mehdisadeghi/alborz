@@ -66,6 +66,7 @@
 "search.searching" = "در حال جستجو…"
 "search.failed" = "جستجو انجام نشد."
 "search.superseded" = "جستجوی تازه‌تری جای این یکی را گرفت."
+"search.starhint" = "با ستاره:"
 "mail.search" = "ایمیل"
 "events.search" = "رویدادها"
 "tasks.search" = "کارها"

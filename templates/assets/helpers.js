@@ -1338,6 +1338,10 @@ document.addEventListener("htmx:confirm", ev => {
 			dialog,
 			form: dialog.querySelector("form"),
 			input: dialog.querySelector('input[name="query"]'),
+			view: dialog.querySelector('input[name="view"]'),
+			chip: dialog.querySelector(".search-dialog-view"),
+			menu: dialog.querySelector(".overflow-menu"),
+			hint: dialog.querySelector(".search-dialog-hint"),
 			found: dialog.querySelector(".search-dialog-found"),
 		};
 	};
@@ -1390,15 +1394,17 @@ document.addEventListener("htmx:confirm", ev => {
 
 	const start = p => {
 		const query = p.input.value.trim();
-		if (run && run.query === query) {
+		const view = p.view ? p.view.value : "";
+		if (run && run.query === query && run.view === view) {
 			return;
 		}
 		if (run) {
 			run.ctrl.abort();
 		}
-		run = { query, ctrl: new AbortController(), latest: {} };
-		p.found.hidden = query === "";
-		if (query === "") {
+		run = { query, view, ctrl: new AbortController(), latest: {} };
+		p.found.hidden = query === "" && view === "";
+		p.hint.hidden = !p.found.hidden;
+		if (p.found.hidden) {
 			return;
 		}
 		for (const block of blocks(p.found)) {
@@ -1408,7 +1414,7 @@ document.addEventListener("htmx:confirm", ev => {
 
 	const full = p => {
 		clearTimeout(paused);
-		if (!run || run.query === "") {
+		if (!run || p.found.hidden) {
 			return;
 		}
 		for (const block of blocks(p.found)) {
@@ -1429,6 +1435,27 @@ document.addEventListener("htmx:confirm", ev => {
 		paused = setTimeout(() => { start(p); full(p); }, PAUSED_MS);
 	});
 
+	// The view rides along as a field of the form; the row in force clears it, as on a list's filter menu.
+	const choose = (p, row) => {
+		const view = p.view && p.view.value === row.value ? "" : row.value;
+		if (view && !p.view) {
+			p.view = Object.assign(document.createElement("input"), { type: "hidden", name: "view" });
+			p.form.append(p.view);
+		}
+		if (p.view) {
+			p.view.value = view;
+		}
+		for (const r of p.menu.querySelectorAll("button[name=view]")) {
+			r.classList.toggle("is-current", r.value === view);
+			r.toggleAttribute("aria-current", r.value === view);
+		}
+		const value = p.chip.querySelector(".filter-chip-value");
+		value.replaceChildren(...(view ? [...row.cloneNode(true).childNodes] : []));
+		p.chip.hidden = !view;
+		p.menu.hidePopover();
+		p.input.focus();
+	};
+
 	// Captured, so the form is not marked as sent: it never leaves the page.
 	document.addEventListener("submit", ev => {
 		const p = parts();
@@ -1436,10 +1463,24 @@ document.addEventListener("htmx:confirm", ev => {
 			return;
 		}
 		ev.preventDefault();
+		if (ev.submitter && ev.submitter.name === "view") {
+			choose(p, ev.submitter);
+		}
 		clearTimeout(typed);
 		start(p);
 		full(p);
 	}, true);
+
+	document.addEventListener("click", ev => {
+		const p = parts();
+		if (!p || !ev.target.closest || ev.target.closest(".search-dialog-view") !== p.chip) {
+			return;
+		}
+		choose(p, { value: p.view.value });
+		clearTimeout(typed);
+		start(p);
+		full(p);
+	});
 
 	// The field is where the dialog opens, with what was typed last ready to be replaced.
 	document.addEventListener("command", ev => {

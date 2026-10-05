@@ -108,6 +108,8 @@ select {
   /* One box for cell, header, chips and crumb, so their text shares a baseline and an edge. */
   --row-pad: 0.4rem var(--space-2);
   --pager-label: 6rem;
+  /* A typical address whole; a longer one ends in an ellipsis instead of turning the sections to icons. */
+  --nav-label: 16rem;
   --sidebar-width: clamp(10rem, 15vw, 13rem);
   --drawer-width: 15rem;
   --content-list: 90rem;
@@ -519,19 +521,23 @@ header nav > div {
   gap: var(--space-4);
 }
 
-/* One row, or the menus wrap before the row folds into the drawer; the name truncates. */
+/* One row, or the menus wrap before the row folds into the drawer. The
+   names keep their width, so the sections turn to icons first; only then
+   does the account's name yield. */
 .nav-menus {
   display: flex;
   align-items: center;
   gap: var(--space-1);
-  min-width: 0;
 }
-header nav > div { min-width: 0; }
+header nav.is-icons > div,
+header nav.is-icons .nav-menus,
+header nav.is-icons .accounts:not(.lang-menu) { min-width: 0; }
 header nav > div > :not(.nav-menus),
 .nav-menus > :not(.accounts) { flex-shrink: 0; }
-header nav .accounts { display: inline-block; position: relative; min-width: 0; }
+header nav .accounts { display: inline-block; position: relative; }
 header nav .accounts-button { max-width: 100%; }
 header nav .accounts-button .label {
+  max-width: var(--nav-label);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

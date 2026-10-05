@@ -449,10 +449,10 @@ document.addEventListener("htmx:beforeCleanupElement", ev => {
 	}
 });
 
-// A suggestion popup open when htmx swaps the body would outlive its field; focus outside the swap stays.
+// A datalist's popup open when htmx swaps its field away would outlive it; any other focus htmx brings back by id.
 document.addEventListener("htmx:beforeSwap", ev => {
 	const focused = document.activeElement;
-	if (focused && focused !== document.body && focused.blur && ev.detail.target.contains(focused)) {
+	if (focused && focused.list && ev.detail.target.contains(focused)) {
 		focused.blur();
 	}
 });

@@ -57,7 +57,7 @@ In addition to the protocols above:
 | 2177, 2971, 5464, 5256, 6154, 4551 | IDLE, ID, METADATA, SORT and THREAD, special-use folders, CONDSTORE |
 | 4315, 5819, 6851 | UIDPLUS, LIST-STATUS, MOVE |
 | 5228, 5804, 5230, 6609, 5260 | Sieve and ManageSieve: rules, forwarding and vacation replies |
-| 5545, 7986, 7529 | iCalendar: VTIMEZONE generation, recurrence, alarms, COLOR, RSCALE |
+| 5545, 7986, 7529 | iCalendar: VTIMEZONE generation, recurrence, alarms, journal entries, COLOR, RSCALE |
 | 4791, 6352, 6764 | CalDAV and CardDAV server, `.well-known` discovery |
 | 4918, 7232 | WebDAV dead properties, conditional requests |
 | 6578 | WebDAV sync: remote calendars and address books kept in step |

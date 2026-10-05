@@ -147,7 +147,7 @@ func readArchive(r io.Reader) (map[string][]byte, error) {
 }
 
 // The HTTP password is sealed under the mail password, which does not travel (ADR 5), and the account's own
-// key opens nothing the archive holds (ADR 71).
+// key opens nothing the archive holds (ADR 72).
 func exportSettings(ctx context.Context, l *Login, put func(string, []byte) error) error {
 	settings, ok := l.Store().(Settings)
 	if !ok {

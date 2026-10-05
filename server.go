@@ -72,7 +72,7 @@ type Server struct {
 	// Archive are the features' shares of an account's archive, beside its settings.
 	Archive []ArchivePart
 
-	// Keys holds the accounts' own keys and key pairs (ADR 71); Sealers are the features keeping values
+	// Keys holds the accounts' own keys and key pairs (ADR 72); Sealers are the features keeping values
 	// under them.
 	Keys    *keyring.Ring
 	Sealers []Sealer

@@ -428,7 +428,7 @@ func (s *Store) Visible(account string, kind Kind, now time.Time) ([]Seen, error
 		if err != nil {
 			return err
 		}
-		// A share whose collection's key this account cannot open yet is passed over (ADR 71).
+		// A share whose collection's key this account cannot open yet is passed over (ADR 72).
 		return each(tx, s.receivedBy(account), func(ref Ref) error {
 			sh, err := get[Share](tx, s.shareKey(ref, account))
 			if errors.Is(err, ErrNotFound) {

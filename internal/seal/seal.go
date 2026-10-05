@@ -22,7 +22,7 @@ const KeySize = 32
 const (
 	// ByInstance is a key the instance holds: one derived from the login key, or one its context names.
 	ByInstance byte = 1
-	// ByAccount is a key an account holds: its own, or one of its collections' (ADR 71).
+	// ByAccount is a key an account holds: its own, or one of its collections' (ADR 72).
 	ByAccount byte = 2
 )
 

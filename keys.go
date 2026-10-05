@@ -142,7 +142,7 @@ func (s *Server) rewrapKey(ctx context.Context, l *Login, next string) error {
 	return l.store.Put(ctx, keyEntry, &k)
 }
 
-// A Sealer is a feature's part in the accounts' own keys (ADR 71).
+// A Sealer is a feature's part in the accounts' own keys (ADR 72).
 type Sealer struct {
 	// Reseal moves what the feature keeps for the account under the key the ring gives it now, and does
 	// nothing where that is done. It runs at every sign-in, so a move cut short goes on.

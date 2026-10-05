@@ -72,7 +72,7 @@ const keyCheckKey = "alborz.keycheck"
 
 // CheckKey refuses the file at path unless root sealed it. A file without the
 // check gets one once every value under the sealed prefixes opens with its key;
-// a value under an account's own key is that account's to open (ADR 71).
+// a value under an account's own key is that account's to open (ADR 72).
 func CheckKey(db kv.DB, path string, root seal.Root, sealed map[string]*seal.Key) error {
 	refused := func(err error) error {
 		if errors.Is(err, seal.ErrFormat) {
@@ -148,7 +148,7 @@ func (r *records) Sweep(before time.Time) error {
 }
 
 // settingsRecords keeps settings for servers without METADATA, one record per account, sealed under the
-// key the ring gives the account (ADR 71). The account's own key is kept apart, under the instance's key:
+// key the ring gives the account (ADR 72). The account's own key is kept apart, under the instance's key:
 // it has to be read before anything under it can be.
 type settingsRecords struct {
 	db    kv.DB

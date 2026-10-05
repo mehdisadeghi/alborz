@@ -100,7 +100,7 @@ type Login struct {
 	httpLoaded   bool   // protected by httpLocker
 	httpSealed   bool   // protected by httpLocker
 
-	// locked is an account whose encryption is on and whose key the password did not open (ADR 71).
+	// locked is an account whose encryption is on and whose key the password did not open (ADR 72).
 	locked atomic.Bool
 	// keyUnread is an account locked because its key as stored does not decode.
 	keyUnread atomic.Bool

@@ -3858,6 +3858,12 @@ header nav .accounts-menu[popover] {
   color: inherit;
 }
 
+/* A long account list ends at the viewport and scrolls, or its last rows are out of reach. */
+header nav .accounts-menu[popover] {
+  max-block-size: calc(100% - 2px);
+  overflow-y: auto;
+}
+
 .icon-sprite {
   position: absolute;
   width: 0;

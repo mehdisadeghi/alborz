@@ -7,7 +7,7 @@ import (
 
 	moonweb "git.mehdix.org/alborz/addons/moon/web"
 	motdweb "git.mehdix.org/alborz/addons/motd/web"
-	snowweb "git.mehdix.org/alborz/addons/snow/web"
+	snowweb "git.mehdix.org/alborz/addons/season/web"
 	"git.mehdix.org/alborz/addons/weather"
 	weatherweb "git.mehdix.org/alborz/addons/weather/web"
 	authweb "git.mehdix.org/alborz/auth/web"

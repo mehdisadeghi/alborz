@@ -8,7 +8,7 @@ import (
 	"git.mehdix.org/alborz/web"
 )
 
-//go:embed snow.js
+//go:embed kinds/snow.js
 var script []byte
 
 // Mount serves the script and offers snow to every reader.

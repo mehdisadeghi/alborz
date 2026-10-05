@@ -120,6 +120,8 @@ select {
   --fg-muted: #666;
   /* Reads at 4.5:1 on the well. */
   --fg-faint: #707070;
+  /* --fg-faint where it lies on --bg-accent, at 4.5:1 there. */
+  --fg-faint-accent: #6d6d6d;
 
   --bg: #fff;
   /* The top bar's; the browser paints it under the status bar, so the server reads it from here. */
@@ -187,6 +189,7 @@ select {
     --fg-dim: #a8a8a8;
     --fg-muted: #a0a0a0;
     --fg-faint: #8a8a8a;
+    --fg-faint-accent: #8f8f8f;
 
     --bg: #1f1f1f;
     --theme-color: #1f1f1f;
@@ -240,6 +243,7 @@ select {
   --fg-dim: #a8a8a8;
   --fg-muted: #a0a0a0;
   --fg-faint: #8a8a8a;
+  --fg-faint-accent: #8f8f8f;
 
   --bg: #1f1f1f;
   --theme-color: #1f1f1f;
@@ -305,6 +309,7 @@ select {
     --fg-dim: #333;
     --fg-muted: #3d3d3d;
     --fg-faint: #565656;
+    --fg-faint-accent: #565656;
     --border: #a0a0a0;
     --border-strong: #707070;
   }
@@ -313,6 +318,7 @@ select {
     --fg-dim: #e0e0e0;
     --fg-muted: #d0d0d0;
     --fg-faint: #b0b0b0;
+    --fg-faint-accent: #b0b0b0;
     --border: #808080;
     --border-strong: #a0a0a0;
   }
@@ -3559,8 +3565,10 @@ main.calendar .date {
 
 main.calendar .date:hover { background: var(--bg-active); }
 
+/* The tint lies on the cell's surface: in a translucent theme the backdrop would show under today's text. */
 main.calendar .date.active {
-  background-color: var(--bg-accent);
+  --fg-faint: var(--fg-faint-accent);
+  background: linear-gradient(var(--bg-accent) 0 0), var(--bg);
   box-shadow: inset 0 0 0 1px var(--border-accent);
 }
 
@@ -3642,7 +3650,6 @@ main.calendar .date h3 .weeknum-secondary {
   justify-self: start;
   color: var(--fg-faint);
   font-size: var(--text-xs);
-  opacity: 0.75;
 }
 
 main.calendar .date h3 .day-label {

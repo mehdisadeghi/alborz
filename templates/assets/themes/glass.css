@@ -5,7 +5,8 @@
   --fg: #1b1b1f;
   --fg-dim: #48484f;
   --fg-muted: #63636b;
-  --fg-faint: #6e6e76;
+  --fg-faint: #6a6a72;
+  --fg-faint-accent: #5f5f66;
 
   --bg: rgba(255, 255, 255, 0.62);
   /* The header's --bg over the gradient's first stop: a status bar takes no alpha. */

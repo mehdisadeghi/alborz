@@ -6,6 +6,7 @@
   --fg-dim: #3f545b;
   --fg-muted: #4a6169;
   --fg-faint: #516870;
+  --fg-faint-accent: var(--fg-faint);
 
   --bg: #fdf6e3;      /* base3 */
   --theme-color: #fdf6e3;
@@ -57,6 +58,7 @@
     --fg-dim: #bcc7c5;
     --fg-muted: #b0bdbc;
     --fg-faint: #a3b0b0;
+    --fg-faint-accent: var(--fg-faint);
 
     --bg: #073642;      /* base02 */
     --theme-color: #073642;
@@ -107,6 +109,7 @@
   --fg-dim: #bcc7c5;
   --fg-muted: #b0bdbc;
   --fg-faint: #a3b0b0;
+  --fg-faint-accent: var(--fg-faint);
 
   --bg: #073642;
   --theme-color: #073642;

@@ -8,6 +8,8 @@ type Addon struct {
 	Name string
 	// Script names the route of a script every page loads while the add-on is on.
 	Script string
+	// Settings names the route of a script the settings page loads, for what turning the add-on on asks of the browser.
+	Settings string
 }
 
 // scripts are the scripts of the add-ons the reader turned on, in the order they were mounted.

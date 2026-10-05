@@ -1095,6 +1095,7 @@
 "settings.place" = "Lugar"
 "settings.placenone" = "Ninguno"
 "season.addon" = "Tiempo de la estación"
+"season.addonhint" = "El viento sigue la inclinación del teléfono y un arrastre por la página."
 "motd.status" = "Texto del día"
 "moon.status" = "Fase lunar"
 "moon.phase.0" = "Luna nueva"

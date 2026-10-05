@@ -86,6 +86,8 @@ type GlobalRenderData struct {
 	SchemePinned bool
 	// ThemeColors are the theme's top bar per scheme, which the browser paints under the status bar.
 	ThemeColors []ThemeColor
+	// Scene names the layers the theme paints behind the page.
+	Scene []string
 
 	CustomCSS bool
 
@@ -109,6 +111,11 @@ type GlobalRenderData struct {
 	// Tour is the tour open on this page, nil for none; TourStart opens it here (ADR 76).
 	Tour      *Tour
 	TourStart string
+}
+
+// Layer reports whether the theme's scene has the named layer.
+func (g *GlobalRenderData) Layer(name string) bool {
+	return slices.Contains(g.Scene, name)
 }
 
 // Dir is the writing direction of the UI language.
@@ -279,6 +286,7 @@ func NewBaseRenderData(ctx *Context) *BaseRenderData {
 	theme := ctx.theme()
 	global.SchemePinned = theme.Scheme != ""
 	global.ThemeColors = theme.Colors
+	global.Scene = theme.Scene
 	global.URLAccount = ctx.urlAccount
 	global.From = ctx.From()
 	global.Scope, global.Merged = ctx.urlAccount, ctx.Unified

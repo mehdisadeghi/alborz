@@ -42,6 +42,9 @@
   <body hx-boost="true" data-events="{{url "core.events"}}" data-worker="{{url "core.worker"}}">
     <a class="skip-link visually-hidden" href="#main">{{$.T "a11y.skip"}}</a>
     {{template "icons" .}}
+    {{- if .GlobalData.Scene }}
+    {{template "scene" .}}
+    {{- end }}
 {{ block "body" . }}
 {{ template "nav" . }}
 <div class="page-wrap">

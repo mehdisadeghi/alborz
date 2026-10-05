@@ -360,6 +360,65 @@ body { font-family: var(--font-sans); font-size: var(--text-md); padding: 0; mar
   background-color: var(--bg); color: var(--fg);
 }
 
+/* The scene of a season theme (ADR 77), behind the page. Its tokens live
+   in the season's file alone: no other theme renders the markup. It
+   mirrors with the page, so the house stands at the inline end, clear of
+   the rail at the inline start. */
+body:has(> .scene) {
+  background:
+    var(--scene-texture) fixed,
+    var(--scene-sky) fixed;
+}
+
+.scene {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: -1;
+  width: 100%;
+  height: auto;
+  pointer-events: none;
+}
+
+:root:dir(rtl) .scene {
+  transform: scaleX(-1);
+}
+
+.scene-puff {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: scene-rise 9s linear infinite;
+}
+
+.scene-puff:nth-child(2) {
+  animation-delay: -3s;
+}
+
+.scene-puff:nth-child(3) {
+  animation-delay: -6s;
+}
+
+@keyframes scene-rise {
+  0% {
+    transform: translate(0, 0) scale(0.6);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.55;
+  }
+  100% {
+    transform: translate(26px, -120px) scale(1.8);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scene-puff {
+    animation: none;
+    opacity: 0.35;
+  }
+}
+
 input[type="text"],
 input[type="email"],
 input[type="password"],

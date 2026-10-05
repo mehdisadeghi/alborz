@@ -1,6 +1,7 @@
 package alborz
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"log"
@@ -224,22 +225,24 @@ func New(log *log.Logger, options Options) (*Server, error) {
 		return nil, fmt.Errorf("cannot mix plain upstream URLs with domains")
 	}
 
-	for _, name := range s.Domains() {
+	// Each lookup can wait out a resolver's timeout, so all run at once.
+	names := s.Domains()
+	errs := make([][4]error, len(names))
+	var wg sync.WaitGroup
+	for i, name := range names {
+		for j, parse := range []func(string) error{s.parseIMAPUpstream, s.parseSMTPUpstream, s.parseSieveUpstream, s.parsePasswdUpstream} {
+			wg.Go(func() { errs[i][j] = parse(name) })
+		}
+	}
+	wg.Wait()
+	for i, name := range names {
 		// An unreachable domain must not take the whole server down.
-		if err := s.parseIMAPUpstream(name); err != nil {
+		if err := cmp.Or(errs[i][0], errs[i][1]); err != nil {
 			s.log.Printf("Warning: dropping domain %q: %v", name, err)
 			delete(s.domains, name)
 			continue
 		}
-		if err := s.parseSMTPUpstream(name); err != nil {
-			s.log.Printf("Warning: dropping domain %q: %v", name, err)
-			delete(s.domains, name)
-			continue
-		}
-		if err := s.parseSieveUpstream(name); err != nil {
-			return nil, err
-		}
-		if err := s.parsePasswdUpstream(name); err != nil {
+		if err := cmp.Or(errs[i][2], errs[i][3]); err != nil {
 			return nil, err
 		}
 	}

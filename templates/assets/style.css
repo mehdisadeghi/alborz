@@ -2458,24 +2458,32 @@ input[type="color"] {
 
 .collection-file .list-items { margin-bottom: var(--space-3); }
 
-.collection-file .list-item { padding-inline: 0; }
+.collection-file .list-item,
+main.settings form .list-item { padding-inline: 0; }
 
-.collection-file .list-content {
+.collection-file .list-content,
+main.settings form .list-content {
   flex-wrap: wrap;
   row-gap: 0;
 }
 
-.collection-file .list-summary {
+.collection-file .list-summary,
+main.settings form .list-summary {
   flex: 0 1 auto;
   overflow: visible;
   white-space: normal;
   overflow-wrap: anywhere;
 }
 
-.collection-file .list-detail {
+.collection-file .list-detail,
+main.settings form .list-detail {
   flex: 1 0 auto;
   white-space: normal;
 }
+
+main.settings form .list-item > button { flex-shrink: 0; }
+
+main.settings form > button + .list-items { margin-top: var(--space-3); }
 
 .collection-file h2 {
   margin: 0 0 var(--space-2);

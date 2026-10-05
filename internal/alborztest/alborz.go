@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/addons/weather"
 	"git.mehdix.org/alborz/cmd/alborz/app"
 	"git.mehdix.org/alborz/pim/store"
 	"git.mehdix.org/alborz/web"
@@ -103,6 +104,9 @@ func ReminderTick(d time.Duration) Option { return func(c *config) { c.options.R
 
 // MOTD offers the message of the day from the collections in dir.
 func MOTD(dir string) Option { return func(c *config) { c.options.MOTD = dir } }
+
+// Weather has the weather segment ask these sources; without it, it asks none that answer.
+func Weather(sources weather.Sources) Option { return func(c *config) { c.options.Weather = sources } }
 
 // Guarded carries the requests to servers outsiders name.
 func Guarded(rt http.RoundTripper) Option { return func(c *config) { c.options.Guarded = rt } }

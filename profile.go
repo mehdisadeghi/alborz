@@ -12,6 +12,14 @@ type Profile struct {
 	Display Display
 	// Toured is set once a sign-in has opened the tour; it opens by itself only once (ADR 76).
 	Toured bool
+	// Place is where the reader said they are; an empty Name is none (ADR 79).
+	Place Place
+}
+
+// Place is a point on Earth under the name the reader chose it by.
+type Place struct {
+	Name     string
+	Lat, Lon float64
 }
 
 type Reading struct {

@@ -6,6 +6,9 @@
   color-scheme: light;
   --scene: far broadleaves near house smoke foreground;
   --season-weather: leaves;
+  /* Leaves fall about 13 px/s; half the default wind slants them about
+     20 degrees. */
+  --season-wind: 5;
 
   --fg: #2b2016;
   --fg-dim: #4a3a2c;

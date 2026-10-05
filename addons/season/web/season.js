@@ -12,7 +12,7 @@
 //   opacity   of the whole canvas
 //   sprites(style)                    what it paints, from the canvas's computed style
 //   make(view, sprites, noise)        one thing somewhere in the window
-//   step(thing, dt, wind, view)       moves it dt seconds on
+//   step(thing, dt, wind, view)       moves it dt seconds on, wind in px/s along x
 //   draw(context, thing, sprites)
 const kinds = new URL("season/", document.currentScript.src);
 // The longest step a frame takes, in seconds. A longer gap is a stall or a
@@ -23,6 +23,11 @@ const MAX_STEP = 0.05;
 // rates snow was tuned at, a frame at sixty a second.
 const GUST_RATE = 0.096;
 const SQUALL_RATE = 0.024;
+// How far the squall and the gust swing the wind, as shares of the theme's
+// mean. Surface wind gusts to about twice its mean and lulls near calm, so
+// together they span 0.1 to 1.9 of it and never turn it round.
+const SQUALL_SHARE = 0.5;
+const GUST_SHARE = 0.4;
 
 // Interpolated noise: a walk between random keyframes, smoothed, rate
 // keyframes a second. One gust is a wave; weather is not - and a fresh
@@ -65,6 +70,12 @@ const fall = async () => {
 		return;
 	}
 	const kind = (await import(new URL(name + ".js", kinds))).default;
+	// Pixels a second towards the inline end: the scene mirrors in a
+	// right-to-left page, and the smoke and the leaves keep to one wind.
+	const mean = Number(getComputedStyle(document.documentElement).getPropertyValue("--season-wind"));
+	if (Number.isNaN(mean)) {
+		throw new TypeError("--season-wind is not a number");
+	}
 	canvas.style.opacity = kind.opacity;
 	document.documentElement.appendChild(canvas);
 	reading();
@@ -99,7 +110,8 @@ const fall = async () => {
 		const dt = last ? Math.min((now - last) / 1000, MAX_STEP) : 0;
 		last = now;
 		// The wind is a slow squall with a gust on top of it.
-		const wind = squall(dt) * 1.4 + gust(dt) * 0.6;
+		const toward = document.documentElement.dir === "rtl" ? -1 : 1;
+		const wind = toward * mean * (1 + squall(dt) * SQUALL_SHARE + gust(dt) * GUST_SHARE);
 		ctx2d.clearRect(0, 0, view.w, view.h);
 		for (const t of things) {
 			kind.step(t, dt, wind, view);

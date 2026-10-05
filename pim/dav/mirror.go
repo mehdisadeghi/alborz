@@ -42,7 +42,7 @@ const (
 // A nil Mirror keeps nothing: every read goes to the server.
 type Mirror struct {
 	db kv.DB
-	// ring gives each account's copies the key its encryption asks for (ADR 71).
+	// ring gives each account's copies the key its encryption asks for (ADR 72).
 	ring *keyring.Ring
 	// names turns accounts, principals, collections and objects into the file's keys.
 	names seal.Names
@@ -635,7 +635,7 @@ func (m *Mirror) round(ctx context.Context, now time.Time) {
 	m.mu.Lock()
 	var users []string
 	for u, r := range m.readers {
-		// An account whose key is not open waits for its next login (ADR 71).
+		// An account whose key is not open waits for its next login (ADR 72).
 		if r.out != nil && !m.ring.Locked(nameOf(u)) {
 			users = append(users, u)
 		}

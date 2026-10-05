@@ -12,7 +12,7 @@ import (
 
 // An envelope keeps a secret under a random key, wrapped under a key derived
 // from the mail password; while the account's encryption is on, under the
-// account's own key instead, and Salt and ByPassword are empty (ADR 71).
+// account's own key instead, and Salt and ByPassword are empty (ADR 72).
 type envelope struct {
 	Secret     string
 	Salt       string

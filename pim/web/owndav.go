@@ -145,7 +145,7 @@ func serveOwn(g *web.Group, srv *web.Server, st *store.Store) {
 			}
 			ok = err == nil
 		}
-		// A phone syncing without a login in a browser opens the account's key itself (ADR 71).
+		// A phone syncing without a login in a browser opens the account's key itself (ADR 72).
 		if ok {
 			if err := srv.Unlock(username, password, davPasswordLife); err != nil {
 				srv.Logger().Printf("%s: opening the account's key for a DAV client: %v", username, err)

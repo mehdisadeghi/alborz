@@ -13,7 +13,7 @@ import (
 )
 
 // sealed is db with every value sealed: under the instance's key, or a collection's own while its owner's
-// encryption is on (ADR 71). A value that does not open fails a write's transaction, so nothing is written
+// encryption is on (ADR 72). A value that does not open fails a write's transaction, so nothing is written
 // over what could not be read; a read passes over one whose key is not at hand, as if it were not there.
 type sealed struct {
 	db   kv.DB

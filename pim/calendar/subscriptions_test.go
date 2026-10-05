@@ -149,7 +149,7 @@ func TestNormalizeFeedURL(t *testing.T) {
 	}
 }
 
-// An encrypted account's subscription is fetched only while a login of the account holds its key (ADR 71).
+// An encrypted account's subscription is fetched only while a login of the account holds its key (ADR 72).
 func TestAFeedWaitsForItsEncryptedOwner(t *testing.T) {
 	var hits int
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

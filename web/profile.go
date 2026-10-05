@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/internal/calsys"
 	"git.mehdix.org/alborz/internal/locale"
 )
 
@@ -30,6 +31,9 @@ func (ctx *Context) Reading() alborz.Reading {
 		r.MessagesPerPage = alborz.DefaultMessagesPerPage
 	}
 	r.FirstDayOfWeek = cmp.Or(r.FirstDayOfWeek, alborz.DefaultFirstDayOfWeek)
+	if r.Secondary == calsys.Of(r.Primary).Name() {
+		r.Secondary = ""
+	}
 	return r
 }
 

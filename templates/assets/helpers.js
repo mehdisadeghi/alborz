@@ -11,6 +11,21 @@ try {
 } catch (e) {}
 
 
+// narrowBy hides the target's options and groups the controller's value rules out; a chosen one that hides falls back to the empty choice.
+const narrowBy = (controller, target, ruledOut) => {
+	const narrow = () => {
+		for (const el of target.querySelectorAll("optgroup, option")) {
+			el.hidden = ruledOut(el, controller.value);
+		}
+		const chosen = target.selectedOptions[0];
+		if (chosen && chosen.hidden) {
+			target.value = "";
+		}
+	};
+	controller.addEventListener("change", narrow);
+	narrow();
+};
+
 // On a touch screen a focused field puts a keyboard over half the page.
 const touch = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
 if (touch) {
@@ -141,20 +156,21 @@ const enhance = () => {
 		if (!places || !once(account, "placeaccount")) {
 			continue;
 		}
-		const narrow = () => {
-			for (const group of places.querySelectorAll("optgroup")) {
-				group.hidden = account.value !== "" && group.label !== account.value;
+		narrowBy(account, places, (el, v) => {
+			if (v === "") {
+				return false;
 			}
-			for (const option of places.querySelectorAll("option[data-account]")) {
-				option.hidden = account.value !== "" && option.dataset.account !== account.value;
-			}
-			const chosen = places.selectedOptions[0];
-			if (chosen && chosen.hidden) {
-				places.value = "";
-			}
-		};
-		account.addEventListener("change", narrow);
-		narrow();
+			return el.tagName === "OPTGROUP" ? el.label !== v : "account" in el.dataset && el.dataset.account !== v;
+		});
+	}
+
+	// The secondary calendar never repeats the primary; without a script saving drops the repeat.
+	for (const secondary of document.querySelectorAll("select[data-excludes]")) {
+		const primary = secondary.form && secondary.form.elements[secondary.dataset.excludes];
+		if (!primary || !once(secondary, "excludes")) {
+			continue;
+		}
+		narrowBy(primary, secondary, (el, v) => el.value === v);
 	}
 
 	for (const select of document.querySelectorAll("select[data-destination-key]")) {

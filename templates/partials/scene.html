@@ -1,0 +1,49 @@
+{{/* The scene a season theme paints behind the page (ADR 77): layers back
+     to front, each a group of its own whose paints are its own tokens, so a
+     season picks its variants by name and a new layer touches no other. */}}
+{{ define "scene" }}<svg class="scene" id="scene" hx-preserve viewBox="0 0 1600 420" preserveAspectRatio="xMidYMax slice" aria-hidden="true" focusable="false">
+{{- if .GlobalData.Layer "far" }}{{ template "scene-far" }}{{ end }}
+{{- if .GlobalData.Layer "conifers" }}{{ template "scene-conifers" }}{{ end }}
+{{- if .GlobalData.Layer "near" }}{{ template "scene-near" }}{{ end }}
+{{- if .GlobalData.Layer "house" }}{{ template "scene-house" }}{{ end }}
+{{- if .GlobalData.Layer "smoke" }}{{ template "scene-smoke" }}{{ end }}
+{{- if .GlobalData.Layer "snowcover" }}{{ template "scene-snowcover" }}{{ end }}
+{{- if .GlobalData.Layer "foreground" }}{{ template "scene-foreground" }}{{ end }}
+</svg>{{ end }}
+
+{{ define "scene-far" }}
+<path d="M0 250 Q300 175 620 232 T1180 205 T1600 232 V420 H0Z" style="fill: var(--scene-far)"/>
+{{- end }}
+
+{{ define "scene-conifers" }}
+<g style="fill: var(--scene-conifers)"><path d="M170 300 l28 -96 l28 96z"/><path d="M222 306 l21 -72 l21 72z"/><path d="M1030 292 l20 -70 l20 70z"/></g>
+{{- end }}
+
+{{ define "scene-near" }}
+<path d="M0 318 Q380 250 780 306 T1600 290 V420 H0Z" style="fill: var(--scene-near)"/>
+{{- end }}
+
+{{ define "scene-house" }}
+<g transform="translate(1290 238)" style="fill: var(--scene-house)">
+<rect x="92" y="-4" width="16" height="40"/>
+<rect x="10" y="36" width="110" height="64"/>
+<path d="M0 40 L65 -4 L130 40Z" opacity=".85"/>
+<rect x="24" y="56" width="24" height="20" style="fill: var(--scene-house-window)"/>
+<rect x="82" y="60" width="22" height="40" style="fill: var(--scene-house-door)"/>
+</g>
+{{- end }}
+
+{{/* Out of the house's chimney, so it shares the house's place. */}}
+{{ define "scene-smoke" }}
+<g transform="translate(1290 238)" style="fill: var(--scene-smoke)"><circle class="scene-puff" cx="100" cy="-10" r="8"/><circle class="scene-puff" cx="100" cy="-10" r="8"/><circle class="scene-puff" cx="100" cy="-10" r="8"/></g>
+{{- end }}
+
+{{/* On the conifers' tips and the house's roof and chimney, so it shares their places. */}}
+{{ define "scene-snowcover" }}
+<g style="fill: var(--scene-snowcover-crown)" opacity=".9"><path d="M186 246 l12 -42 l12 42 q-12 -8 -24 0z"/><path d="M234 262 l9 -28 l9 28 q-9 -6 -18 0z"/></g>
+<g transform="translate(1290 238)" style="fill: var(--scene-snowcover-roof)"><path d="M-4 42 L65 -8 L134 42 L126 44 L65 2 L4 44Z"/><rect x="90" y="-8" width="20" height="6" rx="3"/></g>
+{{- end }}
+
+{{ define "scene-foreground" }}
+<path d="M1180 350 Q1360 316 1600 334 V420 H1180Z" style="fill: var(--scene-foreground)"/>
+{{- end }}

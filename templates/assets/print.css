@@ -2,7 +2,8 @@ header,
 aside,
 .status-bar,
 .actions,
-.tabs {
+.tabs,
+.scene {
   display: none;
 }
 

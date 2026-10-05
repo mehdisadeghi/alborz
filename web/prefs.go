@@ -43,6 +43,14 @@ func readTheme(files fs.FS, name string) (Theme, error) {
 	default:
 		return t, fmt.Errorf("%s: %d %s declarations; a theme pinning a scheme needs one, any other a light and a dark", name, len(colors), themeColorToken)
 	}
+	switch scenes := strings.Split(string(source), sceneToken)[1:]; len(scenes) {
+	case 0:
+	case 1:
+		layers, _, _ := strings.Cut(scenes[0], ";")
+		t.Scene = strings.Fields(layers)
+	default:
+		return t, fmt.Errorf("%s: %d %s declarations; the scene is one for every scheme", name, len(scenes), sceneToken)
+	}
 	return t, nil
 }
 
@@ -52,6 +60,8 @@ type Theme struct {
 	Scheme string
 	// Colors are what the browser paints around the window, per scheme; one with no scheme for a pinned theme.
 	Colors []ThemeColor
+	// Scene names the layers of the scene the theme paints behind the page, none for a theme without one (ADR 77).
+	Scene []string
 }
 
 // ThemeColor is a theme's colour for the browser's chrome in one scheme, empty for every scheme.
@@ -62,6 +72,9 @@ type ThemeColor struct {
 
 // The token names what it feeds: <meta name="theme-color">.
 const themeColorToken = "--theme-color:"
+
+// The token names what it declares: the scene's layers, back to front as the scene partial stacks them.
+const sceneToken = "--scene:"
 
 // themeColors are the token's values in source order: the light scheme's first, the dark scheme's last.
 func themeColors(source string) []string {

@@ -167,6 +167,13 @@ func (s *Server) load() error {
 	if err != nil {
 		return fmt.Errorf("failed to load templates: %v", err)
 	}
+	for _, t := range s.themes {
+		for _, layer := range t.Scene {
+			if renderer.partials.Lookup("scene-"+layer) == nil {
+				return fmt.Errorf("theme %s: no scene layer %q", t.Name, layer)
+			}
+		}
+	}
 	// Once serving, a template linking nowhere is refused before it replaces a working one.
 	if s.serving {
 		if err := s.checkURLs(renderer); err != nil {

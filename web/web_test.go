@@ -7,6 +7,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -165,6 +167,65 @@ func TestThemeColorFollowsTheTheme(t *testing.T) {
 }
 
 var themeColorMeta = regexp.MustCompile(`<meta name="theme-color"[^>]*>`)
+
+// A season paints its scene in every scheme, and no other theme paints one (ADR 77).
+func TestSeasonThemesPaintTheirSceneInEveryScheme(t *testing.T) {
+	c := Alborz(t).SignIn(t, User)
+	base, err := os.ReadFile("../templates/assets/style.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	files, err := filepath.Glob("../templates/assets/themes/*.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sources := map[string]string{}
+	var seasons []string
+	for _, f := range files {
+		source, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		name := strings.TrimSuffix(filepath.Base(f), ".css")
+		sources[name] = string(source)
+		if strings.Contains(string(source), "--scene:") {
+			seasons = append(seasons, name)
+		}
+	}
+	if len(seasons) == 0 {
+		t.Fatal("no theme declares a scene")
+	}
+	for name, source := range sources {
+		c.Post(t, "settings.profile", url.Values{"theme": {name}})
+		scene := sceneMarkup.FindString(c.Page(t, "settings.profile"))
+		if !slices.Contains(seasons, name) {
+			if scene != "" {
+				t.Errorf("theme %s declares no scene and renders one", name)
+			}
+			continue
+		}
+		tokens := sceneToken.FindAllStringSubmatch(scene+string(base), -1)
+		blocks := slices.DeleteFunc(schemeBlock.FindAllString(source, -1), func(b string) bool {
+			return !strings.Contains(b, "color-scheme:")
+		})
+		if scene == "" || len(tokens) == 0 || len(blocks) == 0 {
+			t.Fatalf("theme %s: %d bytes of scene, %d tokens, %d scheme blocks", name, len(scene), len(tokens), len(blocks))
+		}
+		for _, b := range blocks {
+			for _, tok := range tokens {
+				if !strings.Contains(b, tok[1]+":") {
+					t.Errorf("theme %s: a scheme block lacks %s", name, tok[1])
+				}
+			}
+		}
+	}
+}
+
+var (
+	sceneMarkup = regexp.MustCompile(`(?s)<svg class="scene".*?</svg>`)
+	sceneToken  = regexp.MustCompile(`var\((--scene-[a-z-]+)\)`)
+	schemeBlock = regexp.MustCompile(`\{[^{}]*\}`)
+)
 
 func TestDoneNoticeClosesWithoutAScript(t *testing.T) {
 	c := Alborz(t).SignIn(t, User)

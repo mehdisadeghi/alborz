@@ -1095,6 +1095,7 @@
 "settings.place" = "Place"
 "settings.placenone" = "None"
 "season.addon" = "Season's weather"
+"season.addonhint" = "The wind follows the phone's tilt and a drag across the page."
 "motd.status" = "Text of the day"
 "moon.status" = "Moon phase"
 "moon.phase.0" = "New moon"

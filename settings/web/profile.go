@@ -28,6 +28,8 @@ type ProfileRenderData struct {
 	// Addons are the add-ons on offer, AddonsOn those turned on.
 	Addons   []string
 	AddonsOn map[string]bool
+	// AddonScripts are the add-ons' settings scripts.
+	AddonScripts []string
 
 	Reading    alborz.Reading
 	Writing    alborz.Writing
@@ -59,6 +61,7 @@ func handleProfile(ctx *web.Context) error {
 			StatusOn:      turnedOn(p.Display.Status),
 			Addons:        addons(ctx),
 			AddonsOn:      turnedOn(p.Display.Addons),
+			AddonScripts:  addonScripts(ctx),
 			Reading:       p.Reading,
 			Writing:       p.Writing,
 			MaxPerPage:    web.MaxMessagesPerPage,
@@ -205,6 +208,16 @@ func offeredNames[T any](items []T, name func(T) string) []string {
 		names = append(names, name(item))
 	}
 	return names
+}
+
+func addonScripts(ctx *web.Context) []string {
+	var paths []string
+	for _, a := range ctx.Server.Addons {
+		if a.Settings != "" {
+			paths = append(paths, ctx.Path(a.Settings))
+		}
+	}
+	return paths
 }
 
 func turnedOn(names []string) map[string]bool {

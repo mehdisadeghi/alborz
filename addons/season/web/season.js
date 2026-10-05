@@ -3,8 +3,9 @@
 // What the season lets fall on the page of a reader who asked for it
 // (ADR 77). The theme names it in --season-weather; each kind is a module
 // of its own beside this script - its sprites, how many, how one moves -
-// and this owns what they share: the canvas, the wind, the clock,
-// visibility, resizing, the message rule and reduced motion.
+// and this owns what they share: the canvas, the wind (the theme's, the
+// phone's tilt, a drag), the clock, visibility, resizing, the message rule
+// and reduced motion.
 //
 // A kind's module exports:
 //   area      square pixels of window per thing
@@ -28,6 +29,19 @@ const SQUALL_RATE = 0.024;
 // together they span 0.1 to 1.9 of it and never turn it round.
 const SQUALL_SHARE = 0.5;
 const GUST_SHARE = 0.4;
+// The reader's own air, in pixels a second along the screen. A full tilt
+// can stop the default wind or double it and no more: the phone nudges
+// the weather, it does not pour it. Full at a wrist's turn, eased over
+// half a second so the sensor's tremor does not shake the leaves.
+const TILT_MOST = 10;
+const TILT_FULL = 30;
+const TILT_EASE = 0.5;
+// A drag lends a share of its speed as a gust that is gone in about a
+// second. A click that wobbles a few pixels is not a drag.
+const DRAG_SHARE = 0.3;
+const DRAG_MOST = 120;
+const DRAG_FADE = 0.4;
+const DRAG_SLOP = 10;
 
 // Interpolated noise: a walk between random keyframes, smoothed, rate
 // keyframes a second. One gust is a wave; weather is not - and a fresh
@@ -88,6 +102,10 @@ const fall = async () => {
 	let last = 0;
 	const gust = noiseField(GUST_RATE);
 	const squall = noiseField(SQUALL_RATE);
+	let tilted = 0;
+	let tilt = 0;
+	let drag = 0;
+	let press = null;
 
 	const resize = () => {
 		const dpr = window.devicePixelRatio || 1;
@@ -111,7 +129,9 @@ const fall = async () => {
 		last = now;
 		// The wind is a slow squall with a gust on top of it.
 		const toward = document.documentElement.dir === "rtl" ? -1 : 1;
-		const wind = toward * mean * (1 + squall(dt) * SQUALL_SHARE + gust(dt) * GUST_SHARE);
+		tilt += (tilted - tilt) * (1 - Math.exp(-dt / TILT_EASE));
+		drag *= Math.exp(-dt / DRAG_FADE);
+		const wind = toward * mean * (1 + squall(dt) * SQUALL_SHARE + gust(dt) * GUST_SHARE) + tilt + drag;
 		ctx2d.clearRect(0, 0, view.w, view.h);
 		for (const t of things) {
 			kind.step(t, dt, wind, view);
@@ -133,11 +153,52 @@ const fall = async () => {
 	// nobody is looking at.
 	const onVisible = () => {
 		running = false;
+		drag = 0;
+		press = null;
 		if (!document.hidden) {
 			start();
 		}
 	};
 	document.addEventListener("visibilitychange", onVisible);
+	// Tilt towards the screen's right, however the phone is turned.
+	window.addEventListener("deviceorientation", (e) => {
+		if (document.hidden || e.gamma === null) {
+			return;
+		}
+		const side = { 0: e.gamma, 90: e.beta, 180: -e.gamma, 270: -e.beta }[screen.orientation.angle];
+		tilted = TILT_MOST * Math.max(-1, Math.min(1, side / TILT_FULL));
+	});
+	// iOS lets a page feel the tilt only once a tap has asked. The reader
+	// answered when ticking the season, so this asks again without a prompt.
+	if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === "function") {
+		window.addEventListener("pointerup", () => DeviceOrientationEvent.requestPermission(), { once: true, passive: true });
+	}
+	// Only listening: a drag still selects, scrolls and swipes as before,
+	// and one the browser takes for a scroll is cancelled and blows nothing.
+	window.addEventListener("pointerdown", (e) => {
+		press = { x: e.clientX, y: e.clientY, at: e.timeStamp, far: false };
+	}, { passive: true });
+	window.addEventListener("pointermove", (e) => {
+		if (press === null || document.hidden) {
+			return;
+		}
+		if (!press.far && Math.hypot(e.clientX - press.x, e.clientY - press.y) < DRAG_SLOP) {
+			return;
+		}
+		press.far = true;
+		const dt = (e.timeStamp - press.at) / 1000;
+		if (dt > 0) {
+			drag = Math.max(-DRAG_MOST, Math.min(DRAG_MOST, (e.clientX - press.x) / dt * DRAG_SHARE));
+		}
+		press.x = e.clientX;
+		press.y = e.clientY;
+		press.at = e.timeStamp;
+	}, { passive: true });
+	const release = () => {
+		press = null;
+	};
+	window.addEventListener("pointerup", release, { passive: true });
+	window.addEventListener("pointercancel", release, { passive: true });
 	window.addEventListener("resize", resize);
 	// Painting the sprites can be expensive, so it waits for the browser
 	// to be idle rather than delaying the first paint.

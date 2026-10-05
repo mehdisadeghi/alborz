@@ -1095,6 +1095,7 @@
 "settings.place" = "مکان"
 "settings.placenone" = "هیچ"
 "season.addon" = "آب‌وهوای فصل"
+"season.addonhint" = "باد با کج کردن گوشی و کشیدن انگشت روی صفحه جهت می‌گیرد."
 "motd.status" = "متن روز"
 "moon.status" = "فاز ماه"
 "moon.phase.0" = "ماه نو"

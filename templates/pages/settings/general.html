@@ -119,8 +119,12 @@
             <input type="checkbox" name="addon" id="addon-{{.}}" value="{{.}}"{{ if index $.AddonsOn . }} checked{{ end }}>
             {{$.T (printf "%s.addon" .)}}
           </label>
+          {{ template "hint" (dict "text" ($.T (printf "%s.addonhint" .))) }}
           {{ end }}
         </fieldset>
+        {{- range $.AddonScripts }}
+        <script defer src="{{.}}"></script>
+        {{- end }}
         {{ end }}
 
         {{ with .LockMinutes }}

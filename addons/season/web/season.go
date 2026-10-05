@@ -12,6 +12,9 @@ import (
 //go:embed season.js
 var script []byte
 
+//go:embed settings.js
+var settings []byte
+
 //go:embed kinds
 var embedded embed.FS
 
@@ -24,11 +27,14 @@ func Mount(g *web.Group) {
 	g.GET("script", "/season.js", func(ctx *web.Context) error {
 		return ctx.Blob(http.StatusOK, "text/javascript; charset=utf-8", script)
 	})
+	g.GET("settings", "/season-settings.js", func(ctx *web.Context) error {
+		return ctx.Blob(http.StatusOK, "text/javascript; charset=utf-8", settings)
+	})
 	// A kind is a module the script imports by the name the theme gives, so a new kind is a file in kinds/.
 	g.GET("kind", "/season/{name}", func(ctx *web.Context) error {
 		http.ServeFileFS(ctx.Response(), ctx.Request(), kinds, ctx.Param("name"))
 		return nil
 	})
 	s := g.Server()
-	s.Addons = append(s.Addons, web.Addon{Name: "season", Script: "season.script"})
+	s.Addons = append(s.Addons, web.Addon{Name: "season", Script: "season.script", Settings: "season.settings"})
 }

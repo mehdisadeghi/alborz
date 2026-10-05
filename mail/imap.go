@@ -298,12 +298,27 @@ func Mailto(uri string) url.Values {
 	if err != nil {
 		return nil
 	}
+	to, err := url.PathUnescape(u.Opaque)
+	if err != nil {
+		return nil
+	}
+	// Addresses sit before the "?", in to fields, or both; a "+" is itself, a space %20 (RFC 6068 section 2).
+	fields := url.Values{"to": {to}}
+	for pair := range strings.SplitSeq(u.RawQuery, "&") {
+		name, value, _ := strings.Cut(pair, "=")
+		if value, err = url.PathUnescape(value); err != nil {
+			return nil
+		}
+		fields.Add(strings.ToLower(name), value)
+	}
 	q := url.Values{}
-	if to := u.Opaque; to != "" {
-		q.Set("to", to)
+	for _, field := range []string{"to", "cc", "bcc"} {
+		if all := strings.Join(slices.DeleteFunc(fields[field], func(v string) bool { return v == "" }), ","); all != "" {
+			q.Set(field, all)
+		}
 	}
 	for _, field := range []string{"subject", "body"} {
-		if v := u.Query().Get(field); v != "" {
+		if v := fields.Get(field); v != "" {
 			q.Set(field, v)
 		}
 	}

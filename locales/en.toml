@@ -242,6 +242,7 @@
 "compose.to" = "To"
 "compose.cc" = "Cc"
 "compose.bcc" = "Bcc"
+"compose.notmailto" = "The link is not a mailto address."
 "compose.replyto" = "Reply to"
 "compose.subject" = "Subject"
 "compose.dragdrop" = "Drag and drop attachments here"

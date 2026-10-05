@@ -9,6 +9,7 @@ import (
 	"math/rand/v2"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -38,7 +39,35 @@ func TestMailtoHandlerRefusesForeignURI(t *testing.T) {
 		!strings.Contains(loc, "subject=Hi") {
 		t.Fatalf("a real mailto URI redirected to %q", loc)
 	}
+
+	// RFC 6068: addresses in the path and in to, cc and bcc; "+" is itself.
+	uri := "mailto:a%2Bb%40example.org?to=e@example.org&cc=c%40example.org&bcc=d@example.org&subject=1%2B1&body=x+y"
+	page := c.Follow(t, c.Get(t, "mail.compose", url.Values{"mailto": {uri}}).Header.Get("Location"))
+	got := map[string]string{}
+	for _, m := range composeField.FindAllStringSubmatch(page, -1) {
+		got[m[1]] = html.UnescapeString(m[2])
+	}
+	if m := composeText.FindStringSubmatch(page); m != nil {
+		got["text"] = html.UnescapeString(m[1])
+	}
+	if len(got) == 0 {
+		t.Fatal("the compose page shows no fields")
+	}
+	want := map[string]string{
+		"to": "a+b@example.org, e@example.org", "cc": "c@example.org", "bcc": "d@example.org",
+		"subject": "1+1", "text": "x+y",
+	}
+	for field, value := range want {
+		if got[field] != value {
+			t.Errorf("%s = %q, want %q", field, got[field], value)
+		}
+	}
 }
+
+var (
+	composeField = regexp.MustCompile(`name="(to|cc|bcc|subject)"[^>]*?\svalue="([^"]*)"`)
+	composeText  = regexp.MustCompile(`(?s)<textarea name="text"[^>]*>(.*?)</textarea>`)
+)
 
 // It asserts the bytes sent to the SMTP server, the only place the answer is visible.
 func TestSendHTMLFollowsWhatWasWritten(t *testing.T) {

@@ -410,7 +410,7 @@ func (p *plugin) handleComposeNew(ctx *web.Context) error {
 	if uri := ctx.QueryParam("mailto"); uri != "" {
 		q := mail.Mailto(uri)
 		if q == nil {
-			return web.NewError(http.StatusBadRequest, "not a mailto URI")
+			return web.NewError(http.StatusBadRequest, ctx.T("compose.notmailto"))
 		}
 		return ctx.FoundRedirect(web.QueryPath(ctx.Path("mail.compose"), q))
 	}
@@ -430,6 +430,8 @@ func (p *plugin) handleComposeNew(ctx *web.Context) error {
 	return p.handleCompose(ctx, &mail.OutgoingMessage{
 		From:        p.OwnIdentity(ctx.Login, settings, ctx.QueryParam("from")),
 		To:          strings.Split(ctx.QueryParam("to"), ","),
+		Cc:          strings.Split(ctx.QueryParam("cc"), ","),
+		Bcc:         strings.Split(ctx.QueryParam("bcc"), ","),
 		Subject:     ctx.QueryParam("subject"),
 		MessageID:   mail.NewMessageID(),
 		InReplyTo:   ctx.QueryParam("in-reply-to"),

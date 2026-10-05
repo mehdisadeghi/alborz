@@ -76,6 +76,9 @@ select {
   /* Always there, so a page that scrolls is no narrower than one that does not. */
   overflow-y: scroll;
 
+  /* What the season add-on lets fall (ADR 77): a kind beside its script, or none. */
+  --season-weather: snow;
+
   /* A theme sets the Latin face, the Persian one, or both; the join is here only. */
   --font-latin: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-fa: Vazirmatn, Sahel, "IRANSans", "SF Arabic", "Geeza Pro", "Noto Naskh Arabic";

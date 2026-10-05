@@ -7,7 +7,7 @@ import (
 
 	moonweb "git.mehdix.org/alborz/addons/moon/web"
 	motdweb "git.mehdix.org/alborz/addons/motd/web"
-	snowweb "git.mehdix.org/alborz/addons/season/web"
+	seasonweb "git.mehdix.org/alborz/addons/season/web"
 	"git.mehdix.org/alborz/addons/weather"
 	weatherweb "git.mehdix.org/alborz/addons/weather/web"
 	authweb "git.mehdix.org/alborz/auth/web"
@@ -64,7 +64,7 @@ func Mount(s *web.Server, options Options) error {
 	web.StatusRoutes(app)
 	web.SearchRoutes(app)
 	// The add-ons compiled in, each under its own name; an operator offers the ones that need a setting.
-	snowweb.Mount(app.Group("/addons", "snow"))
+	seasonweb.Mount(app.Group("/addons", "season"))
 	moonweb.Mount(app.Group("", "moon"))
 	weatherweb.Mount(app.Group("", "weather"), weather.New(options.Weather, s.Outgoing.Trusted, options.ProjectURL))
 	if options.MOTD != "" {

@@ -1093,7 +1093,7 @@
 "settings.addons" = "Erweiterungen"
 "settings.place" = "Ort"
 "settings.placenone" = "Keiner"
-"snow.addon" = "Es schneien lassen"
+"season.addon" = "Wetter der Jahreszeit"
 "motd.status" = "Text des Tages"
 "moon.status" = "Mondphase"
 "moon.phase.0" = "Neumond"

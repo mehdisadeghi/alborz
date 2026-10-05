@@ -1,5 +1,4 @@
 // @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&dn=expat.txt Expat
-(() => {
 // Seasonal snow, grown and flown rather than drawn.
 //
 // The crystals come out of Reiter's local cellular model of snow
@@ -183,198 +182,101 @@ const crystalSprite = (crystal, colour, size) => {
 	return sprite;
 };
 
-// Interpolated noise: a walk between random keyframes, smoothed. One
-// gust is a wave; weather is not - and a fresh random number every
-// frame is not weather either, it is jitter.
-const noiseField = (rate) => {
-	let from = 0;
-	let to = (Math.random() * 2 - 1);
-	let at = 0;
-	return () => {
-		at += rate;
-		if (at >= 1) {
-			at -= 1;
-			from = to;
-			to = Math.random() * 2 - 1;
-		}
-		const smooth = at * at * (3 - 2 * at);
-		return from + (to - from) * smooth;
-	};
-};
-
-// The canvas hangs from the root, outside the body a boosted navigation
-// replaces, so the snow falls on from page to page. Snow over somebody's
-// mail is snow in the way, so it stops on a message.
-const snow = document.createElement("canvas");
-snow.className = "snow";
-snow.setAttribute("aria-hidden", "true");
-// The colour is the theme's faintest text, so a light scheme gets grey
-// flakes and a dark one pale ones, and no theme has to know the canvas.
-snow.style.cssText = "position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; color: var(--fg-faint); opacity: 0.55";
-const reading = () => {
-	snow.hidden = document.querySelector("main.message") !== null;
-};
-// Reduced motion is answered by drawing nothing, not by freezing a field of dots.
-const letItSnow = () => {
-	if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-		return;
-	}
-	document.documentElement.appendChild(snow);
-	reading();
-	document.addEventListener("htmx:afterSwap", reading);
-	const ctx2d = snow.getContext("2d");
-	let flakes = [];
-	let sprites = [];
-	let running = false;
-	const gust = noiseField(0.0016);
-	const squall = noiseField(0.0004);
-	let wind = 0;
-
-	const drawSprites = () => {
-		const colour = getComputedStyle(snow).color;
-		// Reiter's own range: beta near a half with a small gamma grows
-		// the six-armed dendrite everybody draws, more gamma fills it
-		// towards a sectored plate, and the pair below the fern.
+export default {
+	area: 26000,
+	most: Infinity,
+	opacity: 0.55,
+	sprites: (style) => {
 		// Four crystals from Reiter's own range, picked for being four
 		// different things rather than four of one: a stellar dendrite,
 		// a broader-armed one, a fern, and a sectored plate. Beta is
 		// how much vapour the air holds and gamma how fast it is added,
 		// which is what decides the habit in the sky too.
-		sprites = [
+		return [
 			[1, 0.35, 0.0005],
 			[1, 0.45, 0.0008],
 			[1, 0.6, 0.0001],
 			[1, 0.8, 0.01],
-		].map(([a, b, g]) => crystalSprite(growCrystal(a, b, g), colour, 128));
-	};
-
-	const resize = () => {
-		const dpr = window.devicePixelRatio || 1;
-		snow.width = Math.floor(window.innerWidth * dpr);
-		snow.height = Math.floor(window.innerHeight * dpr);
-		ctx2d.setTransform(dpr, 0, 0, dpr, 0, 0);
-		const wanted = Math.round((window.innerWidth * window.innerHeight) / 26000);
-		flakes = [];
-		for (let i = 0; i < wanted; i++) {
-			const z = 0.4 + Math.random() * 0.8;
-			// Snow is mostly small flakes with a few large ones: the
-			// size distribution of aggregate snowflakes is exponential
-			// (Gunn and Marshall, "The distribution with size of
-			// aggregate snowflakes", J. Meteorol. 15 (1958) 452-461),
-			// so the size is drawn from one rather than spread evenly.
-			const draw = -Math.log(1 - Math.random() * 0.985) / 1.6;
-			flakes.push({
-				x: Math.random() * window.innerWidth,
-				y: Math.random() * window.innerHeight,
-				sprite: Math.floor(Math.random() * sprites.length),
-				size: (9 + Math.min(draw, 2.4) * 13) * z,
-				z: z,
-				// A bigger flake falls faster, and none of them falls at
-				// the same speed twice. The window is not three metres
-				// of air, it is a window: a third of a pixel a frame
-				// crosses it in half a minute, which is what unrimed
-				// dendrites drifting past look like.
-				fall: (SNOW_FALL_SLOW + Math.random() * (SNOW_FALL_FAST - SNOW_FALL_SLOW)) * (0.55 + z),
-				vx: 0,
-				// How quickly it catches up with the air around it: a
-				// small flake follows the wind, a large one lags.
-				pull: 0.02 + Math.random() * 0.03,
-				// The flutter of a falling plate is not noise: shed
-				// vortices rock it from side to side at a rate of its
-				// own, an amplitude of about its own width, and a phase
-				// nobody else shares (the regimes of a falling disk -
-				// steady, fluttering, tumbling - are Field, Klaus, Moore
-				// and Nori, Nature 388 (1997) 252-254).
-				beat: 0.012 + Math.random() * 0.02,
-				beatPhase: Math.random() * Math.PI * 2,
-				swing: 0.25 + Math.random() * 0.5,
-				// And the air itself is never still: a slow wander of
-				// this flake's own, smooth rather than shaken.
-				drift: noiseField(0.004 + Math.random() * 0.004),
-				// The angle it hangs at, which the rocking works about.
-				rest: Math.random() * Math.PI * 2,
-				turn: 0,
-			});
+		].map(([a, b, g]) => crystalSprite(growCrystal(a, b, g), style.color, 128));
+	},
+	make: (view, sprites, noise) => {
+		const z = 0.4 + Math.random() * 0.8;
+		// Snow is mostly small flakes with a few large ones: the
+		// size distribution of aggregate snowflakes is exponential
+		// (Gunn and Marshall, "The distribution with size of
+		// aggregate snowflakes", J. Meteorol. 15 (1958) 452-461),
+		// so the size is drawn from one rather than spread evenly.
+		const draw = -Math.log(1 - Math.random() * 0.985) / 1.6;
+		return {
+			x: Math.random() * view.w,
+			y: Math.random() * view.h,
+			sprite: Math.floor(Math.random() * sprites.length),
+			size: (9 + Math.min(draw, 2.4) * 13) * z,
+			z: z,
+			// A bigger flake falls faster, and none of them falls at
+			// the same speed twice. The window is not three metres
+			// of air, it is a window: a third of a pixel a frame
+			// crosses it in half a minute, which is what unrimed
+			// dendrites drifting past look like.
+			fall: (SNOW_FALL_SLOW + Math.random() * (SNOW_FALL_FAST - SNOW_FALL_SLOW)) * (0.55 + z),
+			vx: 0,
+			// How quickly it catches up with the air around it: a
+			// small flake follows the wind, a large one lags.
+			pull: 0.02 + Math.random() * 0.03,
+			// The flutter of a falling plate is not noise: shed
+			// vortices rock it from side to side at a rate of its
+			// own, an amplitude of about its own width, and a phase
+			// nobody else shares (the regimes of a falling disk -
+			// steady, fluttering, tumbling - are Field, Klaus, Moore
+			// and Nori, Nature 388 (1997) 252-254).
+			beat: 0.012 + Math.random() * 0.02,
+			beatPhase: Math.random() * Math.PI * 2,
+			swing: 0.25 + Math.random() * 0.5,
+			// And the air itself is never still: a slow wander of
+			// this flake's own, smooth rather than shaken.
+			drift: noise(0.004 + Math.random() * 0.004),
+			// The angle it hangs at, which the rocking works about.
+			rest: Math.random() * Math.PI * 2,
+			turn: 0,
+		};
+	},
+	step: (f, wind, view) => {
+		// Where the air is taking it: the wind, its own slow wander,
+		// and the side-to-side beat of the vortices it sheds. The
+		// flake lags all three, which is what keeps the path smooth.
+		// The same slow wander that pushes it sideways also stretches
+		// and squeezes the beat, so the flutter never comes out as a
+		// clean sine - shedding wanders in period as well as phase.
+		const wander = f.drift();
+		f.beatPhase += f.beat * (1 + wander * 0.3);
+		const air = wind * SNOW_WIND * f.z
+			+ wander * SNOW_WIND * 0.4
+			+ Math.sin(f.beatPhase) * f.swing * f.fall;
+		f.vx += (air - f.vx) * f.pull;
+		f.x += f.vx;
+		f.y += f.fall;
+		// A fluttering plate rocks with the beat rather than
+		// spinning: the turn follows the same phase, a quarter of a
+		// cycle behind, and never goes right round.
+		f.turn = f.rest + Math.sin(f.beatPhase - Math.PI / 2) * 0.5;
+		if (f.y - f.size > view.h) {
+			f.y = -f.size;
+			f.x = Math.random() * view.w;
+			f.vx = 0;
 		}
-	};
-
-	const frame = () => {
-		if (!running) {
-			return;
+		if (f.x < -f.size) {
+			f.x = view.w + f.size;
+		} else if (f.x > view.w + f.size) {
+			f.x = -f.size;
 		}
-		// The wind is a slow squall with a gust on top of it.
-		wind = squall() * 1.4 + gust() * 0.6;
-		ctx2d.clearRect(0, 0, window.innerWidth, window.innerHeight);
-		for (const f of flakes) {
-			// Where the air is taking it: the wind, its own slow wander,
-			// and the side-to-side beat of the vortices it sheds. The
-			// flake lags all three, which is what keeps the path smooth.
-			// The same slow wander that pushes it sideways also stretches
-			// and squeezes the beat, so the flutter never comes out as a
-			// clean sine - shedding wanders in period as well as phase.
-			const wander = f.drift();
-			f.beatPhase += f.beat * (1 + wander * 0.3);
-			const air = wind * SNOW_WIND * f.z
-				+ wander * SNOW_WIND * 0.4
-				+ Math.sin(f.beatPhase) * f.swing * f.fall;
-			f.vx += (air - f.vx) * f.pull;
-			f.x += f.vx;
-			f.y += f.fall;
-			// A fluttering plate rocks with the beat rather than
-			// spinning: the turn follows the same phase, a quarter of a
-			// cycle behind, and never goes right round.
-			f.turn = f.rest + Math.sin(f.beatPhase - Math.PI / 2) * 0.5;
-			if (f.y - f.size > window.innerHeight) {
-				f.y = -f.size;
-				f.x = Math.random() * window.innerWidth;
-				f.vx = 0;
-			}
-			if (f.x < -f.size) {
-				f.x = window.innerWidth + f.size;
-			} else if (f.x > window.innerWidth + f.size) {
-				f.x = -f.size;
-			}
-			ctx2d.globalAlpha = Math.min(1, 0.3 + f.z * 0.6);
-			ctx2d.save();
-			ctx2d.translate(f.x, f.y);
-			ctx2d.rotate(f.turn);
-			ctx2d.drawImage(sprites[f.sprite], -f.size / 2, -f.size / 2, f.size, f.size);
-			ctx2d.restore();
-		}
-		ctx2d.globalAlpha = 1;
-		requestAnimationFrame(frame);
-	};
-	const start = () => {
-		if (running) {
-			return;
-		}
-		running = true;
-		requestAnimationFrame(frame);
-	};
-	// A hidden tab is a tab drawing nothing: the browser throttles the
-	// frames anyway, and a laptop should not spend a battery on a page
-	// nobody is looking at.
-	const onVisible = () => {
-		running = false;
-		if (!document.hidden) {
-			start();
-		}
-	};
-	document.addEventListener("visibilitychange", onVisible);
-	window.addEventListener("resize", resize);
-	// Growing the crystals is the one expensive thing here, so it waits
-	// for the browser to be idle rather than delaying the first paint.
-	const grow = () => {
-		drawSprites();
-		resize();
-		start();
-	};
-	if (window.requestIdleCallback) {
-		window.requestIdleCallback(grow, { timeout: 2000 });
-	} else {
-		setTimeout(grow, 200);
-	}
+	},
+	draw: (c, f, sprites) => {
+		c.globalAlpha = Math.min(1, 0.3 + f.z * 0.6);
+		c.save();
+		c.translate(f.x, f.y);
+		c.rotate(f.turn);
+		c.drawImage(sprites[f.sprite], -f.size / 2, -f.size / 2, f.size, f.size);
+		c.restore();
+	},
 };
-letItSnow();
-})();
 // @license-end

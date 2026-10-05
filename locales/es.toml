@@ -1093,7 +1093,7 @@
 "settings.addons" = "Complementos"
 "settings.place" = "Lugar"
 "settings.placenone" = "Ninguno"
-"snow.addon" = "Que nieve"
+"season.addon" = "Tiempo de la estación"
 "motd.status" = "Texto del día"
 "moon.status" = "Fase lunar"
 "moon.phase.0" = "Luna nueva"

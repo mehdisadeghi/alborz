@@ -4,6 +4,7 @@
 {{ define "scene" }}<svg class="scene" id="scene" hx-preserve viewBox="0 0 1600 420" preserveAspectRatio="xMidYMax slice" aria-hidden="true" focusable="false">
 {{- if .GlobalData.Layer "far" }}{{ template "scene-far" }}{{ end }}
 {{- if .GlobalData.Layer "conifers" }}{{ template "scene-conifers" }}{{ end }}
+{{- if .GlobalData.Layer "broadleaves" }}{{ template "scene-broadleaves" }}{{ end }}
 {{- if .GlobalData.Layer "near" }}{{ template "scene-near" }}{{ end }}
 {{- if .GlobalData.Layer "house" }}{{ template "scene-house" }}{{ end }}
 {{- if .GlobalData.Layer "smoke" }}{{ template "scene-smoke" }}{{ end }}
@@ -17,6 +18,13 @@
 
 {{ define "scene-conifers" }}
 <g style="fill: var(--scene-conifers)"><path d="M170 300 l28 -96 l28 96z"/><path d="M222 306 l21 -72 l21 72z"/><path d="M1030 292 l20 -70 l20 70z"/></g>
+{{- end }}
+
+{{/* Where the conifers stand, so either fills the same place. */}}
+{{ define "scene-broadleaves" }}
+<g style="fill: var(--scene-broadleaves-trunk)"><rect x="195" y="248" width="6" height="52"/><rect x="240.5" y="266" width="5" height="40"/><rect x="1047.5" y="254" width="5" height="38"/></g>
+<g style="fill: var(--scene-broadleaves-crown)"><ellipse cx="198" cy="236" rx="26" ry="32"/><ellipse cx="1050" cy="244" rx="19" ry="23"/></g>
+<g style="fill: var(--scene-broadleaves-crown-deep)"><ellipse cx="243" cy="256" rx="20" ry="24"/><ellipse cx="206" cy="246" rx="14" ry="17"/><ellipse cx="1056" cy="252" rx="10" ry="12"/></g>
 {{- end }}
 
 {{ define "scene-near" }}

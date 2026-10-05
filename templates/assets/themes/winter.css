@@ -10,6 +10,7 @@
   --fg-dim: #354453;
   --fg-muted: #4a5a6b;
   --fg-faint: #5c6b7b;
+  --fg-faint-accent: #5b6a7a;
 
   --bg: rgba(255, 255, 255, 0.8);
   /* The header's --bg over the sky's first stop: a status bar takes no alpha. */
@@ -61,6 +62,7 @@
     --fg-dim: #c4cfdc;
     --fg-muted: #a3b1c2;
     --fg-faint: #8a99ab;
+    --fg-faint-accent: #8f9daf;
 
     --bg: rgba(15, 24, 40, 0.8);
     --theme-color: #0d1625;
@@ -109,6 +111,7 @@
   --fg-dim: #c4cfdc;
   --fg-muted: #a3b1c2;
   --fg-faint: #8a99ab;
+  --fg-faint-accent: #8f9daf;
 
   --bg: rgba(15, 24, 40, 0.8);
   --theme-color: #0d1625;

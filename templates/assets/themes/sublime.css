@@ -7,6 +7,7 @@
   /* Lifted to 4.5:1 on --bg; Monokai's own greys fall short. */
   --fg-muted: #b8b9b1;
   --fg-faint: #9a9784;
+  --fg-faint-accent: var(--fg-faint);
 
   --bg: #272822;
   --theme-color: #272822;

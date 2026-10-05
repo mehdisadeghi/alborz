@@ -6,6 +6,7 @@
   --fg-dim: #1a1a1a;
   --fg-muted: #4a4a4a;
   --fg-faint: #6e6e6e;
+  --fg-faint-accent: var(--fg-faint);
 
   --bg: #fff;
   --theme-color: #fff;
@@ -49,6 +50,7 @@
     --fg-dim: #ddd;
     --fg-muted: #bbb;
     --fg-faint: #888;
+    --fg-faint-accent: var(--fg-faint);
 
     --bg: #000;
     --theme-color: #000;
@@ -91,6 +93,7 @@
   --fg-dim: #ddd;
   --fg-muted: #bbb;
   --fg-faint: #888;
+  --fg-faint-accent: var(--fg-faint);
 
   --bg: #000;
   --theme-color: #000;

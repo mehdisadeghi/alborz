@@ -83,10 +83,9 @@ func (s *Server) fail(ctx *Context, err error) {
 
 	data := struct {
 		BaseRenderData
-		Code   int
-		Err    error
-		Status string
-	}{*NewBaseRenderData(ctx), code, err, http.StatusText(code)}
+		Code int
+		Err  error
+	}{*NewBaseRenderData(ctx), code, err}
 	if err := ctx.Render(code, "error", &data); err != nil {
 		s.Logger().Printf("rendering the error page: %v", err)
 	}

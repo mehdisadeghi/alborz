@@ -162,6 +162,17 @@ select {
   --flag-blue: #0079fc;
   --flag-purple: #af52de;
   --flag-grey: #7d7d83;
+  /* Autumn leaves by the pigment that colours them (Archetti et al.,
+     Trends Ecol. Evol. 24 (2009) 166-173): the colour is the data. Each
+     keeps its hue and stands 1.45:1 off autumn's light panels, 1.6:1 the
+     deep ones and tannin, and 1.7:1 and 2:1 off the dark: weather, far
+     under the 3:1 a glyph needs. */
+  --season-leaf-chlorophyll: #c2e09a;
+  --season-leaf-carotenoid: #fbce88;
+  --season-leaf-carotenoid-deep: #febd98;
+  --season-leaf-anthocyanin: #ffc9c2;
+  --season-leaf-anthocyanin-deep: #feb7cc;
+  --season-leaf-tannin: #eac3a3;
   --prio-high: var(--flag-red);
   --prio-medium: var(--flag-orange);
   --prio-low: var(--flag-blue);
@@ -225,6 +236,12 @@ select {
     --flag-blue: #1f8aff;
     --flag-purple: #b967e2;
     --flag-grey: #8e8e93;
+    --season-leaf-chlorophyll: #364800;
+    --season-leaf-carotenoid: #573f02;
+    --season-leaf-carotenoid-deep: #753f05;
+    --season-leaf-anthocyanin: #7d2219;
+    --season-leaf-anthocyanin-deep: #783653;
+    --season-leaf-tannin: #674522;
 
     --notice-fg: #9ed6e0;
     --notice-bg: #12343b;
@@ -279,6 +296,12 @@ select {
   --flag-blue: #1f8aff;
   --flag-purple: #b967e2;
   --flag-grey: #8e8e93;
+  --season-leaf-chlorophyll: #364800;
+  --season-leaf-carotenoid: #573f02;
+  --season-leaf-carotenoid-deep: #753f05;
+  --season-leaf-anthocyanin: #7d2219;
+  --season-leaf-anthocyanin-deep: #783653;
+  --season-leaf-tannin: #674522;
 
   --notice-fg: #9ed6e0;
   --notice-bg: #12343b;

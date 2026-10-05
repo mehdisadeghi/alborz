@@ -634,8 +634,7 @@ func emptiedNotice(ctx *web.Context, removed int) web.Notice {
 func (p *plugin) handleEmptyAllMailbox(ctx *web.Context) error {
 	role := ctx.Param("role")
 	if !slices.Contains(unifiedRoles, role) {
-		return web.NewError(http.StatusNotFound,
-			fmt.Sprintf("%q is not a unified folder", role))
+		return alborz.NotFound("notfound.folder", role)
 	}
 
 	var failed []string

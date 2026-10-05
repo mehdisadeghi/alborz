@@ -213,8 +213,7 @@ func (p *plugin) handleGetPart(ctx *web.Context) error {
 	}
 
 	if len(partPath) > 0 && msg.PartByPath(partPath) == nil {
-		return web.NewError(http.StatusNotFound,
-			fmt.Sprintf("message %v has no part %v", uid, ctx.QueryParam("part")))
+		return alborz.NotFound("notfound.part", fmt.Sprint(uid))
 	}
 
 	part, asText, err := mail.Body(ctx.Request().Context(), ctx.Login, msg, shown.Part, partPath, ctx.QueryParam("text") == "1")

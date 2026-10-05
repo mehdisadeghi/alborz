@@ -10,23 +10,47 @@ import (
 )
 
 func TestTranslationKeysExist(t *testing.T) {
-	keyRe := regexp.MustCompile(`\{\{-?\s*\$?\.?\$?[A-Za-z.]*\bTf?\s+"([a-z0-9._]+)"`)
-	used := map[string][]string{}
-	err := filepath.WalkDir("templates", func(f string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || filepath.Ext(f) != ".html" {
-			return err
-		}
-		b, err := os.ReadFile(f)
-		for _, m := range keyRe.FindAllStringSubmatch(string(b), -1) {
-			used[m[1]] = append(used[m[1]], f)
-		}
-		return err
-	})
-	if err != nil {
-		t.Fatal(err)
+	scans := []struct {
+		root, ext string
+		key       *regexp.Regexp
+	}{
+		{"templates", ".html", regexp.MustCompile(`\{\{-?\s*\$?\.?\$?[A-Za-z.]*\bTf?\s+"([a-z0-9._]+)"`)},
+		// A key handed to the HTTP layer in Go, such as a not-found page's, is shown as the templates' are.
+		{".", ".go", regexp.MustCompile(`\b(?:Tf?|Plural|NotFound)\((?:[\w.]+, )?"([a-z0-9._]+)"\s*[,)]`)},
 	}
-	if len(used) == 0 {
-		t.Fatal("no translation keys found; the pattern is wrong, not the templates")
+	used := map[string][]string{}
+	for _, scan := range scans {
+		found := 0
+		err := filepath.WalkDir(scan.root, func(f string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d.IsDir() {
+				if f == scan.root {
+					return nil
+				}
+				// Hidden directories hold worktrees, and a nested module is not this one.
+				if _, err := os.Stat(filepath.Join(f, "go.mod")); err == nil || strings.HasPrefix(d.Name(), ".") {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			if filepath.Ext(f) != scan.ext || strings.HasSuffix(f, "_test.go") {
+				return nil
+			}
+			b, err := os.ReadFile(f)
+			for _, m := range scan.key.FindAllStringSubmatch(string(b), -1) {
+				used[m[1]] = append(used[m[1]], f)
+				found++
+			}
+			return err
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if found == 0 {
+			t.Fatalf("no translation keys found in %s files; the pattern is wrong, not the code", scan.ext)
+		}
 	}
 
 	locales, err := filepath.Glob("locales/*.toml")

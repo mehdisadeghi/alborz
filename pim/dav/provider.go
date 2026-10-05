@@ -100,16 +100,32 @@ func NewProvider(srv *alborz.Server, st *store.Store, kind Kind) (*Provider, err
 	urls := make(map[string]*url.URL)
 	found := make(map[string]string)
 	hosts := make(map[string]*url.URL)
-	for _, domain := range srv.Domains() {
-		u, record, err := domainURL(srv, kind, domain)
-		if err != nil {
-			return nil, err
+	// Each lookup can wait out a resolver's timeout, so all run at once.
+	domains := srv.Domains()
+	type result struct {
+		u      *url.URL
+		record string
+		err    error
+	}
+	results := make([]result, len(domains))
+	var wg sync.WaitGroup
+	for i, domain := range domains {
+		wg.Go(func() {
+			u, record, err := domainURL(srv, kind, domain)
+			results[i] = result{u, record, err}
+		})
+	}
+	wg.Wait()
+	for i, domain := range domains {
+		r := results[i]
+		if r.err != nil {
+			return nil, r.err
 		}
-		if u != nil {
-			urls[domain] = u
+		if r.u != nil {
+			urls[domain] = r.u
 		}
-		if record != "" {
-			found[domain] = record
+		if r.record != "" {
+			found[domain] = r.record
 		}
 	}
 	var p *Provider

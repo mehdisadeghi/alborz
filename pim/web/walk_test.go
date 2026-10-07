@@ -436,31 +436,38 @@ func TestAStaleEditFormKeepsAnotherBrowsersSave(t *testing.T) {
 	}
 }
 
+// slipping is a holder of DAV objects and an alborz reaching it through a proxy that, before the first
+// PUT to held, lands another client's write renaming "Drawn" to "Saved elsewhere".
+func slipping(t *testing.T, held, mime string) (holder, a *App, between *httptest.Server) {
+	imap := IMAP(t)
+	holder = Alborz(t, WithIMAP(imap))
+	var once sync.Once
+	upstream, err := url.Parse(holder.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	proxy := &httputil.ReverseProxy{Rewrite: func(r *httputil.ProxyRequest) { r.SetURL(upstream) }}
+	between = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPut && r.URL.Path == held {
+			once.Do(func() {
+				body := holder.DAV(t, http.MethodGet, held, nil, "").Text
+				holder.DAV(t, http.MethodPut, held, map[string]string{"Content-Type": mime}, strings.Replace(body, "Drawn", "Saved elsewhere", 1))
+			})
+		}
+		proxy.ServeHTTP(w, r)
+	}))
+	t.Cleanup(between.Close)
+	host := strings.TrimPrefix(between.URL, "http://") + holder.Path("dav.collections")
+	a = Alborz(t, WithIMAP(imap), Upstream(Domain, "caldav+insecure://"+host), Upstream(Domain, "carddav+insecure://"+host))
+	return holder, a, between
+}
+
 // A write another client lands between a star's read and its PUT is kept, and the star still applies.
 func TestAStarKeepsAWriteThatSlipsIn(t *testing.T) {
 	for _, k := range walkedKinds() {
 		t.Run(k.name, func(t *testing.T) {
-			imap := IMAP(t)
-			holder := Alborz(t, WithIMAP(imap))
 			held := k.collection + "slipped" + k.ext
-			var once sync.Once
-			upstream, err := url.Parse(holder.URL)
-			if err != nil {
-				t.Fatal(err)
-			}
-			proxy := &httputil.ReverseProxy{Rewrite: func(r *httputil.ProxyRequest) { r.SetURL(upstream) }}
-			between := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if r.Method == http.MethodPut && r.URL.Path == held {
-					once.Do(func() {
-						body := holder.DAV(t, http.MethodGet, held, nil, "").Text
-						holder.DAV(t, http.MethodPut, held, map[string]string{"Content-Type": k.mime}, strings.Replace(body, "Drawn", "Saved elsewhere", 1))
-					})
-				}
-				proxy.ServeHTTP(w, r)
-			}))
-			t.Cleanup(between.Close)
-			host := strings.TrimPrefix(between.URL, "http://") + holder.Path("dav.collections")
-			a := Alborz(t, WithIMAP(imap), Upstream(Domain, "caldav+insecure://"+host), Upstream(Domain, "carddav+insecure://"+host))
+			holder, a, between := slipping(t, held, k.mime)
 
 			route, form, query := "calendar.calendars.create", url.Values{"name": {k.collName}, "color": {"#22aa55"}, "account": {User}, "place": {"here"}}, url.Values{}
 			switch k.name {
@@ -489,5 +496,27 @@ func TestAStarKeepsAWriteThatSlipsIn(t *testing.T) {
 				t.Error("the object's page lacks the star or the write that slipped in")
 			}
 		})
+	}
+}
+
+// A write another client lands on a group between its read and the PUT adding a member is kept, and the
+// member is still added.
+func TestAGroupKeepsAWriteThatSlipsIn(t *testing.T) {
+	people := BooksOf(User) + "people/"
+	group := people + "slipped.vcf"
+	holder, a, between := slipping(t, group, "text/vcard")
+	if resp := holder.SignIn(t, User).Post(t, "contacts.books.create", url.Values{"name": {"People"}, "color": {"#22aa55"}, "account": {User}, "place": {"here"}}); resp.StatusCode != http.StatusFound {
+		t.Fatalf("creating the book answered %s", resp.Status)
+	}
+	holder.Put(t, group, "text/vcard", "BEGIN:VCARD\r\nVERSION:4.0\r\nKIND:group\r\nUID:urn:uuid:slipped-group\r\nFN:Drawn\r\nEND:VCARD\r\n")
+	holder.Put(t, people+"member.vcf", "text/vcard", card("member-uid", "Member"))
+
+	c := a.SignIn(t, User)
+	if resp := c.Post(t, "contacts.contact.group", url.Values{"group": {"slipped-group"}}, At(between.URL)+people+"member.vcf"); resp.StatusCode != http.StatusFound {
+		t.Fatalf("joining the group answered %s", resp.Status)
+	}
+	body := holder.DAV(t, http.MethodGet, group, nil, "").Text
+	if !strings.Contains(body, "Saved elsewhere") || !strings.Contains(body, "urn:uuid:member-uid") {
+		t.Errorf("the server holds %q, want the write that slipped in and the member", body)
 	}
 }

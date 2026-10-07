@@ -9,6 +9,7 @@ import (
 	"strings"
 	"uuid"
 
+	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/contacts"
 	"git.mehdix.org/alborz/pim/dav"
 	pimweb "git.mehdix.org/alborz/pim/web"
@@ -75,9 +76,13 @@ func (p *plugin) groupContact(ctx *web.Context) error {
 	contact := contacts.AddressObject{AddressObject: ao}
 	uid := contact.UID()
 	if uid == "" {
-		uid = uuid.New().String()
-		ao.Card.SetValue(vcard.FieldUID, contacts.UIDPrefix+uid)
-		if err := contacts.WriteCard(ctx.Request().Context(), c, ao.Path, ao.Card); err != nil {
+		err := contacts.ChangeCard(ctx.Request().Context(), pim.Ref[*carddav.Client]{Client: c, Path: ao.Path}, func(card vcard.Card) {
+			if uid = cardOf(card).UID(); uid == "" {
+				uid = uuid.New().String()
+				card.SetValue(vcard.FieldUID, contacts.UIDPrefix+uid)
+			}
+		})
+		if err != nil {
 			ctx.Notify(pimweb.Refused(ctx, err))
 			return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.Path("contacts.contact", contact.Path)))
 		}
@@ -95,11 +100,9 @@ func (p *plugin) groupContact(ctx *web.Context) error {
 			if g.UID() != leaving {
 				continue
 			}
-			kept := slices.DeleteFunc(g.Members(), func(m string) bool { return m == uid })
-			contacts.SetMembers(g.Card, kept)
-			if err := p.putCard(ctx, c, g.Path, g.Card); err != nil {
-				return err
-			}
+			changeMembers(ctx, c, g.Path, func(members []string) []string {
+				return slices.DeleteFunc(members, func(m string) bool { return m == uid })
+			})
 		}
 		return ctx.Redirect(http.StatusFound, back)
 	}
@@ -127,12 +130,29 @@ func (p *plugin) groupContact(ctx *web.Context) error {
 		if g.UID() != joining || slices.Contains(g.Members(), uid) {
 			continue
 		}
-		contacts.SetMembers(g.Card, append(g.Members(), uid))
-		if err := p.putCard(ctx, c, g.Path, g.Card); err != nil {
-			return err
-		}
+		changeMembers(ctx, c, g.Path, func(members []string) []string {
+			if slices.Contains(members, uid) {
+				return members
+			}
+			return append(members, uid)
+		})
 	}
 	return ctx.Redirect(http.StatusFound, back)
+}
+
+// changeMembers changes the group as the server holds it now, not as the list read it, so a write
+// landing meanwhile is kept; a refusal shows on the page.
+func changeMembers(ctx *web.Context, c *carddav.Client, group string, change func([]string) []string) {
+	err := contacts.ChangeCard(ctx.Request().Context(), pim.Ref[*carddav.Client]{Client: c, Path: group}, func(card vcard.Card) {
+		contacts.SetMembers(card, change(cardOf(card).Members()))
+	})
+	if err != nil {
+		ctx.Notify(pimweb.Refused(ctx, err))
+	}
+}
+
+func cardOf(card vcard.Card) contacts.AddressObject {
+	return contacts.AddressObject{AddressObject: &carddav.AddressObject{Card: card}}
 }
 
 // A server's refusal shows on the page, never as an error page.

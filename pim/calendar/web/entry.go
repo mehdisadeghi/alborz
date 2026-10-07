@@ -187,6 +187,11 @@ func (p *plugin) updateEntry(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
+	if co != nil {
+		if co.ETag, err = pimweb.Drawn(ctx, co.ETag); err != nil {
+			return err
+		}
+	}
 	// A form without a field changes nothing of it; one sent empty removes it.
 	_, dateSent := params["date"]
 	_, textSent := params["description"]
@@ -250,7 +255,8 @@ func (p *plugin) updateEntry(ctx *web.Context) error {
 	}
 	co, err = calendar.PutObject(ctx.Request().Context(), to, uid+".ics", co, cal)
 	if err != nil {
-		return reject(fmt.Sprintf(ctx.T("form.saverefused"), err))
+		ctx.Notify(pimweb.Unsaved(ctx, err))
+		return reject("")
 	}
 	return pimweb.Saved(ctx, creating, ctx.T("notice.entrycreated"), data.Summary, ctx.Path("calendar.entry", co.Path), ctx.Path("calendar.journal"), to.Account)
 }

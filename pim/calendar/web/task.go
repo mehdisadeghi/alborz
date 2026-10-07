@@ -158,6 +158,11 @@ func (p *plugin) updateTask(ctx *web.Context) error {
 	}
 
 	if ctx.Request().Method == "POST" {
+		if co != nil {
+			if co.ETag, err = pimweb.Drawn(ctx, co.ETag); err != nil {
+				return err
+			}
+		}
 		summary := ctx.FormValue("summary")
 		description := ctx.FormValue("description")
 		dueDate := ctx.DateField("due-date")
@@ -244,10 +249,12 @@ func (p *plugin) updateTask(ctx *web.Context) error {
 			cal = co.Data
 		}
 		calendar.EnsureTimezones(cal, due)
-		co, err = calendar.PutObject(ctx.Request().Context(), to, newID.String()+".ics", co, cal)
+		made, err := calendar.PutObject(ctx.Request().Context(), to, newID.String()+".ics", co, cal)
 		if err != nil {
-			return reject(fmt.Sprintf(ctx.T("form.saverefused"), err))
+			ctx.Notify(pimweb.Unsaved(ctx, err))
+			return reject("")
 		}
+		co = made
 
 		return pimweb.Saved(ctx, creating, ctx.T("notice.taskcreated"), summary, ctx.Path("calendar.task", co.Path), ctx.Path("calendar.tasks"), to.Account)
 	}

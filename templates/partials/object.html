@@ -45,10 +45,11 @@
 {{ end }}
 
 {{/* dict: g editing collection groups section home field title name key.
-     A form's crumb and heading, and for a new object the collection it goes to. */}}
+     A form's crumb and heading, the version an edit was drawn from, and for a new object the collection it goes to. */}}
 {{ define "object-form-head" }}
 {{ $g := .g }}
 {{ $coll := "" }}{{ $path := "" }}{{ if .editing }}{{ $coll = .collection.Name }}{{ $path = .collection.Path }}{{ end }}
+        {{ with .editing }}<input type="hidden" name="etag" value="{{.ETag}}">{{ end }}
         {{ template "section-crumb" (dict "g" $g "section" .section "home" .home "field" .field "collection" $coll "path" $path "chooses" (and (not .editing) (gt (len $g.GlobalData.Accounts) 1))) }}
         <h1>
           {{.title}}

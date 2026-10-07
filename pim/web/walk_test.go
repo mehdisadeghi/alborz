@@ -3,6 +3,7 @@ package web_test
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -355,5 +356,79 @@ func walk(t *testing.T, a *App, c *Client, k walked, scope url.Values) {
 	moved("deleting the last", outside)
 	if got := outside.Header.Get("Location"); strings.Contains(got, "elsewhere") {
 		t.Errorf("a delete followed a next that leaves the site: %q", got)
+	}
+}
+
+var drawnETag = regexp.MustCompile(`name="etag" value="([^"]*)"`)
+
+// etagDrawn is the version an edit form was drawn from, or "".
+func etagDrawn(page string) string {
+	m := drawnETag.FindStringSubmatch(page)
+	if m == nil {
+		return ""
+	}
+	return html.UnescapeString(m[1])
+}
+
+// A tab drawn before another browser saved the object is refused, and the other browser's save stays,
+// on this alborz and through the mirror of another.
+func TestAStaleEditFormKeepsAnotherBrowsersSave(t *testing.T) {
+	for _, mirrored := range []bool{false, true} {
+		for _, k := range walkedKinds() {
+			t.Run(fmt.Sprintf("%s/mirrored=%v", k.name, mirrored), func(t *testing.T) {
+				a := Alborz(t)
+				holder, prefix := a, Here
+				if mirrored {
+					imap := IMAP(t)
+					holder = Alborz(t, WithIMAP(imap))
+					books := Upstream(Domain, "carddav+insecure://"+strings.TrimPrefix(holder.URL, "http://")+holder.Path("dav.collections"))
+					a, prefix = Alborz(t, WithIMAP(imap), holder.DAVUpstream(), books), At(holder.URL)
+				}
+				route, form, query := "calendar.calendars.create", url.Values{"name": {k.collName}, "color": {"#22aa55"}, "account": {User}, "place": {"here"}}, url.Values{}
+				switch k.name {
+				case "task":
+					form.Set("holds", "tasks")
+				case "entry":
+					query.Set("for", "journal")
+				case "contact":
+					route = "contacts.books.create"
+				}
+				if resp := holder.SignIn(t, User).Post(t, route, form, query); resp.StatusCode != http.StatusFound {
+					t.Fatalf("creating %s answered %s", k.collName, resp.Status)
+				}
+				held := k.collection + "stale" + k.ext
+				holder.Put(t, held, k.mime, k.body("stale", "Drawn"))
+				obj := prefix + held
+
+				stale, other := a.SignIn(t, User), a.SignIn(t, User)
+				drawn := etagDrawn(stale.Page(t, k.edit, obj))
+				if drawn == "" {
+					t.Fatal("the edit form carries no version")
+				}
+				save := func(title, etag string) url.Values {
+					f := url.Values{k.titleField: {title}, "etag": {etag}}
+					for name, v := range k.form {
+						f[name] = v
+					}
+					return f
+				}
+				if resp := other.Post(t, k.edit, save("Saved elsewhere", etagDrawn(other.Page(t, k.edit, obj))), obj); resp.StatusCode != http.StatusFound {
+					t.Fatalf("the other browser's save answered %s", resp.Status)
+				}
+				resp := stale.Post(t, k.edit, save("Typed in the stale tab", drawn), obj)
+				if resp.StatusCode != http.StatusUnprocessableEntity || !Says(t, resp.Text, "form.changedelsewhere") {
+					t.Fatalf("the stale tab's save answered %s without saying the object changed", resp.Status)
+				}
+				if !strings.Contains(resp.Text, `class="notice-action" href=`) || !strings.Contains(resp.Text, `value="Typed in the stale tab"`) {
+					t.Error("the refused form offers no reload or lost what was typed")
+				}
+				if body := holder.DAV(t, http.MethodGet, held, nil, "").Text; !strings.Contains(body, "Saved elsewhere") || strings.Contains(body, "stale tab") {
+					t.Errorf("the server holds %q, want the other browser's save", body)
+				}
+				if page := other.Page(t, k.object, obj); !strings.Contains(page, "Saved elsewhere") {
+					t.Error("the object's page lost the other browser's save")
+				}
+			})
+		}
 	}
 }

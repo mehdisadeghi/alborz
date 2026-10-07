@@ -188,6 +188,11 @@ func (p *plugin) updateContact(ctx *web.Context) error {
 	}
 
 	if ctx.Request().Method == "POST" {
+		if ao != nil {
+			if ao.ETag, err = pimweb.Drawn(ctx, ao.ETag); err != nil {
+				return err
+			}
+		}
 		fn := ctx.FormValue("fn")
 		emails := strings.Split(ctx.FormValue("emails"), ",")
 
@@ -308,13 +313,14 @@ func (p *plugin) updateContact(ctx *web.Context) error {
 			held, etag = ao.Path, ao.ETag
 		}
 		at, ifMatch, ifNoneMatch := pim.Target(to.Path, id.String()+".vcf", held, etag)
-		ao, err = to.Client.PutAddressObject(ctx.Request().Context(), at, card,
+		made, err := to.Client.PutAddressObject(ctx.Request().Context(), at, card,
 			&carddav.PutAddressObjectOptions{IfMatch: ifMatch, IfNoneMatch: ifNoneMatch})
 		if err != nil {
-			return reject(fmt.Sprintf(ctx.T("form.saverefused"), err))
+			ctx.Notify(pimweb.Unsaved(ctx, err))
+			return reject("")
 		}
 		// The PUT answer carries only the path, so the card as written names the contact.
-		named := contacts.AddressObject{AddressObject: &carddav.AddressObject{Path: ao.Path, Card: card}}
+		named := contacts.AddressObject{AddressObject: &carddav.AddressObject{Path: made.Path, Card: card}}
 		return pimweb.Saved(ctx, creating, ctx.T("notice.contactcreated"), named.DisplayName(), ctx.Path("contacts.contact", named.Path), ctx.Path("contacts.list"), to.Account)
 	}
 

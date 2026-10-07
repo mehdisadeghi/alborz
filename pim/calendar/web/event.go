@@ -272,6 +272,11 @@ func (p *plugin) updateEvent(ctx *web.Context) error {
 	}
 
 	if ctx.Request().Method == "POST" {
+		if co != nil {
+			if co.ETag, err = pimweb.Drawn(ctx, co.ETag); err != nil {
+				return err
+			}
+		}
 		summary := ctx.FormValue("summary")
 		description := ctx.FormValue("description")
 
@@ -394,10 +399,12 @@ func (p *plugin) updateEvent(ctx *web.Context) error {
 			cal = co.Data
 		}
 		calendar.EnsureTimezones(cal, start)
-		co, err = calendar.PutObject(ctx.Request().Context(), to, newID.String()+".ics", co, cal)
+		made, err := calendar.PutObject(ctx.Request().Context(), to, newID.String()+".ics", co, cal)
 		if err != nil {
-			return reject(pimweb.Refusal(ctx, err))
+			ctx.Notify(pimweb.Unsaved(ctx, err))
+			return reject("")
 		}
+		co = made
 
 		// Saved before sending: a failed send must not lose the event.
 		ours, err := mail.Addresses(ctx.Request().Context(), ctx.Login)

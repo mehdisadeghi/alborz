@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"path"
 
 	"git.mehdix.org/alborz/pim/dav"
@@ -19,6 +20,16 @@ func Target(collection, name, held, etag string) (at string, ifMatch, ifNoneMatc
 		return path.Join(collection, name), "", dav.IfNew
 	}
 	return held, dav.IfUnchanged(etag), ""
+}
+
+// Reapplied runs a read-change-write once more when another write landed between its read and its
+// PUT (RFC 7232 4.2): a one-property change applies as well to the fresh read.
+func Reapplied[T any](write func() (T, error)) (T, error) {
+	v, err := write()
+	if code, _ := webdav.HTTPErrorCode(err); code == http.StatusPreconditionFailed {
+		return write()
+	}
+	return v, err
 }
 
 // ErrNothingToExport is an empty collection, for which no file can be written.

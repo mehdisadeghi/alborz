@@ -425,14 +425,19 @@ func (m *Mirror) ready(ctx context.Context, u string, target *url.URL) (bool, er
 	if failed {
 		return ok, nil
 	}
+	m.await(ctx, u, target)
+	_, ok, err = m.held(u, target.Path)
+	return ok, err
+}
+
+// await syncs the collection, waiting for it no longer than a read may.
+func (m *Mirror) await(ctx context.Context, u string, target *url.URL) {
 	done, _ := m.start(context.WithoutCancel(ctx), u, target)
 	select {
 	case <-done:
 	case <-time.After(syncWait):
 	case <-ctx.Done():
 	}
-	_, ok, err = m.held(u, target.Path)
-	return ok, err
 }
 
 // start syncs the collection unless a sync is under way, in which case began is false.
@@ -532,6 +537,12 @@ func (t tripper) write(req *http.Request) (*http.Response, error) {
 	if err := t.m.wrote(t.user, req, body, resp); err != nil {
 		resp.Body.Close()
 		return nil, err
+	}
+	// A 412 proves the copy behind the server, and the one refused reads again next (RFC 7232 4.2).
+	if resp.StatusCode == http.StatusPreconditionFailed {
+		target := *req.URL
+		target.Path, target.RawPath, target.RawQuery = collectionOf(req.URL.Path), "", ""
+		t.m.await(req.Context(), t.user, &target)
 	}
 	return resp, nil
 }

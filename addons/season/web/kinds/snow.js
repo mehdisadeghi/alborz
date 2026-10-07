@@ -223,6 +223,7 @@ export default {
 			// dendrites drifting past look like.
 			fall: (SNOW_FALL_SLOW + Math.random() * (SNOW_FALL_FAST - SNOW_FALL_SLOW)) * (0.55 + z),
 			vx: 0,
+			vy: 0,
 			// How quickly it catches up with the air around it: a
 			// small flake follows the wind, a large one lags.
 			pull: 0.02 + Math.random() * 0.03,
@@ -243,7 +244,7 @@ export default {
 			turn: 0,
 		};
 	},
-	step: (f, dt, wind, view) => {
+	step: (f, dt, air, view) => {
 		const frames = dt / SNOW_FRAME;
 		// Where the air is taking it: the wind, its own slow wander,
 		// and the side-to-side beat of the vortices it sheds. The
@@ -253,12 +254,14 @@ export default {
 		// clean sine - shedding wanders in period as well as phase.
 		const wander = f.drift(dt);
 		f.beatPhase += f.beat * (1 + wander * 0.3) * frames;
-		const air = wind * SNOW_FRAME * f.z
+		const along = air.x * SNOW_FRAME * f.z
 			+ wander * SNOW_WANDER
 			+ Math.sin(f.beatPhase) * f.swing * f.fall;
-		f.vx += (air - f.vx) * (1 - (1 - f.pull) ** frames);
+		const catchUp = 1 - (1 - f.pull) ** frames;
+		f.vx += (along - f.vx) * catchUp;
+		f.vy += (air.y * SNOW_FRAME * f.z - f.vy) * catchUp;
 		f.x += f.vx * frames;
-		f.y += f.fall * frames;
+		f.y += (f.fall + f.vy) * frames;
 		// A fluttering plate rocks with the beat rather than
 		// spinning: the turn follows the same phase, a quarter of a
 		// cycle behind, and never goes right round.
@@ -267,6 +270,7 @@ export default {
 			f.y = -f.size;
 			f.x = Math.random() * view.w;
 			f.vx = 0;
+			f.vy = 0;
 		}
 		if (f.x < -f.size) {
 			f.x = view.w + f.size;

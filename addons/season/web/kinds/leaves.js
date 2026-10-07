@@ -211,33 +211,37 @@ export default {
 			state: state,
 			length: length,
 			sprite: Math.floor(Math.random() * sprites.length),
-			// The wind it last felt, in the model's units; a new leaf is let go in still air.
-			air: 0,
+			// The air it last felt, in the model's units; a new leaf is let go in still air.
+			ax: 0,
+			ay: 0,
 			x: Math.random() * view.w,
 			y: Math.random() * view.h,
 		};
 	},
-	step: (leaf, dt, wind, view) => {
+	step: (leaf, dt, air, view) => {
 		const a = leaf.unit;
-		// The model moves the leaf through still air, so the wind carries
-		// the whole frame. A change of wind changes the air, not the leaf:
+		// The model moves the leaf through still air, so the air carries
+		// the whole frame. A change of air changes the air, not the leaf:
 		// its speed through the air takes the difference, in its own axes,
-		// and the lift and torque that follow tilt it into a gust.
-		const air = wind * leaf.time / a;
-		const gust = air - leaf.air;
-		leaf.air = air;
+		// and the lift and torque that follow tilt it into a gust. The
+		// model's y points up, the screen's down.
+		const ax = air.x * leaf.time / a;
+		const ay = -air.y * leaf.time / a;
+		const gx = ax - leaf.ax;
+		const gy = ay - leaf.ay;
+		leaf.ax = ax;
+		leaf.ay = ay;
 		const [vx, vy, w, th, px, py] = leaf.state;
 		const c = Math.cos(th);
 		const n = Math.sin(th);
-		const before = [vx - gust * c, vy + gust * n, w, th, px, py];
+		const before = [vx - (gx * c + gy * n), vy - (gy * c - gx * n), w, th, px, py];
 		const steps = Math.ceil(dt / leaf.time / LEAF_STEP);
 		leaf.state = before;
 		for (let i = 0; i < steps; i++) {
 			leaf.state = advance(leaf.state, leaf.I, dt / leaf.time / steps);
 		}
-		// The model's y points up, the screen's down.
-		leaf.x += (leaf.state[4] - before[4]) * a + wind * dt;
-		leaf.y -= (leaf.state[5] - before[5]) * a;
+		leaf.x += (leaf.state[4] - before[4]) * a + air.x * dt;
+		leaf.y += -(leaf.state[5] - before[5]) * a + air.y * dt;
 		const size = leaf.length;
 		if (leaf.y - size > view.h) {
 			leaf.y = -size;

@@ -3,17 +3,17 @@
 // What the season lets fall on the page of a reader who asked for it
 // (ADR 77). The theme names it in --season-weather; each kind is a module
 // of its own beside this script - its sprites, how many, how one moves -
-// and this owns what they share: the canvas, the wind (the theme's, the
-// phone's tilt, a drag), the clock, visibility, resizing, the message rule
-// and reduced motion.
+// and this owns what they share: the canvas, the air (the theme's wind, the
+// phone's tilt, a drag, the puff of a click), the clock, visibility,
+// resizing, the message rule and reduced motion.
 //
 // A kind's module exports:
 //   area      square pixels of window per thing
 //   most      the most things at once, whatever the window
 //   opacity   of the whole canvas
 //   sprites(style)                    what it paints, from the canvas's computed style
-//   make(view, sprites, noise)        one thing somewhere in the window
-//   step(thing, dt, wind, view)       moves it dt seconds on, wind in px/s along x
+//   make(view, sprites, noise)        one thing somewhere in the window, at its x and y
+//   step(thing, dt, air, view)        moves it dt seconds on in air {x, y}, px/s, y down
 //   draw(context, thing, sprites)
 const kinds = new URL("season/", document.currentScript.src);
 // The longest step a frame takes, in seconds. A longer gap is a stall or a
@@ -42,6 +42,14 @@ const DRAG_SHARE = 0.3;
 const DRAG_MOST = 120;
 const DRAG_FADE = 0.4;
 const DRAG_SLOP = 10;
+// A click or a tap puffs the air outward from where it landed: things
+// within the radius take up to PUSH_MOST px/s at its centre, nothing at
+// its rim, fading as a drag's gust does. A leaf carried by that air moves
+// about PUSH_MOST * PUSH_FADE at its centre, half the radius, and its drag
+// answers the change as it answers a gust.
+const PUSH_RADIUS = 120;
+const PUSH_MOST = 150;
+const PUSH_FADE = 0.4;
 
 // Interpolated noise: a walk between random keyframes, smoothed, rate
 // keyframes a second. One gust is a wave; weather is not - and a fresh
@@ -97,6 +105,9 @@ const fall = async () => {
 	const ctx2d = canvas.getContext("2d");
 	const view = { w: 0, h: 0 };
 	let things = [];
+	// The click's air around each thing, by the same index.
+	let puffs = [];
+	const air = { x: 0, y: 0 };
 	let sprites = [];
 	let running = false;
 	let last = 0;
@@ -116,8 +127,10 @@ const fall = async () => {
 		ctx2d.setTransform(dpr, 0, 0, dpr, 0, 0);
 		const wanted = Math.min(kind.most, Math.round((view.w * view.h) / kind.area));
 		things = [];
+		puffs = [];
 		for (let i = 0; i < wanted; i++) {
 			things.push(kind.make(view, sprites, noiseField));
+			puffs.push({ x: 0, y: 0 });
 		}
 	};
 
@@ -132,10 +145,16 @@ const fall = async () => {
 		tilt += (tilted - tilt) * (1 - Math.exp(-dt / TILT_EASE));
 		drag *= Math.exp(-dt / DRAG_FADE);
 		const wind = toward * mean * (1 + squall(dt) * SQUALL_SHARE + gust(dt) * GUST_SHARE) + tilt + drag;
+		const fade = Math.exp(-dt / PUSH_FADE);
 		ctx2d.clearRect(0, 0, view.w, view.h);
-		for (const t of things) {
-			kind.step(t, dt, wind, view);
-			kind.draw(ctx2d, t, sprites);
+		for (let i = 0; i < things.length; i++) {
+			const p = puffs[i];
+			p.x *= fade;
+			p.y *= fade;
+			air.x = wind + p.x;
+			air.y = p.y;
+			kind.step(things[i], dt, air, view);
+			kind.draw(ctx2d, things[i], sprites);
 		}
 		ctx2d.globalAlpha = 1;
 		requestAnimationFrame(frame);
@@ -155,6 +174,10 @@ const fall = async () => {
 		running = false;
 		drag = 0;
 		press = null;
+		for (const p of puffs) {
+			p.x = 0;
+			p.y = 0;
+		}
 		if (!document.hidden) {
 			start();
 		}
@@ -194,11 +217,29 @@ const fall = async () => {
 		press.y = e.clientY;
 		press.at = e.timeStamp;
 	}, { passive: true });
-	const release = () => {
-		press = null;
+	const puff = (x, y) => {
+		for (let i = 0; i < things.length; i++) {
+			const dx = things[i].x - x;
+			const dy = things[i].y - y;
+			const d = Math.hypot(dx, dy);
+			if (d < PUSH_RADIUS && d > 0) {
+				const s = PUSH_MOST * (1 - d / PUSH_RADIUS) / d;
+				puffs[i].x += dx * s;
+				puffs[i].y += dy * s;
+			}
+		}
 	};
-	window.addEventListener("pointerup", release, { passive: true });
-	window.addEventListener("pointercancel", release, { passive: true });
+	// A press that never moved past the slop is a click: it puffs and
+	// still clicks, since nothing here prevents the default.
+	window.addEventListener("pointerup", (e) => {
+		if (press !== null && !press.far && !document.hidden) {
+			puff(e.clientX, e.clientY);
+		}
+		press = null;
+	}, { passive: true });
+	window.addEventListener("pointercancel", () => {
+		press = null;
+	}, { passive: true });
 	window.addEventListener("resize", resize);
 	// Painting the sprites can be expensive, so it waits for the browser
 	// to be idle rather than delaying the first paint.

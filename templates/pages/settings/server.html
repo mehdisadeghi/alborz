@@ -16,6 +16,7 @@
 
       {{ if eq .Showing "dav" }}
       <form method="post">
+        <input type="hidden" name="shown" value="{{.Drawn}}">
         <h2>{{$.T "servers.named"}}</h2>
         {{ template "field" (dict "label" ($.T "settings.caldavurl") "name" "caldav_url" "type" "url" "value" .Services.CalDAV "dir" "ltr" "placeholder" ($.T "settings.serverdomain") "hint" ($.T "settings.serverhint")) }}
         {{ template "field" (dict "label" ($.T "settings.carddavurl") "name" "carddav_url" "type" "url" "value" .Services.CardDAV "dir" "ltr" "placeholder" ($.T "settings.serverdomain")) }}

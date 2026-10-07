@@ -498,13 +498,17 @@ const otherShell = xhr => {
 	const named = xhr.getResponseHeader("Alborz-Shell");
 	return Boolean(loadedShell && named && named !== loadedShell);
 };
-// Only for a GET: a refused form carries what was typed.
+// Only for a GET: a refused form carries what was typed. A piece's URL is no page, so a piece
+// loads the page it sits in; what the page asked for by itself waits for the reader's next step.
 document.addEventListener("htmx:beforeSwap", ev => {
 	const xhr = ev.detail && ev.detail.xhr;
 	const config = ev.detail && ev.detail.requestConfig;
 	if (xhr && config && config.verb === "get" && otherShell(xhr)) {
 		ev.detail.shouldSwap = false;
-		location.assign(xhr.responseURL);
+		if (!config.headers[unasked]) {
+			const page = ev.detail.boosted || ev.detail.target.id === "main";
+			location.assign(page ? xhr.responseURL : location.href);
+		}
 	}
 });
 // htmx swaps a restore without asking, so it lands in a detached element while the page reloads.

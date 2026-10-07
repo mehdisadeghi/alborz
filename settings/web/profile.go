@@ -1,8 +1,10 @@
 package web
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"reflect"
 	"slices"
 	"time"
 
@@ -33,6 +35,8 @@ type ProfileRenderData struct {
 	MaxPerPage int
 	// LockMinutes is how long this browser waits before it locks; zero without a passkey.
 	LockMinutes int
+	// Shown is the profile the form was drawn from, which a save compares the form against.
+	Shown string
 }
 
 func handleLanguage(ctx *web.Context) error {
@@ -46,6 +50,10 @@ func handleLanguage(ctx *web.Context) error {
 
 func handleProfile(ctx *web.Context) error {
 	render := func(status int, message string, p alborz.Profile) error {
+		shown, err := json.Marshal(p)
+		if err != nil {
+			return err
+		}
 		return ctx.Render(status, "settings/general", &ProfileRenderData{
 			BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.general")).Refused(message),
 			Rail:           web.SettingsRail(ctx),
@@ -61,6 +69,7 @@ func handleProfile(ctx *web.Context) error {
 			Writing:        p.Writing,
 			MaxPerPage:     web.MaxMessagesPerPage,
 			LockMinutes:    lockMinutes(ctx.Session().Lock()),
+			Shown:          string(shown),
 		})
 	}
 	shown := ctx.Profile()
@@ -83,7 +92,15 @@ func handleProfile(ctx *web.Context) error {
 		return values[0], true
 	}
 
-	p := shown
+	// What the form changed is what it sends that differs from what it showed; the rest stays as stored.
+	drawn := shown
+	if v, ok := given("shown"); ok {
+		drawn = alborz.Profile{}
+		if err := json.Unmarshal([]byte(v), &drawn); err != nil {
+			return web.NewError(http.StatusBadRequest, "the form's shown profile does not decode")
+		}
+	}
+	p := drawn
 	reading := &p.Reading
 	if v, ok := given("messages_per_page"); ok {
 		reading.MessagesPerPage, err = locale.ReadInt(v)
@@ -137,7 +154,9 @@ func handleProfile(ctx *web.Context) error {
 			return render(http.StatusUnprocessableEntity, ctx.T("form.lockminutes"), shown)
 		}
 	}
-	if err := ctx.SetProfile(p); err != nil {
+	if err := ctx.UpdateProfile(func(stored *alborz.Profile) {
+		keepChanges(reflect.ValueOf(stored).Elem(), reflect.ValueOf(drawn), reflect.ValueOf(p))
+	}); err != nil {
 		return render(http.StatusUnprocessableEntity, ctx.SaveRefusal(err), p)
 	}
 	if lockAfter > 0 {
@@ -171,6 +190,32 @@ func answerProfile(ctx *web.Context, answer func(*alborz.Login) error, done stri
 		ctx.PutNotice(fmt.Sprintf(ctx.T(done), account))
 	}
 	return ctx.Redirect(http.StatusFound, ctx.Path("settings.profile"))
+}
+
+// keepChanges sets on stored each field mine changed from base, and a list by the names added and taken
+// away, so a field the save did not change stays as another save left it.
+func keepChanges(stored, base, mine reflect.Value) {
+	for i := range base.NumField() {
+		s, b, m := stored.Field(i), base.Field(i), mine.Field(i)
+		switch {
+		case b.Kind() == reflect.Struct:
+			keepChanges(s, b, m)
+		case reflect.DeepEqual(b.Interface(), m.Interface()):
+		case b.Kind() == reflect.Slice:
+			was, now := b.Interface().([]string), m.Interface().([]string)
+			kept := slices.DeleteFunc(slices.Clone(s.Interface().([]string)), func(name string) bool {
+				return slices.Contains(was, name) && !slices.Contains(now, name)
+			})
+			for _, name := range now {
+				if !slices.Contains(was, name) && !slices.Contains(kept, name) {
+					kept = append(kept, name)
+				}
+			}
+			s.Set(reflect.ValueOf(kept))
+		default:
+			s.Set(m)
+		}
+	}
 }
 
 func segments(ctx *web.Context) []string {

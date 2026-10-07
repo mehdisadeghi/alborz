@@ -194,12 +194,10 @@ func (ctx *Context) SetLanguage(code string) error {
 	if !locale.Supported(code) {
 		code = ""
 	}
-	p := ctx.Profile()
-	if p.Display.Language == code {
+	if ctx.Profile().Display.Language == code {
 		return nil
 	}
-	p.Display.Language = code
-	return ctx.SetProfile(p)
+	return ctx.UpdateProfile(func(p *alborz.Profile) { p.Display.Language = code })
 }
 
 // language returns the explicit UI language, empty when following the browser.

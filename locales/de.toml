@@ -96,7 +96,7 @@
 "aside.junk" = "Spam"
 "aside.trash" = "Papierkorb"
 "aside.archive" = "Archiv"
-"login.title" = "Webmail-Anmeldung"
+"login.welcome" = "Willkommen bei %s"
 "login.baddomain" = "Domäne wird hier nicht bedient: %s"
 "login.needsdomain" = "Mit vollständiger Adresse anmelden, name@domain."
 "login.short" = "Anmeldung"

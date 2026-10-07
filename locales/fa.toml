@@ -96,7 +96,7 @@
 "aside.junk" = "هرزنامه"
 "aside.trash" = "زباله‌دان"
 "aside.archive" = "بایگانی"
-"login.title" = "ورود به ایمیل"
+"login.welcome" = "به %s خوش آمدید"
 "login.baddomain" = "این دامنه روی این سرور پشتیبانی نمی‌شود: %s"
 "login.needsdomain" = "با نشانی کامل وارد شوید: name@domain"
 "login.short" = "ورود"

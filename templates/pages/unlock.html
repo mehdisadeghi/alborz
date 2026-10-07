@@ -3,7 +3,7 @@
 
 <main id="main" tabindex="-1" class="login">
   <section>
-    <h1>{{$.T "lock.title"}}</h1>
+    {{ template "login-head" (dict "g" $ "title" ($.T "lock.title")) }}
     <p class="action-group">
       <button type="button" class="button-primary" id="passkey-unlock" autofocus
               data-begin="{{url "auth.unlock.begin"}}" data-finish="{{url "auth.unlock.finish"}}" data-next="{{.Next}}"

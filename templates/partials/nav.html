@@ -180,6 +180,14 @@
 </a>
 {{ end }}
 
+{{/* dict: g title. The head of the sign-in and unlock cards. */}}
+{{ define "login-head" }}
+<div class="login-head">
+  <img src="{{call .g.GlobalData.Asset "brand.svg"}}" alt="" width="48" height="48">
+  <h1>{{.title}}</h1>
+</div>
+{{ end }}
+
 {{/* dict: g id blocks. id names the blocks: the page's and the header's are on one page. */}}
 {{ define "search-found" }}
 {{ $g := .g }}{{ $id := .id }}

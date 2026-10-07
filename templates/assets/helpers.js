@@ -1338,7 +1338,7 @@ document.addEventListener("htmx:confirm", ev => {
 			dialog,
 			form: dialog.querySelector("form"),
 			input: dialog.querySelector('input[name="query"]'),
-			view: dialog.querySelector('input[name="view"]'),
+			view: dialog.querySelector('select[name="view"]'),
 			chip: dialog.querySelector(".search-dialog-view"),
 			menu: dialog.querySelector(".overflow-menu"),
 			hint: dialog.querySelector(".search-dialog-hint"),
@@ -1394,7 +1394,7 @@ document.addEventListener("htmx:confirm", ev => {
 
 	const start = p => {
 		const query = p.input.value.trim();
-		const view = p.view ? p.view.value : "";
+		const view = p.view.value;
 		if (run && run.query === query && run.view === view) {
 			return;
 		}
@@ -1435,16 +1435,10 @@ document.addEventListener("htmx:confirm", ev => {
 		paused = setTimeout(() => { start(p); full(p); }, PAUSED_MS);
 	});
 
-	// The view rides along as a field of the form; the row in force clears it, as on a list's filter menu.
+	// The menu sets the form's view field; the row in force clears it, as on a list's filter menu.
 	const choose = (p, row) => {
-		const view = p.view && p.view.value === row.value ? "" : row.value;
-		if (view && !p.view) {
-			p.view = Object.assign(document.createElement("input"), { type: "hidden", name: "view" });
-			p.form.append(p.view);
-		}
-		if (p.view) {
-			p.view.value = view;
-		}
+		const view = p.view.value === row.value ? "" : row.value;
+		p.view.value = view;
 		for (const r of p.menu.querySelectorAll("button[name=view]")) {
 			r.classList.toggle("is-current", r.value === view);
 			r.toggleAttribute("aria-current", r.value === view);

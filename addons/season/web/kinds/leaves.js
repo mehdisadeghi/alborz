@@ -187,6 +187,7 @@ export default {
 	area: 60000,
 	most: 40,
 	opacity: 0.9,
+	detail: 1,
 	sprites: (style) => Object.entries(LEAF_PIGMENTS).flatMap(([tree, pigments]) => {
 		const outline = outlines[tree]();
 		return pigments.map((p) => leafSprite(outline, style.getPropertyValue("--season-leaf-" + p).trim()));

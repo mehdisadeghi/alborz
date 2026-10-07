@@ -33,6 +33,7 @@ export default {
 	area: 6000,
 	most: 300,
 	opacity: 1,
+	detail: 1,
 	sprites: (style) => [style.getPropertyValue("--season-rain").trim()],
 	make: (view) => {
 		const fall = (9.65 - 10.3 * Math.exp(-0.6 * diameter())) * view.metre;

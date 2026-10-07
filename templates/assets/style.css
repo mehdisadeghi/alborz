@@ -764,10 +764,11 @@ header nav.is-icons .nav-search-open :is(.label, kbd) { display: none; }
 /* An answer under way leaves the last one readable, dimmed as not yet this query's. */
 .search-block[aria-busy="true"] > :not(.search-kind) { opacity: 0.6; }
 
-/* Fixed to the window: a reader scrolled down a list is the one told mail arrived (ADR 41). */
+/* Fixed to the window: a reader scrolled down a list is the one told mail arrived. At its foot, since
+   its top holds the nav, the toolbar and the crumb, which a notice must not hide (ADR 41). */
 .notices {
   position: fixed;
-  inset-block-start: var(--space-2);
+  inset-block-end: calc(var(--space-2) + env(safe-area-inset-bottom));
   inset-inline: 0;
   z-index: 13;
   display: flex;
@@ -776,10 +777,6 @@ header nav.is-icons .nav-search-open :is(.label, kbd) { display: none; }
   gap: var(--space-2);
   padding-inline: var(--space-2);
   pointer-events: none;
-}
-
-header .notices {
-  inset-block-start: calc(var(--toolbar-height) + var(--space-2));
 }
 
 .notice {
@@ -806,7 +803,7 @@ header .notices {
 dialog.notice:not([open]) {
   display: none;
   opacity: 0;
-  transform: translateY(-0.25rem);
+  transform: translateY(0.25rem);
 }
 
 /* A done notice leaves after six seconds; a warning or a failure stays (ADR 41). */
@@ -819,11 +816,11 @@ dialog.notice:not([open]) {
 }
 
 @keyframes notice-in {
-  from { opacity: 0; transform: translateY(-0.25rem); }
+  from { opacity: 0; transform: translateY(0.25rem); }
 }
 
 @keyframes notice-out {
-  to { opacity: 0; transform: translateY(-0.25rem); visibility: hidden; }
+  to { opacity: 0; transform: translateY(0.25rem); visibility: hidden; }
 }
 
 .notice-warning {
@@ -984,6 +981,13 @@ footer { text-align: end; }
 /* The segments are asked for by the script, so without one the bar would hold only dashes. */
 @media (scripting: none) {
   .status-bar { display: none; }
+}
+
+/* A notice stands on the bar where the bar shows, never over it. */
+@media (width > 600px) and (scripting: enabled) {
+  body:has(> .status-bar) .notices {
+    inset-block-end: calc(var(--control-height) + env(safe-area-inset-bottom) + var(--space-2));
+  }
 }
 
 /* The browser's print dialog opens only by script. */

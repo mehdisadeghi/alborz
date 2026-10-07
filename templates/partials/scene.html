@@ -5,6 +5,7 @@
 {{- if .GlobalData.Layer "far" }}{{ template "scene-far" }}{{ end }}
 {{- if .GlobalData.Layer "conifers" }}{{ template "scene-conifers" }}{{ end }}
 {{- if .GlobalData.Layer "broadleaves" }}{{ template "scene-broadleaves" }}{{ end }}
+{{- if .GlobalData.Layer "blossoms" }}{{ template "scene-blossoms" }}{{ end }}
 {{- if .GlobalData.Layer "near" }}{{ template "scene-near" }}{{ end }}
 {{- if .GlobalData.Layer "house" }}{{ template "scene-house" }}{{ end }}
 {{- if .GlobalData.Layer "smoke" }}{{ template "scene-smoke" }}{{ end }}
@@ -25,6 +26,11 @@
 <g style="fill: var(--scene-broadleaves-trunk)"><rect x="195" y="248" width="6" height="52"/><rect x="240.5" y="266" width="5" height="40"/><rect x="1047.5" y="254" width="5" height="38"/></g>
 <g style="fill: var(--scene-broadleaves-crown)"><ellipse cx="198" cy="236" rx="26" ry="32"/><ellipse cx="1050" cy="244" rx="19" ry="23"/></g>
 <g style="fill: var(--scene-broadleaves-crown-deep)"><ellipse cx="243" cy="256" rx="20" ry="24"/><ellipse cx="206" cy="246" rx="14" ry="17"/><ellipse cx="1056" cy="252" rx="10" ry="12"/></g>
+{{- end }}
+
+{{/* On the broadleaves' crowns, so it shares their places. */}}
+{{ define "scene-blossoms" }}
+<g style="fill: var(--scene-blossoms)"><circle cx="186" cy="222" r="3"/><circle cx="204" cy="214" r="2.5"/><circle cx="214" cy="232" r="3"/><circle cx="190" cy="248" r="2.5"/><circle cx="236" cy="246" r="2.5"/><circle cx="252" cy="260" r="3"/><circle cx="232" cy="268" r="2"/><circle cx="1042" cy="236" r="2.5"/><circle cx="1058" cy="246" r="2"/><circle cx="1046" cy="256" r="2.5"/></g>
 {{- end }}
 
 {{ define "scene-near" }}

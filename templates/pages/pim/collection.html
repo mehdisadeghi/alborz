@@ -17,6 +17,7 @@
         {{ if .SharedBy }}
         {{ template "share-offer" (dict "g" $ "offer" .Offer) }}
         {{ else }}
+        <input type="hidden" name="shown" value="{{.Shown}}">
         {{ template "field" (dict "label" ($.T "common.name") "name" "name" "value" .Name "dir" "auto" "required" true) }}
         {{ template "field" (dict "label" ($.T "common.color") "name" "color" "type" "color" "value" .Color) }}
         {{ end }}

@@ -39,8 +39,8 @@ type Kind struct {
 	List func(ctx context.Context, client *http.Client, base *url.URL, homes []Home) ([]Collection, []error)
 	// Make makes a collection at path; an address book gets no components.
 	Make func(ctx context.Context, client *http.Client, base *url.URL, path, name, color string, components []string) error
-	// Change renames and recolours the collection at path.
-	Change func(ctx context.Context, client *http.Client, base *url.URL, path, name, color string) error
+	// Change renames and recolours the collection at path; a nil name or color stays as it is.
+	Change func(ctx context.Context, client *http.Client, base *url.URL, path string, name, color *string) error
 	// Unnamed is the address of a new collection whose name gives none.
 	Unnamed string
 }

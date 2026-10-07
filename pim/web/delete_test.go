@@ -88,3 +88,27 @@ func TestARemoteCalendarDeletedElsewhereLeavesThePage(t *testing.T) {
 		t.Errorf("%s is still listed after asking the server again", path)
 	}
 }
+
+// A collection recoloured in a tab drawn before another browser renamed it keeps the new name.
+func TestAStaleCollectionFormKeepsAnotherBrowsersSave(t *testing.T) {
+	a := Alborz(t)
+	stale, other := a.SignIn(t, User), a.SignIn(t, User)
+	held := Here + other.CreateCalendar(t, "Personal", "")
+	drawn := Shown(stale.Page(t, "calendar.collection", held))
+	if resp := other.Post(t, "calendar.collection", url.Values{"shown": {Shown(other.Page(t, "calendar.collection", held))}, "name": {"Plans"}, "color": {"#22aa55"}}, held); resp.StatusCode != http.StatusFound {
+		t.Fatalf("renaming answered %s", resp.Status)
+	}
+	if resp := stale.Post(t, "calendar.collection", url.Values{"shown": {drawn}, "name": {"Personal"}, "color": {"#3366cc"}}, held); resp.StatusCode != http.StatusFound {
+		t.Fatalf("recolouring answered %s", resp.Status)
+	}
+	page := other.Page(t, "calendar.collection", held)
+	if !strings.Contains(page, `name="color"`) {
+		t.Fatal("the collection page shows no form")
+	}
+	if !strings.Contains(page, `value="Plans"`) {
+		t.Error("the name saved in the other browser is gone")
+	}
+	if !strings.Contains(page, `value="#3366cc"`) {
+		t.Error("the stale tab's colour is gone")
+	}
+}

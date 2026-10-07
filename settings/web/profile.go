@@ -155,7 +155,7 @@ func handleProfile(ctx *web.Context) error {
 		}
 	}
 	if err := ctx.UpdateProfile(func(stored *alborz.Profile) {
-		keepChanges(reflect.ValueOf(stored).Elem(), reflect.ValueOf(drawn), reflect.ValueOf(p))
+		web.KeepChanges(reflect.ValueOf(stored).Elem(), reflect.ValueOf(drawn), reflect.ValueOf(p))
 	}); err != nil {
 		return render(http.StatusUnprocessableEntity, ctx.SaveRefusal(err), p)
 	}
@@ -190,32 +190,6 @@ func answerProfile(ctx *web.Context, answer func(*alborz.Login) error, done stri
 		ctx.PutNotice(fmt.Sprintf(ctx.T(done), account))
 	}
 	return ctx.Redirect(http.StatusFound, ctx.Path("settings.profile"))
-}
-
-// keepChanges sets on stored each field mine changed from base, and a list by the names added and taken
-// away, so a field the save did not change stays as another save left it.
-func keepChanges(stored, base, mine reflect.Value) {
-	for i := range base.NumField() {
-		s, b, m := stored.Field(i), base.Field(i), mine.Field(i)
-		switch {
-		case b.Kind() == reflect.Struct:
-			keepChanges(s, b, m)
-		case reflect.DeepEqual(b.Interface(), m.Interface()):
-		case b.Kind() == reflect.Slice:
-			was, now := b.Interface().([]string), m.Interface().([]string)
-			kept := slices.DeleteFunc(slices.Clone(s.Interface().([]string)), func(name string) bool {
-				return slices.Contains(was, name) && !slices.Contains(now, name)
-			})
-			for _, name := range now {
-				if !slices.Contains(was, name) && !slices.Contains(kept, name) {
-					kept = append(kept, name)
-				}
-			}
-			s.Set(reflect.ValueOf(kept))
-		default:
-			s.Set(m)
-		}
-	}
 }
 
 func segments(ctx *web.Context) []string {

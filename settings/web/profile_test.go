@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"sync"
 	"testing"
 
 	. "git.mehdix.org/alborz/internal/alborztest"
@@ -31,6 +32,35 @@ func TestProfileReachesEveryAccount(t *testing.T) {
 		if got := perPage(t, a.SignIn(t, account)); got != "17" {
 			t.Errorf("%s holds a page size of %s, want 17", account, got)
 		}
+	}
+}
+
+// Two browsers that read the profile before either saved each change their own choice and keep the other's.
+func TestProfileSavesFromTwoBrowsersBothStay(t *testing.T) {
+	a := Alborz(t)
+	language, theme := a.SignIn(t, User), a.SignIn(t, User)
+	var wg sync.WaitGroup
+	wg.Go(func() {
+		if resp := language.Post(t, "settings.language", url.Values{"language": {"de"}}); resp.StatusCode != http.StatusFound {
+			t.Errorf("choosing the language: %s", resp.Status)
+		}
+	})
+	wg.Go(func() {
+		if resp := theme.Post(t, "settings.profile", url.Values{"theme": {"ink"}}); resp.StatusCode != http.StatusFound {
+			t.Errorf("choosing the theme: %s", resp.Status)
+		}
+	})
+	wg.Wait()
+
+	page := a.SignIn(t, User).Page(t, "settings.profile")
+	if !strings.Contains(page, `id="theme"`) {
+		t.Fatal("the settings page shows no theme")
+	}
+	if !strings.Contains(page, `<html lang="de"`) {
+		t.Error("the language chosen in one browser is gone")
+	}
+	if !strings.Contains(page, `<option value="ink" selected`) {
+		t.Error("the theme chosen in the other browser is gone")
 	}
 }
 

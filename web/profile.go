@@ -53,28 +53,39 @@ func UserLocation(ctx *Context) *time.Location {
 	return time.UTC
 }
 
-// SetProfile applies p and writes it to every account signed in; it fails only
-// when every account refuses.
-func (ctx *Context) SetProfile(p alborz.Profile) error {
+// UpdateProfile has edit change the profile every account signed in holds, and the session takes the first
+// account's; it fails only when every account refuses. The session's copy may be older than what another
+// browser saved since, so edit changes the stored profile, in turn with every other change of it.
+func (ctx *Context) UpdateProfile(edit func(*alborz.Profile)) error {
 	logins := ctx.accountLogins()
 	if len(logins) == 0 {
+		p := ctx.cookieProfile()
+		edit(&p)
 		ctx.setProfileCookies(p.Display)
 		return nil
 	}
 	var refused error
-	kept := 0
+	var kept *alborz.Profile
 	for _, login := range logins {
-		if err := login.Store().Put(ctx.Request().Context(), alborz.ProfileKey, p); err != nil {
+		// An account that holds none yet starts from the one in force.
+		p := ctx.Profile()
+		err := login.Update(ctx.Request().Context(), alborz.ProfileKey, &p, func() error {
+			edit(&p)
+			return nil
+		})
+		if err != nil {
 			ctx.Logger().Printf("profile: %s did not keep it: %v", login.Username(), err)
 			refused = err
 			continue
 		}
-		kept++
+		if kept == nil {
+			kept = &p
+		}
 	}
-	if kept == 0 {
+	if kept == nil {
 		return refused
 	}
-	ctx.putProfile(p)
+	ctx.putProfile(*kept)
 	return nil
 }
 
@@ -87,7 +98,7 @@ func (ctx *Context) TakeProfile(login *alborz.Login) error {
 	if theirs == nil {
 		return ctx.KeepProfile(login)
 	}
-	return ctx.SetProfile(*theirs)
+	return ctx.UpdateProfile(func(p *alborz.Profile) { *p = *theirs })
 }
 
 // KeepProfile writes the profile in force over the one the account holds.

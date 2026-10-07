@@ -24,7 +24,7 @@ func registerRoutes(p *plugin, g *web.Group) {
 	upload := func(name, path string, limit int64, h, over func(*web.Context) error) {
 		g.Upload(name, path, limit, guard(h), guard(over))
 	}
-	POST("list", "/contacts", pimweb.HandleChoose("contacts.list", "book", contacts.Choose))
+	POST("list", "/contacts", pimweb.HandleChoose(p.DAV, "contacts.list", "book", contacts.Choose))
 	GET("list", "/contacts", p.contacts)
 	POST("export", "/contacts/export", pimweb.HandleExport(p.Client, "contacts.list",
 		func(ctx *web.Context) string { return ctx.T("nav.contacts") + ".vcf" }, contacts.Join))

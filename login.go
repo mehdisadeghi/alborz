@@ -539,6 +539,9 @@ type loginManager struct {
 	idle time.Duration
 	keep func(*Login) bool
 
+	// turns hold an account's change of a stored entry until the one before it is written, across its logins.
+	turns sync.Map // of turn to *sync.Mutex
+
 	locker sync.Mutex
 	// logins are the open ones, for shutdown to close.
 	logins           map[*Login]struct{} // protected by locker

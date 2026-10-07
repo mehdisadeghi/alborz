@@ -377,7 +377,7 @@ func (p *Calendars) follows(ctx context.Context, login *alborz.Login, fill func(
 		if err := fill(c); err != nil {
 			return err
 		}
-		if err := Show(ctx, login.Store(), p.DAV.PathOf(login.Username(), c)); err != nil {
+		if err := Show(ctx, login, p.DAV.PathOf(login.Username(), c)); err != nil {
 			return err
 		}
 	}

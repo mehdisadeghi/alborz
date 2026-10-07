@@ -33,6 +33,37 @@ type Settings interface {
 	OnServer() bool
 }
 
+// turn names an entry of an account's, whose changes take turns.
+type turn struct{ account, key string }
+
+// Update reads the entry at key into v, has edit change v and writes it back. Two quick changes would
+// each write what they read and the later would lose the earlier, so one account's changes of an entry
+// take turns.
+func (l *Login) Update(ctx context.Context, key string, v any, edit func()) error {
+	mu, _ := l.manager.turns.LoadOrStore(turn{l.username, key}, new(sync.Mutex))
+	mu.(*sync.Mutex).Lock()
+	defer mu.(*sync.Mutex).Unlock()
+	// What this request read before its turn may be what the change before it overwrote.
+	memoOf(ctx).forget(l, key)
+	if err := l.store.Get(ctx, key, v); err != nil && err != ErrNoStoreEntry {
+		return err
+	}
+	edit()
+	return l.store.Put(ctx, key, v)
+}
+
+// Untick is what is left out of a choice after a form showed shown and ticked ticked; one the form did
+// not show keeps its choice.
+func Untick(left, shown, ticked []string) []string {
+	kept := slices.DeleteFunc(slices.Clone(left), func(v string) bool { return slices.Contains(shown, v) })
+	for _, v := range shown {
+		if !slices.Contains(ticked, v) && !slices.Contains(kept, v) {
+			kept = append(kept, v)
+		}
+	}
+	return kept
+}
+
 // newStore runs under the manager's lock.
 func (sm *loginManager) newStore(login *Login) (Store, error) {
 	var metadata bool

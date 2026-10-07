@@ -124,8 +124,9 @@
 {{ define "rail-dav-account" }}
 {{ $d := .data }}
 {{ $narrowed := false }}{{ range $d.items }}{{ if .Only }}{{ $narrowed = true }}{{ end }}{{ end }}
-{{/* A tick redraws the list and these rows in place; the address follows without a step in history, which the links inside still take (ADR 35). */}}
-<form id="rail-{{.account}}" method="post" action="{{$d.action}}{{ account "?" .account }}" class="aside-filter" hx-post="{{$d.action}}{{ account "?" .account }}" hx-target="#main" hx-swap="innerHTML show:none" hx-replace-url="true" hx-disinherit="hx-replace-url"{{ if $.g.GlobalData.Swap }} hx-swap-oob="innerHTML"{{ end }}>
+{{/* A tick redraws the list and these rows in place; the address follows without a step in history, which the links inside still take (ADR 35).
+     A second tick replaces the first's request: queued, it would go after the first's answer redrew the rows, with their old ticks. */}}
+<form id="rail-{{.account}}" method="post" action="{{$d.action}}{{ account "?" .account }}" class="aside-filter" hx-post="{{$d.action}}{{ account "?" .account }}" hx-target="#main" hx-swap="innerHTML show:none" hx-replace-url="true" hx-sync="this:replace" hx-disinherit="hx-replace-url hx-sync"{{ if $.g.GlobalData.Swap }} hx-swap-oob="innerHTML"{{ end }}>
 <input type="hidden" name="next" value="{{$d.next}}">
 {{ with .all }}
 {{ $on := and (eq $.account $.urlaccount) (not $narrowed) }}
@@ -152,6 +153,7 @@
   </a>
   <a class="filter-edit icon-button" href="{{url .edit $i.Path}}{{account "?" $i.Account}}" title="{{.editlabel}}" aria-label="{{.editlabel}}" hx-boost="false">{{ template "icon" "edit" }}</a>
   <label class="filter-tick" title="{{.shown}}">
+    <input type="hidden" name="shown" value="{{$i.Path}}">
     <input type="checkbox" id="rail-{{$i.Account}}{{$i.Path}}" name="{{.field}}" value="{{$i.Path}}" {{ if $i.Visible }}checked{{ end }} data-source-item data-submit-on-change {{ if $i.Color }}style="accent-color:{{$i.Color}}"{{ end }} aria-label="{{.shown}}: {{$i.Name}}">
   </label>
 </div>
@@ -234,8 +236,9 @@
 {{ $active := "" }}{{ with $d.Mailbox }}{{ $active = .Name }}{{ end }}
 {{ $q := printf "?account=%s" .account }}
 {{ range $d.SidebarAccounts }}{{ if eq .Account $.account }}
-{{/* A tick redraws these rows, the merged counts and the list in place (ADR 35, ADR 80); its links keep their own targets. */}}
-<form id="merged-{{$.account}}" class="aside-filter" method="post" action="{{url "mail.merged"}}{{ account "?" $.account }}" hx-post="{{url "mail.merged"}}{{ account "?" $.account }}" hx-target="this" hx-select="form[id='merged-{{$.account}}']" hx-select-oob="#main,#merged-roles" hx-swap="outerHTML show:none" hx-disinherit="*">
+{{/* A tick redraws these rows, the merged counts and the list in place (ADR 35, ADR 80); its links keep their own targets.
+     A second tick replaces the first's request, as on the DAV rails. */}}
+<form id="merged-{{$.account}}" class="aside-filter" method="post" action="{{url "mail.merged"}}{{ account "?" $.account }}" hx-post="{{url "mail.merged"}}{{ account "?" $.account }}" hx-target="this" hx-select="form[id='merged-{{$.account}}']" hx-select-oob="#main,#merged-roles" hx-swap="outerHTML show:none" hx-sync="this:replace" hx-disinherit="*">
 <input type="hidden" name="next" value="{{$d.GlobalData.URL.RequestURI}}">
 <ul{{ template "list-swap" $d }}>
   {{ template "mbox-list" (tuple .Categorized $q (eq $d.GlobalData.Scope $.account) $view $active $d.GlobalData) }}

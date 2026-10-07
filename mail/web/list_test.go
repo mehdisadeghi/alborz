@@ -753,3 +753,37 @@ func TestAnAccountLeftOutOfTheMergedInbox(t *testing.T) {
 		t.Errorf("%s's own inbox lists %d rows, want %d", User2, len(own), rows[User2])
 	}
 }
+
+// Two quick ticks on different folders both stay left out, whichever is written first.
+func TestTwoQuickMergedTicksBothHold(t *testing.T) {
+	a := Alborz(t, WithIMAP(IMAP(t, Metadata())))
+	c := bothAccounts(t, a)
+	errs := make(chan error, 2)
+	for _, role := range []string{"INBOX", "Drafts"} {
+		go func() {
+			form := url.Values{"shown": {role}, "next": {a.Path("mail.mailbox", "INBOX")}}
+			resp, err := c.HTTP.PostForm(a.URL+a.Path("mail.merged", url.Values{"account": {User}}), form)
+			if err == nil {
+				resp.Body.Close()
+				if resp.StatusCode != http.StatusFound {
+					err = fmt.Errorf("leaving %s out answered %s", role, resp.Status)
+				}
+			}
+			errs <- err
+		}()
+	}
+	for range 2 {
+		if err := <-errs; err != nil {
+			t.Fatal(err)
+		}
+	}
+	ticks := regexp.MustCompile(`name="merged" value="(\w+)"( checked)?`).FindAllStringSubmatch(Between(c.Page(t, "mail.mailbox", "INBOX", url.Values{"account": {User}}), `<form id="merged-`+User, "</form>"), -1)
+	if len(ticks) == 0 {
+		t.Fatal("the rail shows no merged-view ticks")
+	}
+	for _, m := range ticks {
+		if left := m[1] == "INBOX" || m[1] == "Drafts"; left == (m[2] != "") {
+			t.Errorf("%s is ticked %t, want %t", m[1], m[2] != "", !left)
+		}
+	}
+}

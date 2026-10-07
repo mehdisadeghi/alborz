@@ -48,14 +48,9 @@ type Settings struct {
 func (s *Settings) Merges(role string) bool { return !slices.Contains(s.Unmerged, role) }
 
 // ChooseMerged takes the ticked roles of those the form showed; a role the form did not show keeps its choice.
-func (s *Settings) ChooseMerged(shown, ticked []string) {
-	kept := slices.DeleteFunc(slices.Clone(s.Unmerged), func(role string) bool { return slices.Contains(shown, role) })
-	for _, role := range shown {
-		if !slices.Contains(ticked, role) && !slices.Contains(kept, role) {
-			kept = append(kept, role)
-		}
-	}
-	s.Unmerged = kept
+func ChooseMerged(ctx context.Context, l *alborz.Login, shown, ticked []string) error {
+	s := &Settings{}
+	return l.Update(ctx, settingsKey, s, func() { s.Unmerged = alborz.Untick(s.Unmerged, shown, ticked) })
 }
 
 func LoadSettings(ctx context.Context, s alborz.Store) (*Settings, error) {

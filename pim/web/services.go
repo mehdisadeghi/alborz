@@ -1,8 +1,10 @@
 package web
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"reflect"
 	"slices"
 	"strings"
 
@@ -27,6 +29,8 @@ type ServerRenderData struct {
 	*web.Servers
 	Services        dav.Services
 	HasHTTPPassword bool
+	// Drawn is the servers the form was drawn from, which a save compares the form against.
+	Drawn string
 }
 
 // DefaultPlace is the account's default place, else the first offered.
@@ -53,6 +57,16 @@ func handleServer(ctx *web.Context) error {
 			return err
 		}
 		data.Servers = servers
+		if data.Drawn == "" {
+			// The default as the form shows it, so an unchanged choice is no change.
+			shown := data.Services
+			shown.Default = data.DefaultPlace()
+			b, err := json.Marshal(shown)
+			if err != nil {
+				return err
+			}
+			data.Drawn = string(b)
+		}
 		return ctx.Render(status, "settings/server", data)
 	}
 	var err error
@@ -66,6 +80,15 @@ func handleServer(ctx *web.Context) error {
 		return render(http.StatusOK)
 	}
 
+	// What the form changed is what it sends that differs from what it showed; the rest stays as stored.
+	drawn := data.Services
+	if v := ctx.FormValue("shown"); v != "" {
+		drawn = dav.Services{}
+		if err := json.Unmarshal([]byte(v), &drawn); err != nil {
+			return web.NewError(http.StatusBadRequest, "the form's shown servers do not decode")
+		}
+		data.Drawn = v
+	}
 	// What was typed is what the form shows again when one is refused.
 	named := dav.Services{
 		CalDAV:   strings.TrimSpace(ctx.FormValue("caldav_url")),
@@ -99,8 +122,13 @@ func handleServer(ctx *web.Context) error {
 	if err != nil {
 		return refuse(err)
 	}
-	if named != data.Services {
-		if err := ctx.Login.Store().Put(ctx.Request().Context(), dav.ServicesKey, &named); err != nil {
+	if named != drawn {
+		var stored dav.Services
+		err := ctx.Login.Update(ctx.Request().Context(), dav.ServicesKey, &stored, func() error {
+			web.KeepChanges(reflect.ValueOf(&stored).Elem(), reflect.ValueOf(drawn), reflect.ValueOf(named))
+			return nil
+		})
+		if err != nil {
 			return refuse(err)
 		}
 	}

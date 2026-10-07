@@ -11,9 +11,11 @@
 //   area      square pixels of window per thing
 //   most      the most things at once, whatever the window
 //   opacity   of the whole canvas
+//   detail    the canvas's pixels per CSS pixel, as a share of the screen's
 //   sprites(style)                    what it paints, from the canvas's computed style
 //   make(view, sprites, noise)        one thing somewhere in the window, at its x and y
-// The view is the window's w and h and its scale in metre.
+// The view is the window's w and h, its scale in metre and its
+// direction in toward.
 //   step(thing, dt, air, view)        moves it dt seconds on in air {x, y}, px/s, y down
 //   draw(context, thing, sprites)
 const kinds = new URL("season/", document.currentScript.src);
@@ -108,7 +110,8 @@ const fall = async () => {
 	reading();
 	document.addEventListener("htmx:afterSwap", reading);
 	const ctx2d = canvas.getContext("2d");
-	const view = { w: 0, h: 0, metre: METRE };
+	// toward is 1 when the inline end is the screen's right, -1 when left.
+	const view = { w: 0, h: 0, metre: METRE, toward: 1 };
 	let things = [];
 	// The click's air around each thing, by the same index.
 	let puffs = [];
@@ -124,7 +127,7 @@ const fall = async () => {
 	let press = null;
 
 	const resize = () => {
-		const dpr = window.devicePixelRatio || 1;
+		const dpr = (window.devicePixelRatio || 1) * kind.detail;
 		view.w = window.innerWidth;
 		view.h = window.innerHeight;
 		canvas.width = Math.floor(view.w * dpr);
@@ -146,10 +149,10 @@ const fall = async () => {
 		const dt = last ? Math.min((now - last) / 1000, MAX_STEP) : 0;
 		last = now;
 		// The wind is a slow squall with a gust on top of it.
-		const toward = document.documentElement.dir === "rtl" ? -1 : 1;
+		view.toward = document.documentElement.dir === "rtl" ? -1 : 1;
 		tilt += (tilted - tilt) * (1 - Math.exp(-dt / TILT_EASE));
 		drag *= Math.exp(-dt / DRAG_FADE);
-		const wind = toward * mean * (1 + squall(dt) * SQUALL_SHARE + gust(dt) * GUST_SHARE) + tilt + drag;
+		const wind = view.toward * mean * (1 + squall(dt) * SQUALL_SHARE + gust(dt) * GUST_SHARE) + tilt + drag;
 		const fade = Math.exp(-dt / PUSH_FADE);
 		ctx2d.clearRect(0, 0, view.w, view.h);
 		for (let i = 0; i < things.length; i++) {

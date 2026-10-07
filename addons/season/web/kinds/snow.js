@@ -189,6 +189,7 @@ export default {
 	area: 26000,
 	most: Infinity,
 	opacity: 0.55,
+	detail: 1,
 	sprites: (style) => {
 		// Four crystals from Reiter's own range, picked for being four
 		// different things rather than four of one: a stellar dendrite,

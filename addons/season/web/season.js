@@ -13,6 +13,7 @@
 //   opacity   of the whole canvas
 //   sprites(style)                    what it paints, from the canvas's computed style
 //   make(view, sprites, noise)        one thing somewhere in the window, at its x and y
+// The view is the window's w and h and its scale in metre.
 //   step(thing, dt, air, view)        moves it dt seconds on in air {x, y}, px/s, y down
 //   draw(context, thing, sprites)
 const kinds = new URL("season/", document.currentScript.src);
@@ -20,6 +21,10 @@ const kinds = new URL("season/", document.currentScript.src);
 // tab coming back, not time the air moved, and stepping it whole would
 // throw everything across the window at once.
 const MAX_STEP = 0.05;
+// CSS pixels per metre of the air things fall through, the one scale
+// every kind shares: a window some fifteen metres tall, the air in front
+// of a tree across the valley.
+const METRE = 53;
 // How fast the gust and the squall wander, in keyframes a second: the
 // rates snow was tuned at, a frame at sixty a second.
 const GUST_RATE = 0.096;
@@ -103,7 +108,7 @@ const fall = async () => {
 	reading();
 	document.addEventListener("htmx:afterSwap", reading);
 	const ctx2d = canvas.getContext("2d");
-	const view = { w: 0, h: 0 };
+	const view = { w: 0, h: 0, metre: METRE };
 	let things = [];
 	// The click's air around each thing, by the same index.
 	let puffs = [];

@@ -1,0 +1,191 @@
+/* Summer: the same valley in full leaf and ripe grass, the house with a
+   cold chimney, behind the same frosted panels. With the season add-on
+   on, shafts of sunlight lean in from the corner above the house. The
+   doubled :root outweighs the scheme blocks in the base sheet. */
+:root:root {
+  color-scheme: light;
+  --scene: far broadleaves near house foreground;
+  --season-weather: sunrays;
+
+  --fg: #29230f;
+  --fg-dim: #453d22;
+  --fg-muted: #594f31;
+  --fg-faint: #695e3e;
+  --fg-faint-accent: var(--fg-faint);
+
+  --bg: rgba(255, 253, 245, 0.8);
+  /* The header's --bg over the sky's first stop: a status bar takes no alpha. */
+  --theme-color: #fdfaf0;
+  /* A menu floats over the list it must not let through. */
+  --surface-raised: #fff;
+  --bg-well: rgba(255, 251, 240, 0.6);
+  --bg-inset: rgba(247, 241, 224, 0.82);
+  --bg-button: rgba(255, 253, 245, 0.85);
+  --bg-active: rgba(240, 230, 200, 0.95);
+
+  --border: rgba(70, 55, 15, 0.14);
+  --border-light: rgba(70, 55, 15, 0.1);
+  --border-faint: rgba(70, 55, 15, 0.05);
+  --border-strong: rgba(70, 55, 15, 0.28);
+
+  --link: #7d5000;
+  --link-read: #716247;
+  --link-unread: #5a3a00;
+
+  --on-accent: #fff;
+  --accent-strong: #946410;
+  --accent: #784c00;
+  --bg-accent: rgba(120, 76, 0, 0.08);
+  --border-accent: rgba(120, 76, 0, 0.3);
+  --flag: #8a6400;
+
+  --notice-fg: #0c4a6e;
+  --notice-bg: rgba(226, 241, 251, 0.92);
+  --notice-border: rgba(180, 216, 240, 0.9);
+  --alert-fg: #9f1c2a;
+  --alert-bg: rgba(252, 228, 231, 0.92);
+  --warn-fg: #664a00;
+  --warn-bg: rgba(255, 246, 214, 0.94);
+  --warn-border: #ffe69c;
+  --alert-border: rgba(240, 196, 202, 0.9);
+
+  --scene-sky: linear-gradient(180deg, #e8f1f6 0%, #f6f6ee 60%, #fffdf6 100%);
+  --scene-texture: none;
+  --scene-far: #e5e2c7;
+  --scene-broadleaves-trunk: #8a7860;
+  --scene-broadleaves-crown: #a8c489;
+  --scene-broadleaves-crown-deep: #8eb179;
+  --scene-near: #f3ebcf;
+  --scene-house: #887260;
+  --scene-house-window: #efd58a;
+  --scene-house-door: #594534;
+  --scene-foreground: #f3ebcf;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --fg: #f4efe2;
+    --fg-dim: #dbd3bf;
+    --fg-muted: #bdb397;
+    --fg-faint: #a1977c;
+    --fg-faint-accent: #aaa086;
+
+    --bg: rgba(30, 27, 18, 0.8);
+    --theme-color: #1b1810;
+    --surface-raised: #25211a;
+    --bg-well: rgba(18, 16, 10, 0.55);
+    --bg-inset: rgba(44, 40, 28, 0.8);
+    --bg-button: rgba(52, 47, 33, 0.8);
+    --bg-active: rgba(78, 70, 48, 0.9);
+
+    --border: rgba(250, 238, 200, 0.16);
+    --border-light: rgba(250, 238, 200, 0.11);
+    --border-faint: rgba(250, 238, 200, 0.06);
+    --border-strong: rgba(250, 238, 200, 0.32);
+
+    --link: #f2c46a;
+    --link-read: #cbbb94;
+    --link-unread: #ffe0a0;
+
+    --on-accent: #1b1810;
+    --accent-strong: #f5dca8;
+    --accent: #e9c47f;
+    --bg-accent: rgba(233, 196, 127, 0.12);
+    --border-accent: rgba(233, 196, 127, 0.35);
+    --flag: #f2c14e;
+
+    --notice-fg: #a9dcff;
+    --notice-bg: rgba(18, 52, 82, 0.85);
+    --notice-border: rgba(60, 110, 150, 0.8);
+    --alert-fg: #ffb3ba;
+    --alert-bg: rgba(78, 20, 28, 0.85);
+    --warn-fg: #ffe08a;
+    --warn-bg: rgba(70, 54, 10, 0.85);
+    --warn-border: #664d03;
+    --alert-border: rgba(130, 50, 60, 0.8);
+
+    --scene-sky: linear-gradient(180deg, #0d1018 0%, #1a1a1c 65%, #24221b 100%);
+    --scene-texture: none;
+    --scene-far: #22201a;
+    --scene-broadleaves-trunk: #17150f;
+    --scene-broadleaves-crown: #2c3a22;
+    --scene-broadleaves-crown-deep: #24321f;
+    --scene-near: #2e2a1e;
+    --scene-house: #1e1b15;
+    --scene-house-window: #ffd36b;
+    --scene-house-door: #100e0a;
+    --scene-foreground: #2e2a1e;
+  }
+}
+
+:root:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --fg: #f4efe2;
+  --fg-dim: #dbd3bf;
+  --fg-muted: #bdb397;
+  --fg-faint: #a1977c;
+  --fg-faint-accent: #aaa086;
+
+  --bg: rgba(30, 27, 18, 0.8);
+  --theme-color: #1b1810;
+  --surface-raised: #25211a;
+  --bg-well: rgba(18, 16, 10, 0.55);
+  --bg-inset: rgba(44, 40, 28, 0.8);
+  --bg-button: rgba(52, 47, 33, 0.8);
+  --bg-active: rgba(78, 70, 48, 0.9);
+
+  --border: rgba(250, 238, 200, 0.16);
+  --border-light: rgba(250, 238, 200, 0.11);
+  --border-faint: rgba(250, 238, 200, 0.06);
+  --border-strong: rgba(250, 238, 200, 0.32);
+
+  --link: #f2c46a;
+  --link-read: #cbbb94;
+  --link-unread: #ffe0a0;
+
+  --on-accent: #1b1810;
+  --accent-strong: #f5dca8;
+  --accent: #e9c47f;
+  --bg-accent: rgba(233, 196, 127, 0.12);
+  --border-accent: rgba(233, 196, 127, 0.35);
+  --flag: #f2c14e;
+
+  --notice-fg: #a9dcff;
+  --notice-bg: rgba(18, 52, 82, 0.85);
+  --notice-border: rgba(60, 110, 150, 0.8);
+  --alert-fg: #ffb3ba;
+  --alert-bg: rgba(78, 20, 28, 0.85);
+  --warn-fg: #ffe08a;
+  --warn-bg: rgba(70, 54, 10, 0.85);
+  --warn-border: #664d03;
+  --alert-border: rgba(130, 50, 60, 0.8);
+
+  --scene-sky: linear-gradient(180deg, #0d1018 0%, #1a1a1c 65%, #24221b 100%);
+  --scene-texture: none;
+  --scene-far: #22201a;
+  --scene-broadleaves-trunk: #17150f;
+  --scene-broadleaves-crown: #2c3a22;
+  --scene-broadleaves-crown-deep: #24321f;
+  --scene-near: #2e2a1e;
+  --scene-house: #1e1b15;
+  --scene-house-window: #ffd36b;
+  --scene-house-door: #100e0a;
+  --scene-foreground: #2e2a1e;
+}
+
+/* No backdrop-filter on the header: it would become the containing
+   block for the account panel, which docks as a fixed element on
+   small screens (as in glass). */
+header {
+  background-color: var(--bg);
+}
+
+aside,
+.actions,
+main.login > section {
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+}

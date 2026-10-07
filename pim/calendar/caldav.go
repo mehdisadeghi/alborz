@@ -65,14 +65,14 @@ func makeCalendar(ctx context.Context, client *http.Client, base *url.URL, path,
 	return c.CreateCalendar(ctx, &caldav.Calendar{Path: path, Name: name, Color: color, SupportedComponentSet: components})
 }
 
-func changeCalendar(ctx context.Context, client *http.Client, base *url.URL, path, name, color string) error {
+func changeCalendar(ctx context.Context, client *http.Client, base *url.URL, path string, name, color *string) error {
 	c, err := caldav.NewClient(client, base.String())
 	if err != nil {
 		return err
 	}
-	update := &caldav.CalendarUpdate{Name: &name}
-	if color != "" {
-		update.Color = &color
+	update := &caldav.CalendarUpdate{Name: name}
+	if color != nil && *color != "" {
+		update.Color = color
 	}
 	return c.UpdateCalendar(ctx, path, update)
 }

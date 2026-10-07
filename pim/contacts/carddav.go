@@ -84,16 +84,18 @@ func makeBook(ctx context.Context, client *http.Client, base *url.URL, path, nam
 	return c.CreateAddressBook(ctx, &carddav.AddressBook{Path: path, Name: name, DeadProperties: dead})
 }
 
-func changeBook(ctx context.Context, client *http.Client, base *url.URL, path, name, color string) error {
+func changeBook(ctx context.Context, client *http.Client, base *url.URL, path string, name, color *string) error {
 	c, err := carddav.NewClient(client, base.String())
 	if err != nil {
 		return err
 	}
-	dead, err := colorProperty(color)
-	if err != nil {
-		return err
+	var dead []webdav.DeadProperty
+	if color != nil {
+		if dead, err = colorProperty(*color); err != nil {
+			return err
+		}
 	}
-	return c.UpdateAddressBook(ctx, path, &carddav.AddressBookUpdate{Name: &name, DeadProperties: dead})
+	return c.UpdateAddressBook(ctx, path, &carddav.AddressBookUpdate{Name: name, DeadProperties: dead})
 }
 
 func newClient(u *url.URL, httpClient *http.Client) (*carddav.Client, error) {

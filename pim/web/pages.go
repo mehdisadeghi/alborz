@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -24,8 +25,10 @@ import (
 // CollectionRenderData renders collection.html, a calendar's, task list's or address book's own page.
 type CollectionRenderData struct {
 	web.BaseRenderData
-	Name    string
-	Color   string
+	Name  string
+	Color string
+	// Shown is the name and colour the form was drawn from, which a save compares the form against.
+	Shown   string
 	Path    string
 	Account string
 	Count   int // -1 when the server would not say
@@ -215,16 +218,33 @@ func (pg Page) Handle(p *dav.Provider) func(*web.Context) error {
 			if data.SharedBy != "" {
 				return web.NewError(http.StatusForbidden, "the collection is its owner's to change")
 			}
+			// What the form changed is what it sends that differs from what it showed; the rest stays as stored.
+			drawn := shownCollection{Name: data.Name, Color: data.Color}
+			if v := ctx.FormValue("shown"); v != "" {
+				if err := json.Unmarshal([]byte(v), &drawn); err != nil {
+					return web.NewError(http.StatusBadRequest, "the form's shown collection does not decode")
+				}
+				data.Shown = v
+			}
 			name := strings.TrimSpace(ctx.FormValue("name"))
 			data.Name, data.Color = name, ctx.FormValue("color")
 			if name == "" {
 				data.Refused(ctx.T("form.nameneeded"))
 				return ctx.Render(http.StatusUnprocessableEntity, "pim/collection", data)
 			}
+			var renamed, recoloured *string
+			if name != drawn.Name {
+				renamed = &name
+			}
+			if data.Color != drawn.Color {
+				recoloured = &data.Color
+			}
 			rc := ctx.Request().Context()
-			if err := p.Kind.Change(rc, p.HTTPClient(rc, ctx.Login), dav.Base(), collPath, name, ctx.FormValue("color")); err != nil {
-				data.Refused(err.Error())
-				return ctx.Render(http.StatusUnprocessableEntity, "pim/collection", data)
+			if renamed != nil || recoloured != nil {
+				if err := p.Kind.Change(rc, p.HTTPClient(rc, ctx.Login), dav.Base(), collPath, renamed, recoloured); err != nil {
+					data.Refused(err.Error())
+					return ctx.Render(http.StatusUnprocessableEntity, "pim/collection", data)
+				}
 			}
 			pg.Forget(ctx.Login.Username())
 			return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.AccountPath(list)))
@@ -232,6 +252,9 @@ func (pg Page) Handle(p *dav.Provider) func(*web.Context) error {
 		return ctx.Render(http.StatusOK, "pim/collection", data)
 	}
 }
+
+// shownCollection is what the collection form shows.
+type shownCollection struct{ Name, Color string }
 
 func (pg Page) data(ctx *web.Context, p *dav.Provider, collPath string) (*CollectionRenderData, error) {
 	info, count, list, label, err := pg.Lookup(ctx, collPath)
@@ -246,11 +269,16 @@ func (pg Page) data(ctx *web.Context, p *dav.Provider, collPath string) (*Collec
 	if err != nil {
 		return nil, err
 	}
+	shown, err := json.Marshal(shownCollection{Name: info.Name, Color: info.Color})
+	if err != nil {
+		return nil, err
+	}
 	return &CollectionRenderData{
 		Rail:           rail,
 		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(info.Name),
 		Name:           info.Name,
 		Color:          info.Color,
+		Shown:          string(shown),
 		Path:           info.Path,
 		Account:        ctx.Login.Username(),
 		Count:          count(),

@@ -254,12 +254,7 @@ func handleMerged(ctx *web.Context) error {
 			return web.NewError(http.StatusBadRequest, fmt.Sprintf("%q is not a merged folder", role))
 		}
 	}
-	settings, err := mail.LoadSettings(ctx.Request().Context(), ctx.Login.Store())
-	if err != nil {
-		return err
-	}
-	settings.ChooseMerged(form["shown"], form["merged"])
-	if err := mail.SaveSettings(ctx.Request().Context(), ctx.Login.Store(), settings); err != nil {
+	if err := mail.ChooseMerged(ctx.Request().Context(), ctx.Login, form["shown"], form["merged"]); err != nil {
 		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: ctx.SaveRefusal(err)})
 	} else {
 		// The rail and the list come back holding what was chosen.

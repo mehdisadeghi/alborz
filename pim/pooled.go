@@ -96,3 +96,13 @@ type Ref[C any] struct {
 	Account string
 	Path    string
 }
+
+// Choose ticks, in the list of the visible, those of the collections the form showed; all were visible
+// before the first choice.
+func Choose(filter *bool, visible *[]string, all, shown, ticked []string) {
+	if !*filter {
+		*filter, *visible = true, all
+	}
+	unticked := slices.DeleteFunc(slices.Clone(shown), func(path string) bool { return slices.Contains(ticked, path) })
+	*visible = alborz.Untick(*visible, shown, unticked)
+}

@@ -18,25 +18,21 @@ type Settings struct {
 const settingsKey = "carddav.settings"
 
 // A book made after the choice was not chosen to be hidden.
-func Show(ctx context.Context, store alborz.Store, path string) error {
-	settings := &Settings{}
-	if err := store.Get(ctx, settingsKey, settings); err != nil && err != alborz.ErrNoStoreEntry {
-		return err
-	}
-	if !settings.AddressBookFilter {
-		return nil
-	}
-	settings.VisibleAddressBooks = append(settings.VisibleAddressBooks, path)
-	return store.Put(ctx, settingsKey, settings)
+func Show(ctx context.Context, l *alborz.Login, path string) error {
+	s := &Settings{}
+	return l.Update(ctx, settingsKey, s, func() {
+		if s.AddressBookFilter {
+			s.VisibleAddressBooks = append(s.VisibleAddressBooks, path)
+		}
+	})
 }
 
-func Choose(ctx context.Context, store alborz.Store, paths []string) error {
-	settings := &Settings{}
-	if err := store.Get(ctx, settingsKey, settings); err != nil && err != alborz.ErrNoStoreEntry {
-		return err
-	}
-	settings.AddressBookFilter, settings.VisibleAddressBooks = true, paths
-	return store.Put(ctx, settingsKey, settings)
+// Choose takes the ticked books of those the form showed; one the form did not show keeps its choice.
+func Choose(ctx context.Context, l *alborz.Login, all, shown, ticked []string) error {
+	s := &Settings{}
+	return l.Update(ctx, settingsKey, s, func() {
+		pim.Choose(&s.AddressBookFilter, &s.VisibleAddressBooks, all, shown, ticked)
+	})
 }
 
 func Visible(ctx context.Context, accounts []pim.Account[*carddav.Client], scope string, only map[string]bool) ([]dav.Collection, []pim.Site[*carddav.Client], error) {

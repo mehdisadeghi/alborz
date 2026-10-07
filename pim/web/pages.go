@@ -151,7 +151,7 @@ func (pg Page) HandleCreate(p *dav.Provider, form func(*web.Context) (CreateForm
 			}
 			return ctx.Render(http.StatusUnprocessableEntity, "pim/collection-create", data)
 		}
-		if err := pg.Show(ctx.Request().Context(), login.Store(), path); err != nil {
+		if err := pg.Show(ctx.Request().Context(), login, path); err != nil {
 			ctx.Notify(Refused(ctx, err))
 			return ctx.Redirect(http.StatusFound, ctx.URL(pg.List))
 		}
@@ -173,7 +173,7 @@ type Page struct {
 	Lookup func(ctx *web.Context, path string) (info dav.Collection, count func() int, list, label string, err error)
 	Forget func(username string)
 	// Show ticks a just-accepted collection among those the account sees.
-	Show func(ctx context.Context, store alborz.Store, path string) error
+	Show func(ctx context.Context, l *alborz.Login, path string) error
 	// Import writes an uploaded file's objects and counts them; Export renders the collection, or Range, as one file.
 	Import func(ctx *web.Context, path string, raw []byte) (int, error)
 	// Create makes a collection of the kind for an import that asked for a new one.

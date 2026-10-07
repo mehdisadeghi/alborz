@@ -124,15 +124,23 @@ func Only(ctx *web.Context, field string) map[string]bool {
 	return only
 }
 
-// HandleChoose keeps which collections of list, a route, the reader ticked and lands on the list, no longer narrowed.
-func HandleChoose(list, field string, keep func(ctx context.Context, store alborz.Store, paths []string) error) func(*web.Context) error {
+// HandleChoose keeps which of the collections the form showed the reader ticked, and lands on list, a route, no longer narrowed.
+func HandleChoose(p *dav.Provider, list, field string, keep func(ctx context.Context, l *alborz.Login, all, shown, ticked []string) error) func(*web.Context) error {
 	return func(ctx *web.Context) error {
 		params, err := ctx.FormParams()
 		if err != nil {
 			return err
 		}
 		to := Widened(ctx.NextOr(ctx.Path(list)), field)
-		if err := keep(ctx.Request().Context(), ctx.Login.Store(), params[field]); err != nil {
+		colls, err := p.Collections(ctx.Request().Context(), ctx.Login)
+		if err == nil {
+			all := make([]string, len(colls))
+			for i, c := range colls {
+				all[i] = c.Path
+			}
+			err = keep(ctx.Request().Context(), ctx.Login, all, params["shown"], params[field])
+		}
+		if err != nil {
 			ctx.Notify(Refused(ctx, err))
 		} else {
 			// The list comes back holding what was chosen.

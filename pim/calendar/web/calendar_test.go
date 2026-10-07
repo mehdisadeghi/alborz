@@ -205,7 +205,7 @@ func TestARailTickSwapsTheListAndItsRows(t *testing.T) {
 	if only == nil || tick == nil {
 		t.Fatal("the rail has no link narrowing the list to Chores, or no tick")
 	}
-	form := regexp.MustCompile(`<form id="rail-[^"]*" method="post" action="([^"]+)" class="aside-filter" hx-post="[^"]+" hx-target="#main" hx-swap="innerHTML show:none" hx-replace-url="true" hx-disinherit="hx-replace-url"( hx-swap-oob="innerHTML")?>`)
+	form := regexp.MustCompile(`<form id="rail-[^"]*" method="post" action="([^"]+)" class="aside-filter" hx-post="[^"]+" hx-target="#main" hx-swap="innerHTML show:none" hx-replace-url="true" hx-sync="this:replace" hx-disinherit="hx-replace-url hx-sync"( hx-swap-oob="innerHTML")?>`)
 	for _, tc := range []struct{ name, page string }{
 		{"whole list", list},
 		{"narrowed", html.UnescapeString(only[1])},
@@ -719,5 +719,65 @@ func TestADayNumberIsItsOwnElement(t *testing.T) {
 	label := `<span class="day-num">۱</span><span class="label-long"> ` + TIn(t, "fa", "calendar.shmonth.8") + `</span>`
 	if page := c.Page(t, "calendar.month", url.Values{"month": {"1405-08"}, "lang": {"fa"}}); !strings.Contains(html.UnescapeString(page), label) {
 		t.Errorf("fa: the first of Aban is not drawn as %s", label)
+	}
+}
+
+// Two quick ticks on different calendars both stay hidden, whichever is written first, and the rest stay shown.
+func TestTwoQuickRailTicksBothHold(t *testing.T) {
+	a := Alborz(t, WithIMAP(IMAP(t, Metadata())))
+	c := a.SignIn(t, User)
+	hidden := []string{Here + c.CreateCalendar(t, "Chores", ""), Here + c.CreateCalendar(t, "Trips", "")}
+	shown := Here + c.CreateCalendar(t, "Plans", "")
+	errs := make(chan error, 2)
+	for _, path := range hidden {
+		go func() {
+			form := url.Values{"shown": {path}, "next": {a.Path("calendar.month")}}
+			resp, err := c.HTTP.PostForm(a.URL+a.Path("calendar.month", url.Values{"account": {User}}), form)
+			if err == nil {
+				resp.Body.Close()
+				if resp.StatusCode != http.StatusFound {
+					err = fmt.Errorf("hiding %s answered %s", path, resp.Status)
+				}
+			}
+			errs <- err
+		}()
+	}
+	for range 2 {
+		if err := <-errs; err != nil {
+			t.Fatal(err)
+		}
+	}
+	rail := func() map[string]bool {
+		ticks := map[string]bool{}
+		for _, m := range regexp.MustCompile(`name="cal" value="([^"]+)" (checked)?`).FindAllStringSubmatch(c.Page(t, "calendar.month"), -1) {
+			ticks[html.UnescapeString(m[1])] = m[2] != ""
+		}
+		return ticks
+	}
+	ticks := rail()
+	if len(ticks) < 3 {
+		t.Fatalf("the rail shows %d calendar ticks, want three at least", len(ticks))
+	}
+	for path, on := range ticks {
+		if want := !slices.Contains(hidden, path); on != want {
+			t.Errorf("%s is ticked %t, want %t", path, on, want)
+		}
+	}
+	if !ticks[shown] {
+		t.Errorf("%s is not on the rail ticked", shown)
+	}
+
+	// A calendar made again where a hidden one was is new to the reader, so it shows.
+	if resp := c.Post(t, "calendar.collection.delete", nil, hidden[0]); resp.StatusCode != http.StatusFound {
+		t.Fatalf("deleting %s answered %s", hidden[0], resp.Status)
+	}
+	if again := Here + c.CreateCalendar(t, "Chores", ""); again != hidden[0] {
+		t.Fatalf("Chores was made again at %s, not %s", again, hidden[0])
+	}
+	if ticks = rail(); len(ticks) == 0 {
+		t.Fatal("the rail shows no calendar ticks after Chores was made again")
+	}
+	if !ticks[hidden[0]] {
+		t.Errorf("%s, made again, is not on the rail ticked", hidden[0])
 	}
 }

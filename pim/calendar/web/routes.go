@@ -46,7 +46,7 @@ func (p *plugin) journalRail(ctx *web.Context) (pimweb.Rail, error) {
 	return rail, err
 }
 
-func (p *plugin) calendarRail(ctx *web.Context, kind func([]string) bool, chosen func(*calendar.Settings) (bool, []string)) (pimweb.Rail, error) {
+func (p *plugin) calendarRail(ctx *web.Context, kind func([]string) bool, chosen func(*calendar.Settings) (*bool, *[]string)) (pimweb.Rail, error) {
 	rail := pimweb.Rail{Field: "cal", ItemClass: "calendar-item", Edit: "calendar.collection"}
 	accounts, err := p.pooledCalendars(ctx)
 	if err != nil {
@@ -79,17 +79,11 @@ func registerRoutes(p *plugin, g *web.Group) {
 	upload := func(name, path string, h, over func(*web.Context) error) {
 		g.Upload(name, path, pimweb.ImportBodySize, guard(h), guard(over))
 	}
-	POST("month", "/calendar", pimweb.HandleChoose("calendar.month", "cal", calendar.Choose(func(s *calendar.Settings, paths []string) {
-		s.CalendarFilter, s.VisibleCalendars = true, paths
-	})))
-	POST("tasks", "/tasks", pimweb.HandleChoose("calendar.tasks", "cal", calendar.Choose(func(s *calendar.Settings, paths []string) {
-		s.TaskFilter, s.VisibleTasks = true, paths
-	})))
+	POST("month", "/calendar", pimweb.HandleChoose(p.DAV, "calendar.month", "cal", calendar.Choose(calendar.EventVisibility)))
+	POST("tasks", "/tasks", pimweb.HandleChoose(p.DAV, "calendar.tasks", "cal", calendar.Choose(calendar.TaskVisibility)))
 	POST("refresh", "/calendar/refresh", p.refresh)
 	POST("tasks.refresh", "/tasks/refresh", pimweb.HandleRefresh(p.DAV, "calendar.tasks"))
-	POST("journal", "/journal", pimweb.HandleChoose("calendar.journal", "cal", calendar.Choose(func(s *calendar.Settings, paths []string) {
-		s.JournalFilter, s.VisibleJournals = true, paths
-	})))
+	POST("journal", "/journal", pimweb.HandleChoose(p.DAV, "calendar.journal", "cal", calendar.Choose(calendar.JournalVisibility)))
 	POST("journal.refresh", "/journal/refresh", pimweb.HandleRefresh(p.DAV, "calendar.journal"))
 	GET("month", "/calendar", p.month)
 	download("month.export", "/calendar/export", p.exportMonth)
@@ -233,7 +227,7 @@ func calendarFilters(ctx *web.Context) []web.Filter {
 	return out
 }
 
-func (p *plugin) exportVisible(ctx *web.Context, kind func([]string) bool, chosen func(*calendar.Settings) (bool, []string), comps []string, from, to time.Time, name string) error {
+func (p *plugin) exportVisible(ctx *web.Context, kind func([]string) bool, chosen func(*calendar.Settings) (*bool, *[]string), comps []string, from, to time.Time, name string) error {
 	accounts, err := p.pooledCalendars(ctx)
 	if err != nil {
 		return err

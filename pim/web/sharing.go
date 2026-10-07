@@ -311,7 +311,7 @@ func (pg Page) HandleAnswer(p *dav.Provider, accept bool) func(*web.Context) err
 			ctx.PutNotice(fmt.Sprintf(ctx.T("notice.sharedeclined"), c.Name))
 			return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.URL(pg.List)))
 		}
-		if err := pg.Show(ctx.Request().Context(), ctx.Login.Store(), dav.CanonicalCollectionPath(collPath)); err != nil {
+		if err := pg.Show(ctx.Request().Context(), ctx.Login, dav.CanonicalCollectionPath(collPath)); err != nil {
 			ctx.Notify(Refused(ctx, err))
 			return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.URL(pg.List)))
 		}

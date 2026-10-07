@@ -469,19 +469,21 @@ func SeriesQuery() caldav.CalendarQuery {
 }
 
 func ChangeComponent(ctx context.Context, ref pim.Ref[*caldav.Client], comp func(*ical.Calendar) *ical.Component, change func(*ical.Component)) (*caldav.CalendarObject, error) {
-	co, err := GetObject(ctx, ref.Client, ref.Path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get object: %w", err)
-	}
-	target := comp(co.Data)
-	if target == nil {
-		return nil, errors.New("the object holds no such component")
-	}
-	change(target)
-	target.Props.SetDateTime(ical.PropDateTimeStamp, time.Now().UTC())
-	target.Props.SetDateTime(ical.PropLastModified, time.Now().UTC())
-	_, err = ref.Client.PutCalendarObject(ctx, co.Path, co.Data, nil)
-	return co, err
+	return pim.Reapplied(func() (*caldav.CalendarObject, error) {
+		co, err := GetObject(ctx, ref.Client, ref.Path)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get object: %w", err)
+		}
+		target := comp(co.Data)
+		if target == nil {
+			return nil, errors.New("the object holds no such component")
+		}
+		change(target)
+		target.Props.SetDateTime(ical.PropDateTimeStamp, time.Now().UTC())
+		target.Props.SetDateTime(ical.PropLastModified, time.Now().UTC())
+		_, err = ref.Client.PutCalendarObject(ctx, co.Path, co.Data, &caldav.PutCalendarObjectOptions{IfMatch: dav.IfUnchanged(co.ETag)})
+		return co, err
+	})
 }
 
 func NewCalendar(comp *ical.Component) *ical.Calendar {

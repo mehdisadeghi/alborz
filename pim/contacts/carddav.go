@@ -237,12 +237,16 @@ func Unparsed(book string, ao *carddav.AddressObject) pim.Unread {
 }
 
 func ChangeCard(ctx context.Context, ref pim.Ref[*carddav.Client], change func(vcard.Card)) error {
-	ao, err := GetObject(ctx, ref.Client, ref.Path)
-	if err != nil {
-		return fmt.Errorf("failed to read the contact: %w", err)
-	}
-	change(ao.Card)
-	return WriteCard(ctx, ref.Client, ao.Path, ao.Card)
+	_, err := pim.Reapplied(func() (*carddav.AddressObject, error) {
+		ao, err := GetObject(ctx, ref.Client, ref.Path)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read the contact: %w", err)
+		}
+		change(ao.Card)
+		ao.Card.SetRevision(time.Now())
+		return ref.Client.PutAddressObject(ctx, ao.Path, ao.Card, &carddav.PutAddressObjectOptions{IfMatch: dav.IfUnchanged(ao.ETag)})
+	})
+	return err
 }
 
 func Join(cards [][]byte) ([]byte, error) {

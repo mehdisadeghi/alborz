@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/url"
+	"reflect"
 	"slices"
 	"strings"
 	"time"
@@ -287,4 +288,30 @@ func SettingsRail(ctx *Context) map[string][]RailRow {
 		}
 	}
 	return rows
+}
+
+// KeepChanges sets on stored each field mine changed from base, and a list by the names added and taken
+// away, so a field the save did not change stays as another save left it.
+func KeepChanges(stored, base, mine reflect.Value) {
+	for i := range base.NumField() {
+		s, b, m := stored.Field(i), base.Field(i), mine.Field(i)
+		switch {
+		case b.Kind() == reflect.Struct:
+			KeepChanges(s, b, m)
+		case reflect.DeepEqual(b.Interface(), m.Interface()):
+		case b.Kind() == reflect.Slice:
+			was, now := b.Interface().([]string), m.Interface().([]string)
+			kept := slices.DeleteFunc(slices.Clone(s.Interface().([]string)), func(name string) bool {
+				return slices.Contains(was, name) && !slices.Contains(now, name)
+			})
+			for _, name := range now {
+				if !slices.Contains(was, name) && !slices.Contains(kept, name) {
+					kept = append(kept, name)
+				}
+			}
+			s.Set(reflect.ValueOf(kept))
+		default:
+			s.Set(m)
+		}
+	}
 }

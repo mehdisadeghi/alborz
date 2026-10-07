@@ -1135,6 +1135,15 @@ main.login > section {
   box-shadow: var(--shadow-raised);
 }
 
+main.login .login-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-6);
+  text-align: center;
+}
+
 main.login button {
   width: 100%;
   padding-block: 0.6rem;

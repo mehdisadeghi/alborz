@@ -11,6 +11,7 @@ import (
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/web"
+	"github.com/emersion/go-webdav"
 )
 
 // Selection is the object the route's path names, or the rows a list had checked.
@@ -90,6 +91,29 @@ func Delete[C files](ctx *web.Context, ref pim.Ref[C]) error {
 // Refused carries a server's refusal back to the page a button returns to.
 func Refused(ctx *web.Context, err error) web.Notice {
 	return web.Notice{Kind: web.NoticeFailed, Text: Refusal(ctx, err)}
+}
+
+// Unsaved is Refused for an editor's save; one refused for a form drawn before the object changed
+// elsewhere (RFC 7232 4.2) links the form afresh, since reloading the answer would post it again.
+func Unsaved(ctx *web.Context, err error) web.Notice {
+	if code, _ := webdav.HTTPErrorCode(err); code == http.StatusPreconditionFailed {
+		return web.Notice{Kind: web.NoticeFailed, Text: ctx.T("form.changedelsewhere"),
+			Actions: []*web.NoticeAction{{Label: ctx.T("common.reload"), Path: ctx.Request().URL.RequestURI()}}}
+	}
+	return Refused(ctx, err)
+}
+
+// Drawn is the ETag the edit form was drawn with, sent as If-Match so a save over another's is refused
+// (RFC 7232 3.1, RFC 4791 5.3.4, RFC 6352 6.3.2.3); a form that names none edits held, the version read now.
+func Drawn(ctx *web.Context, held string) (string, error) {
+	params, err := ctx.FormParams()
+	if err != nil {
+		return "", err
+	}
+	if v, ok := params["etag"]; ok {
+		return v[0], nil
+	}
+	return held, nil
 }
 
 // Refusal is a refused write in the reader's words; one alborz makes itself says why, any other quotes the server.

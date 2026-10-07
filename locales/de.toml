@@ -1112,6 +1112,7 @@
 "notifications.what" = "Eine Benachrichtigung lautet „Neue E-Mail“ oder „Termin um“ mit einer Uhrzeit, dazu die Adresse des Kontos. Absender, Betreff und Titel des Termins enthält sie nicht."
 "notifications.privacy" = "Jede Benachrichtigung ist für den Browser verschlüsselt. Der Push-Dienst des Browsers (Google, Mozilla, Apple oder Microsoft) stellt sie zu und sieht, wann sie gesendet wird und wie groß sie ist, nicht ihren Inhalt."
 "notifications.unsupported" = "Dieser Browser kann keine Benachrichtigungen empfangen."
+"notifications.homescreen" = "Füge %s zum Home-Bildschirm hinzu, um Benachrichtigungen zu empfangen."
 "notifications.denied" = "Der Browser hat Benachrichtigungen abgelehnt. Erlauben Sie sie in seinen Einstellungen für diese Seite."
 "notifications.needsscript" = "Benachrichtigungen brauchen JavaScript."
 "notifications.refused" = "Das Abonnement des Browsers wurde nicht angenommen."

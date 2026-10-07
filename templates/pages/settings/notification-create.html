@@ -7,7 +7,8 @@
 {{ define "main" }}
   {{ $aq := .GlobalData.AccountQuery }}
       <form method="post" action="{{url "settings.notifications.create"}}{{$aq}}" id="push-form" hx-boost="false"
-            data-key="{{.Key}}" data-unsupported="{{$.T "notifications.unsupported"}}" data-denied="{{$.T "notifications.denied"}}" data-failed="{{$.T "notifications.failed"}}">
+            data-key="{{.Key}}" data-unsupported="{{$.T "notifications.unsupported"}}" data-homescreen="{{$.GlobalData.Tf "notifications.homescreen" $.GlobalData.Brand}}"
+            data-denied="{{$.T "notifications.denied"}}" data-failed="{{$.T "notifications.failed"}}">
         {{ template "settings-crumb" (dict "g" $ "collection" ($.T "notifications.title") "path" (print (url "settings.notifications") $aq)) }}
         <h1>{{$.T "notifications.new"}}</h1>
         <input type="hidden" name="endpoint">

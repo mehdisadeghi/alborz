@@ -289,68 +289,74 @@ func fetchFeed(ctx context.Context, client *http.Client, was store.Feed) (store.
 		Fetched: now, Every: refreshEvery(cal)}, cal, nil
 }
 
+// errListed ends a reconcile that leaves the list of subscriptions as it found it, writing nothing.
+var errListed = errors.New("calendar: the list of subscriptions is unchanged")
+
 // reconcile makes the account's fed calendars here agree with its list of subscriptions, which travels
 // between alborz instances while the calendars do not: a calendar deleted here leaves the list, an entry
 // gone from the list takes its calendar, an entry this alborz lacks is made, and the newer name and
-// colour wins. It returns the calendars made, empty.
-func reconcile(ctx context.Context, st *store.Store, account string, settings alborz.Store) ([]store.Collection, error) {
-	subs, err := LoadSubscriptions(ctx, settings)
-	if err != nil {
-		return nil, err
-	}
-	dropped, err := st.Dropped(account)
-	if err != nil {
-		return nil, err
-	}
-	fed, err := st.Feeds()
-	if err != nil {
-		return nil, err
-	}
-	listed := len(subs)
-	for _, d := range dropped {
-		// An entry written after the delete is the reader subscribing again.
-		subs = slices.DeleteFunc(subs, func(s Subscription) bool { return s.URL == d.URL && !s.Changed.After(d.At) })
-	}
-	relisted := len(subs) != listed
-	held := map[string]store.Collection{}
-	for _, c := range fed {
-		if c.Owner == strings.ToLower(account) {
-			held[c.Feed.URL] = c
-		}
-	}
+// colour wins. It returns the calendars made, empty. update is the account's Login.Update.
+func reconcile(ctx context.Context, st *store.Store, account string, update func(context.Context, string, any, func() error) error) ([]store.Collection, error) {
+	var subs []Subscription
 	var made []store.Collection
-	for i, sub := range subs {
-		c, ok := held[sub.URL]
-		delete(held, sub.URL)
-		switch {
-		case !ok:
-			ref := st.FeedRef(account, sub.URL)
-			c, err := st.Create(store.Collection{ID: ref.ID, Owner: ref.Owner, Kind: store.Calendar,
-				Components: []string{ical.CompEvent}, Name: sub.Name, Color: sub.Color,
-				Feed: &store.Feed{URL: sub.URL, Named: sub.Changed}})
-			if errors.Is(err, store.ErrExists) {
-				continue
-			}
-			if err != nil {
-				return made, err
-			}
-			made = append(made, *c)
-		case c.Feed.Named.After(sub.Changed):
-			subs[i].Name, subs[i].Color, subs[i].Changed = c.Name, c.Color, c.Feed.Named
-			relisted = true
-		case sub.Changed.After(c.Feed.Named):
-			err := st.Update(c.Ref(), func(c *store.Collection) {
-				c.Name, c.Color, c.Feed.Named = sub.Name, sub.Color, sub.Changed
-			})
-			if err != nil {
-				return made, err
+	var dropped []store.Dropped
+	held := map[string]store.Collection{}
+	err := update(ctx, subscriptionsKey, &subs, func() error {
+		var err error
+		dropped, err = st.Dropped(account)
+		if err != nil {
+			return err
+		}
+		fed, err := st.Feeds()
+		if err != nil {
+			return err
+		}
+		listed := len(subs)
+		for _, d := range dropped {
+			// An entry written after the delete is the reader subscribing again.
+			subs = slices.DeleteFunc(subs, func(s Subscription) bool { return s.URL == d.URL && !s.Changed.After(d.At) })
+		}
+		relisted := len(subs) != listed
+		for _, c := range fed {
+			if c.Owner == strings.ToLower(account) {
+				held[c.Feed.URL] = c
 			}
 		}
-	}
-	if relisted {
-		if err := settings.Put(ctx, subscriptionsKey, subs); err != nil {
-			return made, err
+		for i, sub := range subs {
+			c, ok := held[sub.URL]
+			delete(held, sub.URL)
+			switch {
+			case !ok:
+				ref := st.FeedRef(account, sub.URL)
+				c, err := st.Create(store.Collection{ID: ref.ID, Owner: ref.Owner, Kind: store.Calendar,
+					Components: []string{ical.CompEvent}, Name: sub.Name, Color: sub.Color,
+					Feed: &store.Feed{URL: sub.URL, Named: sub.Changed}})
+				if errors.Is(err, store.ErrExists) {
+					continue
+				}
+				if err != nil {
+					return err
+				}
+				made = append(made, *c)
+			case c.Feed.Named.After(sub.Changed):
+				subs[i].Name, subs[i].Color, subs[i].Changed = c.Name, c.Color, c.Feed.Named
+				relisted = true
+			case sub.Changed.After(c.Feed.Named):
+				err := st.Update(c.Ref(), func(c *store.Collection) {
+					c.Name, c.Color, c.Feed.Named = sub.Name, sub.Color, sub.Changed
+				})
+				if err != nil {
+					return err
+				}
+			}
 		}
+		if !relisted {
+			return errListed
+		}
+		return nil
+	})
+	if err != nil && !errors.Is(err, errListed) {
+		return made, err
 	}
 	// What held still has, the list no longer names: unsubscribed on another alborz.
 	for _, c := range held {
@@ -369,7 +375,7 @@ func reconcile(ctx context.Context, st *store.Store, account string, settings al
 
 // follows reconciles the login's calendars with its subscriptions, has fill fill each calendar made, and shows it.
 func (p *Calendars) follows(ctx context.Context, login *alborz.Login, fill func(store.Collection) error) error {
-	made, err := reconcile(ctx, p.feeds.store, login.Username(), login.Store())
+	made, err := reconcile(ctx, p.feeds.store, login.Username(), login.Update)
 	if err != nil {
 		return err
 	}
@@ -412,9 +418,20 @@ func (p *Calendars) RefreshFeeds(ctx context.Context, logins []*alborz.Login) er
 	return nil
 }
 
-// SaveSubscriptions keeps the list of the account's subscriptions in its settings.
-func SaveSubscriptions(ctx context.Context, settings alborz.Store, subs []Subscription) error {
-	return settings.Put(ctx, subscriptionsKey, subs)
+// Subscribe adds sub to the account's list of subscriptions; added is false where the list holds its URL.
+func Subscribe(ctx context.Context, l *alborz.Login, sub Subscription) (added bool, err error) {
+	var subs []Subscription
+	err = l.Update(ctx, subscriptionsKey, &subs, func() error {
+		if slices.ContainsFunc(subs, func(s Subscription) bool { return s.URL == sub.URL }) {
+			return errListed
+		}
+		subs, added = append(subs, sub), true
+		return nil
+	})
+	if errors.Is(err, errListed) {
+		err = nil
+	}
+	return added, err
 }
 
 // Fetch reads the feed at url as a subscription does.

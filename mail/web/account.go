@@ -1,6 +1,7 @@
 package web
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -105,10 +106,6 @@ func handleSignatureForm(ctx *web.Context) error {
 }
 
 func handleSignatureSave(ctx *web.Context) error {
-	settings, err := mail.LoadSettings(ctx.Request().Context(), ctx.Login.Store())
-	if err != nil {
-		return fmt.Errorf("failed to load settings: %w", err)
-	}
 	name := strings.TrimSpace(ctx.FormValue("name"))
 	text := strings.TrimRight(ctx.FormValue("text"), "\r\n")
 	was := ctx.FormValue("was")
@@ -126,32 +123,42 @@ func handleSignatureSave(ctx *web.Context) error {
 		return render(ctx.T("form.signaturename"))
 	case text == "":
 		return render(ctx.T("form.signaturetext"))
-	case len(settings.Signatures) >= mail.MaxSignatures && was == "":
-		return render(fmt.Sprintf(ctx.T("form.signaturecount"), mail.MaxSignatures))
 	}
 
-	// A rename keeps the entry's place in the list and its default status.
-	replaced := false
-	for i := range settings.Signatures {
-		if settings.Signatures[i].Name != was || was == "" {
-			continue
+	refusal, replaced := "", false
+	err := mail.UpdateSettings(ctx.Request().Context(), ctx.Login, func(settings *mail.Settings) error {
+		if len(settings.Signatures) >= mail.MaxSignatures && was == "" {
+			refusal = fmt.Sprintf(ctx.T("form.signaturecount"), mail.MaxSignatures)
+			return errors.New(refusal)
 		}
-		if settings.DefaultSignature == was {
-			settings.DefaultSignature = name
+		// A rename keeps the entry's place in the list and its default status.
+		for i := range settings.Signatures {
+			if settings.Signatures[i].Name != was || was == "" {
+				continue
+			}
+			if settings.DefaultSignature == was {
+				settings.DefaultSignature = name
+			}
+			settings.Signatures[i] = editing
+			replaced = true
 		}
-		settings.Signatures[i] = editing
-		replaced = true
-	}
-	if !replaced {
-		if _, taken := settings.SignatureNamed(name); taken {
-			return render(ctx.T("form.signaturetaken"))
+		if !replaced {
+			if _, taken := settings.SignatureNamed(name); taken {
+				refusal = ctx.T("form.signaturetaken")
+				return errors.New(refusal)
+			}
+			settings.Signatures = append(settings.Signatures, editing)
 		}
-		settings.Signatures = append(settings.Signatures, editing)
+		if key, limit := settings.Check(); key != "" {
+			refusal = fmt.Sprintf(ctx.T(key), limit)
+			return errors.New(refusal)
+		}
+		return nil
+	})
+	if refusal != "" {
+		return render(refusal)
 	}
-	if key, limit := settings.Check(); key != "" {
-		return render(fmt.Sprintf(ctx.T(key), limit))
-	}
-	if err := mail.SaveSettings(ctx.Request().Context(), ctx.Login.Store(), settings); err != nil {
+	if err != nil {
 		return render(ctx.SaveRefusal(err))
 	}
 	if !replaced {
@@ -163,39 +170,37 @@ func handleSignatureSave(ctx *web.Context) error {
 }
 
 func handleSignatureDelete(ctx *web.Context) error {
-	settings, err := mail.LoadSettings(ctx.Request().Context(), ctx.Login.Store())
-	if err != nil {
-		return err
-	}
 	name := ctx.FormValue("name")
-	kept := settings.Signatures[:0]
-	for _, sig := range settings.Signatures {
-		if sig.Name != name {
-			kept = append(kept, sig)
+	err := mail.UpdateSettings(ctx.Request().Context(), ctx.Login, func(settings *mail.Settings) error {
+		kept := settings.Signatures[:0]
+		for _, sig := range settings.Signatures {
+			if sig.Name != name {
+				kept = append(kept, sig)
+			}
 		}
-	}
-	settings.Signatures = kept
-	if settings.DefaultSignature == name {
-		settings.DefaultSignature = ""
-	}
-	if err := mail.SaveSettings(ctx.Request().Context(), ctx.Login.Store(), settings); err != nil {
+		settings.Signatures = kept
+		if settings.DefaultSignature == name {
+			settings.DefaultSignature = ""
+		}
+		return nil
+	})
+	if err != nil {
 		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: ctx.SaveRefusal(err)})
 	}
 	return ctx.Redirect(http.StatusFound, ctx.URL("mail.signatures"))
 }
 
 func handleSignatureDefault(ctx *web.Context) error {
-	settings, err := mail.LoadSettings(ctx.Request().Context(), ctx.Login.Store())
+	err := mail.UpdateSettings(ctx.Request().Context(), ctx.Login, func(settings *mail.Settings) error {
+		// An empty name clears the default.
+		chosen := ctx.FormValue("name")
+		if _, ok := settings.SignatureNamed(chosen); !ok {
+			chosen = ""
+		}
+		settings.DefaultSignature = chosen
+		return nil
+	})
 	if err != nil {
-		return err
-	}
-	// An empty name clears the default.
-	chosen := ctx.FormValue("name")
-	if _, ok := settings.SignatureNamed(chosen); !ok {
-		chosen = ""
-	}
-	settings.DefaultSignature = chosen
-	if err := mail.SaveSettings(ctx.Request().Context(), ctx.Login.Store(), settings); err != nil {
 		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: ctx.SaveRefusal(err)})
 	}
 	return ctx.Redirect(http.StatusFound, ctx.URL("mail.signatures"))
@@ -231,21 +236,28 @@ func (p *plugin) handleSettings(ctx *web.Context) error {
 	}
 
 	if ctx.Request().Method == http.MethodPost {
-		settings.From = ctx.FormValue("from")
-		settings.TrustedAuthServ = strings.TrimSpace(ctx.FormValue("trusted_authserv"))
-		settings.IndexedSearch = ctx.FormValue("indexed_search") != ""
-		settings.Identities = mail.ParseIdentities(ctx.FormValue("identities"))
-
 		params, err := ctx.FormParams()
 		if err != nil {
 			return err
 		}
-		settings.Subscriptions = params["subscriptions"]
-
-		if key, limit := settings.Check(); key != "" {
-			return reject(fmt.Sprintf(ctx.T(key), limit))
+		refusal := ""
+		err = mail.UpdateSettings(ctx.Request().Context(), ctx.Login, func(s *mail.Settings) error {
+			settings = s
+			settings.From = ctx.FormValue("from")
+			settings.TrustedAuthServ = strings.TrimSpace(ctx.FormValue("trusted_authserv"))
+			settings.IndexedSearch = ctx.FormValue("indexed_search") != ""
+			settings.Identities = mail.ParseIdentities(ctx.FormValue("identities"))
+			settings.Subscriptions = params["subscriptions"]
+			if key, limit := settings.Check(); key != "" {
+				refusal = fmt.Sprintf(ctx.T(key), limit)
+				return errors.New(refusal)
+			}
+			return nil
+		})
+		if refusal != "" {
+			return reject(refusal)
 		}
-		if err := mail.SaveSettings(ctx.Request().Context(), ctx.Login.Store(), settings); err != nil {
+		if err != nil {
 			return reject(ctx.SaveRefusal(err))
 		}
 		p.Changed(ctx.Login.Username())

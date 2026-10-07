@@ -787,3 +787,44 @@ func TestTwoQuickMergedTicksBothHold(t *testing.T) {
 		}
 	}
 }
+
+// A signature added while the account form saves survives it, and so does the form's name.
+func TestASignatureAndTheAccountFormSavedTogetherBothHold(t *testing.T) {
+	a := Alborz(t, WithIMAP(IMAP(t, Metadata())))
+	c := a.SignIn(t, User)
+	saves := []struct {
+		route string
+		form  url.Values
+	}{
+		{"mail.account", url.Values{"from": {"Ada Lovelace"}}},
+		{"mail.signatures", url.Values{"name": {"Work"}, "text": {"Regards"}}},
+	}
+	errs := make(chan error, len(saves))
+	for _, s := range saves {
+		go func() {
+			resp, err := c.HTTP.PostForm(a.URL+a.Path(s.route), s.form)
+			if err == nil {
+				resp.Body.Close()
+				if resp.StatusCode != http.StatusFound {
+					err = fmt.Errorf("saving %s answered %s", s.route, resp.Status)
+				}
+			}
+			errs <- err
+		}()
+	}
+	for range saves {
+		if err := <-errs; err != nil {
+			t.Fatal(err)
+		}
+	}
+	account, signatures := c.Page(t, "mail.account"), c.Page(t, "mail.signatures")
+	if account == "" || signatures == "" {
+		t.Fatal("the account or signatures page came back empty")
+	}
+	if !strings.Contains(account, `value="Ada Lovelace"`) {
+		t.Error("the account form's name was lost")
+	}
+	if !strings.Contains(signatures, "Work") {
+		t.Error("the signature was lost")
+	}
+}

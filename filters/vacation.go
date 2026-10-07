@@ -49,8 +49,10 @@ func LoadReplies(ctx context.Context, s alborz.Store) (*Replies, error) {
 	return r, nil
 }
 
-func SaveReplies(ctx context.Context, s alborz.Store, r *Replies) error {
-	return s.Put(ctx, repliesKey, r)
+// UpdateReplies has edit change the account's replies as stored, taking turns with every other change.
+func UpdateReplies(ctx context.Context, l *alborz.Login, edit func(*Replies) error) error {
+	r := &Replies{}
+	return l.Update(ctx, repliesKey, r, func() error { return edit(r) })
 }
 
 // Put replaces the reply at index, or adds one when index holds none; made is where it was added, else -1.

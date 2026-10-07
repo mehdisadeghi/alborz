@@ -36,10 +36,10 @@ type Settings interface {
 // turn names an entry of an account's, whose changes take turns.
 type turn struct{ account, key string }
 
-// Update reads the entry at key into v, has edit change v and writes it back. Two quick changes would
-// each write what they read and the later would lose the earlier, so one account's changes of an entry
-// take turns.
-func (l *Login) Update(ctx context.Context, key string, v any, edit func()) error {
+// Update reads the entry at key into v, has edit change v and writes it back; an edit that fails writes
+// nothing. Two quick changes would each write what they read and the later would lose the earlier, so one
+// account's changes of an entry take turns.
+func (l *Login) Update(ctx context.Context, key string, v any, edit func() error) error {
 	mu, _ := l.manager.turns.LoadOrStore(turn{l.username, key}, new(sync.Mutex))
 	mu.(*sync.Mutex).Lock()
 	defer mu.(*sync.Mutex).Unlock()
@@ -48,7 +48,9 @@ func (l *Login) Update(ctx context.Context, key string, v any, edit func()) erro
 	if err := l.store.Get(ctx, key, v); err != nil && err != ErrNoStoreEntry {
 		return err
 	}
-	edit()
+	if err := edit(); err != nil {
+		return err
+	}
 	return l.store.Put(ctx, key, v)
 }
 

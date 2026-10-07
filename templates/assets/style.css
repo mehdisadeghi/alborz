@@ -745,7 +745,17 @@ header nav.is-icons .nav-search-open :is(.label, kbd) { display: none; }
 .search-dialog > form > input[type="text"]:focus-visible { outline: none; }
 .search-dialog > form:has(input:focus-visible) { border-bottom-color: var(--link); }
 
-.search-dialog > form > :is(.filter-chip, div.overflow) { flex: none; }
+.search-dialog > form > :is(.filter-chip, div.overflow, select) { flex: none; }
+.search-dialog-views { width: auto; }
+
+/* The menu needs the script to keep its choice in the form; without one the select is the filter. */
+@media (scripting: enabled) {
+  .search-dialog-views { display: none; }
+}
+
+@media (scripting: none) {
+  .search-dialog > form > div.overflow { display: none; }
+}
 .search-dialog-view { min-height: 0; background: none; }
 .search-dialog-hint { margin: 0; padding: var(--space-2) var(--space-3); }
 

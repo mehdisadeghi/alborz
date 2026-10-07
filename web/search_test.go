@@ -239,8 +239,8 @@ func TestHeaderSearchAsksEachSection(t *testing.T) {
 	}
 }
 
-// The header's filter menu submits its view with the form, so a script-less reader gets every
-// section's starred rows with no word typed.
+// The header's filter submits its view with the form, the menu with a script and the select
+// without, so a reader gets every section's starred rows with no word typed.
 func TestHeaderSearchOffersTheStarViews(t *testing.T) {
 	a := Alborz(t)
 	c := a.SignIn(t, User)
@@ -262,8 +262,12 @@ func TestHeaderSearchOffersTheStarViews(t *testing.T) {
 	if len(views) != 8 || views[0][1] != "starred" || views[7][1] != "grey" {
 		t.Fatalf("the dialog's filter menu offers %v, want starred and the seven colours", views)
 	}
-	if strings.Index(form, `<button type="submit">`) > strings.Index(form, `name="view"`) {
+	if strings.Index(form, `<button type="submit">`) > strings.Index(form, views[0][0]) {
 		t.Error("a view comes before the search button, so Enter would submit it")
+	}
+	options := regexp.MustCompile(`<option value="([a-z]*)">`).FindAllStringSubmatch(Between(form, `<select name="view"`, "</select>"), -1)
+	if len(options) != 9 || options[0][1] != "" || options[1][1] != views[0][1] || options[8][1] != views[7][1] {
+		t.Errorf("the select a script-less reader picks from offers %v, want none and the menu's views", options)
 	}
 
 	page := c.Page(t, "core.search", url.Values{"query": {""}, "view": {"starred"}})

@@ -20,18 +20,20 @@ const settingsKey = "carddav.settings"
 // A book made after the choice was not chosen to be hidden.
 func Show(ctx context.Context, l *alborz.Login, path string) error {
 	s := &Settings{}
-	return l.Update(ctx, settingsKey, s, func() {
+	return l.Update(ctx, settingsKey, s, func() error {
 		if s.AddressBookFilter {
 			s.VisibleAddressBooks = append(s.VisibleAddressBooks, path)
 		}
+		return nil
 	})
 }
 
 // Choose takes the ticked books of those the form showed; one the form did not show keeps its choice.
 func Choose(ctx context.Context, l *alborz.Login, all, shown, ticked []string) error {
 	s := &Settings{}
-	return l.Update(ctx, settingsKey, s, func() {
+	return l.Update(ctx, settingsKey, s, func() error {
 		pim.Choose(&s.AddressBookFilter, &s.VisibleAddressBooks, all, shown, ticked)
+		return nil
 	})
 }
 

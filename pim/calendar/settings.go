@@ -37,9 +37,10 @@ func loadSettings(ctx context.Context, store alborz.Store) (*Settings, error) {
 func Choose(chosen func(*Settings) (*bool, *[]string)) func(context.Context, *alborz.Login, []string, []string, []string) error {
 	return func(ctx context.Context, l *alborz.Login, all, shown, ticked []string) error {
 		s := &Settings{}
-		return l.Update(ctx, settingsKey, s, func() {
+		return l.Update(ctx, settingsKey, s, func() error {
 			filter, visible := chosen(s)
 			pim.Choose(filter, visible, all, shown, ticked)
+			return nil
 		})
 	}
 }
@@ -47,7 +48,7 @@ func Choose(chosen func(*Settings) (*bool, *[]string)) func(context.Context, *al
 // A collection made after the choice was not chosen to be hidden.
 func Show(ctx context.Context, l *alborz.Login, path string) error {
 	s := &Settings{}
-	return l.Update(ctx, settingsKey, s, func() {
+	return l.Update(ctx, settingsKey, s, func() error {
 		if s.CalendarFilter {
 			s.VisibleCalendars = append(s.VisibleCalendars, path)
 		}
@@ -57,6 +58,7 @@ func Show(ctx context.Context, l *alborz.Login, path string) error {
 		if s.JournalFilter {
 			s.VisibleJournals = append(s.VisibleJournals, path)
 		}
+		return nil
 	})
 }
 

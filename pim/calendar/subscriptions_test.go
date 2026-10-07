@@ -57,6 +57,16 @@ func (s shared) Put(_ context.Context, key string, v any) error {
 	return err
 }
 
+func (s shared) update(ctx context.Context, key string, v any, edit func() error) error {
+	if err := s.Get(ctx, key, v); err != nil && err != alborz.ErrNoStoreEntry {
+		return err
+	}
+	if err := edit(); err != nil {
+		return err
+	}
+	return s.Put(ctx, key, v)
+}
+
 const holidays = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\nREFRESH-INTERVAL;VALUE=DURATION:PT2H\r\n" +
 	"BEGIN:VEVENT\r\nUID:h1\r\nDTSTART;VALUE=DATE:20260101\r\nSUMMARY:New Year\r\nEND:VEVENT\r\n" +
 	"BEGIN:VEVENT\r\nUID:h2\r\nDTSTART;VALUE=DATE:20261225\r\nSUMMARY:Christmas\r\nEND:VEVENT\r\n" +
@@ -87,7 +97,7 @@ func TestFeedRefreshesOnItsOwnClockOncePerFeed(t *testing.T) {
 		if err := list.Put(context.Background(), subscriptionsKey, []Subscription{{URL: srv.URL, Name: "Holidays"}}); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := reconcile(context.Background(), f.store, account, list); err != nil {
+		if _, err := reconcile(context.Background(), f.store, account, list.update); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -169,7 +179,7 @@ func TestAFeedWaitsForItsEncryptedOwner(t *testing.T) {
 	if err := list.Put(context.Background(), subscriptionsKey, []Subscription{{URL: srv.URL, Name: "Holidays"}}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := reconcile(context.Background(), f.store, account, list); err != nil {
+	if _, err := reconcile(context.Background(), f.store, account, list.update); err != nil {
 		t.Fatal(err)
 	}
 	release()

@@ -150,16 +150,18 @@ func handleReplySave(ctx *web.Context) error {
 	if err != nil {
 		return refuse(err.Error())
 	}
-	replies, err := filters.LoadReplies(ctx.Request().Context(), ctx.Login.Store())
-	if err != nil {
+	var was []filters.Reply
+	made := -1
+	err = filters.UpdateReplies(ctx.Request().Context(), ctx.Login, func(replies *filters.Replies) error {
+		was = slices.Clone(replies.Items)
+		var err error
+		made, err = replies.Put(index, v)
 		return err
-	}
-	was := slices.Clone(replies.Items)
-	made, err := replies.Put(index, v)
+	})
 	if errors.Is(err, filters.ErrTooManyReplies) {
 		return answer(ctx, fmt.Errorf(ctx.T("filters.toomanyreplies"), filters.MaxReplies), "filters.autoreply", "")
 	}
-	if err := filters.SaveReplies(ctx.Request().Context(), ctx.Login.Store(), replies); err != nil {
+	if err != nil {
 		return refuse(ctx.SaveRefusal(err))
 	}
 	// An edit to the reply being sent goes out at once; any other waits for activating.
@@ -190,16 +192,19 @@ func handleReplyDelete(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	replies, err := filters.LoadReplies(ctx.Request().Context(), ctx.Login.Store())
-	if err != nil {
+	var gone filters.Reply
+	err = filters.UpdateReplies(ctx.Request().Context(), ctx.Login, func(replies *filters.Replies) error {
+		if index < 0 || index >= len(replies.Items) {
+			return alborz.NotFound("notfound.reply")
+		}
+		gone = replies.Items[index]
+		replies.Items = append(replies.Items[:index], replies.Items[index+1:]...)
+		return nil
+	})
+	if errors.Is(err, alborz.ErrNotFound) {
 		return err
 	}
-	if index < 0 || index >= len(replies.Items) {
-		return alborz.NotFound("notfound.reply")
-	}
-	gone := replies.Items[index]
-	replies.Items = append(replies.Items[:index], replies.Items[index+1:]...)
-	if err := filters.SaveReplies(ctx.Request().Context(), ctx.Login.Store(), replies); err != nil {
+	if err != nil {
 		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: ctx.SaveRefusal(err)})
 		return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.URL("filters.autoreply")))
 	}

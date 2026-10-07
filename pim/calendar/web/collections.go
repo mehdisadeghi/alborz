@@ -180,8 +180,13 @@ func handleSubscribe(p *plugin) func(*web.Context) error {
 		if sub.Name = calendar.FeedName(cal); sub.Name == "" {
 			sub.Name = calendar.FeedHost(sub.URL)
 		}
-		if err := calendar.SaveSubscriptions(rc, login.Store(), append(subs, sub)); err != nil {
+		added, err := calendar.Subscribe(rc, login, sub)
+		if err != nil {
 			data.Refused(ctx.SaveRefusal(err))
+			return ctx.Render(http.StatusUnprocessableEntity, "calendar/subscribe", data)
+		}
+		if !added {
+			data.Refused(fmt.Sprintf(ctx.T("calendar.alreadysubscribed"), sub.URL))
 			return ctx.Render(http.StatusUnprocessableEntity, "calendar/subscribe", data)
 		}
 		// Filled with what was just fetched rather than asked again.

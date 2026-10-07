@@ -177,6 +177,9 @@ select {
   --season-leaf-anthocyanin: #ffc9c2;
   --season-leaf-anthocyanin-deep: #feb7cc;
   --season-leaf-tannin: #eac3a3;
+  /* Rain is weather too: a streak stands 2.1:1 off spring's light panels,
+     2.6:1 off the dark, since a one-pixel line reads fainter than that. */
+  --season-rain: #95b4cc;
   --prio-high: var(--flag-red);
   --prio-medium: var(--flag-orange);
   --prio-low: var(--flag-blue);
@@ -246,6 +249,7 @@ select {
     --season-leaf-anthocyanin: #7d2219;
     --season-leaf-anthocyanin-deep: #783653;
     --season-leaf-tannin: #674522;
+    --season-rain: #446177;
 
     --notice-fg: #9ed6e0;
     --notice-bg: #12343b;
@@ -306,6 +310,7 @@ select {
   --season-leaf-anthocyanin: #7d2219;
   --season-leaf-anthocyanin-deep: #783653;
   --season-leaf-tannin: #674522;
+  --season-rain: #446177;
 
   --notice-fg: #9ed6e0;
   --notice-bg: #12343b;

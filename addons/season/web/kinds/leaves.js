@@ -12,7 +12,7 @@
 // rocks from side to side, tumbles end over end, or does both by turns.
 // The paper's scales (4.1)-(4.2) make it real: lengths in half-chords a,
 // speeds in U = sqrt(I* g a) for a leaf far denser than air, so a leaf
-// rocks and falls in real time, seen from LEAF_VIEW.
+// rocks and falls in real time, seen from the view's distance.
 //
 // The outlines are four trees of the Hyrcanian forest on the Alborz's
 // northern slope, proportions from the floras: Persian ironwood
@@ -30,12 +30,10 @@ const LEAF_G = 9.81;
 // The half-chord in metres: half an 8 cm blade, mid-range for the four
 // trees. With I* it fixes the leaf's mass per area, 2 I* rho_air a.
 const LEAF_HALF_CHORD = 0.04;
-// CSS pixels per metre of the air the leaves fall through: a window some
-// fifteen metres tall, the leaves of a tree across the valley. The model
-// gives a median fall of 0.25 m/s, so they drift down at 13 px/s while
-// rocking at the real 0.6-1 s; the sprites are drawn larger than that
-// distance makes them, or nobody would see them.
-const LEAF_VIEW = 53;
+// The model gives a median fall of 0.25 m/s, so at the view's scale
+// they drift down at 13 px/s while rocking at the real 0.6-1 s; the
+// sprites are drawn larger than that distance makes them, or nobody
+// would see them.
 // The longest RK4 step in model time: the turning points of a flutter
 // last about one unit, and a frame is up to four.
 const LEAF_STEP = 0.1;
@@ -206,7 +204,7 @@ export default {
 		const speed = Math.sqrt(I * LEAF_G * LEAF_HALF_CHORD);
 		return {
 			I: I,
-			unit: LEAF_HALF_CHORD * LEAF_VIEW,
+			unit: LEAF_HALF_CHORD * view.metre,
 			time: LEAF_HALF_CHORD / speed,
 			state: state,
 			length: length,

@@ -69,3 +69,37 @@ func TestAFilterOrRuleThatIsNotThere(t *testing.T) {
 		}
 	}
 }
+
+// An auto-reply edited in a tab drawn before another browser saved it keeps the other browser's change.
+func TestAStaleAutoReplyEditKeepsAnotherBrowsersSave(t *testing.T) {
+	a := Alborz(t, WithSieve(Sieve(t)))
+	stale, other := a.SignIn(t, User), a.SignIn(t, User)
+	account := url.Values{"account": {User}}
+	reply := func(c *Client, shown string, changed url.Values) *Response {
+		form := url.Values{"shown": {shown}, "index": {"0"}, "name": {"Away"}, "subject": {""}, "text": {"Back soon"}, "days": {"7"}, "addresses": {User}}
+		for k, v := range changed {
+			form[k] = v
+		}
+		return c.Post(t, "filters.autoreply", form, account)
+	}
+	if resp := reply(other, "", url.Values{"index": nil}); resp.StatusCode != http.StatusFound {
+		t.Fatalf("adding the reply answered %s", resp.Status)
+	}
+	drawn := Shown(stale.Page(t, "filters.autoreply.reply", 0, account))
+	if resp := reply(other, Shown(other.Page(t, "filters.autoreply.reply", 0, account)), url.Values{"text": {"Back on Monday"}}); resp.StatusCode != http.StatusFound {
+		t.Fatalf("changing the text answered %s", resp.Status)
+	}
+	if resp := reply(stale, drawn, url.Values{"subject": {"Out of office"}}); resp.StatusCode != http.StatusFound {
+		t.Fatalf("changing the subject answered %s", resp.Status)
+	}
+	page := other.Page(t, "filters.autoreply.reply", 0, account)
+	if !strings.Contains(page, `name="subject"`) {
+		t.Fatal("the reply page shows no form")
+	}
+	if !strings.Contains(page, "Back on Monday") {
+		t.Error("the text saved in the other browser is gone")
+	}
+	if !strings.Contains(page, `value="Out of office"`) {
+		t.Error("the stale tab's subject is gone")
+	}
+}

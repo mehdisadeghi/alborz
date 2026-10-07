@@ -1,9 +1,11 @@
 package web
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -21,12 +23,14 @@ type RepliesRenderData struct {
 	web.BaseRenderData
 	Replies []filters.Reply
 	// Active is the index of the reply the script sends, -1 when none.
-	Active     int
-	Loaded     string
-	ByHand     bool
-	Script     string
-	Editing    filters.Reply
-	Index      int
+	Active  int
+	Loaded  string
+	ByHand  bool
+	Script  string
+	Editing filters.Reply
+	Index   int
+	// Shown is the reply the form was drawn from, which a save compares the form against.
+	Shown      string
 	Identities []string
 	CanReply   bool
 	CanDate    bool
@@ -86,6 +90,11 @@ func handleReplyForm(ctx *web.Context) error {
 			return alborz.NotFound("notfound.reply")
 		}
 		data.Editing, data.Index = data.Replies[i], i
+		shown, err := json.Marshal(data.Editing)
+		if err != nil {
+			return err
+		}
+		data.Shown = string(shown)
 	}
 	data.From, data.Until = ctx.Dates().Day(data.Editing.From), ctx.Dates().Day(data.Editing.Until)
 	return ctx.Render(http.StatusOK, "filters/autoreply-edit", data)
@@ -142,7 +151,7 @@ func handleReplySave(ctx *web.Context) error {
 		if err != nil {
 			return err
 		}
-		data.Editing, data.Index = v, index
+		data.Editing, data.Index, data.Shown = v, index, ctx.FormValue("shown")
 		data.From, data.Until = ctx.DateField("from"), ctx.DateField("until")
 		data.Refused(message)
 		return ctx.Render(http.StatusUnprocessableEntity, "filters/autoreply-edit", data)
@@ -150,10 +159,24 @@ func handleReplySave(ctx *web.Context) error {
 	if err != nil {
 		return refuse(err.Error())
 	}
+	// What the form changed is what it sends that differs from what it showed; the rest stays as stored.
+	var drawn *filters.Reply
+	if shown := ctx.FormValue("shown"); shown != "" {
+		drawn = &filters.Reply{}
+		if err := json.Unmarshal([]byte(shown), drawn); err != nil {
+			return web.NewError(http.StatusBadRequest, "the form's shown reply does not decode")
+		}
+	}
 	var was []filters.Reply
 	made := -1
 	err = filters.UpdateReplies(ctx.Request().Context(), ctx.Login, func(replies *filters.Replies) error {
 		was = slices.Clone(replies.Items)
+		if drawn != nil && index >= 0 && index < len(replies.Items) {
+			stored := &replies.Items[index]
+			web.KeepChanges(reflect.ValueOf(stored).Elem(), reflect.ValueOf(*drawn), reflect.ValueOf(v))
+			v = *stored
+			return nil
+		}
 		var err error
 		made, err = replies.Put(index, v)
 		return err

@@ -62,8 +62,19 @@ var (
 	noticeForm   = regexp.MustCompile(`<form method="post" action="([^"]+)" class="notice-action"[^>]*>`)
 	noticeLink   = regexp.MustCompile(`<a class="notice-action" href="([^"]+)">`)
 	hiddenFields = regexp.MustCompile(`name="([^"]+)" value="([^"]*)"`)
+	shownField   = regexp.MustCompile(`<input type="hidden" name="shown" value="(\{[^"]*)"`)
 	alert        = regexp.MustCompile(`(?s)<div class="alert"[^>]*>(.*?)</div>`)
 )
+
+// Shown is the hidden copy of what a page's form was drawn from, or "" where it carries none; a rail's
+// shown collections are a list, not a copy.
+func Shown(page string) string {
+	m := shownField.FindStringSubmatch(page)
+	if m == nil {
+		return ""
+	}
+	return html.UnescapeString(m[1])
+}
 
 // NoticeBar is the page's notice, or "".
 func NoticeBar(page string) string { return noticeBar.FindString(page) }

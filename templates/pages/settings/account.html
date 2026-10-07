@@ -9,6 +9,7 @@
       {{ template "settings-head" (dict "g" $ "title" ($.T "settings.account") "path" (url "mail.account")) }}
 
       <form method="post">
+        <input type="hidden" name="shown" value="{{.Shown}}">
         <div class="action-group">
           <label for="from">{{$.T "settings.fullname"}}</label>
           <input

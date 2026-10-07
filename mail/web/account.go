@@ -1,9 +1,11 @@
 package web
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"reflect"
 	"strings"
 
 	"git.mehdix.org/alborz"
@@ -21,6 +23,15 @@ type SettingsRenderData struct {
 	// Storage says where this account's settings are written and what is written there.
 	Storage SettingsStorage
 	Rail    map[string][]web.RailRow
+	// Shown is what the form was drawn from, which a save compares the form against.
+	Shown string
+}
+
+// shownSettings is the part of s the account form shows.
+func shownSettings(s *mail.Settings) (string, error) {
+	b, err := json.Marshal(mail.Settings{From: s.From, Identities: s.Identities, Subscriptions: s.Subscriptions,
+		TrustedAuthServ: s.TrustedAuthServ, IndexedSearch: s.IndexedSearch})
+	return string(b), err
 }
 
 // SettingsStorage says where an account's settings live, so the reader can take them back.
@@ -224,30 +235,44 @@ func (p *plugin) handleSettings(ctx *web.Context) error {
 		storage = SettingsStorage{}
 	}
 
-	reject := func(message string) error {
-		return ctx.Render(http.StatusUnprocessableEntity, "settings/account", &SettingsRenderData{
-			BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.account")).Refused(message),
-			Settings:       settings,
-			Mailboxes:      mailboxes,
-			Subscriptions:  Subscriptions(settings.Subscriptions),
-			Storage:        storage,
-			Rail:           web.SettingsRail(ctx),
-		})
-	}
-
 	if ctx.Request().Method == http.MethodPost {
 		params, err := ctx.FormParams()
 		if err != nil {
 			return err
 		}
+		// What the form changed is what it sends that differs from what it showed; the rest stays as stored.
+		drawn := *settings
+		if v := ctx.FormValue("shown"); v != "" {
+			drawn = mail.Settings{}
+			if err := json.Unmarshal([]byte(v), &drawn); err != nil {
+				return web.NewError(http.StatusBadRequest, "the form's shown settings do not decode")
+			}
+		}
+		mine := drawn
+		mine.From = ctx.FormValue("from")
+		mine.TrustedAuthServ = strings.TrimSpace(ctx.FormValue("trusted_authserv"))
+		mine.IndexedSearch = ctx.FormValue("indexed_search") != ""
+		mine.Identities = mail.ParseIdentities(ctx.FormValue("identities"))
+		mine.Subscriptions = params["subscriptions"]
+		reject := func(message string) error {
+			shown, err := shownSettings(&drawn)
+			if err != nil {
+				return err
+			}
+			return ctx.Render(http.StatusUnprocessableEntity, "settings/account", &SettingsRenderData{
+				BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.account")).Refused(message),
+				Settings:       settings,
+				Mailboxes:      mailboxes,
+				Subscriptions:  Subscriptions(settings.Subscriptions),
+				Storage:        storage,
+				Rail:           web.SettingsRail(ctx),
+				Shown:          shown,
+			})
+		}
 		refusal := ""
 		err = mail.UpdateSettings(ctx.Request().Context(), ctx.Login, func(s *mail.Settings) error {
 			settings = s
-			settings.From = ctx.FormValue("from")
-			settings.TrustedAuthServ = strings.TrimSpace(ctx.FormValue("trusted_authserv"))
-			settings.IndexedSearch = ctx.FormValue("indexed_search") != ""
-			settings.Identities = mail.ParseIdentities(ctx.FormValue("identities"))
-			settings.Subscriptions = params["subscriptions"]
+			web.KeepChanges(reflect.ValueOf(s).Elem(), reflect.ValueOf(drawn), reflect.ValueOf(mine))
 			if key, limit := settings.Check(); key != "" {
 				refusal = fmt.Sprintf(ctx.T(key), limit)
 				return errors.New(refusal)
@@ -270,6 +295,10 @@ func (p *plugin) handleSettings(ctx *web.Context) error {
 	if settings.TrustedAuthServ == "" {
 		guess = p.SuggestAuthServ(ctx.Login)
 	}
+	shown, err := shownSettings(settings)
+	if err != nil {
+		return err
+	}
 	return ctx.Render(http.StatusOK, "settings/account", &SettingsRenderData{
 		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.account")),
 		AuthServGuess:  guess,
@@ -278,6 +307,7 @@ func (p *plugin) handleSettings(ctx *web.Context) error {
 		Subscriptions:  Subscriptions(settings.Subscriptions),
 		Storage:        storage,
 		Rail:           web.SettingsRail(ctx),
+		Shown:          shown,
 	})
 }
 

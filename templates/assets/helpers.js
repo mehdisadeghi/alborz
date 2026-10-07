@@ -537,6 +537,12 @@ for (const event of ["htmx:sendError", "htmx:timeout", "htmx:responseError"]) {
 		}
 		const notice = failedNotice();
 		if (notice && !offlineShown()) {
+			// alborz's own refusal is its bare status line; a proxy's page, or none, is the server not answering.
+			const text = notice.querySelector(".notice-text");
+			text.dataset.noanswer ??= text.textContent;
+			const xhr = ev.detail && ev.detail.xhr;
+			const own = ev.type === "htmx:responseError" && (xhr.getResponseHeader("Content-Type") || "").startsWith("text/plain");
+			text.textContent = own ? xhr.responseText.trim() : text.dataset.noanswer;
 			notice.show();
 		}
 	});

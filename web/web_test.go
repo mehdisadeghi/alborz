@@ -209,21 +209,19 @@ func TestUpstreamOutageIsNotOurFailure(t *testing.T) {
 	}
 }
 
-// A refused request is a page of the app, not a bare one the reader can only leave by the back button.
-func TestRefusalKeepsTheLayout(t *testing.T) {
+// A refused request is answered with the standard status line alone.
+func TestRefusalIsTheBareStatus(t *testing.T) {
 	a := Alborz(t)
 	c := a.SignIn(t, User)
 	resp := c.Get(t, "mail.mailbox", url.Values{"sort": {"bogus"}}, "INBOX")
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("a bad sort order was answered with %s", resp.Status)
 	}
-	if !strings.Contains(resp.Text, "</html>") {
-		t.Fatalf("no page:\n%s", resp.Text)
+	if got := resp.Header.Get("Content-Type"); !strings.HasPrefix(got, "text/plain") {
+		t.Errorf("the refusal is %s, want plain text", got)
 	}
-	for _, part := range []string{"<nav>", `<main id="main"`, T(t, "error.back")} {
-		if !strings.Contains(resp.Text, part) {
-			t.Errorf("the error page has no %s", part)
-		}
+	if resp.Text != "400 Bad Request\n" {
+		t.Errorf("the refusal reads %q", resp.Text)
 	}
 }
 

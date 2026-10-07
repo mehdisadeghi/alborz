@@ -43,7 +43,8 @@ func status(err error) int {
 	return http.StatusInternalServerError
 }
 
-// fail answers a handler's error with a page: what was not found, which server did not answer, or the status.
+// fail answers a handler's error with a page saying what was not found or which server did not answer,
+// or with the bare status line.
 func (s *Server) fail(ctx *Context, err error) {
 	// A reader who has gone reads no answer, and going is no failure.
 	if errors.Is(err, context.Canceled) && errors.Is(ctx.Request().Context().Err(), context.Canceled) {
@@ -81,13 +82,6 @@ func (s *Server) fail(ctx *Context, err error) {
 		}
 	}
 
-	data := struct {
-		BaseRenderData
-		Code int
-		Err  error
-	}{*NewBaseRenderData(ctx), code, err}
-	if err := ctx.Render(code, "error", &data); err != nil {
-		s.Logger().Printf("rendering the error page: %v", err)
-	}
+	http.Error(ctx.Response(), fmt.Sprintf("%d %s", code, http.StatusText(code)), code)
 	s.Logger().Printf("%s %s: %v", ctx.Request().Method, ctx.Request().URL.Path, err)
 }

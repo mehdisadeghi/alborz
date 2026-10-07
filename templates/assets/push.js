@@ -15,7 +15,9 @@
 		}
 		event.preventDefault();
 		if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) {
-			fail(form.dataset.unsupported);
+			// Only iOS Safari has navigator.standalone, and it gives web push only to a Home Screen app.
+			const outsideHomeScreen = "standalone" in navigator && !navigator.standalone && !matchMedia("(display-mode: standalone)").matches;
+			fail(outsideHomeScreen ? form.dataset.homescreen : form.dataset.unsupported);
 			return;
 		}
 		if (await Notification.requestPermission() !== "granted") {

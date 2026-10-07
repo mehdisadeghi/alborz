@@ -1112,6 +1112,7 @@
 "notifications.what" = "A notification says \"New mail\" or \"Event at\" and a time, with the account's address. It carries no sender, subject or event title."
 "notifications.privacy" = "Each notification is encrypted for the browser. The browser's push service (Google, Mozilla, Apple or Microsoft) delivers it and sees when it is sent and its size, not what it says."
 "notifications.unsupported" = "This browser cannot receive notifications."
+"notifications.homescreen" = "Add %s to the Home Screen to receive notifications."
 "notifications.denied" = "The browser refused notifications. Allow them in its settings for this site."
 "notifications.needsscript" = "Notifications need JavaScript."
 "notifications.refused" = "The browser's subscription was not accepted."

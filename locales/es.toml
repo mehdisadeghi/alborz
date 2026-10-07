@@ -1112,6 +1112,7 @@
 "notifications.what" = "Una notificación dice «Correo nuevo» o «Evento a las» y una hora, con la dirección de la cuenta. No incluye remitente, asunto ni título del evento."
 "notifications.privacy" = "Cada notificación va cifrada para el navegador. El servicio push del navegador (Google, Mozilla, Apple o Microsoft) la entrega y ve cuándo se envía y su tamaño, no su contenido."
 "notifications.unsupported" = "Este navegador no puede recibir notificaciones."
+"notifications.homescreen" = "Añade %s a la pantalla de inicio para recibir notificaciones."
 "notifications.denied" = "El navegador rechazó las notificaciones. Permítelas en su configuración para este sitio."
 "notifications.needsscript" = "Las notificaciones necesitan JavaScript."
 "notifications.refused" = "La suscripción del navegador no fue aceptada."

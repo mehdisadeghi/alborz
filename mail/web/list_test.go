@@ -828,3 +828,26 @@ func TestASignatureAndTheAccountFormSavedTogetherBothHold(t *testing.T) {
 		t.Error("the signature was lost")
 	}
 }
+
+// A tab drawn before another browser saved changes only what it changed, and the other browser's save stays.
+func TestAStaleAccountFormKeepsAnotherBrowsersSave(t *testing.T) {
+	a := Alborz(t, WithIMAP(IMAP(t, Metadata())))
+	stale, other := a.SignIn(t, User), a.SignIn(t, User)
+	drawn := Shown(stale.Page(t, "mail.account"))
+	if resp := other.Post(t, "mail.account", url.Values{"shown": {Shown(other.Page(t, "mail.account"))}, "from": {"Ada Lovelace"}}); resp.StatusCode != http.StatusFound {
+		t.Fatalf("saving the name answered %s", resp.Status)
+	}
+	if resp := stale.Post(t, "mail.account", url.Values{"shown": {drawn}, "from": {""}, "trusted_authserv": {"mail.example.org"}}); resp.StatusCode != http.StatusFound {
+		t.Fatalf("saving the authserv-id answered %s", resp.Status)
+	}
+	page := other.Page(t, "mail.account")
+	if !strings.Contains(page, `id="trusted_authserv"`) {
+		t.Fatal("the account page shows no form")
+	}
+	if !strings.Contains(page, `value="Ada Lovelace"`) {
+		t.Error("the name saved in the other browser is gone")
+	}
+	if !strings.Contains(page, `value="mail.example.org"`) {
+		t.Error("the stale tab's authserv-id is gone")
+	}
+}

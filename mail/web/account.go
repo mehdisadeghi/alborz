@@ -83,6 +83,8 @@ type SignatureRenderData struct {
 	// Was is the name the form started with, so a rename replaces; empty when adding.
 	Was  string
 	Rail map[string][]web.RailRow
+	// Shown is the signature the form was drawn from, which a save compares the form against.
+	Shown string
 }
 
 func handleSignatures(ctx *web.Context) error {
@@ -111,7 +113,11 @@ func handleSignatureForm(ctx *web.Context) error {
 		if !ok {
 			return alborz.NotFound("notfound.signature", name)
 		}
-		data.Editing, data.Was = found, found.Name
+		shown, err := json.Marshal(found)
+		if err != nil {
+			return err
+		}
+		data.Editing, data.Was, data.Shown = found, found.Name, string(shown)
 	}
 	return ctx.Render(http.StatusOK, "settings/signature-edit", data)
 }
@@ -127,6 +133,7 @@ func handleSignatureSave(ctx *web.Context) error {
 			Editing:        editing,
 			Was:            was,
 			Rail:           web.SettingsRail(ctx),
+			Shown:          ctx.FormValue("shown"),
 		})
 	}
 	switch {
@@ -136,6 +143,14 @@ func handleSignatureSave(ctx *web.Context) error {
 		return render(ctx.T("form.signaturetext"))
 	}
 
+	// What the form changed is what it sends that differs from what it showed; the rest stays as stored.
+	var drawn *mail.Signature
+	if shown := ctx.FormValue("shown"); shown != "" {
+		drawn = &mail.Signature{}
+		if err := json.Unmarshal([]byte(shown), drawn); err != nil {
+			return web.NewError(http.StatusBadRequest, "the form's shown signature does not decode")
+		}
+	}
 	refusal, replaced := "", false
 	err := mail.UpdateSettings(ctx.Request().Context(), ctx.Login, func(settings *mail.Settings) error {
 		if len(settings.Signatures) >= mail.MaxSignatures && was == "" {
@@ -147,8 +162,13 @@ func handleSignatureSave(ctx *web.Context) error {
 			if settings.Signatures[i].Name != was || was == "" {
 				continue
 			}
+			if drawn != nil {
+				stored := &settings.Signatures[i]
+				web.KeepChanges(reflect.ValueOf(stored).Elem(), reflect.ValueOf(*drawn), reflect.ValueOf(editing))
+				editing = *stored
+			}
 			if settings.DefaultSignature == was {
-				settings.DefaultSignature = name
+				settings.DefaultSignature = editing.Name
 			}
 			settings.Signatures[i] = editing
 			replaced = true

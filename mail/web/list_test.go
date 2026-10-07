@@ -851,3 +851,27 @@ func TestAStaleAccountFormKeepsAnotherBrowsersSave(t *testing.T) {
 		t.Error("the stale tab's authserv-id is gone")
 	}
 }
+
+// A signature renamed in a tab drawn before another browser changed its text keeps that text.
+func TestAStaleSignatureEditKeepsAnotherBrowsersSave(t *testing.T) {
+	a := Alborz(t, WithIMAP(IMAP(t, Metadata())))
+	stale, other := a.SignIn(t, User), a.SignIn(t, User)
+	if resp := other.Post(t, "mail.signatures", url.Values{"name": {"Work"}, "text": {"Regards"}}); resp.StatusCode != http.StatusFound {
+		t.Fatalf("adding the signature answered %s", resp.Status)
+	}
+	drawn := Shown(stale.Page(t, "mail.signature", "Work"))
+	shown := Shown(other.Page(t, "mail.signature", "Work"))
+	if resp := other.Post(t, "mail.signatures", url.Values{"shown": {shown}, "was": {"Work"}, "name": {"Work"}, "text": {"Best wishes"}}); resp.StatusCode != http.StatusFound {
+		t.Fatalf("changing the text answered %s", resp.Status)
+	}
+	if resp := stale.Post(t, "mail.signatures", url.Values{"shown": {drawn}, "was": {"Work"}, "name": {"Office"}, "text": {"Regards"}}); resp.StatusCode != http.StatusFound {
+		t.Fatalf("renaming answered %s", resp.Status)
+	}
+	page := other.Page(t, "mail.signature", "Office")
+	if !strings.Contains(page, `name="text"`) {
+		t.Fatal("the signature page shows no form")
+	}
+	if !strings.Contains(page, "Best wishes") {
+		t.Error("the text saved in the other browser is gone")
+	}
+}

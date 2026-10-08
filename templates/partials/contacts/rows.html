@@ -1,7 +1,7 @@
 {{/* The list page's data. */}}
 {{ define "contact-rows" }}
           {{range $row := .AddressObjects}}
-          {{$book := call $.CollectionFor .Account .Path}}{{$color := $book.Color}}
+          {{$book := call $.CollectionFor .Account .Path}}
           <div class="contact-row list-row" role="row">
             {{ with $.SelectForm }}
             {{ template "row-select-cell" (dict "class" "contact-list-checkbox" "form" . "ref" (printf "%s|%s" $row.Account $row.Path) "label" ($.T "a11y.selectcontact") "summary" $row.DisplayName) }}
@@ -33,7 +33,7 @@
             {{ $m := .Modified }}{{ if not $m.IsZero }}{{ $changed = $.GlobalData.Since $m }}{{ $changedTitle = $.GlobalData.FormatDate $m }}{{ end }}
             <div class="contact-list-changed list-cell" role="cell" title="{{$changedTitle}}">{{$changed}}</div>
             <div class="contact-list-book list-cell" role="cell">
-              {{if $color}}<span class="color-dot" style="background:{{$color}}"></span>{{end}}<a href="{{ call $.CollectionHref .Account .Path }}">{{$book.Name}}</a>{{ template "collection-mark" (dict "g" $ "c" $book) }}{{if $.GlobalData.Unified}}<span class="row-account" title="{{.Account}}">{{ template "ltr" ($.GlobalData.AccountLabel .Account) }}</span>{{end}}
+              {{if $book.Color}}<span class="color-dot" style="background:{{$book.Color}}"></span>{{end}}<a href="{{ call $.CollectionHref .Account .Path }}">{{$book.Name}}</a>{{ template "collection-mark" (dict "g" $ "c" $book) }}{{if $.GlobalData.Unified}}<span class="row-account" title="{{.Account}}">{{ template "ltr" ($.GlobalData.AccountLabel .Account) }}</span>{{end}}
             </div>
           </div>
           {{end}}

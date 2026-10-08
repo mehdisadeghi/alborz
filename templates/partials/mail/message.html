@@ -15,6 +15,13 @@
   </td>
 </tr>
 {{ end }}
+{{/* dict: g label url. */}}
+{{ define "list-link" }}
+{{ with .url }}
+<dt>{{$.g.T $.label}}</dt>
+<dd><a href="{{.}}" rel="nofollow noopener noreferrer">{{ template "ltr" . }}</a></dd>
+{{ end }}
+{{ end }}
 {{ define "message-uids" }}{{ template "hidden-field" (dict "name" "uids" "value" .) }}{{ end }}
 
 {{ define "message-navigation" }}

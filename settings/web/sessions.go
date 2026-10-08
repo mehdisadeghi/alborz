@@ -9,8 +9,7 @@ import (
 // SessionsRenderData renders sessions.html.
 type SessionsRenderData struct {
 	web.PageData[map[string][]web.RailRow]
-	Signed  []web.Signed
-	Account string
+	Signed []web.Signed
 }
 
 func handleSessions(ctx *web.Context) error {
@@ -29,6 +28,5 @@ func handleSessions(ctx *web.Context) error {
 	return ctx.Render(http.StatusOK, "settings/sessions", &SessionsRenderData{
 		PageData: *web.NewSettingsPageData(ctx, ctx.T("sessions.title")),
 		Signed:   signed,
-		Account:  account,
 	})
 }

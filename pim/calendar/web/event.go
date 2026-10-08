@@ -298,7 +298,8 @@ func (p *plugin) updateEvent(ctx *web.Context) error {
 
 		cal, err := e.put(ctx, to, event.Component, start)
 		if err != nil {
-			return reject(pimweb.Refusal(ctx, err))
+			ctx.Notify(pimweb.Unsaved(ctx, err))
+			return reject("")
 		}
 
 		// Saved before sending: a failed send must not lose the event.

@@ -156,13 +156,10 @@ func (p *plugin) event(ctx *web.Context) error {
 		return err
 	}
 	data := &EventRenderData{
-		PageData:   *web.NewPageData(ctx, summary, rail).WithItem(),
-		List:       eventList(ctx),
-		Collection: e.collection,
-		Event:      calendar.Object{CalendarObject: event, ReadOnly: !e.collection.Writable},
-		Star:       calendar.ComponentColor(vevent),
-		Neighbours: pimweb.Around(items, path),
-		Authors:    p.DAV.Authors(event.Path, ctx.Login.Username()),
+		CalendarObjectRenderData: pimweb.NewObjectRenderData(ctx, summary, rail, e.collection,
+			p.DAV.Authors(event.Path, ctx.Login.Username()), eventList(ctx), calendar.ComponentColor(vevent), pimweb.Around(items, path)),
+		Event: calendar.Object{CalendarObject: event, ReadOnly: !e.collection.Writable},
+		Star:  calendar.ComponentColor(vevent),
 	}
 	data.Repeats, data.RepeatsUntil = repeatWords(ctx, &ical.Event{Component: vevent}, web.UserLocation(ctx))
 	return ctx.Render(http.StatusOK, "calendar/event", data)

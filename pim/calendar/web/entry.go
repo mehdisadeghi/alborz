@@ -82,8 +82,8 @@ func (p *plugin) entry(ctx *web.Context) error {
 		return err
 	}
 	return ctx.Render(http.StatusOK, "journal/entry", &EntryRenderData{
-		PageData:   *web.NewPageData(ctx, summary, rail).WithItem(),
-		Collection: e.collection,
+		CalendarObjectRenderData: pimweb.NewObjectRenderData(ctx, summary, rail, e.collection,
+			p.DAV.Authors(obj.Path, ctx.Login.Username()), cmp.Or(ctx.From(), pimweb.ListURL(ctx.Path("calendar.journal"), pimweb.ListParams(ctx, journalListParams...))), calendar.ComponentColor(journal), pimweb.Around(list.Items, path)),
 		Path:       obj.Path,
 		Journal:    journal,
 		Summary:    summary,
@@ -93,9 +93,6 @@ func (p *plugin) entry(ctx *web.Context) error {
 		Status:     status,
 		Categories: calendar.Categories(journal),
 		Star:       calendar.ComponentColor(journal),
-		Authors:    p.DAV.Authors(obj.Path, ctx.Login.Username()),
-		List:       cmp.Or(ctx.From(), pimweb.ListURL(ctx.Path("calendar.journal"), pimweb.ListParams(ctx, journalListParams...))),
-		Neighbours: pimweb.Around(list.Items, path),
 	})
 }
 

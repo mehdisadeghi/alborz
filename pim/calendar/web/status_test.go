@@ -17,8 +17,7 @@ func TestTheCalendarSegmentNamesOneEventAndCountsMore(t *testing.T) {
 	if next.Add(time.Hour).Day() != now.Day() {
 		t.Skip("too close to midnight for an event later today")
 	}
-	a := Alborz(t)
-	c := a.SignIn(t, User)
+	a, c := SignedIn(t, User)
 	coll := c.CreateCalendar(t, "Plans", "")
 	says := func(want map[string]string) {
 		t.Helper()

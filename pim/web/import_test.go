@@ -16,8 +16,7 @@ func TestAnImportTheServerRefusesSetsANotice(t *testing.T) {
 	card := "BEGIN:VCARD\r\nVERSION:4.0\r\nUID:ada\r\nFN:Ada\r\nEND:VCARD\r\n"
 	d := DAV(t, Calendar(personal, "Personal"), Calendar(work, "Work"), Hangup(work), Book(friends, "Friends"), Book(family, "Family"),
 		Refusing(personal, friends, family+"bob.vcf"))
-	a := Alborz(t, NoCache(), WithDAV(d))
-	c := a.SignIn(t, User)
+	a, c := SignedIn(t, User, NoCache(), WithDAV(d))
 	personal, work, friends, family = d.At()+personal, d.At()+work, d.At()+friends, d.At()+family
 	attached := func(mime, name, body string) string {
 		return fmt.Sprint(a.IMAP.Append(t, "INBOX", "From: eve@example.org\r\nTo: "+User+"\r\nSubject: "+name+"\r\n"+
@@ -123,8 +122,7 @@ func TestAnImportTheServerRefusesSetsANotice(t *testing.T) {
 func TestAnImportSkipsTheEventItCannotWrite(t *testing.T) {
 	personal := DAVHome + "personal/"
 	d := DAV(t, Calendar(personal, "Personal"))
-	a := Alborz(t, NoCache(), WithDAV(d))
-	c := a.SignIn(t, User)
+	_, c := SignedIn(t, User, NoCache(), WithDAV(d))
 	personal = d.At() + personal
 	event := func(uid, props string) string {
 		return "BEGIN:VEVENT\r\nUID:" + uid + "\r\nDTSTART:20260915T100000Z\r\n" + props + "END:VEVENT\r\n"

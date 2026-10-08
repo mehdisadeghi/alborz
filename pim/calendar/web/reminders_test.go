@@ -20,8 +20,7 @@ func alarmed(uid, rule, action string, start time.Time) string {
 // two logins of the account find it; an e-mail alarm is not alborz's to fire.
 func TestEventReminderPushesItsOccurrence(t *testing.T) {
 	push := PushServer(t)
-	a := Alborz(t, Guarded(push.Client().Transport), ReminderTick(200*time.Millisecond))
-	c := a.SignIn(t, User)
+	a, c := SignedIn(t, User, Guarded(push.Client().Transport), ReminderTick(200*time.Millisecond))
 	endpoint := push.TurnOn(t, c)
 	// A second browser's login of the account finds the same alarm in each round.
 	a.SignIn(t, User)

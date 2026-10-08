@@ -23,10 +23,7 @@ type SieveServer struct {
 
 func Sieve(t *testing.T) *SieveServer {
 	t.Helper()
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
+	ln := listen(t)
 	t.Cleanup(func() { ln.Close() })
 	s := &SieveServer{Addr: ln.Addr().String(), scripts: map[string]string{}}
 	go func() {

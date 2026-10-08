@@ -88,8 +88,7 @@ func created(t *testing.T, resp *Response) {
 
 func TestAnOrganizerKeepsAttendeesInformed(t *testing.T) {
 	sent := SMTP(t)
-	a := Alborz(t, WithSMTP(sent))
-	c := a.SignIn(t, User)
+	a, c := SignedIn(t, User, WithSMTP(sent))
 	u, _ := url.Parse(a.URL)
 	c.HTTP.Jar.SetCookies(u, []*http.Cookie{{Name: "alborz_tz", Value: "Europe/Berlin"}})
 	coll := Here + c.CreateCalendar(t, "Plans", "")
@@ -208,8 +207,7 @@ END:VCALENDAR
 
 func TestAnInvitationIsAnsweredAsInvited(t *testing.T) {
 	sent := SMTP(t)
-	a := Alborz(t, WithSMTP(sent))
-	c := a.SignIn(t, User)
+	a, c := SignedIn(t, User, WithSMTP(sent))
 	if resp := c.Post(t, "mail.account", url.Values{"identities": {"Alias <alias@test.local>"}}); resp.StatusCode != http.StatusFound {
 		t.Fatalf("saving the identity answered %s", resp.Status)
 	}
@@ -239,8 +237,7 @@ func TestAnInvitationIsAnsweredAsInvited(t *testing.T) {
 
 func TestAnAnswerIsRecordedOnTheEvent(t *testing.T) {
 	sent := SMTP(t)
-	a := Alborz(t, WithSMTP(sent))
-	c := a.SignIn(t, User)
+	a, c := SignedIn(t, User, WithSMTP(sent))
 	coll := c.CreateCalendar(t, "Plans", "")
 	form := url.Values{"summary": {"Review"}, "start": {"2026-10-05T10:00"}, "end": {"2026-10-05T11:00"}, "start-calendar": {"gregorian"}, "end-calendar": {"gregorian"},
 		"calendar": {User + "|" + Here + coll}, "attendees": {"b@example.org"}}
@@ -283,8 +280,7 @@ END:VCALENDAR
 }
 
 func TestAnIcsAttachmentIsImported(t *testing.T) {
-	a := Alborz(t)
-	c := a.SignIn(t, User)
+	a, c := SignedIn(t, User)
 	coll := c.CreateCalendar(t, "Plans", "")
 	raw := "From: eve@example.org\r\nTo: " + User + "\r\nSubject: The plan\r\nMIME-Version: 1.0\r\n" +
 		"Content-Type: multipart/mixed; boundary=b1\r\n\r\n" +
@@ -333,8 +329,7 @@ func TestAServerThatSchedulesSendsTheInvitations(t *testing.T) {
 // stays as it was.
 func TestAMessageTheEventCannotTakeIsRefused(t *testing.T) {
 	sent := SMTP(t)
-	a := Alborz(t, WithSMTP(sent))
-	c := a.SignIn(t, User)
+	a, c := SignedIn(t, User, WithSMTP(sent))
 	coll := c.CreateCalendar(t, "Plans", "")
 	form := url.Values{"summary": {"Review"}, "start": {"2026-10-05T10:00"}, "end": {"2026-10-05T11:00"}, "start-calendar": {"gregorian"}, "end-calendar": {"gregorian"},
 		"calendar": {User + "|" + Here + coll}, "attendees": {"b@example.org"}}
@@ -365,8 +360,7 @@ func TestAMessageTheEventCannotTakeIsRefused(t *testing.T) {
 // A calendar alborz cannot take, of a method it does not handle or that does not parse, is refused with the
 // reason on both of the message's buttons.
 func TestACalendarThatDoesNotReadIsRefused(t *testing.T) {
-	a := Alborz(t)
-	c := a.SignIn(t, User)
+	a, c := SignedIn(t, User)
 	coll := c.CreateCalendar(t, "Plans", "")
 	for _, tc := range []struct{ method, body, reason string }{
 		{"COUNTER", "BEGIN:VCALENDAR\nPRODID:-//Example//EN\nMETHOD:COUNTER\nVERSION:2.0\nBEGIN:VEVENT\nUID:x\nDTSTAMP:20260901T080000Z\nEND:VEVENT\nEND:VCALENDAR\n", "COUNTER"},

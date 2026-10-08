@@ -119,8 +119,7 @@ func postPiece(t *testing.T, a *App, c *Client, form url.Values, route string, a
 func TestEveryDAVObjectRouteAnswers(t *testing.T) {
 	for _, scope := range []url.Values{nil, {"account": {User}}} {
 		t.Run(fmt.Sprintf("scope=%v", scope), func(t *testing.T) {
-			a := Alborz(t)
-			c := a.SignIn(t, User)
+			a, c := SignedIn(t, User)
 			c.SignIn(t, User2)
 			for _, made := range []struct {
 				route string

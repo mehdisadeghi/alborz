@@ -13,8 +13,7 @@ import (
 
 // An address book query with no filter asks for every card (RFC 6352 10.5).
 func TestABookOnAlborzListsItsCards(t *testing.T) {
-	a := Alborz(t)
-	c := a.SignIn(t, User)
+	a, c := SignedIn(t, User)
 	book := c.CreateBook(t, "People")
 	a.Put(t, book+"parvin.vcf", "text/vcard",
 		"BEGIN:VCARD\r\nVERSION:3.0\r\nUID:parvin\r\nFN:Parvin Etesami\r\nN:Etesami;Parvin;;;\r\nEND:VCARD\r\n")
@@ -42,8 +41,7 @@ func bookCards(t *testing.T, a *App, name string) string {
 }
 
 func TestSendingKeepsNewRecipientsInPreviousRecipients(t *testing.T) {
-	a := Alborz(t, WithSMTP(SMTP(t)))
-	c := a.SignIn(t, User)
+	a, c := SignedIn(t, User, WithSMTP(SMTP(t)))
 	book := c.CreateBook(t, "People")
 	a.Put(t, book+"known.vcf", "text/vcard",
 		"BEGIN:VCARD\r\nVERSION:3.0\r\nUID:known\r\nFN:Known\r\nEMAIL:known@example.org\r\nEND:VCARD\r\n")
@@ -64,8 +62,7 @@ func TestSendingKeepsNewRecipientsInPreviousRecipients(t *testing.T) {
 }
 
 func TestAddToContactsWritesTheChosenBook(t *testing.T) {
-	a := Alborz(t)
-	c := a.SignIn(t, User)
+	a, c := SignedIn(t, User)
 	c.CreateBook(t, "People")
 	c.CreateBook(t, "Work")
 

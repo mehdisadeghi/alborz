@@ -153,8 +153,7 @@ func TestCopyingAFeedEventMakesAnEventOfOurOwn(t *testing.T) {
 
 // A task copies as an event does, and the notice's undo deletes the copy and nothing else.
 func TestCopyingATaskIsUndoneByDeletingTheCopy(t *testing.T) {
-	a := Alborz(t)
-	c := a.SignIn(t, User)
+	a, c := SignedIn(t, User)
 	chores := c.CreateCalendar(t, "Chores", "tasks")
 	errands := Here + c.CreateCalendar(t, "Errands", "tasks")
 	a.Put(t, chores+"water.ics", "text/calendar", Todo("water", "Water the ferns"))

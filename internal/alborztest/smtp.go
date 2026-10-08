@@ -40,10 +40,7 @@ func SMTP(t *testing.T, opts ...SMTPOption) *SMTPServer {
 	srv := smtp.NewServer(s)
 	srv.AllowInsecureAuth = true
 	srv.Domain = "localhost"
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
+	ln := listen(t)
 	go srv.Serve(ehloHiding{ln, c.hidden})
 	t.Cleanup(func() { srv.Close() })
 	s.Addr = ln.Addr().String()

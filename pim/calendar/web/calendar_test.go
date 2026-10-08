@@ -20,8 +20,7 @@ import (
 
 // A date is read in the calendar its field names: typed Solar Hijri beyond the reckoning is refused, a stored date beyond it round-trips in Gregorian.
 func TestInputPastTheSolarHijriReckoning(t *testing.T) {
-	a := Alborz(t)
-	c := a.SignIn(t, User)
+	a, c := SignedIn(t, User)
 	coll := c.CreateCalendar(t, "Plans", "")
 	a.Put(t, coll+"far.ics", "text/calendar", "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//test//EN\r\n"+
 		"BEGIN:VEVENT\r\nUID:far\r\nDTSTAMP:20260901T080000Z\r\nDTSTART:40000101T100000Z\r\nDTEND:40000101T110000Z\r\n"+
@@ -75,8 +74,7 @@ func TestInputPastTheSolarHijriReckoning(t *testing.T) {
 }
 
 func TestAnOpenTaskWithoutStatusIsListed(t *testing.T) {
-	a := Alborz(t)
-	c := a.SignIn(t, User)
+	a, c := SignedIn(t, User)
 	chores := c.CreateCalendar(t, "Chores", "tasks")
 	a.Put(t, chores+"water.ics", "text/calendar", Todo("water", "Water the ferns"))
 	if page := c.Page(t, "calendar.tasks"); !strings.Contains(page, "Water the ferns") {
@@ -86,8 +84,7 @@ func TestAnOpenTaskWithoutStatusIsListed(t *testing.T) {
 
 // Completing a task revises its DTSTAMP (RFC 5545 3.8.7.2); the added date is its CREATED and stays.
 func TestCompletingATaskKeepsItsAddedDate(t *testing.T) {
-	a := Alborz(t)
-	c := a.SignIn(t, User)
+	a, c := SignedIn(t, User)
 	chores := c.CreateCalendar(t, "Chores", "tasks")
 	a.Put(t, chores+"water.ics", "text/calendar", strings.Replace(Todo("water", "Water the ferns"),
 		"DTSTAMP:", "CREATED:20250301T080000Z\r\nDTSTAMP:", 1))
@@ -116,8 +113,7 @@ func TestCompletingATaskKeepsItsAddedDate(t *testing.T) {
 // A list held whole pages as mail does, and a task opened from one page walks
 // the whole list, not the page it was on.
 func TestATaskListPagesAndItsTasksWalkIt(t *testing.T) {
-	a := Alborz(t)
-	c := a.SignIn(t, User)
+	a, c := SignedIn(t, User)
 	chores := c.CreateCalendar(t, "Chores", "tasks")
 	for i := 1; i <= 5; i++ {
 		a.Put(t, fmt.Sprintf("%st%d.ics", chores, i), "text/calendar", Todo(fmt.Sprintf("t%d", i), fmt.Sprintf("Chore %d", i)))
@@ -162,8 +158,7 @@ func TestATaskListPagesAndItsTasksWalkIt(t *testing.T) {
 
 // The pager swaps the next page into main, so that answer is main alone, never a second page with its nav.
 func TestAPagedTaskListSwapsOnlyItsMain(t *testing.T) {
-	a := Alborz(t)
-	c := a.SignIn(t, User)
+	a, c := SignedIn(t, User)
 	chores := c.CreateCalendar(t, "Chores", "tasks")
 	for i := 1; i <= 3; i++ {
 		a.Put(t, fmt.Sprintf("%st%d.ics", chores, i), "text/calendar", Todo(fmt.Sprintf("t%d", i), fmt.Sprintf("Chore %d", i)))
@@ -195,8 +190,7 @@ func TestAPagedTaskListSwapsOnlyItsMain(t *testing.T) {
 
 // A tick redraws the list and the rail's rows in place, whole or narrowed, so the rail and its scroll stay and the mark moves.
 func TestARailTickSwapsTheListAndItsRows(t *testing.T) {
-	a := Alborz(t)
-	c := a.SignIn(t, User)
+	a, c := SignedIn(t, User)
 	c.CreateCalendar(t, "Chores", "tasks")
 	list := a.Path("calendar.tasks", url.Values{"account": {User}})
 	whole := c.Follow(t, list)
@@ -250,8 +244,7 @@ func swapIntoMain(t *testing.T, a *App, c *Client, path string) *Response {
 
 // A VCALENDAR holds one component at least (RFC 5545 3.6), so no file is written.
 func TestAMonthWithNoEventsExportsNothing(t *testing.T) {
-	a := Alborz(t)
-	c := a.SignIn(t, User)
+	a, c := SignedIn(t, User)
 	c.CreateCalendar(t, "Plans", "")
 	month := url.Values{"month": {"2026-09"}}
 	resp := c.Get(t, "calendar.month.export", month)
@@ -381,8 +374,7 @@ func TestASolarHijriRepeatNeedsTheServerToListItsScale(t *testing.T) {
 func TestAMoveTheSourceRefusesLeavesTheTaskWhereItWas(t *testing.T) {
 	personal := DAVHome + "personal/"
 	d := DAV(t, Calendar(personal, "Personal"), Refusing(personal+"water.ics"), Object(personal+"water.ics", Todo("water", "Water the ferns")))
-	a := Alborz(t, WithDAV(d))
-	c := a.SignIn(t, User)
+	a, c := SignedIn(t, User, WithDAV(d))
 	chores := c.CreateCalendar(t, "Chores", "tasks")
 	move := url.Values{"paths": {User + "|" + d.At() + personal + "water.ics"}, "to": {User + "|" + Here + chores}}
 	if resp := c.Post(t, "calendar.tasks.move", move); resp.StatusCode != http.StatusFound {
@@ -412,8 +404,7 @@ func (e endless) Read(p []byte) (int, error) {
 
 // An upload past its limit is answered while it is still being sent: the server took a fraction of it.
 func TestAnUploadPastTheLimitIsRefusedUnread(t *testing.T) {
-	a := Alborz(t)
-	c := a.SignIn(t, User)
+	a, c := SignedIn(t, User)
 	cal := c.CreateCalendar(t, "Plans", "")
 	var head strings.Builder
 	w := multipart.NewWriter(&head)
@@ -439,8 +430,7 @@ func TestAnUploadPastTheLimitIsRefusedUnread(t *testing.T) {
 
 // An EXDATE takes one year out of a Solar Hijri rule, in the store's query and on the page.
 func TestAnExceptionHidesOneSolarHijriYear(t *testing.T) {
-	a := Alborz(t)
-	c := a.SignIn(t, User)
+	a, c := SignedIn(t, User)
 	coll := c.CreateCalendar(t, "Plans", "")
 	c.Post(t, "settings.profile", url.Values{"calendar": {"shcal"}, "secondary": {""}})
 	// 1 Farvardin 1405, 1406 and 1407 are 2026-03-21, 2027-03-21 and 2028-03-20.
@@ -493,8 +483,7 @@ func TestACalendarWithAnUnreadableObjectStillShowsTheRest(t *testing.T) {
 		setup func() (*Client, string, string)
 	}{
 		{"on alborz", func() (*Client, string, string) {
-			a := Alborz(t)
-			c := a.SignIn(t, User)
+			a, c := SignedIn(t, User)
 			coll := c.CreateCalendar(t, "Plans", "events tasks")
 			for _, objects := range []map[string]string{readable, unreadable} {
 				for name, body := range objects {
@@ -570,8 +559,7 @@ func TestAnEventIsReadInTheZoneItsObjectDefines(t *testing.T) {
 		setup func() *Client
 	}{
 		{"on alborz", func() *Client {
-			a := Alborz(t)
-			c := a.SignIn(t, User)
+			a, c := SignedIn(t, User)
 			coll := c.CreateCalendar(t, "Plans", "")
 			for name, body := range objects {
 				a.Put(t, coll+name, "text/calendar", body)
@@ -607,8 +595,7 @@ func TestAnEventIsReadInTheZoneItsObjectDefines(t *testing.T) {
 
 // An object of occurrences alone, as an invitation to one of a series brings, edits the one its page shows.
 func TestAnEventOfOccurrencesAloneIsEdited(t *testing.T) {
-	a := Alborz(t)
-	c := a.SignIn(t, User)
+	a, c := SignedIn(t, User)
 	coll := c.CreateCalendar(t, "Plans", "")
 	occurrence := func(day, summary string) string {
 		return "BEGIN:VEVENT\r\nUID:weekly\r\nRECURRENCE-ID:202609" + day + "T100000Z\r\nDTSTAMP:20260901T080000Z\r\n" +
@@ -637,8 +624,7 @@ func TestAnEventOfOccurrencesAloneIsEdited(t *testing.T) {
 
 // An event go-ical will not write is left out of an export with its reason; the rest downloads.
 func TestAnExportLeavesOutWhatCannotBeWritten(t *testing.T) {
-	a := Alborz(t)
-	c := a.SignIn(t, User)
+	a, c := SignedIn(t, User)
 	coll := c.CreateCalendar(t, "Plans", "")
 	a.Put(t, coll+"plain.ics", "text/calendar", Event("plain", "Plain"))
 	a.Put(t, coll+"twice.ics", "text/calendar", strings.Replace(Event("twice", "One"), "SUMMARY:One", "SUMMARY:One\r\nSUMMARY:Two", 1))
@@ -658,8 +644,7 @@ func TestAnExportLeavesOutWhatCannotBeWritten(t *testing.T) {
 // An event alborz's DAV server took as sent, though go-ical would not write it, is served as stored: the
 // month shows it beside the rest.
 func TestAStoredEventGoIcalWouldNotWriteIsServed(t *testing.T) {
-	a := Alborz(t)
-	c := a.SignIn(t, User)
+	a, c := SignedIn(t, User)
 	coll := c.CreateCalendar(t, "Plans", "")
 	a.Put(t, coll+"plain.ics", "text/calendar", Event("plain", "Plain"))
 	a.Put(t, coll+"twice.ics", "text/calendar", strings.Replace(Event("twice", "One"), "SUMMARY:One", "SUMMARY:One\r\nSUMMARY:Two", 1))
@@ -724,8 +709,7 @@ func TestADayNumberIsItsOwnElement(t *testing.T) {
 
 // Two quick ticks on different calendars both stay hidden, whichever is written first, and the rest stay shown.
 func TestTwoQuickRailTicksBothHold(t *testing.T) {
-	a := Alborz(t, WithIMAP(IMAP(t, Metadata())))
-	c := a.SignIn(t, User)
+	a, c := SignedIn(t, User, WithIMAP(IMAP(t, Metadata())))
 	hidden := []string{Here + c.CreateCalendar(t, "Chores", ""), Here + c.CreateCalendar(t, "Trips", "")}
 	shown := Here + c.CreateCalendar(t, "Plans", "")
 	errs := make(chan error, 2)

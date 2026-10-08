@@ -49,6 +49,13 @@ func (a *App) SignIn(t *testing.T, user string) *Client {
 	return c
 }
 
+// SignedIn serves alborz with opts and signs in user.
+func SignedIn(t *testing.T, user string, opts ...Option) (*App, *Client) {
+	t.Helper()
+	a := Alborz(t, opts...)
+	return a, a.SignIn(t, user)
+}
+
 // SignIn adds user to the browser's accounts, landing where the sign-in leads.
 func (c *Client) SignIn(t *testing.T, user string) {
 	t.Helper()

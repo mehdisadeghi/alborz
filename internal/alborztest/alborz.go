@@ -4,7 +4,6 @@ package alborztest
 
 import (
 	"log"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -128,10 +127,7 @@ func Alborz(t *testing.T, opts ...Option) *App {
 	if c.options.Cache && c.options.CacheDir == "" {
 		c.options.CacheDir = t.TempDir()
 	}
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
+	ln := listen(t)
 	c.options.Upstreams = append([]string{Domain + "=" + c.imap.Upstream()}, c.upstreams...)
 	if c.selfDAV {
 		c.options.Upstreams = append(c.options.Upstreams, Domain+"=caldav+insecure://"+ln.Addr().String()+store.Prefix+"/")

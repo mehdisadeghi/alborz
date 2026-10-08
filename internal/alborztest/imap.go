@@ -115,10 +115,7 @@ func IMAP(t *testing.T, opts ...IMAPOption) *IMAPServer {
 	mem.AddUser(seedSecond(t))
 	mem.AddUser(seedElsewhere(t))
 
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
+	ln := listen(t)
 	s.srv = imapserver.New(&imapserver.Options{
 		NewSession: func(*imapserver.Conn) (imapserver.Session, *imapserver.GreetingData, error) {
 			sess := changedPasswords{mem.NewSession().(imapserver.SessionIMAP4rev2), s}
@@ -381,10 +378,7 @@ func proxy(t *testing.T, upstream string, relay func(client, server net.Conn)) s
 // proxyPair hands relay both sides of each connection, closed once it returns.
 func proxyPair(t *testing.T, upstream string, relay func(client, server net.Conn)) string {
 	t.Helper()
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
+	ln := listen(t)
 	t.Cleanup(func() { ln.Close() })
 	go func() {
 		for {
@@ -472,10 +466,7 @@ var (
 
 func (s *IMAPServer) sortingProxy(t *testing.T, upstream string) string {
 	t.Helper()
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
+	ln := listen(t)
 	t.Cleanup(func() { ln.Close() })
 	go func() {
 		for {

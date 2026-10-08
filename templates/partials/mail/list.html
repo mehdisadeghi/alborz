@@ -97,23 +97,8 @@
             {{ if $.Spanning }}<a class="row-account row-folder" dir="auto" title="{{.Mailbox}}" href="{{ localhref (printf "%s?query=%s%s" (url "mail.mailbox" .Mailbox) ($.FolderQuery | qv) (account "&" .Account)) }}">{{.Mailbox}}</a>{{ end }}
           </div>
           <div class="message-list-subject list-primary {{$classes}}{{ if .Attachments }} has-attach{{ end }}" role="cell">
-            {{if $.Merged}}
-            {{$mlink := url "mail.message" .Mailbox .UID}}{{$msep := "?"}}
-            {{with .Account}}{{$mlink = printf "%s%saccount=%s" $mlink $msep (. | qv)}}{{$msep = "&"}}{{end}}
-            {{with $.ListView}}{{$mlink = printf "%s%sview=%s" $mlink $msep .}}{{$msep = "&"}}{{end}}{{with $.Query}}{{$mlink = printf "%s%squery=%s" $mlink $msep (. | qv)}}{{$msep = "&"}}{{end}}
-            {{with $.Sort}}{{$mlink = printf "%s%ssort=%s&dir=%s" $mlink $msep . $.SortDir}}{{$msep = "&"}}{{end}}
-            {{$mlink = from $mlink $.GlobalData.URL.RequestURI}}
-            <a dir="{{.Envelope.Subject | subjectdir}}"{{with $.GlobalData.MessageLang .Envelope.Subject}} lang="{{.}}"{{end}} href="{{localhref $mlink}}">
-            {{else}}
-            {{/* Built in one piece: the escaper cannot follow a URL whose query grows across branches. */}}
-            {{$link := ""}}{{$sep := "?"}}
-            {{ $open := .PreferredPart $.PreferHTML }}{{if $open}}{{$link = printf "%s%s" (url "mail.message" .Mailbox .UID) (partquery $open "")}}{{$sep = "&"}}{{else}}{{$link = url "mail.message" .Mailbox .UID}}{{end}}
-            {{with $.ListView}}{{$link = printf "%s%sview=%s" $link $sep .}}{{$sep = "&"}}{{end}}{{with $.Query}}{{$link = printf "%s%squery=%s" $link $sep (. | qv)}}{{$sep = "&"}}{{end}}
-            {{with $.Sort}}{{$link = printf "%s%ssort=%s&dir=%s" $link $sep . $.SortDir}}{{$sep = "&"}}{{end}}
-            {{with $.GlobalData.URLAccount}}{{$link = printf "%s%saccount=%s" $link $sep (. | qv)}}{{end}}
-            {{$link = from $link $.GlobalData.URL.RequestURI}}
-            <a dir="{{.Envelope.Subject | subjectdir}}"{{with $.GlobalData.MessageLang .Envelope.Subject}} lang="{{.}}"{{end}} href="{{localhref $link}}">
-            {{end}}
+            {{ $open := "" }}{{ if not $.Merged }}{{ $open = .PreferredPart $.PreferHTML }}{{ end }}
+            <a dir="{{.Envelope.Subject | subjectdir}}"{{with $.GlobalData.MessageLang .Envelope.Subject}} lang="{{.}}"{{end}} href="{{ template "message-link" (dict "g" $ "row" . "merged" $.Merged "open" $open) }}">
               {{/* No bdi: dir=auto skips isolates, so it would find no strong
                    character. */}}
               {{if .Envelope.Subject}}

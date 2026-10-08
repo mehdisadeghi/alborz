@@ -381,18 +381,10 @@
               {{- end -}}
               </a> ({{.MIMEType}}, {{.SizeString}})
               {{ if and (or (eq .MIMEType "text/calendar") (eq .MIMEType "application/ics")) $.ImportCalendars }}
-              <form method="post" action="{{url "calendar.fromattachment"}}{{$aq}}" class="invitation-actions">
-                {{ template "message-source-fields" (dict "mailbox" $.Mailbox.Name "uid" $.Message.UID "part" .PathString "next" $.GlobalData.URL.RequestURI) }}
-                {{ template "collection-picker" (dict "groups" $.ImportCalendars "name" "calendar" "label" ($.T "common.calendar") "multi" (gt (len $.GlobalData.Accounts) 1)) }}
-                <button type="submit">{{$.T "import.tocalendar"}}</button>
-              </form>
+              {{ template "attachment-import" (dict "g" $ "action" (print (url "calendar.fromattachment") $aq) "groups" $.ImportCalendars "name" "calendar" "label" ($.T "common.calendar") "button" "import.tocalendar" "mailbox" $.Mailbox.Name "uid" $.Message.UID "part" .PathString "next" $.GlobalData.URL.RequestURI) }}
               {{ end }}
               {{ if and (or (eq .MIMEType "text/vcard") (eq .MIMEType "text/x-vcard") (eq .MIMEType "text/directory")) $.ImportBooks }}
-              <form method="post" action="{{url "contacts.frommessage"}}{{$aq}}" class="invitation-actions">
-                {{ template "message-source-fields" (dict "mailbox" $.Mailbox.Name "uid" $.Message.UID "part" .PathString "next" $.GlobalData.URL.RequestURI) }}
-                {{ template "collection-picker" (dict "groups" $.ImportBooks "name" "addressbook" "label" ($.T "contacts.book") "multi" (gt (len $.GlobalData.Accounts) 1)) }}
-                <button type="submit">{{$.T "import.tocontacts"}}</button>
-              </form>
+              {{ template "attachment-import" (dict "g" $ "action" (print (url "contacts.frommessage") $aq) "groups" $.ImportBooks "name" "addressbook" "label" ($.T "contacts.book") "button" "import.tocontacts" "mailbox" $.Mailbox.Name "uid" $.Message.UID "part" .PathString "next" $.GlobalData.URL.RequestURI) }}
               {{ end }}
             </li>
             {{ end }}

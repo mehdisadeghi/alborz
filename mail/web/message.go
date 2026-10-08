@@ -150,17 +150,25 @@ func handleDownloadPart(ctx *web.Context, mboxName string, uid imap.UID, partPat
 }
 
 // handleRaw serves a part, or the whole message without one, as its bytes.
+func messagePartRef(ctx *web.Context) (string, imap.UID, []int, error) {
+	mboxName, uid, err := MessageRef(ctx)
+	if err != nil {
+		return "", 0, nil, err
+	}
+	partPath, err := mail.ParsePartPath(ctx.QueryParam("part"))
+	if err != nil {
+		return "", 0, nil, web.NewError(http.StatusBadRequest, err)
+	}
+	return mboxName, uid, partPath, nil
+}
+
 func handleRaw(ctx *web.Context) error {
 	if ctx.QueryParam("part") == "" {
 		return handleDownloadMessage(ctx, ctx.QueryParam("plain") == "1")
 	}
-	mboxName, uid, err := MessageRef(ctx)
+	mboxName, uid, partPath, err := messagePartRef(ctx)
 	if err != nil {
 		return err
-	}
-	partPath, err := mail.ParsePartPath(ctx.QueryParam("part"))
-	if err != nil {
-		return web.NewError(http.StatusBadRequest, err)
 	}
 	return handleDownloadPart(ctx, mboxName, uid, partPath)
 }
@@ -169,14 +177,9 @@ func (p *plugin) handleGetPart(ctx *web.Context) error {
 	if ctx.PartialFor("message-navigation") {
 		return p.handleMessageNavigation(ctx)
 	}
-	mboxName, uid, err := MessageRef(ctx)
+	mboxName, uid, partPath, err := messagePartRef(ctx)
 	if err != nil {
 		return err
-	}
-
-	partPath, err := mail.ParsePartPath(ctx.QueryParam("part"))
-	if err != nil {
-		return web.NewError(http.StatusBadRequest, err)
 	}
 
 	settings, err := mail.LoadSettings(ctx.Request().Context(), ctx.Login.Store())

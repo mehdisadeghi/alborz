@@ -1,4 +1,6 @@
 {{/* dict: g home steps class [noroot]. */}}
+{{ define "crumb-label" }}{{ if .Address }}{{ template "ltr" .Label }}{{ else }}{{ .Label }}{{ end }}{{ end }}
+
 {{ define "crumb" }}
 {{ $account := .g.GlobalData.URLAccount }}
 {{ $several := gt (len .g.GlobalData.Accounts) 1 }}
@@ -9,9 +11,9 @@
   {{- $last := -1 }}{{ range $i, $s := .steps }}{{ if and $s.Label (or $several (not $s.Address)) }}{{ $last = $i }}{{ end }}{{ end }}
   {{- range $i, $step := .steps }}{{ if and $step.Label (or $several (not $step.Address)) }}
     {{- if $sep }} › {{ end }}{{ $sep = true }}
-    {{- if and $.heading (eq $i $last) }}<h1>{{ if $step.URL }}<a href="{{ $step.URL }}{{ account (qsep $step.URL) $account }}"{{ if eq $i $up }} data-key="u"{{ end }}>{{ if $step.Address }}{{ template "ltr" $step.Label }}{{ else }}{{ $step.Label }}{{ end }}</a>{{ else }}{{ if $step.Address }}{{ template "ltr" $step.Label }}{{ else }}{{ $step.Label }}{{ end }}{{ end }}{{ with $.gloss }} <span class="crumb-gloss">{{.}}</span>{{ end }}</h1>
-    {{- else if $step.URL }}<a href="{{ $step.URL }}{{ account (qsep $step.URL) $account }}"{{ if eq $i $up }} data-key="u"{{ end }}>{{ if $step.Address }}{{ template "ltr" $step.Label }}{{ else }}{{ $step.Label }}{{ end }}</a>
-    {{- else }}{{ if $step.Address }}{{ template "ltr" $step.Label }}{{ else }}{{ $step.Label }}{{ end }}{{ end }}
+    {{- if and $.heading (eq $i $last) }}<h1>{{ if $step.URL }}<a href="{{ $step.URL }}{{ account (qsep $step.URL) $account }}"{{ if eq $i $up }} data-key="u"{{ end }}>{{ template "crumb-label" $step }}</a>{{ else }}{{ template "crumb-label" $step }}{{ end }}{{ with $.gloss }} <span class="crumb-gloss">{{.}}</span>{{ end }}</h1>
+    {{- else if $step.URL }}<a href="{{ $step.URL }}{{ account (qsep $step.URL) $account }}"{{ if eq $i $up }} data-key="u"{{ end }}>{{ template "crumb-label" $step }}</a>
+    {{- else }}{{ template "crumb-label" $step }}{{ end }}
   {{- end }}{{ end }}
 </div>
 {{ end }}

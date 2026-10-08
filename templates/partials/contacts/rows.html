@@ -2,7 +2,6 @@
 {{ define "contact-rows" }}
           {{range $row := .AddressObjects}}
           {{$book := call $.CollectionFor .Account .Path}}{{$color := $book.Color}}
-          {{$photo := .PhotoURL}}
           <div class="contact-row list-row" role="row">
             {{ with $.SelectForm }}
             {{ template "row-select-cell" (dict "class" "contact-list-checkbox" "form" . "ref" (printf "%s|%s" $row.Account $row.Path) "label" ($.T "a11y.selectcontact") "summary" $row.DisplayName) }}
@@ -13,7 +12,7 @@
                "star" .Color
                "next" $.GlobalData.URL.RequestURI) }}
             <div class="contact-list-photo list-cell" role="cell">
-              {{if $photo}}<img src="{{photodatauri $photo}}" alt="">{{end}}
+              {{if .PhotoURL}}<img src="{{photodatauri .PhotoURL}}" alt="">{{end}}
             </div>
             <div class="contact-list-name list-primary list-cell" role="cell">
               <a href="{{ call $.HrefFor .Account .Path }}" dir="auto"{{ with call $.AddedBy .Account .Path }} title="{{ printf ($.T "share.addedby") . }}"{{ end }}>

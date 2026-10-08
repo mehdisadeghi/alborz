@@ -82,12 +82,7 @@
           <div id="attachment-list">
             <div class="help">{{$.T "compose.dragdrop"}}</div>
             {{range .Attached}}
-            <div class="upload">
-              <label class="filename">
-                <input type="checkbox" name="attached_messages" value="{{.Ref}}" checked>
-                {{.Name}}
-              </label>
-            </div>
+            {{ template "attachment-checkbox" (dict "name" "attached_messages" "value" .Ref "label" .Name) }}
             {{end}}
             {{range .Uploads}}
             <div class="upload" data-uuid="{{.ID}}" data-remove="{{url "mail.attachment.remove" .ID}}">
@@ -99,12 +94,7 @@
             </div>
             {{end}}
             {{range .PartAttachments}}
-            <div class="upload">
-              <label class="filename">
-                <input type="checkbox" name="prev_attachments" value="{{.Node.PathString}}" checked>
-                {{.Filename}}
-              </label>
-            </div>
+            {{ template "attachment-checkbox" (dict "name" "prev_attachments" "value" .Node.PathString "label" .Filename) }}
             {{end}}
           </div>
 

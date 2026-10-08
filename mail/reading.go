@@ -92,12 +92,7 @@ func ZipAttachments(ctx context.Context, login *alborz.Login, mboxName string, u
 }
 
 func singlePart(c *imapclient.Client, mboxName string, uid imap.UID, partPath []int) (*imap.BodyStructureSinglePart, error) {
-	if err := ensureMailboxSelected(c, mboxName); err != nil {
-		return nil, err
-	}
-	msg, err := fetchOne(c, uid, &imap.FetchOptions{
-		UID: true, BodyStructure: &imap.FetchItemBodyStructure{Extended: true},
-	})
+	msg, err := fetchExtendedMessage(c, mboxName, uid)
 	if err != nil {
 		return nil, err
 	}
@@ -112,6 +107,13 @@ func singlePart(c *imapclient.Client, mboxName string, uid imap.UID, partPath []
 		return nil, alborz.NotFound("notfound.part", fmt.Sprint(uid))
 	}
 	return part, nil
+}
+
+func fetchExtendedMessage(c *imapclient.Client, mboxName string, uid imap.UID) (*imapclient.FetchMessageBuffer, error) {
+	if err := ensureMailboxSelected(c, mboxName); err != nil {
+		return nil, err
+	}
+	return fetchOne(c, uid, &imap.FetchOptions{UID: true, BodyStructure: &imap.FetchItemBodyStructure{Extended: true}})
 }
 
 // StreamPart hands write one part, decoded, the name to save it as, and its length where the server
@@ -293,12 +295,7 @@ func PartAt(ctx context.Context, login *alborz.Login, mboxName string, uid imap.
 func CalendarPartAt(ctx context.Context, login *alborz.Login, mboxName string, uid imap.UID) (*ical.Calendar, string, error) {
 	var msg *IMAPMessage
 	if err := login.DoIMAPContext(ctx, alborz.RoundTripTimeout, func(c *imapclient.Client) error {
-		if err := ensureMailboxSelected(c, mboxName); err != nil {
-			return err
-		}
-		buf, err := fetchOne(c, uid, &imap.FetchOptions{
-			UID: true, BodyStructure: &imap.FetchItemBodyStructure{Extended: true},
-		})
+		buf, err := fetchExtendedMessage(c, mboxName, uid)
 		if err != nil {
 			return err
 		}

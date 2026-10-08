@@ -19,9 +19,8 @@ import (
 // CalendarPageRenderData is the shared frame for the month and day pages.
 type CalendarPageRenderData struct {
 	pimweb.ListRenderData
-	ListQuery  string
-	SelectForm string
-	Time       time.Time
+	ListQuery string
+	Time      time.Time
 }
 
 // CalendarObjectRenderData is the shared frame for event, task, and journal object pages.
@@ -65,7 +64,7 @@ func calendarListParts[T any](ctx *web.Context, p *plugin, list CalendarList[T],
 func calendarPageData(ctx *web.Context, title string, collections []dav.Collection, labels pimweb.CollectionLabels, view, query string, filters []web.Filter, rows []web.FilterRow, form string, invitations *pimweb.RailInvitations, listQuery string, when time.Time) CalendarPageRenderData {
 	list := pimweb.NewListRenderData(ctx, title, collections, view, query, pimweb.Sorting{}, web.Pager{}, filters, rows, form, invitations)
 	list.CollectionLabels = labels
-	return CalendarPageRenderData{ListRenderData: list, ListQuery: listQuery, SelectForm: form, Time: when}
+	return CalendarPageRenderData{ListRenderData: list, ListQuery: listQuery, Time: when}
 }
 
 func calendarList[T any](ctx *web.Context, path string, params []string, valid func(string) bool,

@@ -116,13 +116,10 @@ func (p *plugin) updateEntry(ctx *web.Context) error {
 	}
 	summary, _ := journal.Props.Text(ical.PropSummary)
 	data := &UpdateEntryRenderData{
-		PageData:   *web.NewPageData(ctx, ctx.T("journal.createtitle"), pimweb.Rail{}),
-		Groups:     e.groups,
-		Collection: e.collection,
-		Object:     e.object,
-		Summary:    summary,
-		Text:       calendar.JournalText(journal),
-		Date:       ctx.Dates().Input(date),
+		UpdateCalendarObjectRenderData: pimweb.NewEditRenderData(ctx, ctx.T("journal.createtitle"), pimweb.Rail{}, e.groups, e.collection, e.object, ""),
+		Summary:                        summary,
+		Text:                           calendar.JournalText(journal),
+		Date:                           ctx.Dates().Input(date),
 	}
 	if !e.creating() {
 		data.WithTitle(fmt.Sprintf(ctx.T("title.update"), summary))

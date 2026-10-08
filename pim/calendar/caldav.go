@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"iter"
-	"net"
 	"net/http"
 	"net/url"
 	"slices"
@@ -20,7 +19,6 @@ import (
 	"git.mehdix.org/alborz/pim/store"
 	"github.com/alborzmail/go-recur"
 	"github.com/emersion/go-ical"
-	"github.com/emersion/go-webdav"
 	"github.com/emersion/go-webdav/caldav"
 )
 
@@ -188,7 +186,7 @@ func (o Occurrence) Star() string {
 
 func ComponentColor(comp *ical.Component) string {
 	name, _ := comp.Props.Text(ical.PropColor)
-	if !slices.Contains(alborz.FlagColors[:], name) {
+	if !alborz.IsFlagColor(name) {
 		return ""
 	}
 	return name
@@ -426,10 +424,8 @@ func EventQuery(start, end time.Time) caldav.CalendarQuery {
 // GetObject is the object at p, or alborz.ErrUnreadable for an answer that does not parse.
 func GetObject(ctx context.Context, c *caldav.Client, p string) (*caldav.CalendarObject, error) {
 	co, err := c.GetCalendarObject(ctx, p)
-	// What is neither the server's status nor the transport's failure, a *url.Error, is the answer.
-	var transport net.Error
-	if _, answered := webdav.HTTPErrorCode(err); err != nil && !answered && !errors.As(err, &transport) && ctx.Err() == nil {
-		return nil, fmt.Errorf("%w: %s: %v", alborz.ErrUnreadable, p, err)
+	if err = dav.ObjectError(ctx, p, err); err != nil {
+		return nil, err
 	}
 	return co, err
 }

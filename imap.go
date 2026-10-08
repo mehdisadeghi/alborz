@@ -26,6 +26,16 @@ func init() {
 // FlagColors names the colours the flag bits address, indexed by their value.
 var FlagColors = [7]string{"red", "orange", "yellow", "green", "blue", "purple", "grey"}
 
+// IsFlagColor reports whether name is one of the supported flag colours.
+func IsFlagColor(name string) bool {
+	for _, color := range FlagColors {
+		if color == name {
+			return true
+		}
+	}
+	return false
+}
+
 // Views narrow a folder by a flag.
 const (
 	ViewStarred = "starred"

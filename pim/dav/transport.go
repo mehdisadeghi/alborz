@@ -3,7 +3,6 @@ package dav
 
 import (
 	"bytes"
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -95,7 +94,7 @@ func principal(ctx context.Context, login *alborz.Login) (Principal, error) {
 	if err != nil {
 		return Principal{}, err
 	}
-	return Principal{Account: login.Username(), Name: cmp.Or(services.Username, login.Username())}, nil
+	return Principal{Account: login.Username(), Name: services.usernameFor(login.Username())}, nil
 }
 
 // IfNew is an If-None-Match that holds only while nothing is at the address (RFC 7232 3.2).

@@ -93,14 +93,11 @@ func (p *plugin) updateTask(ctx *web.Context) error {
 				return err
 			}
 			return ctx.Render(http.StatusUnprocessableEntity, "tasks/task-edit", &UpdateTaskRenderData{
-				PageData:      *web.NewPageData(ctx, ctx.T("tasks.createtitle"), rail).WithRefused(message),
-				Groups:        e.groups,
-				Collection:    e.collection,
-				Object:        e.object,
-				Todo:          todo,
-				Due:           dueDate,
-				Priority:      band,
-				PriorityBands: calendar.PriorityBands,
+				UpdateCalendarObjectRenderData: pimweb.NewEditRenderData(ctx, ctx.T("tasks.createtitle"), rail, e.groups, e.collection, e.object, message),
+				Todo:                           todo,
+				Due:                            dueDate,
+				Priority:                       band,
+				PriorityBands:                  calendar.PriorityBands,
 			})
 		}
 		if summary == "" {
@@ -166,13 +163,10 @@ func (p *plugin) updateTask(ctx *web.Context) error {
 		return err
 	}
 	return ctx.Render(http.StatusOK, "tasks/task-edit", &UpdateTaskRenderData{
-		PageData:      *web.NewPageData(ctx, fmt.Sprintf(ctx.T("title.update"), summary), rail),
-		Groups:        e.groups,
-		Collection:    e.collection,
-		Object:        e.object,
-		Todo:          todo,
-		Due:           ctx.Dates().Input(at),
-		Priority:      calendar.PriorityBand(todo),
-		PriorityBands: calendar.PriorityBands,
+		UpdateCalendarObjectRenderData: pimweb.NewEditRenderData(ctx, fmt.Sprintf(ctx.T("title.update"), summary), rail, e.groups, e.collection, e.object, ""),
+		Todo:                           todo,
+		Due:                            ctx.Dates().Input(at),
+		Priority:                       calendar.PriorityBand(todo),
+		PriorityBands:                  calendar.PriorityBands,
 	})
 }

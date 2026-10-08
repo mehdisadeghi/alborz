@@ -79,7 +79,7 @@ func calendarList[T any](ctx *web.Context, path string, params []string, valid f
 	if err != nil {
 		return CalendarList[T]{}, err
 	}
-	sorting, err := pimweb.SortList(ctx, state, rows, columns, tie, params...)
+	sorting, err := pimweb.SortList(state, rows, columns, tie, params...)
 	if err != nil {
 		return CalendarList[T]{}, err
 	}

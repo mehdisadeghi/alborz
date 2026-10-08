@@ -107,14 +107,14 @@ func (p *plugin) eventItems(ctx *web.Context) ([]pimweb.Item, error) {
 			return nil, err
 		}
 		shown = dv.events
-	case ctx.QueryParam("month") != "" && ctx.QueryParam("view") != "":
+	case ctx.QueryParam("month") != "" && state.View != "":
 		mv, err := p.monthView(ctx)
 		if err != nil {
 			return nil, err
 		}
 		shown = mv.shown()
 	// A list with no month is a search across all time.
-	case ctx.QueryParam("query") != "" || ctx.QueryParam("view") != "":
+	case state.Query != "" || state.View != "":
 		found, err := p.eventSearch(ctx, pimweb.Only(ctx, "cal"), state.View, state.ParsedQuery())
 		if err != nil {
 			return nil, err
@@ -209,18 +209,15 @@ func (p *plugin) updateEvent(ctx *web.Context) error {
 				return err
 			}
 			return ctx.Render(http.StatusUnprocessableEntity, "calendar/event-edit", &UpdateEventRenderData{
-				PageData:    *web.NewPageData(ctx, ctx.T("calendar.createtitle"), rail).WithRefused(message),
-				Groups:      e.groups,
-				Collection:  e.collection,
-				Object:      e.object,
-				Event:       event,
-				AllDay:      ctx.FormValue("allday") != "",
-				StartTime:   ctx.DateField("start"),
-				EndTime:     ctx.DateField("end"),
-				StartDate:   ctx.DateField("start_date"),
-				EndDate:     ctx.DateField("end_date"),
-				Repeat:      calendar.Repeat{Freq: ctx.FormValue("repeat"), Until: ctx.DateField("until")},
-				RepeatFreqs: calendar.RepeatFreqs,
+				UpdateCalendarObjectRenderData: pimweb.NewEditRenderData(ctx, ctx.T("calendar.createtitle"), rail, e.groups, e.collection, e.object, message),
+				Event:                          event,
+				AllDay:                         ctx.FormValue("allday") != "",
+				StartTime:                      ctx.DateField("start"),
+				EndTime:                        ctx.DateField("end"),
+				StartDate:                      ctx.DateField("start_date"),
+				EndDate:                        ctx.DateField("end_date"),
+				Repeat:                         calendar.Repeat{Freq: ctx.FormValue("repeat"), Until: ctx.DateField("until")},
+				RepeatFreqs:                    calendar.RepeatFreqs,
 			})
 		}
 		if summary == "" {
@@ -337,11 +334,8 @@ func (p *plugin) updateEvent(ctx *web.Context) error {
 		return err
 	}
 	data := &UpdateEventRenderData{
-		PageData:   *web.NewPageData(ctx, fmt.Sprintf(ctx.T("title.update"), summary), rail),
-		Groups:     e.groups,
-		Collection: e.collection,
-		Object:     e.object,
-		Event:      event,
+		UpdateCalendarObjectRenderData: pimweb.NewEditRenderData(ctx, fmt.Sprintf(ctx.T("title.update"), summary), rail, e.groups, e.collection, e.object, ""),
+		Event:                          event,
 	}
 	fillEventForm(ctx, data, loc, newEventStart(ctx, loc))
 	return ctx.Render(http.StatusOK, "calendar/event-edit", data)

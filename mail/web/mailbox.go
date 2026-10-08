@@ -209,12 +209,8 @@ func mailboxAsk(ctx *web.Context, also string) (mail.ListAsk, *mail.Settings, st
 
 // A star view keeps the narrowing and order already in force.
 func starViewPath(ctx *web.Context, view string) string {
-	kept := url.Values{"view": {view}}
-	for _, name := range []string{"query", "sort", "dir", "ipp"} {
-		if value := ctx.QueryParam(name); value != "" {
-			kept.Set(name, value)
-		}
-	}
+	kept := web.ReadListState(ctx).Keep("query", "sort", "dir", "ipp")
+	kept.Set("view", view)
 	return ctx.AccountPath(web.QueryPath(ctx.Path("mail.search"), kept))
 }
 
@@ -229,7 +225,7 @@ func readListAskAt(ctx *web.Context, q url.Values, also string) (mail.ListAsk, e
 	if err != nil {
 		return mail.ListAsk{}, err
 	}
-	if err := readStars(q.Get("query"), view); err != nil {
+	if err := readStars(state.Query, view); err != nil {
 		return mail.ListAsk{}, err
 	}
 	sortKey, sortDir, err := readSortValues(state.Sort, state.Direction, also)
@@ -251,11 +247,6 @@ func searchInstead(ctx *web.Context, ask mail.ListAsk) string {
 }
 
 // also is the one order the page has beyond the columns.
-func readSort(q url.Values, also string) (sortKey, sortDir string, err error) {
-	state := web.ListStateFrom(q)
-	return readSortValues(state.Sort, state.Direction, also)
-}
-
 func readSortValues(sortKey, sortDir, also string) (string, string, error) {
 	if !mail.KnownSort(sortKey) && sortKey != also {
 		return "", "", web.NewError(http.StatusBadRequest, "invalid sort order")
@@ -267,10 +258,6 @@ func readSortValues(sortKey, sortDir, also string) (string, string, error) {
 }
 
 // A view is a link in the rail, never typed, so an unknown one is refused.
-func readView(q url.Values) (string, error) {
-	return readViewValue(web.ListStateFrom(q).View)
-}
-
 func readViewValue(view string) (string, error) {
 	if !mail.KnownView(view) {
 		return "", web.NewError(http.StatusBadRequest, "unknown view")

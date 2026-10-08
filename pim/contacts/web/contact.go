@@ -186,14 +186,11 @@ func (p *plugin) updateContact(ctx *web.Context) error {
 				return err
 			}
 			return ctx.Render(http.StatusUnprocessableEntity, "contacts/contact-edit", &UpdateAddressObjectRenderData{
-				PageData:   *web.NewPageData(ctx, "", rail).WithRefused(message),
-				Groups:     groups,
-				Collection: currentAddressBook,
-				Object:     ao,
-				Card:       card,
-				Name:       fn,
-				Birthday:   ctx.DateField("bday"),
-				Photo:      card.PreferredValue(vcard.FieldPhoto),
+				EditRenderData: pimweb.NewEditRenderData(ctx, "", rail, groups, currentAddressBook, ao, message),
+				Card:           card,
+				Name:           fn,
+				Birthday:       ctx.DateField("bday"),
+				Photo:          card.PreferredValue(vcard.FieldPhoto),
 			})
 		}
 		if strings.TrimSpace(fn) == "" {
@@ -304,14 +301,11 @@ func (p *plugin) updateContact(ctx *web.Context) error {
 		return err
 	}
 	return ctx.Render(http.StatusOK, "contacts/contact-edit", &UpdateAddressObjectRenderData{
-		PageData:   *web.NewPageData(ctx, "", rail),
-		Groups:     groups,
-		Collection: currentAddressBook,
-		Object:     ao,
-		Card:       card,
-		Name:       name,
-		Birthday:   ctx.Dates().Day(contacts.Birthday(card)),
-		Photo:      card.PreferredValue(vcard.FieldPhoto),
+		EditRenderData: pimweb.NewEditRenderData(ctx, "", rail, groups, currentAddressBook, ao, ""),
+		Card:           card,
+		Name:           name,
+		Birthday:       ctx.Dates().Day(contacts.Birthday(card)),
+		Photo:          card.PreferredValue(vcard.FieldPhoto),
 	})
 }
 

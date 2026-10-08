@@ -30,7 +30,7 @@ func (p *plugin) handleSidebar(ctx *web.Context) error {
 		_, values, _ := ctx.Server.Match(at)
 		folder = values["mbox"]
 	}
-	view, err := readView(ctx.QueryParams())
+	view, err := readViewValue(web.ReadListState(ctx).View)
 	if err != nil {
 		return err
 	}
@@ -189,7 +189,7 @@ func (p *plugin) newIMAPBaseRenderData(ctx *web.Context,
 		return nil, err
 	}
 
-	view, err := readView(ctx.QueryParams())
+	view, err := readViewValue(web.ReadListState(ctx).View)
 	if err != nil {
 		return nil, err
 	}

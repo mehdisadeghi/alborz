@@ -146,7 +146,7 @@ func foundCalendar[T any](ctx *web.Context, q search.Query, view string, limit i
 	if err != nil {
 		return web.Found{}, err
 	}
-	if _, err := pimweb.SortList(ctx, state, rows, columns, tie); err != nil {
+	if _, err := pimweb.SortList(state, rows, columns, tie); err != nil {
 		return web.Found{}, err
 	}
 	shown, total := pimweb.SearchRows(ctx, rows, unread, limit)

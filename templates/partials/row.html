@@ -1,5 +1,12 @@
 {{/* Cells a row of a DAV object's list draws the same in every list. */}}
 
+{{/* dict: class form ref label summary. */}}
+{{ define "row-select-cell" }}
+  <div class="{{.class}} list-checkbox list-cell" role="cell">
+    <input type="checkbox" name="paths" value="{{.ref}}" form="{{.form}}" aria-label="{{.label}}{{with .summary}}: {{.}}{{end}}">
+  </div>
+{{ end }}
+
 {{/* dict: g action star next. */}}
 {{ define "row-star-cell" }}
   {{ $row := . }}

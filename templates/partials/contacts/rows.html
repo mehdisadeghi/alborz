@@ -5,9 +5,7 @@
           {{$photo := .PhotoURL}}
           <div class="contact-row list-row" role="row">
             {{ with $.SelectForm }}
-            <div class="contact-list-checkbox list-checkbox list-cell" role="cell">
-              <input type="checkbox" name="paths" value="{{$row.Account}}|{{$row.Path}}" form="{{.}}" aria-label="{{$.T "a11y.selectcontact"}}{{with $row.DisplayName}}: {{.}}{{end}}">
-            </div>
+            {{ template "row-select-cell" (dict "class" "contact-list-checkbox" "form" . "ref" (printf "%s|%s" $row.Account $row.Path) "label" ($.T "a11y.selectcontact") "summary" $row.DisplayName) }}
             {{ end }}
             {{ template "row-star-cell" (dict
                "g" $

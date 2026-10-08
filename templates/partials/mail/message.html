@@ -5,6 +5,16 @@
 {{ with .part }}{{ template "hidden-field" (dict "name" "part" "value" .) }}{{ end }}
 {{ with .next }}{{ template "next-field" . }}{{ end }}
 {{ end }}
+{{/* dict: g label part. */}}
+{{ define "part-warning" }}
+{{ $g := .g }}{{ $m := $g.Message }}
+<tr class="part-cut">
+  <td colspan="2" dir="auto">
+    {{$g.T .label}}
+    <a hx-boost="false" href="{{url "mail.message.raw" $m.Mailbox $m.UID}}?part={{.part}}{{account "&" $g.GlobalData.URLAccount}}">{{$g.T "message.downloadpart"}}</a>
+  </td>
+</tr>
+{{ end }}
 {{ define "message-uids" }}{{ template "hidden-field" (dict "name" "uids" "value" .) }}{{ end }}
 
 {{ define "message-navigation" }}

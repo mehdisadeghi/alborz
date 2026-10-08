@@ -70,8 +70,8 @@ func calendarPageData(ctx *web.Context, title string, collections []dav.Collecti
 func calendarList[T any](ctx *web.Context, path string, params []string, valid func(string) bool,
 	load func(string, search.Query, url.Values) ([]T, []dav.Collection, []pim.Unread, error), columns []pim.Column[T], tie func(T) string, item func(T) pimweb.Item,
 ) (CalendarList[T], error) {
-	text, query := pimweb.SearchQuery(ctx)
-	view := ctx.QueryParam("view")
+	state := web.ReadListState(ctx)
+	text, view, query := state.Query, state.View, state.ParsedQuery()
 	if !valid(view) {
 		return CalendarList[T]{}, web.NewError(http.StatusBadRequest, "no such view")
 	}
@@ -79,7 +79,7 @@ func calendarList[T any](ctx *web.Context, path string, params []string, valid f
 	if err != nil {
 		return CalendarList[T]{}, err
 	}
-	sorting, err := pimweb.Sort(ctx, rows, columns, tie, params...)
+	sorting, err := pimweb.SortList(ctx, state, rows, columns, tie, params...)
 	if err != nil {
 		return CalendarList[T]{}, err
 	}

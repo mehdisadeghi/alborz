@@ -28,11 +28,12 @@ type EventSearchRenderData struct {
 var eventSearchParams = []string{"account", "cal", "query", "view"}
 
 func (p *plugin) search(ctx *web.Context) error {
-	view := ctx.QueryParam("view")
+	state := web.ReadListState(ctx)
+	view := state.View
 	if !web.ValidStarView(view) {
 		return web.NewError(http.StatusBadRequest, "no such view")
 	}
-	text, query := pimweb.SearchQuery(ctx)
+	text, query := state.Query, state.ParsedQuery()
 	text = strings.TrimSpace(text)
 	data, err := p.eventSearch(ctx, pimweb.Only(ctx, "cal"), view, query)
 	if err != nil {

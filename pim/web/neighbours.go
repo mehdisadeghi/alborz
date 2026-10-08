@@ -47,7 +47,7 @@ func Around(items []Item, path string) web.Neighbours {
 
 // ListParams are the request parameters that decide a list's objects and order.
 func ListParams(ctx *web.Context, keys ...string) url.Values {
-	return Keep(ctx.QueryParams(), keys...)
+	return web.KeepParams(ctx.QueryParams(), keys...)
 }
 
 // ListParamsIn reads them from a form's return URL, the only place a write's fragment has them.
@@ -77,32 +77,12 @@ func ListURL(path string, params url.Values) string {
 
 // Keep takes the named parameters, and only those, from a query.
 func Keep(from url.Values, keys ...string) url.Values {
-	kept := url.Values{}
-	for _, key := range keys {
-		for _, v := range from[key] {
-			if v != "" {
-				kept.Add(key, v)
-			}
-		}
-	}
-	return kept
+	return web.KeepParams(from, keys...)
 }
 
 // RowParams are a row's list parameters with the list its page returns to.
 func RowParams(ctx *web.Context, path string, params url.Values) url.Values {
-	from := ctx.From()
-	if ctx.Request().URL.Path == path {
-		from = ctx.Request().URL.RequestURI()
-	}
-	if from == "" {
-		return params
-	}
-	q := url.Values{}
-	for key, values := range params {
-		q[key] = values
-	}
-	q.Set("from", from)
-	return q
+	return web.ReadListState(ctx).Rows(path, params)
 }
 
 // ObjectURL is an object's page, the route's, with the list's parameters and, in a pooled list, its account.

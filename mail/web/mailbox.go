@@ -220,22 +220,23 @@ func starViewPath(ctx *web.Context, view string) string {
 
 // readListAskAt reads a list's address, the request's or the one an object was opened from.
 func readListAskAt(ctx *web.Context, q url.Values, also string) (mail.ListAsk, error) {
-	page, err := ctx.ListPageAt(q)
+	state := web.ListStateFrom(q)
+	page, err := state.Page(ctx)
 	if err != nil {
 		return mail.ListAsk{}, err
 	}
-	view, err := readView(q)
+	view, err := readViewValue(state.View)
 	if err != nil {
 		return mail.ListAsk{}, err
 	}
 	if err := readStars(q.Get("query"), view); err != nil {
 		return mail.ListAsk{}, err
 	}
-	sortKey, sortDir, err := readSort(q, also)
+	sortKey, sortDir, err := readSortValues(state.Sort, state.Direction, also)
 	if err != nil {
 		return mail.ListAsk{}, err
 	}
-	return mail.ListAsk{Page: page, Query: q.Get("query"), View: view, Sort: sortKey, Dir: sortDir}, nil
+	return mail.ListAsk{Page: page, Query: state.Query, View: view, Sort: sortKey, Dir: sortDir}, nil
 }
 
 func searchInstead(ctx *web.Context, ask mail.ListAsk) string {
@@ -251,11 +252,14 @@ func searchInstead(ctx *web.Context, ask mail.ListAsk) string {
 
 // also is the one order the page has beyond the columns.
 func readSort(q url.Values, also string) (sortKey, sortDir string, err error) {
-	sortKey = q.Get("sort")
+	state := web.ListStateFrom(q)
+	return readSortValues(state.Sort, state.Direction, also)
+}
+
+func readSortValues(sortKey, sortDir, also string) (string, string, error) {
 	if !mail.KnownSort(sortKey) && sortKey != also {
 		return "", "", web.NewError(http.StatusBadRequest, "invalid sort order")
 	}
-	sortDir = q.Get("dir")
 	if sortDir != "" && sortDir != "asc" && sortDir != "desc" {
 		return "", "", web.NewError(http.StatusBadRequest, "invalid sort direction")
 	}
@@ -264,7 +268,10 @@ func readSort(q url.Values, also string) (sortKey, sortDir string, err error) {
 
 // A view is a link in the rail, never typed, so an unknown one is refused.
 func readView(q url.Values) (string, error) {
-	view := q.Get("view")
+	return readViewValue(web.ListStateFrom(q).View)
+}
+
+func readViewValue(view string) (string, error) {
 	if !mail.KnownView(view) {
 		return "", web.NewError(http.StatusBadRequest, "unknown view")
 	}

@@ -1,7 +1,6 @@
 package mail
 
 import (
-	"slices"
 	"strings"
 	"time"
 
@@ -14,12 +13,12 @@ import (
 
 // KnownView says whether a view name is one alborz offers.
 func KnownView(view string) bool {
-	return view == "" || view == alborz.ViewStarred || view == alborz.ViewUnread || slices.Contains(alborz.FlagColors[:], view)
+	return view == "" || view == alborz.ViewStarred || view == alborz.ViewUnread || alborz.IsFlagColor(view)
 }
 
 // StarView says whether a view is a mark the reader put on a message.
 func StarView(view string) bool {
-	return view == alborz.ViewStarred || slices.Contains(alborz.FlagColors[:], view)
+	return view == alborz.ViewStarred || alborz.IsFlagColor(view)
 }
 
 // ViewCriteria is the search a view is, nil for the whole folder.
@@ -45,7 +44,7 @@ func listCriteria(c *imapclient.Client, settings *Settings, query, view string) 
 	var rest search.Query
 	for _, term := range search.Parse(query) {
 		colour := strings.ToLower(term.Value)
-		if term.Key != imapsearch.Is || !slices.Contains(alborz.FlagColors[:], colour) {
+		if term.Key != imapsearch.Is || !alborz.IsFlagColor(colour) {
 			rest = append(rest, term)
 			continue
 		}

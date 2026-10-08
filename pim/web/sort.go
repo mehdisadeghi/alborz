@@ -21,7 +21,7 @@ var sortDrops = []string{"sort", "dir", "page"}
 
 // SortList applies the shared list state to section columns and preserves the
 // same order contract for each section's projection.
-func SortList[T any](ctx *web.Context, state web.ListState, rows []T, columns []pim.Column[T], tie func(T) string, keep ...string) (Sorting, error) {
+func SortList[T any](state web.ListState, rows []T, columns []pim.Column[T], tie func(T) string, keep ...string) (Sorting, error) {
 	key, dir := state.Sort, state.Direction
 	s := Sorting{Key: key, Dir: dir, Explicit: key != "", DirExplicit: dir != "", Reset: "?"}
 	if key == "" {

@@ -68,7 +68,7 @@ func (p *plugin) contactList(ctx *web.Context) (ContactList, error) {
 		return ContactList{}, err
 	}
 
-	sorting, err := pimweb.SortList(ctx, state, aos, contactColumns(addressBookInfos), cardTie, contactListParams...)
+	sorting, err := pimweb.SortList(state, aos, contactColumns(addressBookInfos), cardTie, contactListParams...)
 	if err != nil {
 		return ContactList{}, err
 	}
@@ -242,7 +242,7 @@ func (p *plugin) found(ctx *web.Context, q search.Query, view string, limit int)
 		return web.Found{}, err
 	}
 	state := web.ReadListState(ctx)
-	if _, err := pimweb.SortList(ctx, state, cards, contactColumns(books), cardTie); err != nil {
+	if _, err := pimweb.SortList(state, cards, contactColumns(books), cardTie); err != nil {
 		return web.Found{}, err
 	}
 	shown, total := pimweb.SearchRows(ctx, cards, unread, limit)

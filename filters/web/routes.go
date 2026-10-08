@@ -64,13 +64,11 @@ func registerRoutes(g *web.Group) {
 				return web.NewError(http.StatusBadRequest, "filters require an account")
 			}
 			if !ctx.Unified && ctx.Server.SieveEnabled(ctx.Login.Domain()) {
-				target := web.AccountURL(ctx.Request().URL.Path, ctx.Login.Username())
-				return ctx.FoundRedirect(target)
+				return ctx.FoundRedirect(web.AccountURL(ctx.Request().URL.Path, ctx.Login.Username()))
 			}
 			for _, login := range ctx.Logins() {
 				if ctx.Server.SieveEnabled(login.Domain()) {
-					target := web.AccountURL(ctx.Request().URL.Path, login.Username())
-					return ctx.FoundRedirect(target)
+					return ctx.FoundRedirect(web.AccountURL(ctx.Request().URL.Path, login.Username()))
 				}
 			}
 			return web.NewError(http.StatusNotFound)

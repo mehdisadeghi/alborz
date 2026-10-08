@@ -94,6 +94,15 @@ type EditRenderData[O any] struct {
 	Object     *O
 }
 
+// NewEditRenderData builds the common frame for a PIM object form, including an optional refusal.
+func NewEditRenderData[O any](ctx *rootweb.Context, title string, rail Rail, groups []dav.Group, collection *dav.Collection, object *O, refused string) EditRenderData[O] {
+	page := rootweb.NewPageData(ctx, title, rail)
+	if refused != "" {
+		page.WithRefused(refused)
+	}
+	return EditRenderData[O]{PageData: *page, Groups: groups, Collection: collection, Object: object}
+}
+
 // FilterRow is one narrowing beside the collections.
 type FilterRow struct {
 	Label  string

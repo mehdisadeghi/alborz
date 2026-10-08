@@ -1,6 +1,7 @@
 package dav
 
 import (
+	"cmp"
 	"context"
 	"net/http"
 
@@ -16,6 +17,8 @@ type Services struct {
 	// Default is where a new calendar or address book goes (ADR 28); empty is the first.
 	Default string `json:",omitempty"`
 }
+
+func (s Services) usernameFor(account string) string { return cmp.Or(s.Username, account) }
 
 const ServicesKey = "services"
 
@@ -38,10 +41,6 @@ func setHTTPBasicAuth(login *alborz.Login, req *http.Request) error {
 	if err != nil {
 		return err
 	}
-	username := login.Username()
-	if services.Username != "" {
-		username = services.Username
-	}
-	req.SetBasicAuth(username, password)
+	req.SetBasicAuth(services.usernameFor(login.Username()), password)
 	return nil
 }

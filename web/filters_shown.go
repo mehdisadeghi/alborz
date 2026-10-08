@@ -98,7 +98,7 @@ func PerPageChoices(ctx *Context) []int {
 
 // PerPage is how many rows a page of a list holds, the reader's rather than the account's.
 func PerPage(ctx *Context) int {
-	return ReadListState(ctx).PageSize(ctx)
+	return ListStateFrom(ctx.QueryParams()).PageSize(ctx)
 }
 
 func perPageValue(ctx *Context, raw string) int {
@@ -191,7 +191,7 @@ const StarKey = "is"
 
 // ValidStarView says whether view is a supported star filter.
 func ValidStarView(view string) bool {
-	return view == "" || view == alborz.ViewStarred || slices.Contains(alborz.FlagColors[:], view)
+	return view == "" || view == alborz.ViewStarred || alborz.IsFlagColor(view)
 }
 
 // StarFilter is what a query's star terms and view keep of the stars, and the query less those terms;
@@ -206,7 +206,7 @@ func StarFilter(q search.Query, view string) (search.Query, func(star string) bo
 			value = alborz.ViewStarred
 		}
 		switch {
-		case term.Key != StarKey || (value != alborz.ViewStarred && !slices.Contains(alborz.FlagColors[:], value)):
+		case term.Key != StarKey || (value != alborz.ViewStarred && !alborz.IsFlagColor(value)):
 			rest = append(rest, term)
 		case term.Not:
 			not = append(not, value)
@@ -242,7 +242,7 @@ func StarLeaves(next, star string) bool {
 		return false
 	}
 	view := u.Query().Get("view")
-	return (view == alborz.ViewStarred || slices.Contains(alborz.FlagColors[:], view)) && !StarMatches(star, view)
+	return (view == alborz.ViewStarred || alborz.IsFlagColor(view)) && !StarMatches(star, view)
 }
 
 // StarNotice says what became of a row's star that left its list.

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
-	"slices"
 	"strings"
 
 	"git.mehdix.org/alborz"
@@ -158,7 +157,7 @@ type StarRenderData struct {
 // list and object are the routes of the list and of one object.
 func Star[C any](ctx *web.Context, client func(context.Context, *alborz.Login) (C, error), list, object string, mark func(ctx *web.Context, ref pim.Ref[C], name string) (was string, err error)) error {
 	name := ctx.FormValue("color")
-	if name != "" && !slices.Contains(alborz.FlagColors[:], name) {
+	if name != "" && !alborz.IsFlagColor(name) {
 		return web.NewError(http.StatusBadRequest, "no such colour")
 	}
 	var was string

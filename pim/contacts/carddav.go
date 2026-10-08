@@ -10,7 +10,6 @@ import (
 	"image"
 	"image/jpeg"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"slices"
@@ -193,7 +192,7 @@ func (ao AddressObject) Color() string {
 // CardColor is the colour written on a card, one of the seven, or empty.
 func CardColor(card vcard.Card) string {
 	name := card.Value(colorField)
-	if !slices.Contains(alborz.FlagColors[:], name) {
+	if !alborz.IsFlagColor(name) {
 		return ""
 	}
 	return name
@@ -222,10 +221,8 @@ func WriteCard(ctx context.Context, c *carddav.Client, at string, card vcard.Car
 // GetObject is the card at p, or alborz.ErrUnreadable for an answer that does not parse.
 func GetObject(ctx context.Context, c *carddav.Client, p string) (*carddav.AddressObject, error) {
 	ao, err := c.GetAddressObject(ctx, p)
-	// What is neither the server's status nor the transport's failure, a *url.Error, is the answer.
-	var transport net.Error
-	if _, answered := webdav.HTTPErrorCode(err); err != nil && !answered && !errors.As(err, &transport) && ctx.Err() == nil {
-		return nil, fmt.Errorf("%w: %s: %v", alborz.ErrUnreadable, p, err)
+	if err = dav.ObjectError(ctx, p, err); err != nil {
+		return nil, err
 	}
 	return ao, err
 }

@@ -27,12 +27,12 @@ func (p *plugin) handleExportMbox(ctx *web.Context) error {
 	strip := ctx.FormValue("strip") != ""
 	var uids []imap.UID
 	if ctx.FormValue("all") != "" {
-		query := ctx.QueryParam("query")
-		view, err := readView(ctx.QueryParams())
+		state := web.ReadListState(ctx)
+		view, err := readViewValue(state.View)
 		if err != nil {
 			return err
 		}
-		if uids, err = mail.FolderView(ctx.Request().Context(), ctx.Login, mboxName, query, view); err != nil {
+		if uids, err = mail.FolderView(ctx.Request().Context(), ctx.Login, mboxName, state.Query, view); err != nil {
 			return err
 		}
 	} else if uids, err = selection(ctx, mboxName, params); err != nil {
@@ -147,7 +147,7 @@ func (p *plugin) handleExportPage(ctx *web.Context) error {
 		return err
 	}
 	ibase.WithTitle(fmt.Sprintf(ctx.T("folder.exporttitle"), mboxName))
-	data := &ExportRenderData{IMAPBaseRenderData: *ibase, Query: ctx.QueryParam("query")}
+	data := &ExportRenderData{IMAPBaseRenderData: *ibase, Query: web.ReadListState(ctx).Query}
 	if ibase.ListView != "" {
 		data.ViewName = viewTitle(ctx, ibase.ListView)
 	}

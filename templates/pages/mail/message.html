@@ -251,22 +251,10 @@
                   <dt>{{$.T "list.post"}}</dt>
                   <dd><a href="{{ localhref (printf "%s?to=%s" (url "mail.compose") (. | qv)) }}">{{ template "ltr" . }}</a></dd>
                   {{ end }}
-                  {{ with .List.Help }}
-                  <dt>{{$.T "list.help"}}</dt>
-                  <dd><a href="{{.}}" rel="nofollow noopener noreferrer">{{ template "ltr" . }}</a></dd>
-                  {{ end }}
-                  {{ with .List.Subscribe }}
-                  <dt>{{$.T "list.subscribe"}}</dt>
-                  <dd><a href="{{.}}" rel="nofollow noopener noreferrer">{{ template "ltr" . }}</a></dd>
-                  {{ end }}
-                  {{ with .List.Owner }}
-                  <dt>{{$.T "list.owner"}}</dt>
-                  <dd><a href="{{.}}" rel="nofollow noopener noreferrer">{{ template "ltr" . }}</a></dd>
-                  {{ end }}
-                  {{ with .Message.ListArchive }}
-                  <dt>{{$.T "list.archive"}}</dt>
-                  <dd><a href="{{.}}" rel="nofollow noopener noreferrer">{{ template "ltr" . }}</a></dd>
-                  {{ end }}
+                  {{ template "list-link" (dict "g" $ "label" "list.help" "url" .List.Help) }}
+                  {{ template "list-link" (dict "g" $ "label" "list.subscribe" "url" .List.Subscribe) }}
+                  {{ template "list-link" (dict "g" $ "label" "list.owner" "url" .List.Owner) }}
+                  {{ template "list-link" (dict "g" $ "label" "list.archive" "url" .Message.ListArchive) }}
                 </dl>
               </details>
             </td>

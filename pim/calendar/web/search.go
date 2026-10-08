@@ -32,8 +32,9 @@ func (p *plugin) search(ctx *web.Context) error {
 	if !web.ValidStarView(view) {
 		return web.NewError(http.StatusBadRequest, "no such view")
 	}
-	text := strings.TrimSpace(ctx.QueryParam("query"))
-	data, err := p.eventSearch(ctx, pimweb.Only(ctx, "cal"), view, search.Parse(text))
+	text, query := pimweb.SearchQuery(ctx)
+	text = strings.TrimSpace(text)
+	data, err := p.eventSearch(ctx, pimweb.Only(ctx, "cal"), view, query)
 	if err != nil {
 		return err
 	}

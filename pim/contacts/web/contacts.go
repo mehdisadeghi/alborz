@@ -55,7 +55,7 @@ type ContactList struct {
 }
 
 func (p *plugin) contactList(ctx *web.Context) (ContactList, error) {
-	queryText := ctx.QueryParam("query")
+	queryText, query := pimweb.SearchQuery(ctx)
 	view := ctx.QueryParam("view")
 	if !web.ValidStarView(view) {
 		return ContactList{}, web.NewError(http.StatusBadRequest, "no such view")
@@ -63,7 +63,7 @@ func (p *plugin) contactList(ctx *web.Context) (ContactList, error) {
 	group, category := ctx.QueryParam("group"), ctx.QueryParam("category")
 	params := pimweb.RowParams(ctx, ctx.Path("contacts.list"), pimweb.ListParams(ctx, contactListParams...))
 
-	aos, groups, addressBookInfos, unread, err := p.shownCards(ctx, pimweb.Only(ctx, "book"), view, queryText)
+	aos, groups, addressBookInfos, unread, err := p.shownCards(ctx, pimweb.Only(ctx, "book"), view, query)
 	if err != nil {
 		return ContactList{}, err
 	}
@@ -121,7 +121,7 @@ func (p *plugin) contactList(ctx *web.Context) (ContactList, error) {
 
 // shownCards are the contacts a query and a view find in the address books in the request's scope,
 // the groups beside them, every book for the rail, and what of the books could not be read.
-func (p *plugin) shownCards(ctx *web.Context, only map[string]bool, view, queryText string) (aos, groups []contacts.AddressObject, books []dav.Collection, unread []pim.Unread, err error) {
+func (p *plugin) shownCards(ctx *web.Context, only map[string]bool, view string, parsed search.Query) (aos, groups []contacts.AddressObject, books []dav.Collection, unread []pim.Unread, err error) {
 	accounts, err := p.pooledBooks(ctx)
 	if err != nil {
 		return nil, nil, nil, nil, err
@@ -130,7 +130,7 @@ func (p *plugin) shownCards(ctx *web.Context, only map[string]bool, view, queryT
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
-	words, starred, err := web.StarFilter(search.Parse(queryText), view)
+	words, starred, err := web.StarFilter(parsed, view)
 	if err != nil {
 		return nil, nil, nil, nil, web.NewError(http.StatusBadRequest, err.Error())
 	}
@@ -237,7 +237,7 @@ func (p *plugin) found(ctx *web.Context, q search.Query, view string, limit int)
 	if unasked := web.StarUnasked(q); unasked != nil {
 		return web.Found{Unasked: unasked}, nil
 	}
-	cards, _, books, unread, err := p.shownCards(ctx, nil, view, q.String())
+	cards, _, books, unread, err := p.shownCards(ctx, nil, view, q)
 	if err != nil {
 		return web.Found{}, err
 	}

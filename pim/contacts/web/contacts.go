@@ -242,10 +242,10 @@ func (p *plugin) found(ctx *web.Context, q search.Query, view string, limit int)
 		return web.Found{}, err
 	}
 	state := web.ReadListState(ctx)
-	if _, err := pimweb.SortList(state, cards, contactColumns(books), cardTie); err != nil {
+	shown, total, err := pimweb.SearchListRows(ctx, state, cards, unread, limit, contactColumns(books), cardTie)
+	if err != nil {
 		return web.Found{}, err
 	}
-	shown, total := pimweb.SearchRows(ctx, cards, unread, limit)
 	params := state.Keep(contactListParams...)
 	params.Set("from", ctx.Request().URL.RequestURI())
 	hrefs := make(map[string]string, len(shown))

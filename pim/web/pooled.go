@@ -236,3 +236,12 @@ func SearchRows[T any](ctx *web.Context, rows []T, unread []pim.Unread, limit in
 	total := len(rows)
 	return rows[:min(limit, total)], total
 }
+
+// SearchListRows sorts section rows before applying the shared search result limit.
+func SearchListRows[T any](ctx *web.Context, state web.ListState, rows []T, unread []pim.Unread, limit int, columns []pim.Column[T], tie func(T) string) ([]T, int, error) {
+	if _, err := SortList(state, rows, columns, tie); err != nil {
+		return nil, 0, err
+	}
+	shown, total := SearchRows(ctx, rows, unread, limit)
+	return shown, total, nil
+}

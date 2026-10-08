@@ -61,7 +61,7 @@ func (p *plugin) contactList(ctx *web.Context) (ContactList, error) {
 		return ContactList{}, web.NewError(http.StatusBadRequest, "no such view")
 	}
 	group, category := ctx.QueryParam("group"), ctx.QueryParam("category")
-	params := pimweb.RowParams(ctx, ctx.Path("contacts.list"), pimweb.ListParams(ctx, contactListParams...))
+	params := state.Rows(ctx.Path("contacts.list"), state.Keep(contactListParams...))
 
 	aos, groups, addressBookInfos, unread, err := p.shownCards(ctx, pimweb.Only(ctx, "book"), view, query)
 	if err != nil {
@@ -241,11 +241,12 @@ func (p *plugin) found(ctx *web.Context, q search.Query, view string, limit int)
 	if err != nil {
 		return web.Found{}, err
 	}
-	if _, err := pimweb.Sort(ctx, cards, contactColumns(books), cardTie); err != nil {
+	state := web.ReadListState(ctx)
+	if _, err := pimweb.SortList(ctx, state, cards, contactColumns(books), cardTie); err != nil {
 		return web.Found{}, err
 	}
 	shown, total := pimweb.SearchRows(ctx, cards, unread, limit)
-	params := pimweb.ListParams(ctx, contactListParams...)
+	params := state.Keep(contactListParams...)
 	params.Set("from", ctx.Request().URL.RequestURI())
 	hrefs := make(map[string]string, len(shown))
 	for _, ao := range shown {

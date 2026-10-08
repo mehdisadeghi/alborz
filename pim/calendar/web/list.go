@@ -75,7 +75,7 @@ func calendarList[T any](ctx *web.Context, path string, params []string, valid f
 	if !valid(view) {
 		return CalendarList[T]{}, web.NewError(http.StatusBadRequest, "no such view")
 	}
-	rows, calendars, unread, err := load(view, query, pimweb.RowParams(ctx, ctx.Path(path), pimweb.ListParams(ctx, params...)))
+	rows, calendars, unread, err := load(view, query, state.Rows(ctx.Path(path), state.Keep(params...)))
 	if err != nil {
 		return CalendarList[T]{}, err
 	}

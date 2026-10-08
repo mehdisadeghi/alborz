@@ -101,7 +101,7 @@ func (p *plugin) eventSearch(ctx *web.Context, only map[string]bool, view string
 	return &EventSearchRenderData{
 		ListRenderData: pimweb.ListRenderData{CollectionLabels: pimweb.NewCollectionLabels(p.DAV, ctx.Login.Username(), collection, href), Collections: calendars},
 		Found:          found,
-		ListQuery:      web.Query(pimweb.ListParams(ctx, eventSearchParams...)),
+		ListQuery:      web.Query(web.ReadListState(ctx).Keep(eventSearchParams...)),
 		unread:         unread,
 	}, nil
 }
@@ -139,13 +139,14 @@ func foundCalendar[T any](ctx *web.Context, q search.Query, view string, limit i
 	if unasked := web.StarUnasked(q); unasked != nil {
 		return web.Found{Unasked: unasked}, nil
 	}
-	listParams := pimweb.ListParams(ctx, params...)
+	state := web.ReadListState(ctx)
+	listParams := state.Keep(params...)
 	listParams.Set("from", ctx.Request().URL.RequestURI())
 	rows, unread, err := load(listParams)
 	if err != nil {
 		return web.Found{}, err
 	}
-	if _, err := pimweb.Sort(ctx, rows, columns, tie); err != nil {
+	if _, err := pimweb.SortList(ctx, state, rows, columns, tie); err != nil {
 		return web.Found{}, err
 	}
 	shown, total := pimweb.SearchRows(ctx, rows, unread, limit)

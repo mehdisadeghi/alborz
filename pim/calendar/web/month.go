@@ -105,7 +105,7 @@ func (p *plugin) month(ctx *web.Context) error {
 		NextPage:               mv.nextPage,
 		PrevTime:               mv.prevTime,
 		NextTime:               mv.nextTime,
-		Scope:                  web.Query(pimweb.ListParams(ctx, "account", "cal")),
+		Scope:                  web.Query(web.ReadListState(ctx).Keep("account", "cal")),
 		StarView: func() string {
 			if mv.view == "list" {
 				return ""

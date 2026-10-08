@@ -45,20 +45,6 @@ func Around(items []Item, path string) web.Neighbours {
 	return n
 }
 
-// ListParams are the request parameters that decide a list's objects and order.
-func ListParams(ctx *web.Context, keys ...string) url.Values {
-	return web.KeepParams(ctx.QueryParams(), keys...)
-}
-
-// ListParamsIn reads them from a form's return URL, the only place a write's fragment has them.
-func ListParamsIn(next string, keys ...string) url.Values {
-	u, err := url.Parse(next)
-	if err != nil {
-		return url.Values{}
-	}
-	return Keep(u.Query(), keys...)
-}
-
 // Widened drops next's "only" narrowing through field, since ticking a collection supersedes it.
 func Widened(next, field string) string {
 	u, err := url.Parse(next)
@@ -67,22 +53,7 @@ func Widened(next, field string) string {
 	}
 	q := u.Query()
 	q.Del(field)
-	return ListURL(u.Path, q)
-}
-
-// ListURL is the list those parameters name.
-func ListURL(path string, params url.Values) string {
-	return web.QueryPath(path, params)
-}
-
-// Keep takes the named parameters, and only those, from a query.
-func Keep(from url.Values, keys ...string) url.Values {
-	return web.KeepParams(from, keys...)
-}
-
-// RowParams are a row's list parameters with the list its page returns to.
-func RowParams(ctx *web.Context, path string, params url.Values) url.Values {
-	return web.ReadListState(ctx).Rows(path, params)
+	return web.QueryPath(u.Path, q)
 }
 
 // ObjectURL is an object's page, the route's, with the list's parameters and, in a pooled list, its account.

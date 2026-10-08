@@ -124,7 +124,7 @@ func (p *plugin) contact(ctx *web.Context) error {
 	birthday, _ := ao.Card.Birthday()
 	return ctx.Render(http.StatusOK, "contacts/contact", &AddressObjectRenderData{
 		ObjectRenderData: pimweb.NewObjectRenderData(ctx, contacts.AddressObject{AddressObject: ao}.DisplayName(), rail, addressBook,
-			p.DAV.Authors(object.Path, ctx.Login.Username()), cmp.Or(ctx.From(), pimweb.ListURL(ctx.Path("contacts.list"), pimweb.ListParams(ctx, contactListParams...))), "", web.Neighbours{}),
+			p.DAV.Authors(object.Path, ctx.Login.Username()), cmp.Or(ctx.From(), web.QueryPath(ctx.Path("contacts.list"), web.ReadListState(ctx).Keep(contactListParams...))), "", web.Neighbours{}),
 		In:            in,
 		Groups:        rest,
 		AddressObject: contacts.AddressObject{AddressObject: ao},

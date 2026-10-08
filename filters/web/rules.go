@@ -198,13 +198,12 @@ func handleRuleDelete(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	err = changeRules(ctx, func(rules []filters.Rule) []filters.Rule {
+	return answer(ctx, changeRules(ctx, func(rules []filters.Rule) []filters.Rule {
 		if index < 0 || index >= len(rules) {
 			return rules
 		}
 		return append(rules[:index], rules[index+1:]...)
-	})
-	return answer(ctx, err, "filters.rules", ctx.T("notice.ruledeleted"))
+	}), "filters.rules", ctx.T("notice.ruledeleted"))
 }
 
 // Order is meaning: the first rule that stops wins.
@@ -217,14 +216,13 @@ func handleRuleMove(ctx *web.Context) error {
 	if ctx.FormValue("dir") == "down" {
 		to = index + 1
 	}
-	err = changeRules(ctx, func(rules []filters.Rule) []filters.Rule {
+	return answer(ctx, changeRules(ctx, func(rules []filters.Rule) []filters.Rule {
 		if index < 0 || index >= len(rules) || to < 0 || to >= len(rules) {
 			return rules
 		}
 		rules[index], rules[to] = rules[to], rules[index]
 		return rules
-	})
-	return answer(ctx, err, "filters.rules", ctx.T("notice.rulesaved"))
+	}), "filters.rules", ctx.T("notice.rulesaved"))
 }
 
 func handleRuleToggle(ctx *web.Context) error {
@@ -232,13 +230,12 @@ func handleRuleToggle(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	err = changeRules(ctx, func(rules []filters.Rule) []filters.Rule {
+	return answer(ctx, changeRules(ctx, func(rules []filters.Rule) []filters.Rule {
 		if index >= 0 && index < len(rules) {
 			rules[index].Off = !rules[index].Off
 		}
 		return rules
-	})
-	return answer(ctx, err, "filters.rules", ctx.T("notice.rulesaved"))
+	}), "filters.rules", ctx.T("notice.rulesaved"))
 }
 
 // formIndex is the row a form names by its index; one that is no number is refused.

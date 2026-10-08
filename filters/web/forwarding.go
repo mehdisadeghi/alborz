@@ -65,20 +65,19 @@ func handleForwardingAdd(ctx *web.Context) error {
 		data.Address = address
 		return web.RenderRefused(ctx, "filters/forwarding-create", data, fmt.Sprintf(ctx.T("filters.notanaddress"), address))
 	}
-	err := changeForwarding(ctx, func(f *filters.Forwarding) {
+	return answer(ctx, changeForwarding(ctx, func(f *filters.Forwarding) {
 		for _, fw := range f.Forwards {
 			if fw.Address == address {
 				return
 			}
 		}
 		f.Forwards = append(f.Forwards, filters.Forward{Address: address})
-	})
-	return answer(ctx, err, "filters.forwarding", ctx.T("notice.forwardingsaved"))
+	}), "filters.forwarding", ctx.T("notice.forwardingsaved"))
 }
 
 func handleForwardingDelete(ctx *web.Context) error {
 	address := ctx.FormValue("address")
-	err := changeForwarding(ctx, func(f *filters.Forwarding) {
+	return answer(ctx, changeForwarding(ctx, func(f *filters.Forwarding) {
 		kept := f.Forwards[:0]
 		for _, fw := range f.Forwards {
 			if fw.Address != address {
@@ -86,26 +85,23 @@ func handleForwardingDelete(ctx *web.Context) error {
 			}
 		}
 		f.Forwards = kept
-	})
-	return answer(ctx, err, "filters.forwarding", ctx.T("notice.forwardingsaved"))
+	}), "filters.forwarding", ctx.T("notice.forwardingsaved"))
 }
 
 func handleForwardingToggle(ctx *web.Context) error {
 	address := ctx.FormValue("address")
-	err := changeForwarding(ctx, func(f *filters.Forwarding) {
+	return answer(ctx, changeForwarding(ctx, func(f *filters.Forwarding) {
 		for i, fw := range f.Forwards {
 			if fw.Address == address {
 				f.Forwards[i].Off = !fw.Off
 			}
 		}
-	})
-	return answer(ctx, err, "filters.forwarding", ctx.T("notice.forwardingsaved"))
+	}), "filters.forwarding", ctx.T("notice.forwardingsaved"))
 }
 
 func handleForwardingKeep(ctx *web.Context) error {
 	keep := ctx.FormValue("keep") != ""
-	err := changeForwarding(ctx, func(f *filters.Forwarding) { f.Keep = keep })
-	return answer(ctx, err, "filters.forwarding", ctx.T("notice.forwardingsaved"))
+	return answer(ctx, changeForwarding(ctx, func(f *filters.Forwarding) { f.Keep = keep }), "filters.forwarding", ctx.T("notice.forwardingsaved"))
 }
 
 func answer(ctx *web.Context, err error, route, saved string) error {

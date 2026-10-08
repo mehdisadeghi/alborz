@@ -114,7 +114,10 @@ func shownCalendarRows[T any](p *plugin, ctx *web.Context, only map[string]bool,
 			failed := calendar.Unparsed(collection.Name, object)
 			return *new(T), &failed, false
 		}
-		return row(object, collection), nil, shown(first(object.Data), starred, q)
+		if !shown(first(object.Data), starred, q) {
+			return *new(T), nil, false
+		}
+		return row(object, collection), nil, true
 	})
 	return rows, collections, unread, nil
 }

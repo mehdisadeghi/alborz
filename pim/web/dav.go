@@ -2,7 +2,6 @@ package web
 
 import (
 	"errors"
-	"net/http"
 	"net/url"
 	"strings"
 
@@ -66,8 +65,7 @@ func HandleRefresh(p *dav.Provider, list string) func(*web.Context) error {
 	return func(ctx *web.Context) error {
 		p.Refresh(ctx.Request().Context(), ctx.Logins())
 		// The list itself is what was asked for.
-		ctx.Quiet()
-		return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.URL(list)))
+		return ctx.QuietRedirect(ctx.NextOr(ctx.URL(list)))
 	}
 }
 
@@ -77,7 +75,24 @@ func Guarded(none error, create string, h func(*web.Context) error) func(*web.Co
 		if err := h(ctx); !errors.Is(err, none) {
 			return err
 		}
-		return ctx.Redirect(http.StatusFound, ctx.URL(create))
+		return ctx.FoundRedirect(ctx.URL(create))
+	}
+}
+
+// GuardedRoutes applies one missing-resource guard to the common page routes.
+func GuardedRoutes(g *web.Group, guard func(func(*web.Context) error) func(*web.Context) error) (get, post, page, download func(string, string, func(*web.Context) error)) {
+	route := func(add func(string, string, web.HandlerFunc)) func(string, string, func(*web.Context) error) {
+		return func(name, path string, h func(*web.Context) error) { add(name, path, guard(h)) }
+	}
+	get, post, download = route(g.GET), route(g.POST), route(g.Download)
+	page = func(name, path string, h func(*web.Context) error) { get(name, path, h); post(name, path, h) }
+	return
+}
+
+// GuardedUpload registers both outcomes of a bounded upload through the same guard.
+func GuardedUpload(g *web.Group, guard func(func(*web.Context) error) func(*web.Context) error) func(string, string, int64, func(*web.Context) error, func(*web.Context) error) {
+	return func(name, path string, limit int64, h, over func(*web.Context) error) {
+		g.Upload(name, path, limit, guard(h), guard(over))
 	}
 }
 

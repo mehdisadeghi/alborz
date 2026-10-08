@@ -1,8 +1,5 @@
-{{ define "rail" }}
-  {{ template "filters-rail" (dict "g" $ "accounts" .GlobalData.Accounts) }}
-{{ end }}
+{{ define "rail" }}{{ template "filters-page-rail" . }}{{ end }}
 
-{{ define "main-class" }} class="list"{{ end }}
 
 {{ define "main" }}
   {{ $aq := .GlobalData.AccountQuery }}
@@ -10,8 +7,7 @@
 
       {{ template "filters-crumb" (dict "g" $ "collection" ($.T "filters.rules") "path" (url "filters.rules")) }}
 
-      {{ if not .CanWire }}<div class="alert" role="alert">{{$.T "filters.needsinclude"}}</div>{{ end }}
-      {{ if .ByHand }}<div class="alert" role="alert">{{$.T "filters.byhand"}} <a href="{{url "filters.filter" .Script}}{{$aq}}">{{$.T "filters.openscript"}}</a></div>{{ end }}
+      {{ template "filters-status" (dict "g" $ "CanWire" .CanWire "ByHand" .ByHand "Script" .Script "aq" $aq) }}
 
       <section class="list-items">
         {{ $n := len .Rules }}
@@ -23,24 +19,15 @@
             <span class="list-detail">{{ template "rule-words" (dict "r" . "g" $) }}</span>
           </div>
           <form method="post" action="{{url "filters.rules.move"}}{{$aq}}">
-            <input type="hidden" name="loaded" value="{{$.Loaded}}">
+            {{ template "filters-loaded" $.Loaded }}
             <input type="hidden" name="index" value="{{$i}}">
             <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
             <button name="dir" value="up" class="icon-button" title="{{$.T "filters.moveup"}}" aria-label="{{$.T "filters.moveup"}}"{{ if eq $i 0 }} disabled{{ end }}>{{ template "icon" "up" }}</button>
             <button name="dir" value="down" class="icon-button" title="{{$.T "filters.movedown"}}" aria-label="{{$.T "filters.movedown"}}"{{ if eq (sub $n 1) $i }} disabled{{ end }}>{{ template "icon" "down" }}</button>
           </form>
-          <form method="post" action="{{url "filters.rules.toggle"}}{{$aq}}">
-            <input type="hidden" name="loaded" value="{{$.Loaded}}">
-            <input type="hidden" name="index" value="{{$i}}">
-            <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
-            <button>{{ if .Off }}{{$.T "filters.activate"}}{{ else }}{{$.T "filters.deactivate"}}{{ end }}</button>
-          </form>
-          <form method="post" action="{{url "filters.rules.delete"}}{{$aq}}">
-            <input type="hidden" name="loaded" value="{{$.Loaded}}">
-            <input type="hidden" name="index" value="{{$i}}">
-            <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
-            <button class="button-danger">{{$.T "common.delete"}}</button>
-          </form>
+          {{ $toggle := "filters.deactivate" }}{{ if .Off }}{{ $toggle = "filters.activate" }}{{ end }}
+          {{ template "filter-action" (dict "g" $ "action" (printf "%s%s" (url "filters.rules.toggle") $aq) "fields" (tuple (dict "name" "loaded" "value" $.Loaded) (dict "name" "index" "value" $i) (dict "name" "next" "value" $.GlobalData.URL.RequestURI)) "button" $toggle) }}
+          {{ template "filter-action" (dict "g" $ "action" (printf "%s%s" (url "filters.rules.delete") $aq) "fields" (tuple (dict "name" "loaded" "value" $.Loaded) (dict "name" "index" "value" $i) (dict "name" "next" "value" $.GlobalData.URL.RequestURI)) "button" "common.delete" "class" "button-danger") }}
         </div>
         {{ end }}{{ end }}
         {{ if and (not .Rules) (not .ByHand) }}

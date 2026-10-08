@@ -1,7 +1,3 @@
-{{ define "rail" }}
-  {{ template "dav-rail" (dict "g" $ "rail" .Rail) }}
-{{ end }}
-
 {{ define "main-class" }} class="create-update"{{ end }}
 
 {{ define "main" }}
@@ -17,7 +13,7 @@
         {{ if .SharedBy }}
         {{ template "share-offer" (dict "g" $ "offer" .Offer) }}
         {{ else }}
-        <input type="hidden" name="shown" value="{{.Shown}}">
+        {{ template "shown-field" .Shown }}
         {{ template "field" (dict "label" ($.T "common.name") "name" "name" "value" .Name "dir" "auto" "required" true) }}
         {{ template "field" (dict "label" ($.T "common.color") "name" "color" "type" "color" "value" .Color) }}
         {{ end }}

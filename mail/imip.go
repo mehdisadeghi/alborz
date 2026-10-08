@@ -39,14 +39,8 @@ func SendCalendarMessage(ctx context.Context, login *alborz.Login, to []string, 
 	if err != nil {
 		return err
 	}
-	msg := &OutgoingMessage{
-		From:      FromAddress(settings, login.Username()),
-		To:        to,
-		Subject:   subject,
-		MessageID: NewMessageID(),
-		Calendar:  cal,
-		Mailer:    Mailer(),
-	}
+	msg := newOutgoing(login, settings, to, subject)
+	msg.Calendar = cal
 	return send(login, msg)
 }
 
@@ -59,16 +53,13 @@ func SendText(ctx context.Context, login *alborz.Login, to []string, subject, te
 	if err != nil {
 		return err
 	}
-	msg := &OutgoingMessage{
-		From:      FromAddress(settings, login.Username()),
-		To:        to,
-		Subject:   subject,
-		MessageID: NewMessageID(),
-		Text:      text,
-		Mailer:    Mailer(),
-		Headers:   headers,
-	}
+	msg := newOutgoing(login, settings, to, subject)
+	msg.Text, msg.Headers = text, headers
 	return send(login, msg)
+}
+
+func newOutgoing(login *alborz.Login, settings *Settings, to []string, subject string) *OutgoingMessage {
+	return &OutgoingMessage{From: FromAddress(settings, login.Username()), To: to, Subject: subject, MessageID: NewMessageID(), Mailer: Mailer()}
 }
 
 // send posts a message no folder keeps.

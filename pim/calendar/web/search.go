@@ -3,13 +3,13 @@ package web
 import (
 	"cmp"
 	"net/http"
+	"net/url"
 	"slices"
 	"strings"
 	"time"
 
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/calendar"
-	"git.mehdix.org/alborz/pim/dav"
 	pimweb "git.mehdix.org/alborz/pim/web"
 	"git.mehdix.org/alborz/search"
 	"git.mehdix.org/alborz/web"
@@ -18,30 +18,18 @@ import (
 
 // EventSearchRenderData is the events a search finds across all time, each on the occurrence it shows.
 type EventSearchRenderData struct {
-	web.BaseRenderData
-	Calendars   []dav.Collection
-	Invitations *pimweb.RailInvitations
-	Found       []calendar.Occurrence
-	Query, View string
-	Pager       web.Pager
-	Filters     []web.Filter
-	FilterRows  []web.FilterRow
+	pimweb.ListRenderData
+	Found []calendar.Occurrence
 	// ListQuery is carried to an event's page so it can name its neighbours; SelectForm is the rows' form.
-	ListQuery  string
-	SelectForm string
-	// CollectionFor is a row's calendar, CollectionHref the agenda narrowed to it.
-	CollectionFor  func(account, path string) dav.Collection
-	CollectionHref func(account, path string) string
-	// AddedBy names who added an event, where not the row's own account.
-	AddedBy func(account, path string) string
-	unread  []pim.Unread
+	ListQuery string
+	unread    []pim.Unread
 }
 
 var eventSearchParams = []string{"account", "cal", "query", "view"}
 
 func (p *plugin) search(ctx *web.Context) error {
 	view := ctx.QueryParam("view")
-	if !validStarView(view) {
+	if !web.ValidStarView(view) {
 		return web.NewError(http.StatusBadRequest, "no such view")
 	}
 	text := strings.TrimSpace(ctx.QueryParam("query"))
@@ -49,11 +37,8 @@ func (p *plugin) search(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	pimweb.WarnUnread(ctx, data.unread)
-	if data.Found, data.Pager, err = web.Paginate(ctx, data.Found); err != nil {
-		return err
-	}
-	if data.Invitations, err = p.invitations(ctx); err != nil {
+	data.Found, data.Pager, data.Invitations, err = pimweb.ListParts(ctx, data.unread, data.Found, func() (*pimweb.RailInvitations, error) { return p.invitations(ctx) })
+	if err != nil {
 		return err
 	}
 	data.BaseRenderData = *web.NewBaseRenderData(ctx).WithTitle(ctx.T("nav.calendar") + ": " + ctx.T("search.title"))
@@ -91,17 +76,13 @@ func (p *plugin) eventSearch(ctx *web.Context, only map[string]bool, view string
 	objects, unread := p.QuerySites(ctx.Request().Context(), sites, &query)
 	loc, now := web.UserLocation(ctx), time.Now()
 	var found []calendar.Occurrence
-	for _, obj := range objects {
-		occurrences, err := calendar.Shown(obj, loc, now)
-		if err != nil {
-			unread = append(unread, pim.Unread{Collection: obj.Calendar, Err: err})
-		}
-		for _, oc := range occurrences {
+	unread = append(unread, eachOccurrence(objects,
+		func(obj calendar.Object) ([]calendar.Occurrence, error) { return calendar.Shown(obj, loc, now) },
+		func(oc calendar.Occurrence) {
 			if eventShown(oc, starred, q) {
 				found = append(found, oc)
 			}
-		}
-	}
+		})...)
 	past := func(oc calendar.Occurrence) bool { return !oc.End.After(now) && oc.Start.Before(now) }
 	slices.SortStableFunc(found, func(a, b calendar.Occurrence) int {
 		switch pa, pb := past(a), past(b); {
@@ -116,12 +97,9 @@ func (p *plugin) eventSearch(ctx *web.Context, only map[string]bool, view string
 	})
 	collection, href := pimweb.Labels(ctx, calendars, "calendar.month", "cal", map[string][]string{"view": {"list"}})
 	return &EventSearchRenderData{
-		Calendars:      calendars,
+		ListRenderData: pimweb.ListRenderData{CollectionLabels: pimweb.NewCollectionLabels(p.DAV, ctx.Login.Username(), collection, href), Collections: calendars},
 		Found:          found,
 		ListQuery:      web.Query(pimweb.ListParams(ctx, eventSearchParams...)),
-		CollectionFor:  collection,
-		CollectionHref: href,
-		AddedBy:        p.DAV.AddedBy(ctx.Login.Username()),
 		unread:         unread,
 	}, nil
 }
@@ -145,54 +123,58 @@ func (p *plugin) foundEvents(ctx *web.Context, q search.Query, view string, limi
 	if err != nil {
 		return web.Found{}, err
 	}
-	pimweb.WarnUnread(ctx, data.unread)
-	total := len(data.Found)
-	data.Found = data.Found[:min(limit, total)]
+	var total int
+	data.Found, total = pimweb.SearchRows(ctx, data.Found, data.unread, limit)
 	return web.Found{Rows: data, Total: total, All: ctx.SearchURL("calendar.search", q, view)}, nil
+}
+
+// foundCalendar is the shared search workflow for calendar-backed row sections.
+// The callbacks keep only the row loading, attribution, and render projection specific.
+func foundCalendar[T any](ctx *web.Context, q search.Query, view string, limit int, params []string,
+	load func(url.Values) ([]T, []pim.Unread, error), columns []pim.Column[T], tie func(T) string,
+	prepare func([]T), render func([]T) web.RenderData, route string,
+) (web.Found, error) {
+	if unasked := web.StarUnasked(q); unasked != nil {
+		return web.Found{Unasked: unasked}, nil
+	}
+	listParams := pimweb.ListParams(ctx, params...)
+	listParams.Set("from", ctx.Request().URL.RequestURI())
+	rows, unread, err := load(listParams)
+	if err != nil {
+		return web.Found{}, err
+	}
+	if _, err := pimweb.Sort(ctx, rows, columns, tie); err != nil {
+		return web.Found{}, err
+	}
+	shown, total := pimweb.SearchRows(ctx, rows, unread, limit)
+	prepare(shown)
+	return web.Found{Rows: render(shown), Total: total, All: ctx.SearchURL(route, q, view)}, nil
 }
 
 // foundTasks is the tasks' part in the search across sections, in the list's own order.
 func (p *plugin) foundTasks(ctx *web.Context, q search.Query, view string, limit int) (web.Found, error) {
-	if unasked := web.StarUnasked(q); unasked != nil {
-		return web.Found{Unasked: unasked}, nil
-	}
-	params := pimweb.ListParams(ctx, taskListParams...)
-	params.Set("from", ctx.Request().URL.RequestURI())
-	rows, _, unread, err := p.shownTasks(ctx, nil, view, q, params)
-	if err != nil {
-		return web.Found{}, err
-	}
-	pimweb.WarnUnread(ctx, unread)
-	if _, err := pimweb.Sort(ctx, rows, taskColumns, taskTie); err != nil {
-		return web.Found{}, err
-	}
-	shown := rows[:min(limit, len(rows))]
-	addedBy := p.DAV.AddedBy(ctx.Login.Username())
-	for i := range shown {
-		shown[i].AddedBy = addedBy(shown[i].Calendar.Account, shown[i].Task.Path)
-	}
-	return web.Found{Rows: &TasksRenderData{Tasks: shown}, Total: len(rows), All: ctx.SearchURL("calendar.tasks", q, view)}, nil
+	return foundCalendar(ctx, q, view, limit, taskListParams,
+		func(params url.Values) ([]TaskRow, []pim.Unread, error) {
+			rows, _, unread, err := p.shownTasks(ctx, nil, view, q, params)
+			return rows, unread, err
+		}, taskColumns, taskTie,
+		func(rows []TaskRow) {
+			assignAddedBy(rows, p.DAV.AddedBy(ctx.Login.Username()),
+				func(row TaskRow) (string, string) { return row.Calendar.Account, row.Task.Path },
+				func(row *TaskRow, value string) { row.AddedBy = value })
+		}, func(rows []TaskRow) web.RenderData { return &TasksRenderData{Tasks: rows} }, "calendar.tasks")
 }
 
 // foundJournal is the journal's part in the search across sections, in the list's own order.
 func (p *plugin) foundJournal(ctx *web.Context, q search.Query, view string, limit int) (web.Found, error) {
-	if unasked := web.StarUnasked(q); unasked != nil {
-		return web.Found{Unasked: unasked}, nil
-	}
-	params := pimweb.ListParams(ctx, journalListParams...)
-	params.Set("from", ctx.Request().URL.RequestURI())
-	rows, _, unread, err := p.shownEntries(ctx, nil, view, "", q, params)
-	if err != nil {
-		return web.Found{}, err
-	}
-	pimweb.WarnUnread(ctx, unread)
-	if _, err := pimweb.Sort(ctx, rows, entryColumns, entryTie); err != nil {
-		return web.Found{}, err
-	}
-	shown := rows[:min(limit, len(rows))]
-	addedBy := p.DAV.AddedBy(ctx.Login.Username())
-	for i := range shown {
-		shown[i].AddedBy = addedBy(shown[i].Calendar.Account, shown[i].Path)
-	}
-	return web.Found{Rows: &JournalRenderData{Entries: shown}, Total: len(rows), All: ctx.SearchURL("calendar.journal", q, view)}, nil
+	return foundCalendar(ctx, q, view, limit, journalListParams,
+		func(params url.Values) ([]EntryRow, []pim.Unread, error) {
+			rows, _, unread, err := p.shownEntries(ctx, nil, view, "", q, params)
+			return rows, unread, err
+		}, entryColumns, entryTie,
+		func(rows []EntryRow) {
+			assignAddedBy(rows, p.DAV.AddedBy(ctx.Login.Username()),
+				func(row EntryRow) (string, string) { return row.Calendar.Account, row.Path },
+				func(row *EntryRow, value string) { row.AddedBy = value })
+		}, func(rows []EntryRow) web.RenderData { return &JournalRenderData{Entries: rows} }, "calendar.journal")
 }

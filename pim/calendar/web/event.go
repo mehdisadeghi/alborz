@@ -1,52 +1,37 @@
 package web
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 	"uuid"
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/internal/dates"
 	"git.mehdix.org/alborz/mail"
-	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/calendar"
-	"git.mehdix.org/alborz/pim/dav"
 	pimweb "git.mehdix.org/alborz/pim/web"
 	"git.mehdix.org/alborz/search"
 	"git.mehdix.org/alborz/web"
 	"github.com/alborzmail/go-itip"
 	"github.com/emersion/go-ical"
-	"github.com/emersion/go-webdav"
-	"github.com/emersion/go-webdav/caldav"
 )
 
 var eventListParams = []string{"account", "cal", "month", "date", "view", "span", "query"}
 
 type EventRenderData struct {
-	web.BaseRenderData
-	Rail     pimweb.Rail
-	Calendar *dav.Collection
-	Event    calendar.Object
+	CalendarObjectRenderData
+	Event calendar.Object
 	// Authors are who added and last changed the object, where another account.
-	Authors dav.Authors
 	// List is the view the page was opened from.
-	List       string
-	Star       string
-	Neighbours web.Neighbours
+	Star string
 	// Repeats says the rule in words; RepeatsUntil its last day.
 	Repeats, RepeatsUntil string
 }
 
 type UpdateEventRenderData struct {
-	web.BaseRenderData
-	Rail           pimweb.Rail
-	Groups         []dav.Group
-	Calendar       *dav.Collection
-	CalendarObject *caldav.CalendarObject
-	Event          *ical.Event
+	UpdateCalendarObjectRenderData
+	Event *ical.Event
 
 	// Both shapes are filled, so ticking the box loses nothing typed.
 	AllDay    bool
@@ -154,47 +139,13 @@ func (p *plugin) eventItems(ctx *web.Context) ([]pimweb.Item, error) {
 
 func (p *plugin) event(ctx *web.Context) error {
 	path := ctx.Param("path")
-
-	c, calendars, err := p.Open(ctx.Request().Context(), ctx.Login)
+	e, err := p.openCalendarObject(ctx, path, "notfound.event", "failed to get event", alborz.NotFound("notfound.event"), calendar.FirstEvent)
 	if err != nil {
 		return err
 	}
-	coll := dav.Holding(calendars, "", path)
-	if coll == nil {
-		return alborz.NotFound("notfound.event")
-	}
-
-	multiGet := caldav.CalendarMultiGet{
-		CompRequest: caldav.CalendarCompRequest{
-			Name:  "VCALENDAR",
-			Props: []string{"VERSION"},
-			// Everything, since the page draws alarms and attendees.
-			Comps: []caldav.CalendarCompRequest{{Name: "VEVENT", AllProps: true, AllComps: true}},
-		},
-	}
-
-	events, err := c.MultiGetCalendar(ctx.Request().Context(), path, &multiGet)
-	if err != nil {
-		if code, _ := webdav.HTTPErrorCode(err); code == http.StatusNotFound {
-			return alborz.NotFound("notfound.event")
-		}
-		return fmt.Errorf("failed to multi-get calendar: %v", err)
-	}
-	if len(events) == 0 {
-		return alborz.NotFound("notfound.event")
-	}
-	if len(events) != 1 {
-		return fmt.Errorf("expected exactly one calendar object with path %q, got %v", path, len(events))
-	}
-	event := &events[0]
-	if event.Data == nil {
-		return fmt.Errorf("%w: %s", alborz.ErrUnreadable, path)
-	}
-	vevents := event.Data.Events()
-	if len(vevents) == 0 {
-		return alborz.NotFound("notfound.event")
-	}
-	summary, _ := vevents[0].Props.Text("SUMMARY")
+	event := e.object
+	vevent := e.component
+	summary, _ := vevent.Props.Text("SUMMARY")
 
 	rail, err := p.eventRail(ctx)
 	if err != nil {
@@ -205,78 +156,52 @@ func (p *plugin) event(ctx *web.Context) error {
 		return err
 	}
 	data := &EventRenderData{
-		Rail:           rail,
-		List:           eventList(ctx),
-		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(summary).WithItem(),
-		Calendar:       coll,
-		Event:          calendar.Object{CalendarObject: event, ReadOnly: !coll.Writable},
-		Star:           calendar.ComponentColor(vevents[0].Component),
-		Neighbours:     pimweb.Around(items, path),
-		Authors:        p.DAV.Authors(event.Path, ctx.Login.Username()),
+		PageData:   *web.NewPageData(ctx, summary, rail).WithItem(),
+		List:       eventList(ctx),
+		Collection: e.collection,
+		Event:      calendar.Object{CalendarObject: event, ReadOnly: !e.collection.Writable},
+		Star:       calendar.ComponentColor(vevent),
+		Neighbours: pimweb.Around(items, path),
+		Authors:    p.DAV.Authors(event.Path, ctx.Login.Username()),
 	}
-	data.Repeats, data.RepeatsUntil = repeatWords(ctx, &vevents[0], web.UserLocation(ctx))
+	data.Repeats, data.RepeatsUntil = repeatWords(ctx, &ical.Event{Component: vevent}, web.UserLocation(ctx))
 	return ctx.Render(http.StatusOK, "calendar/event", data)
 }
 
 func (p *plugin) updateEvent(ctx *web.Context) error {
 	calendarObjectPath := ctx.Param("path")
-
 	loc := web.UserLocation(ctx)
-
-	var err error
-	var c *caldav.Client
-	var calendars []dav.Collection
-	var groups []dav.Group
-	var co *caldav.CalendarObject
-	var event *ical.Event
+	e, err := p.editCalendarObject(ctx, calendarObjectPath, "notfound.event", "failed to get CalDAV event", alborz.NotFound("notfound.event"), calendar.SupportsEvent,
+		func(cal *ical.Calendar) *ical.Component {
+			// The VEVENT without RECURRENCE-ID is the series; the form edits that. An invitation to single
+			// occurrences carries no series (RFC 5546 4.4.4), and the form edits the one the event's page shows.
+			events := cal.Events()
+			if len(events) == 0 {
+				return nil
+			}
+			event := &events[0]
+			for i := range events {
+				if events[i].Props.Get(ical.PropRecurrenceID) == nil {
+					event = &events[i]
+				}
+			}
+			return event.Component
+		}, func() *ical.Component {
+			// Pooled, so creating does not fail when the active account lacks such a collection.
+			event := ical.NewEvent()
+			event.Props.SetDateTime(ical.PropCreated, time.Now().UTC())
+			return event.Component
+		})
+	if err != nil {
+		return err
+	}
+	event := &ical.Event{Component: e.component}
 	var before *ical.Calendar
-	var currentCalendar *dav.Collection
-	if calendarObjectPath != "" {
-		c, calendars, err = p.Open(ctx.Request().Context(), ctx.Login)
-		if err != nil {
-			return err
-		}
-		co, err = calendar.GetObject(ctx.Request().Context(), c, calendarObjectPath)
-		if err != nil {
-			if code, _ := webdav.HTTPErrorCode(err); code == http.StatusNotFound {
-				return alborz.NotFound("notfound.event")
-			}
-			return fmt.Errorf("failed to get CalDAV event: %w", err)
-		}
-		// The VEVENT without RECURRENCE-ID is the series; the form edits that. An invitation to single
-		// occurrences carries no series (RFC 5546 4.4.4), and the form edits the one the event's page shows.
-		events := co.Data.Events()
-		if len(events) == 0 {
-			return alborz.NotFound("notfound.event")
-		}
-		event = &events[0]
-		for i := range events {
-			if events[i].Props.Get(ical.PropRecurrenceID) == nil {
-				event = &events[i]
-			}
-		}
-		before = calendar.Clone(co.Data)
-		currentCalendar = dav.Holding(calendars, "", co.Path)
-	} else {
-		// Pooled, so creating does not fail when the active account lacks such a collection.
-		groups, err = p.writableGroups(ctx, calendar.SupportsEvent)
-		if err != nil {
-			return err
-		}
-		event = ical.NewEvent()
-		event.Props.SetDateTime(ical.PropCreated, time.Now().UTC())
-		currentCalendar = &dav.Collection{}
-		if len(groups) > 0 {
-			currentCalendar = &groups[0].Collections[0]
-		}
+	if !e.creating() {
+		before = calendar.Clone(e.object.Data)
 	}
 
 	if ctx.Request().Method == "POST" {
-		if co != nil {
-			if co.ETag, err = pimweb.Drawn(ctx, co.ETag); err != nil {
-				return err
-			}
-		}
 		summary := ctx.FormValue("summary")
 		description := ctx.FormValue("description")
 
@@ -287,39 +212,34 @@ func (p *plugin) updateEvent(ctx *web.Context) error {
 				return err
 			}
 			return ctx.Render(http.StatusUnprocessableEntity, "calendar/event-edit", &UpdateEventRenderData{
-				Rail:           rail,
-				BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("calendar.createtitle")).Refused(message),
-				Groups:         groups,
-				Calendar:       currentCalendar,
-				CalendarObject: co,
-				Event:          event,
-				AllDay:         ctx.FormValue("allday") != "",
-				StartTime:      ctx.DateField("start"),
-				EndTime:        ctx.DateField("end"),
-				StartDate:      ctx.DateField("start_date"),
-				EndDate:        ctx.DateField("end_date"),
-				Repeat:         calendar.Repeat{Freq: ctx.FormValue("repeat"), Until: ctx.DateField("until")},
-				RepeatFreqs:    calendar.RepeatFreqs,
+				PageData:    *web.NewPageData(ctx, ctx.T("calendar.createtitle"), rail).WithRefused(message),
+				Groups:      e.groups,
+				Collection:  e.collection,
+				Object:      e.object,
+				Event:       event,
+				AllDay:      ctx.FormValue("allday") != "",
+				StartTime:   ctx.DateField("start"),
+				EndTime:     ctx.DateField("end"),
+				StartDate:   ctx.DateField("start_date"),
+				EndDate:     ctx.DateField("end_date"),
+				Repeat:      calendar.Repeat{Freq: ctx.FormValue("repeat"), Until: ctx.DateField("until")},
+				RepeatFreqs: calendar.RepeatFreqs,
 			})
 		}
 		if summary == "" {
 			return reject(ctx.T("form.summaryneeded"))
 		}
 
-		to := pim.Ref[*caldav.Client]{Client: c, Account: ctx.Login.Username()}
-		creating := co == nil
-		if creating {
-			to, err = p.destination(ctx, ctx.FormValue("calendar"), calendar.SupportsEvent)
-			if errors.Is(err, pim.ErrNoDestination) {
-				return reject(ctx.T("form.destinationneeded"))
-			} else if err != nil {
-				return err
-			}
-			for _, g := range groups {
-				if g.Account == to.Account {
-					currentCalendar = dav.At(g.Collections, to.Path)
-				}
-			}
+		to, err := e.destination(ctx, p, calendar.SupportsEvent)
+		if handled, refusal := pimweb.DestinationRefusal(ctx, err, reject); handled {
+			return refusal
+		}
+		if err != nil {
+			return err
+		}
+		creating := e.creating()
+		if event.Props.Get(ical.PropUID) == nil {
+			event.Props.SetText(ical.PropUID, uuid.New().String())
 		}
 
 		allDay := ctx.FormValue("allday") != ""
@@ -355,8 +275,6 @@ func (p *plugin) updateEvent(ctx *web.Context) error {
 			}
 		}
 
-		event.Props.SetDateTime(ical.PropDateTimeStamp, time.Now().UTC())
-		event.Props.SetDateTime(ical.PropLastModified, time.Now().UTC())
 		event.Props.SetText(ical.PropSummary, summary)
 		if allDay {
 			event.Props.SetDate(ical.PropDateTimeStart, start)
@@ -370,12 +288,7 @@ func (p *plugin) updateEvent(ctx *web.Context) error {
 			return reject(ctx.T("form.repeatuntil"))
 		}
 
-		if description != "" {
-			description = strings.ReplaceAll(description, "\r", "")
-			event.Props.SetText(ical.PropDescription, description)
-		} else {
-			event.Props.Del(ical.PropDescription)
-		}
+		setDescription(event.Component, description, true)
 
 		// Naming anybody makes this account the organizer; removing the last withdraws it.
 		attendees := calendar.ParseAttendees(ctx.FormValue("attendees"))
@@ -389,22 +302,10 @@ func (p *plugin) updateEvent(ctx *web.Context) error {
 			itip.Revise(was, event.Component)
 		}
 
-		newID := uuid.New()
-		if prop := event.Props.Get(ical.PropUID); prop == nil {
-			event.Props.SetText(ical.PropUID, newID.String())
-		}
-
-		cal := calendar.NewCalendar(event.Component)
-		if !creating {
-			cal = co.Data
-		}
-		calendar.EnsureTimezones(cal, start)
-		made, err := calendar.PutObject(ctx.Request().Context(), to, newID.String()+".ics", co, cal)
+		cal, err := e.put(ctx, to, event.Component, start)
 		if err != nil {
-			ctx.Notify(pimweb.Unsaved(ctx, err))
-			return reject("")
+			return reject(pimweb.Refusal(ctx, err))
 		}
-		co = made
 
 		// Saved before sending: a failed send must not lose the event.
 		ours, err := mail.Addresses(ctx.Request().Context(), ctx.Login)
@@ -414,7 +315,7 @@ func (p *plugin) updateEvent(ctx *web.Context) error {
 		told := calendar.Others(attendees, ours)
 		schedules := false
 		if len(told) > 0 || len(dropped) > 0 {
-			schedules, err = p.ServerSchedules(ctx.Request().Context(), ctx.LoginFor(to.Account), co.Path)
+			schedules, err = p.ServerSchedules(ctx.Request().Context(), ctx.LoginFor(to.Account), e.object.Path)
 		}
 		if err == nil && !schedules {
 			err = sendScheduling(ctx, itip.Request(cal), told)
@@ -429,7 +330,7 @@ func (p *plugin) updateEvent(ctx *web.Context) error {
 			ctx.PutNotice(ctx.T("invite.sent"))
 		}
 
-		return pimweb.Saved(ctx, creating, ctx.T("notice.eventcreated"), summary, ctx.Path("calendar.event", co.Path), ctx.Path("calendar.month"), to.Account)
+		return pimweb.Saved(ctx, creating, ctx.T("notice.eventcreated"), summary, ctx.Path("calendar.event", e.object.Path), ctx.Path("calendar.month"), to.Account)
 	}
 
 	summary, _ := event.Props.Text("SUMMARY")
@@ -439,12 +340,11 @@ func (p *plugin) updateEvent(ctx *web.Context) error {
 		return err
 	}
 	data := &UpdateEventRenderData{
-		Rail:           rail,
-		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(fmt.Sprintf(ctx.T("title.update"), summary)),
-		Groups:         groups,
-		Calendar:       currentCalendar,
-		CalendarObject: co,
-		Event:          event,
+		PageData:   *web.NewPageData(ctx, fmt.Sprintf(ctx.T("title.update"), summary), rail),
+		Groups:     e.groups,
+		Collection: e.collection,
+		Object:     e.object,
+		Event:      event,
 	}
 	fillEventForm(ctx, data, loc, newEventStart(ctx, loc))
 	return ctx.Render(http.StatusOK, "calendar/event-edit", data)

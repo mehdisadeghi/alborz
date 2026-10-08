@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
-	"io"
 	"net/http"
 	netmail "net/mail"
 	"slices"
@@ -46,7 +45,7 @@ func Mount(g *web.Group, st *store.Store) error {
 
 	// A card attached to a mail is filed from its own row.
 	web.Extend(srv, func(ctx *web.Context, data *mail.Shown) error {
-		if !hasAttachment(data.Message, "text/vcard", "text/x-vcard", "text/directory") {
+		if !data.Message.HasAttachment("text/vcard", "text/x-vcard", "text/directory") {
 			return nil
 		}
 		groups, err := p.writableBookGroups(ctx)
@@ -119,26 +118,7 @@ func bookAbilities(found dav.Advertised) []web.Ability {
 	}
 }
 
-func hasAttachment(msg *mail.IMAPMessage, types ...string) bool {
-	for _, att := range msg.Attachments() {
-		for _, t := range types {
-			if strings.EqualFold(att.MIMEType, t) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 func (p *plugin) importFromMessage(ctx *web.Context) error {
-	mboxName, uid, err := mail.ParseMessageRef(ctx.FormValue("mbox"), ctx.FormValue("uid"))
-	if err != nil {
-		return err
-	}
-	part, err := mail.ParsePartPath(ctx.FormValue("part"))
-	if err != nil {
-		return web.NewError(http.StatusBadRequest, err)
-	}
 	acct, bookPath, ok := strings.Cut(ctx.FormValue("addressbook"), "|")
 	login := ctx.LoginFor(acct)
 	if !ok || login == nil {
@@ -153,32 +133,11 @@ func (p *plugin) importFromMessage(ctx *web.Context) error {
 	}
 	to := ctx.Path("contacts.list")
 	if acct != ctx.Login.Username() {
-		to += "?account=" + web.QueryValue(acct)
+		to = web.AccountURL(to, acct)
 	}
-	var raw []byte
-	err = mail.PartAt(ctx.Request().Context(), ctx.Login, mboxName, uid, part, func(r io.Reader) (err error) {
-		raw, err = pim.ReadImport(r)
-		return err
+	return pimweb.ImportMessagePart(ctx, "import.vcf", ctx.NextOr(to), func(raw []byte) (int, error) {
+		return contacts.Import(ctx.Request().Context(), c, bookPath, raw)
 	})
-	if pim.ImportAnswered(err) {
-		ctx.Notify(pimweb.ImportRefused(ctx, err))
-		return ctx.Redirect(http.StatusFound, ctx.NextOr(to))
-	} else if err != nil {
-		return err
-	}
-	n, err := contacts.Import(ctx.Request().Context(), c, bookPath, raw)
-	if pim.ImportAnswered(err) {
-		ctx.Notify(pimweb.ImportRefused(ctx, err))
-		return ctx.Redirect(http.StatusFound, ctx.NextOr(to))
-	} else if err != nil {
-		return err
-	}
-	if n == 0 {
-		ctx.Notify(web.Notice{Kind: web.NoticeWarning, Text: ctx.T("import.nothing")})
-	} else {
-		ctx.PutNotice(ctx.Tf("import.vcf", n))
-	}
-	return ctx.Redirect(http.StatusFound, ctx.NextOr(to))
 }
 
 // addAddress adds one of a message's addresses to the address book chosen.
@@ -208,20 +167,19 @@ func (p *plugin) addAddress(ctx *web.Context) error {
 		ctx.Notify(web.Notice{Kind: web.NoticeDone,
 			Text:   fmt.Sprintf(sentence, addr.Address, book.Name),
 			Markup: template.HTML(fmt.Sprintf(sentence, web.NoticeName(addr.Address), web.NoticeName(book.Name)))})
-		return ctx.Redirect(http.StatusFound, back)
+		return ctx.FoundRedirect(back)
 	}
 	ao, err := contacts.AddCard(ctx.Request().Context(), to.Client, to.Path, addr)
 	if err != nil {
-		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: fmt.Sprintf(ctx.T("form.saverefused"), err)})
-		return ctx.Redirect(http.StatusFound, back)
+		return ctx.NotifyRedirect(web.Notice{Kind: web.NoticeFailed, Text: fmt.Sprintf(ctx.T("form.saverefused"), err)}, back)
 	}
 	named := contacts.AddressObject{AddressObject: ao}
 	sentence := ctx.T("notice.contactcreated")
-	href := ctx.Path("contacts.contact", named.Path) + "?account=" + web.QueryValue(to.Account)
+	href := web.AccountURL(ctx.Path("contacts.contact", named.Path), to.Account)
 	ctx.Notify(web.Notice{Kind: web.NoticeDone,
 		Text:   fmt.Sprintf(sentence, named.DisplayName()),
 		Markup: template.HTML(fmt.Sprintf(sentence, web.NoticeLink(named.DisplayName(), href)))})
-	return ctx.Redirect(http.StatusFound, back)
+	return ctx.FoundRedirect(back)
 }
 
 // seed fills Previous recipients from Sent, once per account.

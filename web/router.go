@@ -63,6 +63,12 @@ func (g *Group) POST(name, path string, h HandlerFunc) {
 	g.add(http.MethodPost, name, path, g.bounded(http.MethodPost, MaxFormSize, h, refuseTooLarge))
 }
 
+// Page serves a page that accepts both its initial GET and a form POST.
+func (g *Group) Page(name, path string, h HandlerFunc) {
+	g.GET(name, path, h)
+	g.POST(name, path, h)
+}
+
 // Download serves a file at path: the service worker leaves its fetch to the browser, which saves it.
 func (g *Group) Download(name, path string, h HandlerFunc) {
 	g.GET(name, path, h)

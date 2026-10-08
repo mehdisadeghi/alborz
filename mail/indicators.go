@@ -2,6 +2,7 @@ package mail
 
 import (
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -115,12 +116,7 @@ func Warnings(indicators []Indicator) []Indicator {
 var notJunkKeywords = []imap.Flag{"$NotJunk", "NotJunk"}
 
 func (msg *IMAPMessage) NotJunk() bool {
-	for _, k := range notJunkKeywords {
-		if msg.HasFlag(k) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(notJunkKeywords, msg.HasFlag)
 }
 
 // Where a verdict sits does not say who wrote it; two families at once do.
@@ -130,12 +126,7 @@ var (
 )
 
 func hasAny(h textproto.Header, keys []string) bool {
-	for _, k := range keys {
-		if h.Has(k) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(keys, h.Has)
 }
 
 func twoScanners(e *Evidence) []Indicator {

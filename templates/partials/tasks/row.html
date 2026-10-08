@@ -21,9 +21,7 @@
       </button>
     </form>
   </div>
-  <div class="task-list-summary list-primary list-cell" role="cell" data-label="{{$g.T "tasks.summary"}}">
-    <a href="{{.Href}}" dir="auto"{{ with .AddedBy }} title="{{ printf ($g.T "share.addedby") . }}"{{ end }}>{{.Summary}}</a>
-  </div>
+  {{ template "row-summary" (dict "g" $g "class" "task-list-summary" "label" ($g.T "tasks.summary") "href" .Href "summary" .Summary "addedby" .AddedBy) }}
   {{ template "row-collection" (dict "g" $g "cell" "task-list-calendar" "label" ($g.T "common.calendar") "list" (url "calendar.tasks") "coll" .Calendar "account" .Task.Account) }}
   {{ template "row-date" (dict "g" $g "cell" "task-list-due" "label" ($g.T "tasks.duedate") "time" .Due) }}
   {{ template "row-date" (dict "g" $g "cell" "task-list-added" "label" ($g.T "common.added") "time" .Added "since" true) }}

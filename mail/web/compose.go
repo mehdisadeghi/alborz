@@ -49,6 +49,25 @@ type AccountIdentities struct {
 	Addresses []string
 }
 
+func (p *plugin) composeRenderData(ctx *web.Context, base *IMAPBaseRenderData, msg *mail.OutgoingMessage, options *mail.ComposeOptions, settings *mail.Settings, signature string) *ComposeRenderData {
+	return &ComposeRenderData{
+		IMAPBaseRenderData: *base,
+		Message:            msg,
+		Attached:           attachedList(msg),
+		Identities:         composeIdentities(ctx, msg.From),
+		Signatures:         settings.Signatures,
+		Signature:          signature,
+		Suggestions:        suggestions(ctx),
+		Reply:              options.InReplyTo != nil,
+		LocalImage:         p.images.String(),
+	}
+}
+
+func (p *plugin) renderCompose(ctx *web.Context, status int, base *IMAPBaseRenderData, msg *mail.OutgoingMessage, options *mail.ComposeOptions, settings *mail.Settings, signature, refusal string) error {
+	base.WithTitle(ctx.T("aside.compose")).Refused(refusal)
+	return ctx.Render(status, "mail/compose", p.composeRenderData(ctx, base, msg, options, settings, signature))
+}
+
 // The address written as is offered even when unlisted, so the dropdown can select it.
 func composeIdentities(ctx *web.Context, writtenAs string) []AccountIdentities {
 	var out []AccountIdentities
@@ -70,12 +89,9 @@ func (a AccountIdentities) offers(address string) bool {
 	if strings.EqualFold(want, a.Account) {
 		return true
 	}
-	for _, identity := range a.Addresses {
-		if strings.EqualFold(want, mail.BareAddress(identity)) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(a.Addresses, func(identity string) bool {
+		return strings.EqualFold(want, mail.BareAddress(identity))
+	})
 }
 
 // attachedField carries "mailbox/uid" refs, re-fetched when the form comes back.
@@ -171,11 +187,10 @@ func (p *plugin) submitCompose(ctx *web.Context, sender *alborz.Login, msg *mail
 	notice := web.Notice{Kind: web.NoticeDone, Text: ctx.T("notice.sent")}
 	if sent != nil && sentUID != 0 {
 		// The Sent copy may be outside the reader's scope, so the link names its account.
-		view := ctx.Path("mail.message", sent.Name(), sentUID) + "?account=" + web.QueryValue(sender.Username())
+		view := web.AccountURL(ctx.Path("mail.message", sent.Name(), sentUID), sender.Username())
 		notice.Actions = []*web.NoticeAction{{Label: ctx.T("notice.view"), Path: view}}
 	}
-	ctx.Notify(notice)
-	return ctx.Redirect(http.StatusFound, ctx.URL("mail.mailbox", "INBOX"))
+	return ctx.NotifyRedirect(notice, ctx.URL("mail.mailbox", "INBOX"))
 }
 
 func (p *plugin) handleCompose(ctx *web.Context, msg *mail.OutgoingMessage, options *mail.ComposeOptions) error {
@@ -215,19 +230,7 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *mail.OutgoingMessage, opti
 			return err
 		}
 		render := func(status int, signature, errText string) error {
-			ibase.WithTitle(ctx.T("aside.compose"))
-			ibase.Refused(errText)
-			return ctx.Render(status, "mail/compose", &ComposeRenderData{
-				IMAPBaseRenderData: *ibase,
-				Message:            msg,
-				Attached:           attachedList(msg),
-				Identities:         composeIdentities(ctx, msg.From),
-				Signatures:         settings.Signatures,
-				Signature:          signature,
-				Suggestions:        suggestions(ctx),
-				Reply:              options.InReplyTo != nil,
-				LocalImage:         p.images.String(),
-			})
+			return p.renderCompose(ctx, status, ibase, msg, options, settings, signature, errText)
 		}
 		// A server's refusal comes back on the form; uploads stay with the session until the message has left.
 		var uploads []string
@@ -374,26 +377,14 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *mail.OutgoingMessage, opti
 				if err != nil {
 					return err
 				}
-				ctx.PutNotice(ctx.T("notice.draftsaved"))
-				return ctx.Redirect(http.StatusFound, ctx.Path("mail.message.edit", drafts.Mailbox, uid)+"?part=1")
+				return ctx.NoticeRedirect(ctx.T("notice.draftsaved"), ctx.Path("mail.message.edit", drafts.Mailbox, uid)+"?part=1")
 			}
 			return p.submitCompose(ctx, sender, msg, options)
 		})
 	}
 
 	ibase.WithTitle(ctx.T("aside.compose"))
-	data := &ComposeRenderData{
-		Identities:         composeIdentities(ctx, msg.From),
-		IMAPBaseRenderData: *ibase,
-		Message:            msg,
-		Attached:           attachedList(msg),
-		Signatures:         settings.Signatures,
-		Signature:          options.Signature,
-		Suggestions:        suggestions(ctx),
-		Reply:              options.InReplyTo != nil,
-		LocalImage:         p.images.String(),
-	}
-	return ctx.Render(http.StatusOK, "mail/compose", data)
+	return ctx.Render(http.StatusOK, "mail/compose", p.composeRenderData(ctx, ibase, msg, options, settings, options.Signature))
 }
 
 // suggestions are what the features offer, each entry once, sorted.
@@ -421,7 +412,7 @@ func (p *plugin) handleComposeNew(ctx *web.Context) error {
 		if q == nil {
 			return web.NewError(http.StatusBadRequest, "not a mailto URI")
 		}
-		return ctx.Redirect(http.StatusFound, ctx.Path("mail.compose")+"?"+web.Query(q))
+		return ctx.FoundRedirect(web.QueryPath(ctx.Path("mail.compose"), q))
 	}
 
 	text := ctx.QueryParam("body")
@@ -455,14 +446,14 @@ func composeTooLarge(ctx *web.Context) error {
 func handleComposeAttachment(ctx *web.Context) error {
 	reader, err := ctx.Request().MultipartReader()
 	if err != nil {
-		return ctx.JSON(http.StatusBadRequest, map[string]string{"error": ctx.T("attach.invalid")})
+		return ctx.JSONError(http.StatusBadRequest, ctx.T("attach.invalid"))
 	}
 	form, err := web.ReadForm(reader)
 	var over *http.MaxBytesError
 	if errors.As(err, &over) {
-		return ctx.JSON(http.StatusRequestEntityTooLarge, map[string]string{"error": ctx.T("attach.toolarge")})
+		return ctx.JSONError(http.StatusRequestEntityTooLarge, ctx.T("attach.toolarge"))
 	} else if err != nil {
-		return ctx.JSON(http.StatusBadRequest, map[string]string{"error": ctx.T("attach.invalid")})
+		return ctx.JSONError(http.StatusBadRequest, ctx.T("attach.invalid"))
 	}
 	// The session holds the uploads it takes; the rest go with the request.
 	files := form.File["attachments"]
@@ -476,22 +467,15 @@ func handleComposeAttachment(ctx *web.Context) error {
 		Remove string `json:"remove"`
 	}
 	var uploads []upload
-	for i, f := range files {
-		uuid, err := ctx.PutAttachment(f)
-		if err != nil {
-			for _, f := range files[i:] {
-				f.Close()
-			}
-		}
-		if err == web.ErrAttachmentCacheSize {
-			return ctx.JSON(http.StatusBadRequest, map[string]string{"error": ctx.T("attach.toolarge")})
-		} else if err != nil {
-			ctx.Logger().Printf("PutAttachment: %v\n", err)
-			return ctx.JSON(http.StatusBadRequest, map[string]string{"error": ctx.T("attach.failed")})
-		}
+	err = putAttachments(ctx, files, func(uuid string) {
 		uploads = append(uploads, upload{ID: uuid, Src: ctx.Path("mail.attachment", uuid), Remove: ctx.Path("mail.attachment.remove", uuid)})
+	})
+	if err == web.ErrAttachmentCacheSize {
+		return ctx.JSONError(http.StatusBadRequest, ctx.T("attach.toolarge"))
+	} else if err != nil {
+		ctx.Logger().Printf("PutAttachment: %v\n", err)
+		return ctx.JSONError(http.StatusBadRequest, ctx.T("attach.failed"))
 	}
-
 	return ctx.JSON(http.StatusOK, &uploads)
 }
 
@@ -509,9 +493,7 @@ func handleCancelAttachment(ctx *web.Context) error {
 }
 
 func (p *plugin) handleReply(ctx *web.Context) error {
-	var inReplyToPath mail.MessagePath
-	var err error
-	inReplyToPath.Mailbox, inReplyToPath.UID, err = MessageRef(ctx)
+	inReplyToPath, err := composeMessagePath(ctx)
 	if err != nil {
 		return err
 	}
@@ -527,6 +509,58 @@ func (p *plugin) handleReply(ctx *web.Context) error {
 	return p.handleCompose(ctx, &msg, &mail.ComposeOptions{InReplyTo: &inReplyToPath})
 }
 
+// composeMessagePath is the message path shared by the reply, forward, and
+// draft edit workflows. The route still owns parsing and validating the path.
+func composeMessagePath(ctx *web.Context) (mail.MessagePath, error) {
+	mailbox, uid, err := MessageRef(ctx)
+	return mail.MessagePath{Mailbox: mailbox, UID: uid}, err
+}
+
+// composeSourcePart loads the part named by a compose route. A blank part is
+// resolved by mail.Quotable to the message's readable text part.
+func composeSourcePart(ctx *web.Context, path mail.MessagePath) (*mail.IMAPMessage, *message.Entity, string, error) {
+	partPath, err := mail.ParsePartPath(ctx.QueryParam("part"))
+	if err != nil {
+		return nil, nil, "", web.NewError(http.StatusBadRequest, err)
+	}
+	return quotablePart(ctx, path, partPath)
+}
+
+// readComposePart turns a source MIME part into the text used by reply or
+// forward. Reply quotes the text; forward preserves it as the body.
+func readComposePart(part *message.Entity, mimeType string, quote bool) (string, error) {
+	var body string
+	var err error
+	switch mimeType {
+	case "text/plain":
+		body, err = mail.ReadText(part)
+	case "text/html":
+		body, err = html2text.FromReader(part.Body, html2text.Options{})
+	default:
+		return "", web.NewError(http.StatusBadRequest, fmt.Errorf("cannot forward %q part", mimeType))
+	}
+	if err != nil {
+		return "", err
+	}
+	if quote {
+		body, err = mail.Quote(strings.NewReader(body))
+	}
+	return body, err
+}
+
+func composeSourceAttachments(path mail.MessagePath, source *mail.IMAPMessage) []mail.Attachment {
+	attachments := source.Attachments()
+	out := make([]mail.Attachment, 0, len(attachments))
+	for i := range attachments {
+		out = append(out, &mail.IMAPAttachment{
+			Mailbox: path.Mailbox,
+			UID:     path.UID,
+			Node:    &attachments[i],
+		})
+	}
+	return out
+}
+
 // A bare link names no part, so the text part shown is fetched instead.
 func quotablePart(ctx *web.Context, path mail.MessagePath, partPath []int) (*mail.IMAPMessage, *message.Entity, string, error) {
 	msg, part, mimeType, err := mail.Quotable(ctx.Request().Context(), ctx.Login, path, partPath)
@@ -539,36 +573,12 @@ func quotablePart(ctx *web.Context, path mail.MessagePath, partPath []int) (*mai
 func (p *plugin) populateMessageFromOriginalMessage(ctx *web.Context, inReplyToPath mail.MessagePath) (mail.OutgoingMessage, error) {
 	var ret mail.OutgoingMessage
 
-	partPath, err := mail.ParsePartPath(ctx.QueryParam("part"))
-	if err != nil {
-		return ret, web.NewError(http.StatusBadRequest, err)
-	}
-
-	inReplyTo, part, mimeType, err := quotablePart(ctx, inReplyToPath, partPath)
+	inReplyTo, part, mimeType, err := composeSourcePart(ctx, inReplyToPath)
 	if err != nil {
 		return ret, err
 	}
 
-	var quoted string
-	switch mimeType {
-	case "text/plain":
-		var text string
-		if text, err = mail.ReadText(part); err != nil {
-			return ret, err
-		}
-		quoted, err = mail.Quote(strings.NewReader(text))
-	case "text/html":
-		var text string
-		text, err = html2text.FromReader(part.Body, html2text.Options{})
-		if err != nil {
-			return ret, err
-		}
-
-		quoted, err = mail.Quote(strings.NewReader(text))
-	default:
-		defErr := fmt.Errorf("cannot forward %q part", mimeType)
-		err = web.NewError(http.StatusBadRequest, defErr)
-	}
+	quoted, err := readComposePart(part, mimeType, true)
 	if err != nil {
 		return ret, err
 	}
@@ -693,25 +703,22 @@ func replyHTML(ctx *web.Context, original *mail.IMAPMessage, quoted string, belo
 }
 
 func handleForwardSelection(ctx *web.Context) error {
-	mboxName, err := mailboxRef(ctx)
+	mboxName := mailboxRef(ctx)
+	params, err := formParams(ctx)
 	if err != nil {
 		return err
-	}
-	params, err := ctx.FormParams()
-	if err != nil {
-		return web.NewError(http.StatusBadRequest, err)
 	}
 	uids, err := mail.ParseUIDs(params["uids"])
 	if err != nil {
 		return web.NewError(http.StatusBadRequest, err)
 	}
-	back := ctx.NextOr(mailboxURL(ctx, mboxName))
+	back := ctx.NextOr(ctx.URL("mail.mailbox", mboxName))
 	if len(uids) == 0 {
 		return nothingSelected(ctx, back)
 	}
 	// One message is forwarded inline where it can be trimmed; several travel whole as attachments.
 	if len(uids) == 1 {
-		return ctx.Redirect(http.StatusFound, ctx.URL("mail.message.forward", mboxName, uids[0]))
+		return ctx.FoundRedirect(ctx.URL("mail.message.forward", mboxName, uids[0]))
 	}
 
 	refs := make([]string, len(uids))
@@ -722,15 +729,12 @@ func handleForwardSelection(ctx *web.Context) error {
 	if a := ctx.URLAccount(); a != "" {
 		q.Set("account", web.QueryValue(a))
 	}
-	return ctx.Redirect(http.StatusFound, ctx.Path("mail.messages.forward", mboxName)+"?"+web.Query(q))
+	return ctx.FoundRedirect(web.QueryPath(ctx.Path("mail.messages.forward", mboxName), q))
 }
 
 // A GET so the page can be reloaded; the selection arrives in the query.
 func (p *plugin) handleForwardAttached(ctx *web.Context) error {
-	mboxName, err := mailboxRef(ctx)
-	if err != nil {
-		return err
-	}
+	mboxName := mailboxRef(ctx)
 	uids, err := mail.ParseUIDs(strings.Split(ctx.QueryParam("uids"), ","))
 	if err != nil || len(uids) == 0 {
 		return web.NewError(http.StatusBadRequest, "no messages to forward")
@@ -752,36 +756,20 @@ func (p *plugin) handleForwardAttached(ctx *web.Context) error {
 }
 
 func (p *plugin) handleForward(ctx *web.Context) error {
-	var sourcePath mail.MessagePath
-	var err error
-	sourcePath.Mailbox, sourcePath.UID, err = MessageRef(ctx)
+	sourcePath, err := composeMessagePath(ctx)
 	if err != nil {
 		return err
 	}
 
 	var msg mail.OutgoingMessage
 	if ctx.Request().Method == http.MethodGet {
-		partPath, err := mail.ParsePartPath(ctx.QueryParam("part"))
-		if err != nil {
-			return web.NewError(http.StatusBadRequest, err)
-		}
-
-		source, part, mimeType, err := quotablePart(ctx, sourcePath, partPath)
+		source, part, mimeType, err := composeSourcePart(ctx, sourcePath)
 		if err != nil {
 			return err
 		}
 
-		var body string
-		switch mimeType {
-		case "text/plain":
-			body, err = mail.ReadText(part)
-		case "text/html":
-			// Lossy; attaching the message instead keeps it whole.
-			body, err = html2text.FromReader(part.Body, html2text.Options{})
-		default:
-			defErr := fmt.Errorf("cannot forward %q part", mimeType)
-			err = web.NewError(http.StatusBadRequest, defErr)
-		}
+		// Lossy HTML conversion; attaching the message instead keeps it whole.
+		body, err := readComposePart(part, mimeType, false)
 		if err != nil {
 			return err
 		}
@@ -803,23 +791,14 @@ func (p *plugin) handleForward(ctx *web.Context) error {
 		// A forward starts a thread of its own rather than joining the original's.
 		msg.References = "<" + source.Envelope.MessageID + ">"
 
-		attachments := source.Attachments()
-		for i := range attachments {
-			msg.Attachments = append(msg.Attachments, &mail.IMAPAttachment{
-				Mailbox: sourcePath.Mailbox,
-				UID:     sourcePath.UID,
-				Node:    &attachments[i],
-			})
-		}
+		msg.Attachments = append(msg.Attachments, composeSourceAttachments(sourcePath, source)...)
 	}
 
 	return p.handleCompose(ctx, &msg, &mail.ComposeOptions{Forward: &sourcePath})
 }
 
 func (p *plugin) handleEdit(ctx *web.Context) error {
-	var sourcePath mail.MessagePath
-	var err error
-	sourcePath.Mailbox, sourcePath.UID, err = MessageRef(ctx)
+	sourcePath, err := composeMessagePath(ctx)
 	if err != nil {
 		return err
 	}
@@ -828,12 +807,7 @@ func (p *plugin) handleEdit(ctx *web.Context) error {
 
 	var msg mail.OutgoingMessage
 	if ctx.Request().Method == http.MethodGet {
-		partPath, err := mail.ParsePartPath(ctx.QueryParam("part"))
-		if err != nil {
-			return web.NewError(http.StatusBadRequest, err)
-		}
-
-		source, part, mimeType, err := quotablePart(ctx, sourcePath, partPath)
+		source, part, mimeType, err := composeSourcePart(ctx, sourcePath)
 		if err != nil {
 			return err
 		}
@@ -862,25 +836,13 @@ func (p *plugin) handleEdit(ctx *web.Context) error {
 		}
 		msg.To = mail.AddressStrings(source.Envelope.To)
 		msg.Subject = source.Envelope.Subject
-		msg.InReplyTo = formatMsgIDList(source.Envelope.InReplyTo)
+		if ids := source.Envelope.InReplyTo; len(ids) > 0 {
+			msg.InReplyTo = "<" + strings.Join(ids, ">, <") + ">"
+		}
 		msg.MessageID = "<" + source.Envelope.MessageID + ">"
 
-		attachments := source.Attachments()
-		for i := range attachments {
-			msg.Attachments = append(msg.Attachments, &mail.IMAPAttachment{
-				Mailbox: sourcePath.Mailbox,
-				UID:     sourcePath.UID,
-				Node:    &attachments[i],
-			})
-		}
+		msg.Attachments = append(msg.Attachments, composeSourceAttachments(sourcePath, source)...)
 	}
 
 	return p.handleCompose(ctx, &msg, &mail.ComposeOptions{Draft: &sourcePath})
-}
-
-func formatMsgIDList(l []string) string {
-	if len(l) == 0 {
-		return ""
-	}
-	return "<" + strings.Join(l, ">, <") + ">"
 }

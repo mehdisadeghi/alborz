@@ -10,50 +10,33 @@ import (
 
 // PasskeysRenderData renders passkeys.html.
 type PasskeysRenderData struct {
-	web.BaseRenderData
-	Rail     map[string][]web.RailRow
+	web.PageData[map[string][]web.RailRow]
 	Passkeys []alborz.Passkey
-}
-
-// PasskeyRenderData renders passkey-create.html.
-type PasskeyRenderData struct {
-	web.BaseRenderData
-	Rail map[string][]web.RailRow
 }
 
 func registerPasskeyRoutes(g *web.Group) {
 	g.GET("passkeys", "/settings/passkeys", func(ctx *web.Context) error {
 		return ctx.Render(http.StatusOK, "settings/passkeys", &PasskeysRenderData{
-			BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("passkeys.title")),
-			Rail:           web.SettingsRail(ctx),
-			Passkeys:       ctx.Session().Lock().Passkeys,
+			PageData: *web.NewSettingsPageData(ctx, ctx.T("passkeys.title")),
+			Passkeys: ctx.Session().Lock().Passkeys,
 		})
 	})
 	passkeyForm := func(ctx *web.Context) error {
-		data := &PasskeyRenderData{
-			BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("passkeys.new")),
-			Rail:           web.SettingsRail(ctx),
-		}
+		data := web.NewSettingsPageData(ctx, ctx.T("passkeys.new"))
 		// Only a form without script posts here, and without script there is no passkey prompt.
 		if ctx.Request().Method == http.MethodPost {
-			data.Refused(ctx.T("passkeys.needsscript"))
-			return ctx.Render(http.StatusUnprocessableEntity, "settings/passkey-create", data)
+			return web.RenderRefused(ctx, "settings/passkey-create", data, ctx.T("passkeys.needsscript"))
 		}
 		return ctx.Render(http.StatusOK, "settings/passkey-create", data)
 	}
 	g.GET("passkeys.create", "/settings/passkeys/create", passkeyForm)
 	g.POST("passkeys.create", "/settings/passkeys/create", passkeyForm)
 	g.POST("passkeys.begin", "/settings/passkeys/begin", func(ctx *web.Context) error {
-		options, err := ctx.BeginPasskey()
-		if err != nil {
-			return err
-		}
-		return ctx.JSON(http.StatusOK, options)
+		return web.PasskeyBegin(ctx, ctx.BeginPasskey)
 	})
 	g.POST("passkeys.finish", "/settings/passkeys/finish", func(ctx *web.Context) error {
 		if err := ctx.FinishPasskey(strings.TrimSpace(ctx.QueryParam("name"))); err != nil {
-			ctx.Logger().Printf("passkey refused: %v", err)
-			return ctx.JSON(http.StatusUnprocessableEntity, map[string]string{"error": ctx.T("passkeys.addrefused")})
+			return web.PasskeyFailure(ctx, http.StatusUnprocessableEntity, "passkey refused", ctx.T("passkeys.addrefused"), err)
 		}
 		ctx.PutNotice(ctx.T("notice.passkeyadded"))
 		return ctx.NoContent(http.StatusNoContent)
@@ -66,7 +49,6 @@ func registerPasskeyRoutes(g *web.Group) {
 		if err := ctx.Server.Sessions.Save(s); err != nil {
 			return err
 		}
-		ctx.PutNotice(ctx.T("notice.passkeyremoved"))
-		return ctx.Redirect(http.StatusFound, ctx.Path("settings.passkeys"))
+		return ctx.NoticeRedirect(ctx.T("notice.passkeyremoved"), ctx.Path("settings.passkeys"))
 	})
 }

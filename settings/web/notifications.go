@@ -11,8 +11,7 @@ import (
 
 // NotificationsRenderData renders notifications.html.
 type NotificationsRenderData struct {
-	web.BaseRenderData
-	Rail    map[string][]web.RailRow
+	web.PageData[map[string][]web.RailRow]
 	Devices []NotifiedDevice
 	// Days and Minutes are how long a login is kept for notifications, remembered and not.
 	Days, Minutes int
@@ -28,8 +27,7 @@ type NotifiedDevice struct {
 
 // NotificationRenderData renders notification-create.html.
 type NotificationRenderData struct {
-	web.BaseRenderData
-	Rail          map[string][]web.RailRow
+	web.PageData[map[string][]web.RailRow]
 	Key           string
 	Days, Minutes int
 }
@@ -47,11 +45,10 @@ func handleNotifications(ctx *web.Context) error {
 			Current: d.Session == session, Gone: !ctx.Server.Sessions.Holds(d.Session, account)})
 	}
 	return ctx.Render(http.StatusOK, "settings/notifications", &NotificationsRenderData{
-		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("notifications.title")),
-		Rail:           web.SettingsRail(ctx),
-		Devices:        shown,
-		Days:           int(alborz.CredentialCookieLife() / (24 * time.Hour)),
-		Minutes:        int(ctx.Server.Options.LoginIdle / time.Minute),
+		PageData: *web.NewSettingsPageData(ctx, ctx.T("notifications.title")),
+		Devices:  shown,
+		Days:     int(alborz.CredentialCookieLife() / (24 * time.Hour)),
+		Minutes:  int(ctx.Server.Options.LoginIdle / time.Minute),
 	})
 }
 
@@ -59,24 +56,21 @@ func handleNotifications(ctx *web.Context) error {
 // carries none, and is refused.
 func handleNotificationCreate(ctx *web.Context) error {
 	data := &NotificationRenderData{
-		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("notifications.new")),
-		Rail:           web.SettingsRail(ctx),
-		Key:            ctx.Server.Pushes.Key.Public(),
-		Days:           int(alborz.CredentialCookieLife() / (24 * time.Hour)),
-		Minutes:        int(ctx.Server.Options.LoginIdle / time.Minute),
+		PageData: *web.NewSettingsPageData(ctx, ctx.T("notifications.new")),
+		Key:      ctx.Server.Pushes.Key.Public(),
+		Days:     int(alborz.CredentialCookieLife() / (24 * time.Hour)),
+		Minutes:  int(ctx.Server.Options.LoginIdle / time.Minute),
 	}
 	if ctx.Request().Method != http.MethodPost {
 		return ctx.Render(http.StatusOK, "settings/notification-create", data)
 	}
 	if ctx.FormValue("endpoint") == "" {
-		data.Refused(ctx.T("notifications.needsscript"))
-		return ctx.Render(http.StatusUnprocessableEntity, "settings/notification-create", data)
+		return web.RenderRefused(ctx, "settings/notification-create", data, ctx.T("notifications.needsscript"))
 	}
 	sub, err := webpush.Parse(ctx.FormValue("endpoint"), ctx.FormValue("p256dh"), ctx.FormValue("auth"))
 	if err != nil {
 		ctx.Logger().Printf("push subscription refused: %v", err)
-		data.Refused(ctx.T("notifications.refused"))
-		return ctx.Render(http.StatusUnprocessableEntity, "settings/notification-create", data)
+		return web.RenderRefused(ctx, "settings/notification-create", data, ctx.T("notifications.refused"))
 	}
 	// The worker posts a subscription the push service replaced, for each account of this browser that had it.
 	if old := ctx.FormValue("old"); old != "" {
@@ -85,8 +79,7 @@ func handleNotificationCreate(ctx *web.Context) error {
 				return err
 			}
 		}
-		ctx.Quiet()
-		return ctx.Redirect(http.StatusFound, ctx.URL("settings.notifications"))
+		return ctx.QuietRedirect(ctx.URL("settings.notifications"))
 	}
 	err = ctx.Server.Pushes.Put(ctx.Login.Username(), alborz.PushDevice{
 		Endpoint: sub.Endpoint, P256dh: sub.P256dh, Auth: sub.Auth,
@@ -96,8 +89,7 @@ func handleNotificationCreate(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	ctx.PutNotice(ctx.T("notice.notificationson"))
-	return ctx.Redirect(http.StatusFound, ctx.URL("settings.notifications"))
+	return ctx.NoticeRedirect(ctx.T("notice.notificationson"), ctx.URL("settings.notifications"))
 }
 
 func handleNotificationOff(ctx *web.Context) error {
@@ -105,6 +97,5 @@ func handleNotificationOff(ctx *web.Context) error {
 		return err
 	}
 	ctx.Server.Recheck(ctx.Login.Username())
-	ctx.PutNotice(ctx.T("notice.notificationsoff"))
-	return ctx.Redirect(http.StatusFound, ctx.URL("settings.notifications"))
+	return ctx.NoticeRedirect(ctx.T("notice.notificationsoff"), ctx.URL("settings.notifications"))
 }

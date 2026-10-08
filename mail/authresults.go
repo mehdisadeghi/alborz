@@ -103,7 +103,7 @@ func ForwardedBy(h textproto.Header, trusted, listID string) string {
 		return ""
 	}
 
-	envelope := strings.Trim(strings.TrimSpace(results.MailFrom), "<>")
+	envelope := normalizeMessageID(results.MailFrom)
 	at := strings.LastIndex(envelope, "@")
 	if at <= 0 {
 		return ""

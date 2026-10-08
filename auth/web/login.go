@@ -14,22 +14,22 @@ func handleLogin(ctx *web.Context) error {
 	remember := ctx.FormValue("remember-me")
 	add := ctx.QueryParam("add") == "1"
 
+	title := "login.short"
+	if add {
+		title = "login.add"
+	}
 	renderData := struct {
 		web.BaseRenderData
 		RememberDays int
 		Add          bool
 		Username     string
 	}{
-		BaseRenderData: *web.NewBaseRenderData(ctx),
+		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T(title)),
 		Username:       username,
 		RememberDays:   int(alborz.CredentialCookieLife().Hours() / 24),
 		Add:            add,
 	}
-	if add {
-		renderData.WithTitle(ctx.T("login.add"))
-	} else {
-		renderData.WithTitle(ctx.T("login.short"))
-	}
+	render := func(status int) error { return ctx.Render(status, "login", &renderData) }
 
 	// Remembered credentials re-login existing accounts; they cannot add one.
 	if username == "" && password == "" && !add && ctx.RestoreRememberedAccounts() {
@@ -38,7 +38,7 @@ func handleLogin(ctx *web.Context) error {
 
 	if ctx.Request().Method == http.MethodPost && (username == "" || password == "") {
 		renderData.GlobalData.Notice = &web.Notice{Kind: web.NoticeFailed, Text: ctx.T("notice.loginmissing")}
-		return ctx.Render(http.StatusUnprocessableEntity, "login", &renderData)
+		return render(http.StatusUnprocessableEntity)
 	}
 
 	if username != "" && password != "" {
@@ -51,7 +51,7 @@ func handleLogin(ctx *web.Context) error {
 				return fmt.Errorf("failed to put connection in pool: %w", err)
 			}
 			renderData.GlobalData.Notice = &web.Notice{Kind: web.NoticeFailed, Text: text}
-			return ctx.Render(status, "login", &renderData)
+			return render(status)
 		}
 		ctx.AddAccount(s)
 
@@ -62,7 +62,7 @@ func handleLogin(ctx *web.Context) error {
 		return loginRedirect(ctx)
 	}
 
-	return ctx.Render(http.StatusOK, "login", &renderData)
+	return render(http.StatusOK)
 }
 
 // Being signed in is what the next page shows, wherever it is.
@@ -76,7 +76,7 @@ func loginRedirect(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	return ctx.Redirect(http.StatusFound, to)
+	return ctx.FoundRedirect(to)
 }
 
 func handleLogout(ctx *web.Context) error {
@@ -91,7 +91,7 @@ func handleLogout(ctx *web.Context) error {
 	ctx.Server.ForgetAccount(username)
 	ctx.Quiet()
 	if ctx.LogoutAccount(username) != nil {
-		return ctx.Redirect(http.StatusFound, ctx.Path("mail.mailbox", "INBOX"))
+		return ctx.FoundRedirect(ctx.Path("mail.mailbox", "INBOX"))
 	}
-	return ctx.Redirect(http.StatusFound, ctx.Path("auth.login"))
+	return ctx.FoundRedirect(ctx.Path("auth.login"))
 }

@@ -14,21 +14,9 @@ import (
 )
 
 type CalendarDateRenderData struct {
-	web.BaseRenderData
-	ListQuery string
-	// SelectForm is empty: the agenda, not the day page, acts on the list.
-	SelectForm         string
-	Time               time.Time
-	Calendars          []dav.Collection
+	CalendarPageRenderData
 	Events             []calendar.Occurrence
 	PrevPage, NextPage string
-
-	CollectionFor  func(account, path string) dav.Collection
-	CollectionHref func(account, path string) string
-	// AddedBy names who added an event, where not the row's own account.
-	AddedBy func(account, path string) string
-
-	Invitations *pimweb.RailInvitations
 }
 
 type dayView struct {
@@ -51,19 +39,11 @@ func (p *plugin) day(ctx *web.Context) error {
 		return err
 	}
 	return ctx.Render(http.StatusOK, "calendar/day", &CalendarDateRenderData{
-		BaseRenderData: *web.NewBaseRenderData(ctx).
-			WithTitle(ctx.T("nav.calendar") + ": " + ctx.Dates().Long(dv.start)),
+		CalendarPageRenderData: calendarPageData(ctx, ctx.T("nav.calendar")+": "+ctx.Dates().Long(dv.start), dv.calendars, pimweb.NewCollectionLabels(p.DAV, ctx.Login.Username(), collection, href), "", "", nil, nil, "", invitations, dayQuery(ctx, dv.start), dv.start),
 		// Named even when the URL omits it, so an opened event knows its list.
-		ListQuery:      dayQuery(ctx, dv.start),
-		Time:           dv.start,
-		Calendars:      dv.calendars,
-		Events:         dv.events,
-		PrevPage:       dv.start.AddDate(0, 0, -1).Format(datePageLayout),
-		NextPage:       dv.start.AddDate(0, 0, 1).Format(datePageLayout),
-		AddedBy:        p.DAV.AddedBy(ctx.Login.Username()),
-		CollectionFor:  collection,
-		CollectionHref: href,
-		Invitations:    invitations,
+		Events:   dv.events,
+		PrevPage: dv.start.AddDate(0, 0, -1).Format(datePageLayout),
+		NextPage: dv.start.AddDate(0, 0, 1).Format(datePageLayout),
 	})
 }
 
@@ -99,17 +79,15 @@ func (p *plugin) dayView(ctx *web.Context) (dayView, error) {
 
 	// Keep only what falls in the day; an unexpanded master matched as a whole.
 	var shown []calendar.Occurrence
-	for _, ev := range events {
-		occurrences, err := calendar.Occurrences(ev, loc, start, end)
-		if err != nil {
-			unread = append(unread, pim.Unread{Collection: ev.Calendar, Err: err})
-		}
-		for _, oc := range occurrences {
+	unread = append(unread, eachOccurrence(events,
+		func(ev calendar.Object) ([]calendar.Occurrence, error) {
+			return calendar.Occurrences(ev, loc, start, end)
+		},
+		func(oc calendar.Occurrence) {
 			if oc.Start.Before(end) && (oc.End.After(start) || !oc.End.After(oc.Start)) {
 				shown = append(shown, oc)
 			}
-		}
-	}
+		})...)
 	sort.Slice(shown, func(i, j int) bool {
 		return shown[i].Start.Before(shown[j].Start)
 	})

@@ -18,7 +18,6 @@ import (
 	"github.com/emersion/go-imap/v2/imapclient"
 	"github.com/emersion/go-mbox"
 	"github.com/emersion/go-message"
-	"github.com/emersion/go-message/textproto"
 )
 
 // ExportRun streams one account's run of messages into the archive, on a connection of its own.
@@ -39,14 +38,11 @@ func exportMessage(log *log.Logger, c *imapclient.Client, archive *mbox.Writer, 
 	if err := ensureMailboxSelected(c, r.Mailbox); err != nil {
 		return err
 	}
-	msgs, err := c.Fetch(imap.UIDSetNum(r.UID), &imap.FetchOptions{UID: true, Envelope: true}).Collect()
+	msg, err := fetchOne(c, r.UID, &imap.FetchOptions{UID: true, Envelope: true})
 	if err != nil {
 		return err
 	}
-	if len(msgs) == 0 {
-		return alborz.NotFound("notfound.message", fmt.Sprint(r.UID))
-	}
-	env := msgs[0].Envelope
+	env := msg.Envelope
 	whole := &imap.FetchOptions{UID: true, BodySection: []*imap.FetchItemBodySection{{Peek: true}}}
 	var stripped []byte
 	if strip {
@@ -263,7 +259,7 @@ func appendMessages(c *imapclient.Client, folder string, r io.Reader, seen map[s
 		if err != nil {
 			return err
 		}
-		id := messageID(raw)
+		id, date := messageHeaders(raw)
 		if id != "" && seen[id] {
 			n.Held++
 			continue
@@ -271,7 +267,7 @@ func appendMessages(c *imapclient.Client, folder string, r io.Reader, seen map[s
 		if id != "" {
 			seen[id] = true
 		}
-		options := imap.AppendOptions{Flags: []imap.Flag{imap.FlagSeen}, Time: messageDate(raw)}
+		options := imap.AppendOptions{Flags: []imap.Flag{imap.FlagSeen}, Time: date}
 		cmd := c.Append(folder, int64(len(raw)), &options)
 		if _, err := cmd.Write(raw); err != nil {
 			return err
@@ -313,30 +309,24 @@ func folderMessageIDs(c *imapclient.Client) (map[string]bool, error) {
 		if buf.Envelope == nil {
 			continue
 		}
-		if id := strings.Trim(buf.Envelope.MessageID, "<>"); id != "" {
+		if id := normalizeMessageID(buf.Envelope.MessageID); id != "" {
 			held[id] = true
 		}
 	}
 	return held, cmd.Close()
 }
 
-func messageID(raw []byte) string {
-	header, err := textproto.ReadHeader(bufio.NewReader(bytes.NewReader(raw)))
+func messageHeaders(raw []byte) (string, time.Time) {
+	date := time.Now()
+	header, err := readHeaderBytes(raw)
 	if err != nil {
-		return ""
+		return "", date
 	}
-	return strings.Trim(strings.TrimSpace(header.Get("Message-Id")), "<>")
-}
-
-// messageDate is kept as the delivery time, so the folder sorts as the archive did.
-func messageDate(raw []byte) time.Time {
-	header, err := textproto.ReadHeader(bufio.NewReader(bytes.NewReader(raw)))
-	if err == nil {
-		if t, err := mail.ParseDate(header.Get("Date")); err == nil {
-			return t
-		}
+	id := normalizeMessageID(header.Get("Message-Id"))
+	if t, err := mail.ParseDate(header.Get("Date")); err == nil {
+		date = t
 	}
-	return time.Now()
+	return id, date
 }
 
 const mboxSeparator = "From "

@@ -2,7 +2,6 @@ package web
 
 import (
 	"context"
-	"net/http"
 	"strings"
 
 	"git.mehdix.org/alborz"
@@ -14,8 +13,7 @@ import (
 // Made lands a create on the new object's list with a banner naming it; account is the form's chosen owner.
 func Made(ctx *web.Context, sentence, name, object, list, account string) error {
 	if account != "" {
-		q := "?account=" + web.QueryValue(account)
-		object, list = object+q, list+q
+		object, list = web.AccountURL(object, account), web.AccountURL(list, account)
 	} else {
 		object, list = ctx.AccountPath(object), ctx.AccountPath(list)
 	}
@@ -25,7 +23,7 @@ func Made(ctx *web.Context, sentence, name, object, list, account string) error 
 		again = ""
 	}
 	ctx.Made(sentence, name, object, again)
-	return ctx.Redirect(http.StatusFound, ctx.NextOr(list))
+	return ctx.FoundRedirect(ctx.NextOr(list))
 }
 
 // Saved lands a new object on its list and an edited one back on the object.
@@ -43,7 +41,7 @@ func Saved(ctx *web.Context, made bool, sentence, name, object, list, account st
 		}
 		object += sep + "from=" + web.QueryValue(from)
 	}
-	return ctx.Redirect(http.StatusFound, object)
+	return ctx.FoundRedirect(object)
 }
 
 // Destination turns a create form's "account|path" into that account's client and path.

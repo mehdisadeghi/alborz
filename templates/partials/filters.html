@@ -12,3 +12,11 @@
 
 {{/* dict: g [collection path chooses heading]. */}}
 {{ define "filters-crumb" }}{{ template "section-crumb" (dict "g" .g "section" (.g.T "nav.filters") "home" (url "filters.list") "field" "" "collection" (or .collection "") "path" (or .path "") "chooses" .chooses "heading" .heading) }}{{ end }}
+
+{{/* dict: action fields button [class]. Each field is a dict with name and value. */}}
+{{ define "filter-action" }}
+<form method="post" action="{{.action}}">
+  {{ range .fields }}<input type="hidden" name="{{.name}}" value="{{.value}}">{{ end }}
+  <button{{ with .class }} class="{{.}}"{{ end }}>{{.g.T .button}}</button>
+</form>
+{{ end }}

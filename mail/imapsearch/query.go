@@ -52,48 +52,12 @@ var operators = map[string]operator{
 		return &imap.SearchCriteria{Flag: []imap.Flag{state.flag}}
 	},
 	// SINCE includes the day and BEFORE excludes it (RFC 3501 6.4.4).
-	"after": func(value string, _ time.Time) *imap.SearchCriteria {
-		day, ok := queryDay(value)
-		if !ok {
-			return nil
-		}
-		return &imap.SearchCriteria{Since: day}
-	},
-	"before": func(value string, _ time.Time) *imap.SearchCriteria {
-		day, ok := queryDay(value)
-		if !ok {
-			return nil
-		}
-		return &imap.SearchCriteria{Before: day}
-	},
-	"newer_than": func(value string, now time.Time) *imap.SearchCriteria {
-		day, ok := queryAgo(value, now)
-		if !ok {
-			return nil
-		}
-		return &imap.SearchCriteria{Since: day}
-	},
-	"older_than": func(value string, now time.Time) *imap.SearchCriteria {
-		day, ok := queryAgo(value, now)
-		if !ok {
-			return nil
-		}
-		return &imap.SearchCriteria{Before: day}
-	},
-	"larger": func(value string, _ time.Time) *imap.SearchCriteria {
-		size, ok := querySize(value)
-		if !ok {
-			return nil
-		}
-		return &imap.SearchCriteria{Larger: size}
-	},
-	"smaller": func(value string, _ time.Time) *imap.SearchCriteria {
-		size, ok := querySize(value)
-		if !ok {
-			return nil
-		}
-		return &imap.SearchCriteria{Smaller: size}
-	},
+	"after":      parsedDate(queryDayAt, func(day time.Time) *imap.SearchCriteria { return &imap.SearchCriteria{Since: day} }),
+	"before":     parsedDate(queryDayAt, func(day time.Time) *imap.SearchCriteria { return &imap.SearchCriteria{Before: day} }),
+	"newer_than": parsedDate(queryAgo, func(day time.Time) *imap.SearchCriteria { return &imap.SearchCriteria{Since: day} }),
+	"older_than": parsedDate(queryAgo, func(day time.Time) *imap.SearchCriteria { return &imap.SearchCriteria{Before: day} }),
+	"larger":     parsedSize(func(size int64) *imap.SearchCriteria { return &imap.SearchCriteria{Larger: size} }),
+	"smaller":    parsedSize(func(size int64) *imap.SearchCriteria { return &imap.SearchCriteria{Smaller: size} }),
 }
 
 var messageStates = map[string]struct {
@@ -111,6 +75,28 @@ var messageStates = map[string]struct {
 }
 
 var queryDayLayouts = []string{"2006-01-02", "2006/01/02"}
+
+func parsedDate(parse func(string, time.Time) (time.Time, bool), makeCriteria func(time.Time) *imap.SearchCriteria) operator {
+	return func(value string, now time.Time) *imap.SearchCriteria {
+		day, ok := parse(value, now)
+		if !ok {
+			return nil
+		}
+		return makeCriteria(day)
+	}
+}
+
+func queryDayAt(value string, _ time.Time) (time.Time, bool) { return queryDay(value) }
+
+func parsedSize(makeCriteria func(int64) *imap.SearchCriteria) operator {
+	return func(value string, _ time.Time) *imap.SearchCriteria {
+		size, ok := querySize(value)
+		if !ok {
+			return nil
+		}
+		return makeCriteria(size)
+	}
+}
 
 func queryDay(value string) (time.Time, bool) {
 	for _, layout := range queryDayLayouts {
@@ -209,12 +195,7 @@ func Keys() []string {
 
 // WantsText reports whether the query asks for the whole message.
 func WantsText(q search.Query) bool {
-	for _, term := range q {
-		if term.Key == "text" {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(q, func(term search.Term) bool { return term.Key == "text" })
 }
 
 // Scope is the folder in: names, and whether it names all of them.
@@ -246,12 +227,7 @@ var addressKeys = map[string]bool{"from": true, "to": true, "cc": true, "bcc": t
 
 // Addressed reports whether the query names an address.
 func Addressed(q search.Query) bool {
-	for _, term := range q {
-		if !term.Not && addressKeys[term.Key] {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(q, func(term search.Term) bool { return !term.Not && addressKeys[term.Key] })
 }
 
 // Addresses are the terms naming a person, by key.

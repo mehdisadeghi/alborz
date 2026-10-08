@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strings"
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/pim"
@@ -55,7 +56,7 @@ func Run[C any](ctx *web.Context, a Action[C]) error {
 	for _, ref := range refs {
 		if err := a.Do(ctx, ref); err != nil {
 			ctx.Notify(Refused(ctx, err))
-			return ctx.Redirect(http.StatusFound, next)
+			return ctx.FoundRedirect(next)
 		}
 		done++
 	}
@@ -69,12 +70,31 @@ func Run[C any](ctx *web.Context, a Action[C]) error {
 	case a.Done != nil && done > 0:
 		ctx.Notify(a.Done(ctx, refs[:done], next))
 	}
-	return ctx.Redirect(http.StatusFound, next)
+	return ctx.FoundRedirect(next)
 }
 
 // Handler is Run for an action that is the same whatever the request.
 func Handler[C any](a Action[C]) func(*web.Context) error {
 	return func(ctx *web.Context) error { return Run(ctx, a) }
+}
+
+// NoticeHandler runs an action and reports how many objects it changed.
+func NoticeHandler[C any](client func(context.Context, *alborz.Login) (C, error), list, key string, do func(*web.Context, pim.Ref[C]) error) func(*web.Context) error {
+	return Handler(Action[C]{Client: client, Do: do, List: list, Done: func(ctx *web.Context, done []pim.Ref[C], _ string) web.Notice {
+		return web.Notice{Kind: web.NoticeDone, Text: ctx.Tf(key, len(done))}
+	}})
+}
+
+// Note appends the submitted note to each selected object; an empty note is a quiet no-op.
+func Note[C any](ctx *web.Context, client func(context.Context, *alborz.Login) (C, error), list string,
+	change func(*web.Context, pim.Ref[C], string) error) error {
+	note := strings.TrimSpace(ctx.FormValue("note"))
+	return Run(ctx, Action[C]{Client: client, List: list, Done: Quiet[C], Do: func(ctx *web.Context, ref pim.Ref[C]) error {
+		if note == "" {
+			return nil
+		}
+		return change(ctx, ref, note)
+	}})
 }
 
 // Quiet is Done for an action whose result shows where the reader already is.

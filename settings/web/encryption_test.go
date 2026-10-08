@@ -19,9 +19,9 @@ import (
 var recoveryKey = regexp.MustCompile(`<p class="recovery-key" dir="ltr"><code>([A-Z2-7-]+)</code>`)
 
 // encrypt turns User's encryption on and is the recovery key the page shows once.
-func encrypt(t *testing.T, c *Client, password string) string {
+func encrypt(t *testing.T, c *Client) string {
 	t.Helper()
-	resp := c.Post(t, "settings.encryption", url.Values{"password": {password}, "account": {User}})
+	resp := c.Post(t, "settings.encryption", url.Values{"password": {Password}, "account": {User}})
 	m := recoveryKey.FindStringSubmatch(resp.Text)
 	if resp.StatusCode != http.StatusOK || m == nil {
 		t.Fatalf("turning encryption on answered %s with no recovery key:\n%s", resp.Status, NoticeBar(resp.Text))
@@ -87,7 +87,7 @@ func TestEncryptionTurnsOnOffAndOnAgain(t *testing.T) {
 		t.Fatalf("saving the profile: %s", resp.Status)
 	}
 	PushServer(t).TurnOn(t, c)
-	first := encrypt(t, c, Password)
+	first := encrypt(t, c)
 	a.Close()
 	if got := sealedBy(t, dir); got[seal.ByInstance] != 0 || got[seal.ByAccount] < 5 {
 		t.Fatalf("turned on, values by kind of key: %v, want all under the account's", got)
@@ -115,7 +115,7 @@ func TestEncryptionTurnsOnOffAndOnAgain(t *testing.T) {
 
 	a = Alborz(t, opts...)
 	c = a.SignIn(t, User)
-	again := encrypt(t, c, Password)
+	again := encrypt(t, c)
 	if again == first {
 		t.Fatal("turned on again, the recovery key is the one shown before")
 	}
@@ -150,7 +150,7 @@ func TestEncryptedDataFollowsAPasswordChange(t *testing.T) {
 	a := Alborz(t, opts...)
 	c := a.SignIn(t, User)
 	cal := c.CreateCalendar(t, "Personal", "")
-	encrypt(t, c, Password)
+	encrypt(t, c)
 	if page := c.Page(t, "settings.encryption", url.Values{"account": {User}}); !Says(t, page, "encryption.keptserver") {
 		t.Fatal("the page does not say the key is kept on the mail server")
 	}
@@ -173,7 +173,7 @@ func TestTheRecoveryKeyOpensAfterAReset(t *testing.T) {
 	a := Alborz(t, opts...)
 	c := a.SignIn(t, User)
 	cal := c.CreateCalendar(t, "Personal", "")
-	recovery := encrypt(t, c, Password)
+	recovery := encrypt(t, c)
 	a.Close()
 
 	imap.SetPassword(User, "reset")
@@ -214,7 +214,7 @@ func TestStartingOverDeletesOnlyWhenConfirmed(t *testing.T) {
 	a := Alborz(t, opts...)
 	c := a.SignIn(t, User)
 	c.CreateCalendar(t, "Personal", "")
-	encrypt(t, c, Password)
+	encrypt(t, c)
 	a.Close()
 
 	imap.SetPassword(User, "reset")
@@ -257,7 +257,7 @@ func TestStartingOverElsewhereLeavesAnInstancesDataReadable(t *testing.T) {
 
 	held := instance(heldDir)
 	holder := held.SignIn(t, User)
-	oldRecovery := encrypt(t, holder, Password)
+	oldRecovery := encrypt(t, holder)
 	heldCal := holder.CreateCalendar(t, "Held", "")
 
 	recovered := instance(recoveredDir)
@@ -303,7 +303,7 @@ func TestAShareFromAnEncryptedToAPlainAccount(t *testing.T) {
 	opts := []Option{WithIMAP(imap), DataDir(dir)}
 	a := Alborz(t, opts...)
 	owner := a.SignIn(t, User)
-	encrypt(t, owner, Password)
+	encrypt(t, owner)
 	cal := owner.CreateCalendar(t, "Plans", "")
 	if resp := owner.Post(t, "calendar.collection.share", url.Values{"to": {User2}, "access": {"read"}}, Here+cal); resp.StatusCode != http.StatusFound {
 		t.Fatalf("sharing answered %s", resp.Status)

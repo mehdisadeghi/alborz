@@ -9,14 +9,11 @@
               <input type="checkbox" name="paths" value="{{$row.Account}}|{{$row.Path}}" form="{{.}}" aria-label="{{$.T "a11y.selectcontact"}}{{with $row.DisplayName}}: {{.}}{{end}}">
             </div>
             {{ end }}
-            <div class="list-star list-cell" role="cell">
-              {{ template "card-star" (dict
-                 "Action" (printf "%s%s" (url "contacts.contact.color" .Path) (account "?" .Account))
-                 "Current" .Color
-                 "Next" $.GlobalData.URL.RequestURI
-                 "Label" (or (and .Color ($.T "mailbox.flagnone")) ($.T "mailbox.flagcolor"))
-                 "MenuLabel" ($.T "mailbox.flagcolor")) }}
-            </div>
+            {{ template "row-star-cell" (dict
+               "g" $
+               "action" (printf "%s%s" (url "contacts.contact.color" .Path) (account "?" .Account))
+               "star" .Color
+               "next" $.GlobalData.URL.RequestURI) }}
             <div class="contact-list-photo list-cell" role="cell">
               {{if $photo}}<img src="{{photodatauri $photo}}" alt="">{{end}}
             </div>

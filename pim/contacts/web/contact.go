@@ -23,15 +23,9 @@ import (
 )
 
 type AddressObjectRenderData struct {
-	web.BaseRenderData
-	Rail pimweb.Rail
-	// Authors are who added and last changed the object, where another account.
-	Authors dav.Authors
-	// List is the list the page was opened from.
-	List string
+	pimweb.ObjectRenderData
 	// Modified is REV, else the server's last-modified; vCard has no property for creation.
 	Modified      time.Time
-	AddressBook   *dav.Collection
 	AddressObject contacts.AddressObject
 	Birthday      string
 	BirthdayDate  time.Time
@@ -42,14 +36,10 @@ type AddressObjectRenderData struct {
 }
 
 type UpdateAddressObjectRenderData struct {
-	web.BaseRenderData
-	Rail          pimweb.Rail
-	Groups        []dav.Group
-	AddressBook   *dav.Collection
-	AddressObject *carddav.AddressObject
-	Card          vcard.Card
-	Name          string
-	Birthday      dates.Field
+	pimweb.EditRenderData[carddav.AddressObject]
+	Card     vcard.Card
+	Name     string
+	Birthday dates.Field
 	// Photo is the card's current picture, shown beside its replacement.
 	Photo string
 }
@@ -64,8 +54,7 @@ var errPhotoTooLarge = errors.New("carddav: photo over the upload limit")
 
 // photoTooLarge answers a contact form past its limit: the fields did not arrive, so it opens again on what the server holds.
 func photoTooLarge(ctx *web.Context) error {
-	ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: ctx.T("form.phototoolarge")})
-	return ctx.Redirect(http.StatusFound, ctx.Request().URL.String())
+	return ctx.NotifyRedirect(web.Notice{Kind: web.NoticeFailed, Text: ctx.T("form.phototoolarge")}, ctx.Request().URL.String())
 }
 
 func applyPhoto(ctx *web.Context, card vcard.Card) error {
@@ -135,18 +124,17 @@ func (p *plugin) contact(ctx *web.Context) error {
 	// A birthday with no date stays zero and is shown as written.
 	birthday, _ := ao.Card.Birthday()
 	return ctx.Render(http.StatusOK, "contacts/contact", &AddressObjectRenderData{
-		Authors:        p.DAV.Authors(object.Path, ctx.Login.Username()),
-		In:             in,
-		Groups:         rest,
-		Neighbours:     pimweb.Around(list.Items, path),
-		List:           cmp.Or(ctx.From(), pimweb.ListURL(ctx.Path("contacts.list"), pimweb.ListParams(ctx, contactListParams...))),
-		Rail:           rail,
-		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(contacts.AddressObject{AddressObject: ao}.DisplayName()).WithItem(),
-		AddressBook:    addressBook,
-		AddressObject:  contacts.AddressObject{AddressObject: ao},
-		Birthday:       contacts.Birthday(ao.Card),
-		BirthdayDate:   birthday,
-		Modified:       contacts.Modified(ao),
+		Authors:       p.DAV.Authors(object.Path, ctx.Login.Username()),
+		In:            in,
+		Groups:        rest,
+		Neighbours:    pimweb.Around(list.Items, path),
+		List:          cmp.Or(ctx.From(), pimweb.ListURL(ctx.Path("contacts.list"), pimweb.ListParams(ctx, contactListParams...))),
+		PageData:      *web.NewPageData(ctx, contacts.AddressObject{AddressObject: ao}.DisplayName(), rail).WithItem(),
+		Collection:    addressBook,
+		AddressObject: contacts.AddressObject{AddressObject: ao},
+		Birthday:      contacts.Birthday(ao.Card),
+		BirthdayDate:  birthday,
+		Modified:      contacts.Modified(ao),
 	})
 }
 func (p *plugin) updateContact(ctx *web.Context) error {
@@ -202,15 +190,14 @@ func (p *plugin) updateContact(ctx *web.Context) error {
 				return err
 			}
 			return ctx.Render(http.StatusUnprocessableEntity, "contacts/contact-edit", &UpdateAddressObjectRenderData{
-				Rail:           rail,
-				BaseRenderData: *web.NewBaseRenderData(ctx).Refused(message),
-				Groups:         groups,
-				AddressBook:    currentAddressBook,
-				AddressObject:  ao,
-				Card:           card,
-				Name:           fn,
-				Birthday:       ctx.DateField("bday"),
-				Photo:          card.PreferredValue(vcard.FieldPhoto),
+				PageData:   *web.NewPageData(ctx, "", rail).WithRefused(message),
+				Groups:     groups,
+				Collection: currentAddressBook,
+				Object:     ao,
+				Card:       card,
+				Name:       fn,
+				Birthday:   ctx.DateField("bday"),
+				Photo:      card.PreferredValue(vcard.FieldPhoto),
 			})
 		}
 		if strings.TrimSpace(fn) == "" {
@@ -232,11 +219,7 @@ func (p *plugin) updateContact(ctx *web.Context) error {
 			card.SetValue(vcard.FieldVersion, "4.0")
 		}
 
-		if field := card.Preferred(vcard.FieldFormattedName); field != nil {
-			field.Value = fn
-		} else {
-			card.Add(vcard.FieldFormattedName, &vcard.Field{Value: fn})
-		}
+		setPreferred(card, vcard.FieldFormattedName, fn)
 
 		if fields := contacts.WithValues(card[vcard.FieldEmail], emails); len(fields) > 0 {
 			card[vcard.FieldEmail] = fields
@@ -249,17 +232,8 @@ func (p *plugin) updateContact(ctx *web.Context) error {
 			delete(card, vcard.FieldTelephone)
 		}
 
-		setValue := func(key, value string) {
-			if value == "" {
-				delete(card, key)
-			} else if field := card.Preferred(key); field != nil {
-				field.Value = value
-			} else {
-				card.Add(key, &vcard.Field{Value: value})
-			}
-		}
-		setValue(vcard.FieldOrganization, strings.TrimSpace(ctx.FormValue("org")))
-		setValue(vcard.FieldTitle, strings.TrimSpace(ctx.FormValue("title")))
+		setValue(card, vcard.FieldOrganization, strings.TrimSpace(ctx.FormValue("org")))
+		setValue(card, vcard.FieldTitle, strings.TrimSpace(ctx.FormValue("title")))
 		var birthday string
 		if field := ctx.DateField("bday"); field.Value != "" {
 			day, err := field.Read(time.UTC)
@@ -268,9 +242,9 @@ func (p *plugin) updateContact(ctx *web.Context) error {
 			}
 			birthday = day.Format("20060102")
 		}
-		setValue(vcard.FieldBirthday, birthday)
-		setValue(vcard.FieldURL, strings.TrimSpace(ctx.FormValue("url")))
-		setValue(vcard.FieldNote, strings.TrimSpace(ctx.FormValue("note")))
+		setValue(card, vcard.FieldBirthday, birthday)
+		setValue(card, vcard.FieldURL, strings.TrimSpace(ctx.FormValue("url")))
+		setValue(card, vcard.FieldNote, strings.TrimSpace(ctx.FormValue("note")))
 		// CATEGORIES is a comma list (RFC 6350 6.7.1).
 		var words []string
 		for _, word := range strings.Split(ctx.FormValue("categories"), ",") {
@@ -334,34 +308,40 @@ func (p *plugin) updateContact(ctx *web.Context) error {
 		return err
 	}
 	return ctx.Render(http.StatusOK, "contacts/contact-edit", &UpdateAddressObjectRenderData{
-		Rail:           rail,
-		BaseRenderData: *web.NewBaseRenderData(ctx),
-		Groups:         groups,
-		AddressBook:    currentAddressBook,
-		AddressObject:  ao,
-		Card:           card,
-		Name:           name,
-		Birthday:       ctx.Dates().Day(contacts.Birthday(card)),
-		Photo:          card.PreferredValue(vcard.FieldPhoto),
+		PageData:   *web.NewPageData(ctx, "", rail),
+		Groups:     groups,
+		Collection: currentAddressBook,
+		Object:     ao,
+		Card:       card,
+		Name:       name,
+		Birthday:   ctx.Dates().Day(contacts.Birthday(card)),
+		Photo:      card.PreferredValue(vcard.FieldPhoto),
 	})
 }
 
 func (p *plugin) note(ctx *web.Context) error {
-	note := strings.TrimSpace(ctx.FormValue("note"))
-	return pimweb.Run(ctx, pimweb.Action[*carddav.Client]{Client: p.Client, List: "contacts.list", Done: pimweb.Quiet[*carddav.Client],
-		Do: func(ctx *web.Context, ref pim.Ref[*carddav.Client]) error {
-			if note == "" {
-				return nil
-			}
-			return contacts.ChangeCard(ctx.Request().Context(), ref, func(card vcard.Card) {
-				text := pim.AppendNote(card.Value(vcard.FieldNote), note, time.Now().In(web.UserLocation(ctx)))
-				if field := card.Preferred(vcard.FieldNote); field != nil {
-					field.Value = text
-				} else {
-					card.Add(vcard.FieldNote, &vcard.Field{Value: text})
-				}
-			})
-		}})
+	return pimweb.Note(ctx, p.Client, "contacts.list", func(ctx *web.Context, ref pim.Ref[*carddav.Client], note string) error {
+		return contacts.ChangeCard(ctx.Request().Context(), ref, func(card vcard.Card) {
+			text := pim.AppendNote(card.Value(vcard.FieldNote), note, time.Now().In(web.UserLocation(ctx)))
+			setPreferred(card, vcard.FieldNote, text)
+		})
+	})
+}
+
+func setPreferred(card vcard.Card, name, value string) {
+	if field := card.Preferred(name); field != nil {
+		field.Value = value
+	} else {
+		card.Add(name, &vcard.Field{Value: value})
+	}
+}
+
+func setValue(card vcard.Card, name, value string) {
+	if value == "" {
+		delete(card, name)
+		return
+	}
+	setPreferred(card, name, value)
 }
 
 // Its own request: Enter in a name field must not delete the photo.

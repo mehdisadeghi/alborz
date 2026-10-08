@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"sort"
 	"strings"
 
@@ -145,10 +146,7 @@ func Holding(colls []Collection, account, path string) *Collection {
 
 // NameTaken says whether name is, but for case and edges, a display name the account has on place.
 func NameTaken(name, place string, existing []Collection) bool {
-	for _, c := range existing {
-		if c.Source == place && strings.EqualFold(strings.TrimSpace(c.Name), strings.TrimSpace(name)) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(existing, func(c Collection) bool {
+		return c.Source == place && strings.EqualFold(strings.TrimSpace(c.Name), strings.TrimSpace(name))
+	})
 }

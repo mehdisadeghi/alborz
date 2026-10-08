@@ -2,34 +2,37 @@ package web
 
 import (
 	"cmp"
-	"errors"
 	"fmt"
 	"net/http"
 	"slices"
 	"strings"
 	"time"
-	"uuid"
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/internal/dates"
-	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/calendar"
-	"git.mehdix.org/alborz/pim/dav"
 	pimweb "git.mehdix.org/alborz/pim/web"
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-ical"
-	"github.com/emersion/go-webdav"
-	"github.com/emersion/go-webdav/caldav"
 )
 
+func setDescription(component *ical.Component, description string, sent bool) {
+	if !sent {
+		return
+	}
+	if description == "" {
+		component.Props.Del(ical.PropDescription)
+		return
+	}
+	component.Props.SetText(ical.PropDescription, strings.ReplaceAll(description, "\r", ""))
+}
+
 type EntryRenderData struct {
-	web.BaseRenderData
-	Rail     pimweb.Rail
-	Calendar *dav.Collection
-	Path     string
-	Journal  *ical.Component
-	Summary  string
-	Text     string
+	CalendarObjectRenderData
+	Path    string
+	Journal *ical.Component
+	Summary string
+	Text    string
 	// Date is DTSTART; Timed says it names a time of day as well.
 	Date  time.Time
 	Timed bool
@@ -38,19 +41,12 @@ type EntryRenderData struct {
 	Categories []string
 	Star       string
 	// Authors are who added and last changed the object, where another account.
-	Authors dav.Authors
 	// List is the list the page was opened from.
-	List       string
-	Neighbours web.Neighbours
 }
 
 type UpdateEntryRenderData struct {
-	web.BaseRenderData
-	Rail           pimweb.Rail
-	Groups         []dav.Group
-	Calendar       *dav.Collection
-	CalendarObject *caldav.CalendarObject
-	Summary, Text  string
+	UpdateCalendarObjectRenderData
+	Summary, Text string
 	// Date is the entry's day as the field holds it.
 	Date dates.Field
 }
@@ -60,24 +56,11 @@ var entryStatuses = []string{"draft", "final", "cancelled"}
 
 func (p *plugin) entry(ctx *web.Context) error {
 	path := ctx.Param("path")
-	c, calendars, err := p.Open(ctx.Request().Context(), ctx.Login)
+	e, err := p.openCalendarObject(ctx, path, "notfound.entry", "failed to get journal entry", alborz.NotFound("notfound.entry"), calendar.FirstJournal)
 	if err != nil {
 		return err
 	}
-	coll := dav.Holding(calendars, "", path)
-	if coll == nil {
-		return alborz.NotFound("notfound.entry")
-	}
-	obj, err := calendar.GetObject(ctx.Request().Context(), c, path)
-	if code, _ := webdav.HTTPErrorCode(err); code == http.StatusNotFound {
-		return alborz.NotFound("notfound.entry")
-	} else if err != nil {
-		return err
-	}
-	journal := calendar.FirstJournal(obj.Data)
-	if journal == nil {
-		return alborz.NotFound("notfound.entry")
-	}
+	obj, journal := e.object, e.component
 	summary, _ := journal.Props.Text(ical.PropSummary)
 	date, err := journal.Props.DateTime(ical.PropDateTimeStart, web.UserLocation(ctx))
 	if err != nil {
@@ -99,76 +82,52 @@ func (p *plugin) entry(ctx *web.Context) error {
 		return err
 	}
 	return ctx.Render(http.StatusOK, "journal/entry", &EntryRenderData{
-		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(summary).WithItem(),
-		Rail:           rail,
-		Calendar:       coll,
-		Path:           obj.Path,
-		Journal:        journal,
-		Summary:        summary,
-		Text:           calendar.JournalText(journal),
-		Date:           date,
-		Timed:          start != nil && start.ValueType() != ical.ValueDate,
-		Status:         status,
-		Categories:     calendar.Categories(journal),
-		Star:           calendar.ComponentColor(journal),
-		Authors:        p.DAV.Authors(obj.Path, ctx.Login.Username()),
-		List:           cmp.Or(ctx.From(), pimweb.ListURL(ctx.Path("calendar.journal"), pimweb.ListParams(ctx, journalListParams...))),
-		Neighbours:     pimweb.Around(list.Items, path),
+		PageData:   *web.NewPageData(ctx, summary, rail).WithItem(),
+		Collection: e.collection,
+		Path:       obj.Path,
+		Journal:    journal,
+		Summary:    summary,
+		Text:       calendar.JournalText(journal),
+		Date:       date,
+		Timed:      start != nil && start.ValueType() != ical.ValueDate,
+		Status:     status,
+		Categories: calendar.Categories(journal),
+		Star:       calendar.ComponentColor(journal),
+		Authors:    p.DAV.Authors(obj.Path, ctx.Login.Username()),
+		List:       cmp.Or(ctx.From(), pimweb.ListURL(ctx.Path("calendar.journal"), pimweb.ListParams(ctx, journalListParams...))),
+		Neighbours: pimweb.Around(list.Items, path),
 	})
 }
 
 func (p *plugin) updateEntry(ctx *web.Context) error {
 	entryPath := ctx.Param("path")
 	loc := web.UserLocation(ctx)
-
-	var c *caldav.Client
-	var groups []dav.Group
-	var co *caldav.CalendarObject
-	var journal *ical.Component
-	current := &dav.Collection{}
-	if entryPath != "" {
-		var calendars []dav.Collection
-		var err error
-		if c, calendars, err = p.Open(ctx.Request().Context(), ctx.Login); err != nil {
-			return err
-		}
-		co, err = calendar.GetObject(ctx.Request().Context(), c, entryPath)
-		if code, _ := webdav.HTTPErrorCode(err); code == http.StatusNotFound {
-			return alborz.NotFound("notfound.entry")
-		} else if err != nil {
-			return err
-		}
-		if journal = calendar.FirstJournal(co.Data); journal == nil {
-			return alborz.NotFound("notfound.entry")
-		}
-		current = dav.Holding(calendars, "", co.Path)
-	} else {
-		var err error
-		if groups, err = p.writableGroups(ctx, calendar.SupportsJournal); err != nil {
-			return err
-		}
-		journal = ical.NewComponent(ical.CompJournal)
-		journal.Props.SetDateTime(ical.PropCreated, time.Now().UTC())
-		journal.Props.SetDate(ical.PropDateTimeStart, time.Now().In(loc))
-		if len(groups) > 0 {
-			current = &groups[0].Collections[0]
-		}
+	e, err := p.editCalendarObject(ctx, entryPath, "notfound.entry", "failed to get journal entry", alborz.NotFound("notfound.entry"), calendar.SupportsJournal,
+		calendar.FirstJournal, func() *ical.Component {
+			journal := ical.NewComponent(ical.CompJournal)
+			journal.Props.SetDateTime(ical.PropCreated, time.Now().UTC())
+			journal.Props.SetDate(ical.PropDateTimeStart, time.Now().In(loc))
+			return journal
+		})
+	if err != nil {
+		return err
 	}
+	journal := e.component
 	date, err := journal.Props.DateTime(ical.PropDateTimeStart, loc)
 	if err != nil {
 		return fmt.Errorf("%w: %s: %v", alborz.ErrUnreadable, entryPath, err)
 	}
 	summary, _ := journal.Props.Text(ical.PropSummary)
 	data := &UpdateEntryRenderData{
-		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("journal.createtitle")),
-		Groups:         groups,
-		Calendar:       current,
-		CalendarObject: co,
-		Summary:        summary,
-		Text:           calendar.JournalText(journal),
-		Date:           ctx.Dates().Input(date),
+		PageData:   *web.NewPageData(ctx, ctx.T("journal.createtitle"), pimweb.Rail{}),
+		Groups:     e.groups,
+		Collection: e.collection,
+		Object:     e.object,
+		Summary:    summary,
+		Text:       calendar.JournalText(journal),
+		Date:       ctx.Dates().Input(date),
 	}
-	if co != nil {
+	if !e.creating() {
 		data.WithTitle(fmt.Sprintf(ctx.T("title.update"), summary))
 	}
 	render := func(status int) error {
@@ -187,8 +146,8 @@ func (p *plugin) updateEntry(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	if co != nil {
-		if co.ETag, err = pimweb.Drawn(ctx, co.ETag); err != nil {
+	if e.object != nil {
+		if e.object.ETag, err = pimweb.Drawn(ctx, e.object.ETag); err != nil {
 			return err
 		}
 	}
@@ -209,28 +168,17 @@ func (p *plugin) updateEntry(ctx *web.Context) error {
 	if data.Summary == "" {
 		return reject(ctx.T("form.summaryneeded"))
 	}
-	to := pim.Ref[*caldav.Client]{Client: c}
-	creating := co == nil
-	if creating {
-		to, err = p.destination(ctx, ctx.FormValue("calendar"), calendar.SupportsJournal)
-		if errors.Is(err, pim.ErrNoDestination) {
-			return reject(ctx.T("form.destinationneeded"))
-		} else if err != nil {
-			return err
-		}
+	to, err := e.destination(ctx, p, calendar.SupportsJournal)
+	if handled, refusal := pimweb.DestinationRefusal(ctx, err, reject); handled {
+		return refusal
 	}
+	if err != nil {
+		return err
+	}
+	creating := e.creating()
 
-	now := time.Now().UTC()
-	journal.Props.SetDateTime(ical.PropDateTimeStamp, now)
-	journal.Props.SetDateTime(ical.PropLastModified, now)
 	journal.Props.SetText(ical.PropSummary, data.Summary)
-	switch {
-	case !textSent:
-	case data.Text != "":
-		journal.Props.SetText(ical.PropDescription, data.Text)
-	default:
-		journal.Props.Del(ical.PropDescription)
-	}
+	setDescription(journal, data.Text, textSent)
 	switch {
 	case !dateSent:
 	case data.Date.Value == "":
@@ -245,18 +193,10 @@ func (p *plugin) updateEntry(ctx *web.Context) error {
 			journal.Props.SetDate(ical.PropDateTimeStart, day)
 		}
 	}
-	uid := uuid.New().String()
-	if journal.Props.Get(ical.PropUID) == nil {
-		journal.Props.SetText(ical.PropUID, uid)
-	}
-	cal := calendar.NewCalendar(journal)
-	if !creating {
-		cal = co.Data
-	}
-	co, err = calendar.PutObject(ctx.Request().Context(), to, uid+".ics", co, cal)
+	_, err = e.put(ctx, to, journal, time.Time{})
 	if err != nil {
 		ctx.Notify(pimweb.Unsaved(ctx, err))
 		return reject("")
 	}
-	return pimweb.Saved(ctx, creating, ctx.T("notice.entrycreated"), data.Summary, ctx.Path("calendar.entry", co.Path), ctx.Path("calendar.journal"), to.Account)
+	return pimweb.Saved(ctx, creating, ctx.T("notice.entrycreated"), data.Summary, ctx.Path("calendar.entry", e.object.Path), ctx.Path("calendar.journal"), to.Account)
 }

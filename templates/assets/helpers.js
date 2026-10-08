@@ -522,6 +522,11 @@ document.addEventListener("htmx:historyCacheMissLoad", ev => {
 const unasked = "Alborz-Unasked";
 // Looked up per event: a boosted navigation replaces the body.
 const failedNotice = () => document.getElementById("request-failed");
+const showScriptFailure = text => {
+	const notice = failedNotice();
+	notice.querySelector(".notice-text").textContent = text;
+	notice.show();
+};
 // Offline already says the server did not answer.
 const offlineShown = () => {
 	const offline = document.getElementById("offline-notice");
@@ -820,6 +825,10 @@ if ("serviceWorker" in navigator) {
 			registration.active.postMessage("alborz-offline?");
 		}
 	});
+	// Revalidate the worker's script on every registration, so a new shell arrives on the next visit.
+	window.addEventListener("load", () => {
+		navigator.serviceWorker.register(document.body.dataset.worker, { updateViaCache: "none" }).catch(() => {});
+	});
 }
 
 // The installed app's badge follows the rail's count; a page without the mail rail leaves it as it was.
@@ -833,13 +842,6 @@ if (navigator.setAppBadge) {
 	};
 	document.addEventListener("htmx:load", badge);
 	badge();
-}
-
-if ("serviceWorker" in navigator) {
-	window.addEventListener("load", () => {
-		// Revalidate the worker's script on every registration, so a new shell arrives on the next visit.
-		navigator.serviceWorker.register(document.body.dataset.worker, { updateViaCache: "none" }).catch(() => {});
-	});
 }
 
 // A form is sent once. Its buttons dim a tick later, after the clicked one is read into the form data.

@@ -13,8 +13,7 @@ import (
 
 // EncryptionRenderData renders encryption.html.
 type EncryptionRenderData struct {
-	web.BaseRenderData
-	Rail map[string][]web.RailRow
+	web.PageData[map[string][]web.RailRow]
 	alborz.Encryption
 	// Recovery is the recovery key, on the one page that shows it; RecoveryFile is it as a download.
 	Recovery     string
@@ -28,10 +27,9 @@ func renderEncryption(ctx *web.Context, status int, alert, recovery, said string
 		return err
 	}
 	data := &EncryptionRenderData{
-		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.encryption")).Refused(alert),
-		Rail:           web.SettingsRail(ctx),
-		Encryption:     state,
-		Recovery:       recovery,
+		PageData:   *web.NewSettingsPageData(ctx, ctx.T("settings.encryption")).WithRefused(alert),
+		Encryption: state,
+		Recovery:   recovery,
 	}
 	if recovery != "" {
 		data.GlobalData.Notice = &web.Notice{Kind: web.NoticeDone, Text: ctx.T(said)}
@@ -57,16 +55,14 @@ func handleDecrypt(ctx *web.Context) error {
 	if err != nil {
 		return encryptionRefusal(ctx, err)
 	}
-	ctx.PutNotice(ctx.T("notice.encryptionoff"))
-	return ctx.Redirect(http.StatusFound, ctx.URL("settings.encryption"))
+	return ctx.NoticeRedirect(ctx.T("notice.encryptionoff"), ctx.URL("settings.encryption"))
 }
 
 func handleRecover(ctx *web.Context) error {
 	if err := ctx.Server.Recover(ctx.Request().Context(), ctx.Login, ctx.FormValue("recovery")); err != nil {
 		return encryptionRefusal(ctx, err)
 	}
-	ctx.PutNotice(ctx.T("notice.encryptionopened"))
-	return ctx.Redirect(http.StatusFound, ctx.URL("settings.encryption"))
+	return ctx.NoticeRedirect(ctx.T("notice.encryptionopened"), ctx.URL("settings.encryption"))
 }
 
 func handleStartOver(ctx *web.Context) error {
@@ -80,8 +76,7 @@ func handleStartOver(ctx *web.Context) error {
 	if recovery != "" {
 		return renderEncryption(ctx, http.StatusOK, "", recovery, "notice.startedover")
 	}
-	ctx.PutNotice(ctx.T("notice.startedover"))
-	return ctx.Redirect(http.StatusFound, ctx.URL("settings.encryption"))
+	return ctx.NoticeRedirect(ctx.T("notice.startedover"), ctx.URL("settings.encryption"))
 }
 
 func encryptionRefusal(ctx *web.Context, err error) error {

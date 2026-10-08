@@ -10,6 +10,14 @@ import (
 	"github.com/emersion/go-imap/v2"
 )
 
+func formParams(ctx *web.Context) (url.Values, error) {
+	params, err := ctx.FormParams()
+	if err != nil {
+		return nil, web.NewError(http.StatusBadRequest, err)
+	}
+	return params, nil
+}
+
 // A bulk form's "everything" means the whole list its next URL names, asked again.
 
 func wholeView(form url.Values) (query, view string, whole bool) {
@@ -40,15 +48,21 @@ func selection(ctx *web.Context, mboxName string, form url.Values) ([]imap.UID, 
 	return mail.FolderView(ctx.Request().Context(), ctx.Login, mboxName, query, view)
 }
 
-func folderSelection(ctx *web.Context) (mboxName string, form url.Values, uids []imap.UID, err error) {
-	if mboxName, err = mailboxRef(ctx); err != nil {
-		return "", nil, nil, err
+func selectedMessages(ctx *web.Context) (mbox string, form url.Values, uids []imap.UID, refs []mail.Ref, back string, err error) {
+	mbox = mailboxRef(ctx)
+	if form, err = formParams(ctx); err != nil {
+		return
 	}
-	if form, err = ctx.FormParams(); err != nil {
-		return "", nil, nil, web.NewError(http.StatusBadRequest, err)
+	if uids, err = selection(ctx, mbox, form); err != nil {
+		return
 	}
-	uids, err = selection(ctx, mboxName, form)
-	return mboxName, form, uids, err
+	back = ctx.NextOr(ctx.URL("mail.mailbox", mbox))
+	if len(uids) == 0 {
+		err = nothingSelected(ctx, back)
+		return
+	}
+	refs = mail.FolderRefs(ctx.Login.Username(), mbox, uids)
+	return
 }
 
 func (p *plugin) mergedSelection(ctx *web.Context, role string, form url.Values) ([]mail.Ref, error) {

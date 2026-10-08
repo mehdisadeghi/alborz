@@ -1,8 +1,3 @@
-{{ define "rail" }}
-  {{ template "settings-rail" . }}
-{{ end }}
-
-{{ define "main-class" }} class="list"{{ end }}
 
 {{ define "main" }}
       {{ template "settings-head" (dict "g" $ "title" ($.T "settings.servers") "path" (url "settings.servers")) }}

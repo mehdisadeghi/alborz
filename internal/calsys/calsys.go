@@ -33,7 +33,7 @@ var (
 
 // Known returns name when it is a known system, else "", so a form cannot store an unknown calendar.
 func Known(name string) string {
-	if slices.ContainsFunc(systems, func(s System) bool { return s.name == name }) {
+	if Of(name).name == name {
 		return name
 	}
 	return ""

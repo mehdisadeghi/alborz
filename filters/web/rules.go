@@ -15,33 +15,27 @@ import (
 )
 
 type RulesRenderData struct {
-	web.BaseRenderData
+	sievePageData
 	Rules []filters.Rule
 	// Shown are the places in Rules of the rules one page shows.
-	Shown  []int
-	Pager  web.Pager
-	Loaded string
-	ByHand bool
-	Script string
+	Shown []int
+	Pager web.Pager
 
-	CanFile, CanFlag, CanCopy, CanWire bool
+	CanFile, CanFlag, CanCopy bool
 
 	Editing filters.Rule
 	Index   int
 	Folders []string
 	Fields  []string
 	Matches []string
-	Rail    map[string][]web.RailRow
 }
 
 func rulesData(ctx *web.Context) (*RulesRenderData, error) {
 	data := &RulesRenderData{
-		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("filters.rules")),
-		Script:         filters.RulesScript,
-		Index:          -1,
-		Fields:         filters.ConditionFields,
-		Matches:        filters.ConditionMatches,
-		Rail:           rail(ctx),
+		sievePageData: sievePage(ctx, ctx.T("filters.rules"), filters.RulesScript),
+		Index:         -1,
+		Fields:        filters.ConditionFields,
+		Matches:       filters.ConditionMatches,
 	}
 	err := ctx.DoSieve(func(c alborz.SieveClient) error {
 		data.CanFile = filters.HasExtension(c, "fileinto")
@@ -159,8 +153,7 @@ func handleRuleSave(ctx *web.Context) error {
 			return derr
 		}
 		data.Editing, data.Index = r, index
-		data.Refused(err.Error())
-		return ctx.Render(http.StatusUnprocessableEntity, "filters/rule-edit", data)
+		return web.RenderRefused(ctx, "filters/rule-edit", data, err.Error())
 	}
 	made := -1
 	err = changeRules(ctx, func(rules []filters.Rule) []filters.Rule {
@@ -176,7 +169,7 @@ func handleRuleSave(ctx *web.Context) error {
 		ctx.Made(ctx.T("notice.rulecreated"), r.Name,
 			ctx.URL("filters.rule", made),
 			ctx.URL("filters.rules.create"))
-		return ctx.Redirect(http.StatusFound, ctx.URL("filters.rules"))
+		return ctx.FoundRedirect(ctx.URL("filters.rules"))
 	}
 	return answer(ctx, err, "filters.rules", ctx.T("notice.rulesaved"))
 }
@@ -192,8 +185,7 @@ func handleBlock(ctx *web.Context) error {
 		return err
 	}
 	if junk == "" {
-		ctx.Notify(web.Notice{Kind: web.NoticeWarning, Text: ctx.T("filters.nojunk")})
-		return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.URL("filters.rules")))
+		return ctx.NotifyRedirect(web.Notice{Kind: web.NoticeWarning, Text: ctx.T("filters.nojunk")}, ctx.NextOr(ctx.URL("filters.rules")))
 	}
 	err = ctx.DoSieve(func(c alborz.SieveClient) error {
 		return filters.Block(c, value, domain, junk)

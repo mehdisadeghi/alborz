@@ -18,7 +18,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math/big"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -97,31 +96,6 @@ func encrypt(sub Subscription, plaintext []byte, as *ecdh.PrivateKey, salt []byt
 	out = append(out, asPublic...)
 	// 0x02 closes the last record (RFC 8188 section 2).
 	return gcm.Seal(out, nonce, append(plaintext, 2), nil), nil
-}
-
-// Decrypt opens a message sealed to the browser holding ua and auth; the counterpart a test push service uses.
-func Decrypt(ua *ecdh.PrivateKey, auth, message []byte) ([]byte, error) {
-	if len(message) < headerSize+tagSize || message[saltSize+4] != 65 {
-		return nil, errors.New("webpush: not a single-record aes128gcm message")
-	}
-	salt, asPublic := message[:saltSize], message[saltSize+5:headerSize]
-	as, err := ecdh.P256().NewPublicKey(asPublic)
-	if err != nil {
-		return nil, err
-	}
-	gcm, nonce, err := contentKey(ua, as, ua.PublicKey().Bytes(), asPublic, auth, salt)
-	if err != nil {
-		return nil, err
-	}
-	plain, err := gcm.Open(nil, nonce, message[headerSize:], nil)
-	if err != nil {
-		return nil, err
-	}
-	plain = bytes.TrimRight(plain, "\x00")
-	if len(plain) == 0 || plain[len(plain)-1] != 2 {
-		return nil, errors.New("webpush: no last-record delimiter")
-	}
-	return plain[:len(plain)-1], nil
 }
 
 // contentKey derives the AES-128-GCM key and nonce from one side's private key and the other's public
@@ -260,37 +234,4 @@ func Send(ctx context.Context, client *http.Client, key *Key, subject string, su
 	}
 	res.Body.Close()
 	return res.StatusCode, nil
-}
-
-// Verify checks a vapid Authorization header by the public key it names and returns that key and the
-// JWT's claims; the check a push service makes, for a test one.
-func Verify(header string) (public string, claims map[string]any, err error) {
-	token, public, ok := strings.Cut(strings.TrimPrefix(header, "vapid t="), ", k=")
-	signed, sig64, cut := strings.Cut(token, ".")
-	if !ok || !strings.HasPrefix(header, "vapid ") || !cut {
-		return "", nil, errors.New("webpush: not a vapid header")
-	}
-	payload, sig64, _ := strings.Cut(sig64, ".")
-	signed += "." + payload
-	raw, err := b64.DecodeString(public)
-	if err != nil {
-		return "", nil, err
-	}
-	pub, err := ecdsa.ParseUncompressedPublicKey(elliptic.P256(), raw)
-	if err != nil {
-		return "", nil, err
-	}
-	sig, err := b64.DecodeString(sig64)
-	if err != nil || len(sig) != 64 {
-		return "", nil, errors.New("webpush: not an ES256 signature")
-	}
-	digest := sha256.Sum256([]byte(signed))
-	if !ecdsa.Verify(pub, digest[:], new(big.Int).SetBytes(sig[:32]), new(big.Int).SetBytes(sig[32:])) {
-		return "", nil, errors.New("webpush: the signature does not verify")
-	}
-	body, err := b64.DecodeString(payload)
-	if err != nil {
-		return "", nil, err
-	}
-	return public, claims, json.Unmarshal(body, &claims)
 }

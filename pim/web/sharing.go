@@ -77,7 +77,7 @@ func (pg Page) offer(ctx *web.Context, p *dav.Provider, collPath, account string
 	case sh.Left:
 		state = "left"
 	}
-	q := "?account=" + web.QueryValue(account)
+	q := web.AccountQuery(account)
 	return &Offer{
 		Kind: pg.kindKey(c), Name: c.Name, From: c.Owner, Write: sh.Write,
 		Expires: sh.Expires, Offered: sh.Created, Answered: sh.Answered, State: state,
@@ -141,8 +141,8 @@ func (pg Page) sharing(ctx *web.Context, p *dav.Provider, info dav.Collection) (
 }
 
 func (pg Page) owned(ctx *web.Context, p *dav.Provider) (dav.Collection, store.Ref, error) {
-	collPath := ctx.Param("path")
-	info, _, _, _, err := pg.Lookup(ctx, dav.CanonicalCollectionPath(collPath))
+	collPath := pg.collectionPath(ctx)
+	info, _, _, _, err := pg.Lookup(ctx, collPath)
 	if err != nil {
 		return info, store.Ref{}, err
 	}
@@ -221,8 +221,7 @@ func (pg Page) HandleShare(p *dav.Provider) func(*web.Context) error {
 				notice = web.Notice{Kind: web.NoticeWarning, Text: fmt.Sprintf(ctx.T("notice.sharednomail"), share.To)}
 			}
 		}
-		ctx.Notify(notice)
-		return ctx.Redirect(http.StatusFound, pg.pageOf(ctx, info.Path))
+		return ctx.NotifyRedirect(notice, pg.pageOf(ctx, info.Path))
 	}
 }
 
@@ -230,7 +229,7 @@ func (pg Page) HandleShare(p *dav.Provider) func(*web.Context) error {
 func (pg Page) offerMail(ctx *web.Context, p *dav.Provider, c *store.Collection, sh store.Share) (subject, text string) {
 	kind := pg.kindKey(c)
 	subject = fmt.Sprintf(ctx.T(kind+"mail"), sh.Owner, c.Name)
-	page := ctx.Origin() + ctx.Path(pg.Collection, p.PathOf(sh.To, *c)) + "?account=" + web.QueryValue(sh.To)
+	page := web.AccountURL(ctx.Origin()+ctx.Path(pg.Collection, p.PathOf(sh.To, *c)), sh.To)
 	access := ctx.T("share.canview")
 	if sh.Write {
 		access = ctx.T("share.canedit")
@@ -267,8 +266,7 @@ func (pg Page) HandleAccess(p *dav.Provider) func(*web.Context) error {
 		if sh.Write {
 			key = "notice.sharecanedit"
 		}
-		ctx.PutNotice(fmt.Sprintf(ctx.T(key), sh.To, info.Name))
-		return ctx.Redirect(http.StatusFound, pg.pageOf(ctx, info.Path)+"#sharing")
+		return ctx.NoticeRedirect(fmt.Sprintf(ctx.T(key), sh.To, info.Name), pg.pageOf(ctx, info.Path)+"#sharing")
 	}
 }
 
@@ -283,15 +281,14 @@ func (pg Page) HandleUnshare(p *dav.Provider) func(*web.Context) error {
 		if err := p.Store.RemoveShare(ref, to); err != nil && !errors.Is(err, store.ErrNotFound) {
 			return err
 		}
-		ctx.PutNotice(fmt.Sprintf(ctx.T("notice.unshared"), info.Name, to))
-		return ctx.Redirect(http.StatusFound, pg.pageOf(ctx, info.Path))
+		return ctx.NoticeRedirect(fmt.Sprintf(ctx.T("notice.unshared"), info.Name, to), pg.pageOf(ctx, info.Path))
 	}
 }
 
 // HandleAnswer is the invited account's yes or no, at the path in its own home.
 func (pg Page) HandleAnswer(p *dav.Provider, accept bool) func(*web.Context) error {
 	return func(ctx *web.Context) error {
-		collPath := ctx.Param("path")
+		collPath := pg.collectionPath(ctx)
 		ref, home, here := p.Held(collPath)
 		account := strings.ToLower(ctx.Login.Username())
 		if !here || home != account {
@@ -308,18 +305,16 @@ func (pg Page) HandleAnswer(p *dav.Provider, accept bool) func(*web.Context) err
 			return err
 		}
 		if !accept {
-			ctx.PutNotice(fmt.Sprintf(ctx.T("notice.sharedeclined"), c.Name))
-			return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.URL(pg.List)))
+			return ctx.NoticeRedirect(fmt.Sprintf(ctx.T("notice.sharedeclined"), c.Name), ctx.NextOr(ctx.URL(pg.List)))
 		}
 		if err := pg.Show(ctx.Request().Context(), ctx.Login, dav.CanonicalCollectionPath(collPath)); err != nil {
-			ctx.Notify(Refused(ctx, err))
-			return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.URL(pg.List)))
+			return ctx.NotifyRedirect(Refused(ctx, err), ctx.NextOr(ctx.URL(pg.List)))
 		}
 		// The name leads to the collection the account just accepted.
 		ctx.Notify(web.Notice{Kind: web.NoticeDone,
 			Text:   fmt.Sprintf(ctx.T("notice.shareaccepted"), c.Name),
 			Markup: template.HTML(fmt.Sprintf(ctx.T("notice.shareaccepted"), web.NoticeLink(c.Name, pg.pageOf(ctx, dav.CanonicalCollectionPath(collPath)))))})
-		return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.URL(pg.List)))
+		return ctx.FoundRedirect(ctx.NextOr(ctx.URL(pg.List)))
 	}
 }
 
@@ -337,7 +332,6 @@ func (pg Page) HandlePublish(p *dav.Provider, publish bool) func(*web.Context) e
 		if publish {
 			notice = "notice.published"
 		}
-		ctx.PutNotice(fmt.Sprintf(ctx.T(notice), info.Name))
-		return ctx.Redirect(http.StatusFound, pg.pageOf(ctx, info.Path))
+		return ctx.NoticeRedirect(fmt.Sprintf(ctx.T(notice), info.Name), pg.pageOf(ctx, info.Path))
 	}
 }

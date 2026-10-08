@@ -70,8 +70,7 @@ func serverInfo(ctx *web.Context, agent string, abilities []web.Ability) ServerI
 
 // ServersRenderData is where the account's mail lives and what the software there can do.
 type ServersRenderData struct {
-	web.BaseRenderData
-	Rail map[string][]web.RailRow
+	web.PageData[map[string][]web.RailRow]
 	*web.Servers
 	// server is the address of a server group's own page.
 	server func(group string) string
@@ -174,10 +173,9 @@ func handleServers(ctx *web.Context) error {
 		return err
 	}
 	return ctx.Render(http.StatusOK, "settings/servers", &ServersRenderData{
-		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.servers")),
-		Rail:           web.SettingsRail(ctx),
-		Servers:        servers,
-		server:         func(group string) string { return ctx.Path("settings.server", group) },
+		PageData: *web.NewSettingsPageData(ctx, ctx.T("settings.servers")),
+		Servers:  servers,
+		server:   func(group string) string { return ctx.Path("settings.server", group) },
 	})
 }
 
@@ -191,8 +189,7 @@ func handleServer(ctx *web.Context) error {
 		return err
 	}
 	return ctx.Render(http.StatusOK, "settings/server", &ServersRenderData{
-		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("servers." + showing)),
-		Rail:           web.SettingsRail(ctx),
-		Servers:        servers,
+		PageData: *web.NewSettingsPageData(ctx, ctx.T("servers."+showing)),
+		Servers:  servers,
 	})
 }

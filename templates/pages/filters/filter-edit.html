@@ -16,7 +16,7 @@
 
         {{ if .Name }}
         {{ template "field" (dict "label" ($.T "common.name") "name" "name" "value" .Name "readonly" true) }}
-        <input type="hidden" name="loaded" value="{{.Loaded}}">
+        {{ template "filters-loaded" .Loaded }}
         {{ else }}
         {{ if gt (len .Accounts) 1 }}
         {{ template "account-picker" (dict "label" ($.T "common.saveto") "accounts" .Accounts "current" .Account) }}

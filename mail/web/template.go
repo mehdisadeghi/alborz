@@ -15,6 +15,8 @@ import (
 	"github.com/emersion/go-imap/v2"
 )
 
+func templateList(values ...interface{}) []interface{} { return values }
+
 // TemplateFuncs are the functions the templates call.
 var TemplateFuncs = template.FuncMap{
 	// Here, not in carddav: the templates reference it and it must exist at parse time.
@@ -34,6 +36,14 @@ var TemplateFuncs = template.FuncMap{
 	"humansize": mail.FormatSize,
 	"partquery": partQuery,
 	"sub":       func(a, b int) int { return a - b },
+	"sortkey": func(key string) string {
+		if key == "" {
+			return "date"
+		}
+		return key
+	},
+	// mailparams keeps the list's narrowing and scope parameters in one order.
+	"mailparams": mailParams,
 	// A crumb step may already carry a query.
 	"qsep": func(raw string) string {
 		if strings.Contains(raw, "?") {
@@ -63,9 +73,8 @@ var TemplateFuncs = template.FuncMap{
 	"lower": strings.ToLower,
 	// So a template can ask whether a date is set without the caller passing a zero time.
 	"zerotime": func() time.Time { return time.Time{} },
-	"tuple": func(values ...interface{}) []interface{} {
-		return values
-	},
+	"tuple":    templateList,
+	"list":     templateList,
 	// Takes the render data for its translator: a method value cannot be passed through a dict.
 	"flagcolors": func(t interface{ T(string) string }) []mail.FlagColorOption {
 		opts := make([]mail.FlagColorOption, len(alborz.FlagColors))
@@ -145,6 +154,19 @@ var TemplateFuncs = template.FuncMap{
 	"join": strings.Join,
 	// An id built from data, as an address: htmx finds some ids by an unescaped selector, which an @ or a . ends.
 	"idpart": func(s string) string { return hex.EncodeToString([]byte(s)) },
+}
+
+func mailParams(query, view, account string, unified bool, ipp string) string {
+	q := url.Values{"query": {query}, "view": {view}, "account": {account}, "ipp": {ipp}}
+	for _, key := range []string{"query", "view", "account", "ipp"} {
+		if q.Get(key) == "" {
+			delete(q, key)
+		}
+	}
+	if unified {
+		q.Set("all", "1")
+	}
+	return web.Query(q)
 }
 
 // partQuery picks the part out of its message's page or download; without the account the first signed-in one serves it.

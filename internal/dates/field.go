@@ -76,34 +76,33 @@ func (r Reader) Day(iso string) Field {
 }
 
 // Read and ReadTime read the field in the calendar it names.
-func (f Field) Read(loc *time.Location) (time.Time, error) {
-	cal, err := f.calendar()
-	switch {
-	case err != nil:
-		return time.Time{}, err
-	case !f.Typed():
-		return time.ParseInLocation(isoDate, f.Value, loc)
-	}
-	day, rest, err := typedDay(cal, f.Value, loc)
-	if err != nil || rest != "" {
-		return time.Time{}, fmt.Errorf("not a date: %q", f.Value)
-	}
-	return day, nil
-}
+func (f Field) Read(loc *time.Location) (time.Time, error)     { return f.read(loc, false) }
+func (f Field) ReadTime(loc *time.Location) (time.Time, error) { return f.read(loc, true) }
 
-func (f Field) ReadTime(loc *time.Location) (time.Time, error) {
+func (f Field) read(loc *time.Location, clock bool) (time.Time, error) {
 	cal, err := f.calendar()
-	switch {
-	case err != nil:
+	if err != nil {
 		return time.Time{}, err
-	case !f.Typed():
-		return time.ParseInLocation(isoDateTime, f.Value, loc)
+	}
+	if !f.Typed() {
+		layout := isoDate
+		if clock {
+			layout = isoDateTime
+		}
+		return time.ParseInLocation(layout, f.Value, loc)
 	}
 	day, rest, err := typedDay(cal, f.Value, loc)
-	var h, m int
-	if err != nil || rest == "" {
-		return time.Time{}, fmt.Errorf("not a date and time: %q", f.Value)
+	if err != nil || !clock && rest != "" || clock && rest == "" {
+		message := "not a date"
+		if clock {
+			message = "not a date and time"
+		}
+		return time.Time{}, fmt.Errorf(message+": %q", f.Value)
 	}
+	if !clock {
+		return day, nil
+	}
+	var h, m int
 	if _, err := fmt.Sscanf(rest, "%d:%d", &h, &m); err != nil || h < 0 || h > 23 || m < 0 || m > 59 {
 		return time.Time{}, fmt.Errorf("not a time: %q", rest)
 	}

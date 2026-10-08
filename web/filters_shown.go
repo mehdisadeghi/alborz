@@ -48,13 +48,8 @@ func (ctx *Context) WithParam(name, value string) string {
 	if value != "" {
 		q.Set(name, value)
 	}
-	q.Del("page")
 	u.RawQuery = Query(q)
-	u.Path = ctx.Request().URL.Path
-	if u.RawQuery == "" {
-		return u.Path
-	}
-	return u.Path + "?" + u.RawQuery
+	return pageHref(&u, 0)
 }
 
 // FilterOn returns the filter for a set parameter, or false.
@@ -80,7 +75,7 @@ func pageHref(at *url.URL, n int) string {
 	if len(q) == 0 {
 		return at.Path
 	}
-	return at.Path + "?" + Query(q)
+	return QueryPath(at.Path, q)
 }
 
 const MaxMessagesPerPage = 100
@@ -89,13 +84,11 @@ const MaxMessagesPerPage = 100
 var perPageLadder = []int{25, 50, 100}
 
 func perPageOptions(chosen int) []int {
-	seen := map[int]bool{}
 	var out []int
 	for _, n := range append(append([]int{}, perPageLadder...), chosen) {
-		if n <= 0 || n > MaxMessagesPerPage || seen[n] {
+		if n <= 0 || n > MaxMessagesPerPage || slices.Contains(out, n) {
 			continue
 		}
-		seen[n] = true
 		out = append(out, n)
 	}
 	sort.Ints(out)
@@ -207,6 +200,11 @@ func StarMatches(star, view string) bool {
 
 // StarKey is the key whose star values every section reads, as mail's search reads them.
 const StarKey = "is"
+
+// ValidStarView says whether view is a supported star filter.
+func ValidStarView(view string) bool {
+	return view == "" || view == alborz.ViewStarred || slices.Contains(alborz.FlagColors[:], view)
+}
 
 // StarFilter is what a query's star terms and view keep of the stars, and the query less those terms;
 // of view and the terms the narrower wins, two colours are no view, and a negated term leaves its

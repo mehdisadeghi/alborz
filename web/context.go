@@ -77,6 +77,22 @@ func (ctx *Context) FormValue(name string) string {
 	return ctx.request.FormValue(name)
 }
 
+// DecodeForm decodes a JSON form field into dst, preserving dst when the field is absent.
+func DecodeForm[T any](ctx *Context, field string, dst *T, message string) (bool, error) {
+	params, err := ctx.FormParams()
+	if err != nil {
+		return false, err
+	}
+	values, ok := params[field]
+	if !ok || len(values) == 0 {
+		return false, nil
+	}
+	if err := json.Unmarshal([]byte(values[0]), dst); err != nil {
+		return true, NewError(http.StatusBadRequest, message)
+	}
+	return true, nil
+}
+
 // FormParams are the fields of a form, multipart or not, and the query.
 func (ctx *Context) FormParams() (url.Values, error) {
 	if err := ctx.parseForm(); err != nil {
@@ -191,6 +207,43 @@ func (ctx *Context) Redirect(code int, to string) error {
 	return nil
 }
 
+// NoticeRedirect records a successful action and redirects to its result.
+// FoundRedirect answers with the standard action redirect.
+func (ctx *Context) FoundRedirect(to string) error { return ctx.Redirect(http.StatusFound, to) }
+
+func (ctx *Context) NoticeRedirect(text, to string) error {
+	ctx.PutNotice(text)
+	return ctx.FoundRedirect(to)
+}
+
+// NotifyRedirect records a page notice and redirects to its result.
+func (ctx *Context) NotifyRedirect(notice Notice, to string) error {
+	ctx.Notify(notice)
+	return ctx.FoundRedirect(to)
+}
+
+// SaveRedirect records a failed save or successful outcome and redirects to its result.
+func (ctx *Context) SaveRedirect(err error, success, to string) error {
+	if err != nil {
+		return ctx.NotifyRedirect(Notice{Kind: NoticeFailed, Text: ctx.SaveRefusal(err)}, to)
+	}
+	return ctx.NoticeRedirect(success, to)
+}
+
+// SaveQuietRedirect records a failed save and otherwise returns quietly.
+func (ctx *Context) SaveQuietRedirect(err error, to string) error {
+	if err != nil {
+		return ctx.NotifyRedirect(Notice{Kind: NoticeFailed, Text: ctx.SaveRefusal(err)}, to)
+	}
+	return ctx.QuietRedirect(to)
+}
+
+// QuietRedirect returns to the current workflow without adding a notice.
+func (ctx *Context) QuietRedirect(to string) error {
+	ctx.Quiet()
+	return ctx.FoundRedirect(to)
+}
+
 // Render writes the named page or partial; nothing is written when it fails.
 func (ctx *Context) Render(code int, name string, data any) error {
 	var buf bytes.Buffer
@@ -207,6 +260,11 @@ func (ctx *Context) JSON(code int, v any) error {
 	ctx.contentType("application/json")
 	ctx.response.WriteHeader(code)
 	return json.NewEncoder(ctx.response).Encode(v)
+}
+
+// JSONError writes the standard error object used by script-facing endpoints.
+func (ctx *Context) JSONError(code int, text string) error {
+	return ctx.JSON(code, map[string]string{"error": text})
 }
 
 func (ctx *Context) NoContent(code int) error {

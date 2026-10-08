@@ -69,14 +69,11 @@ func fetchEnvelope(c *imapclient.Client, mboxName string, uid imap.UID) (*imap.E
 	if err := ensureMailboxSelected(c, mboxName); err != nil {
 		return nil, err
 	}
-	msgs, err := c.Fetch(imap.UIDSetNum(uid), &imap.FetchOptions{UID: true, Envelope: true}).Collect()
+	msg, err := fetchOne(c, uid, &imap.FetchOptions{UID: true, Envelope: true})
 	if err != nil {
 		return nil, err
 	}
-	if len(msgs) == 0 {
-		return nil, alborz.NotFound("notfound.message", fmt.Sprint(uid))
-	}
-	return msgs[0].Envelope, nil
+	return msg.Envelope, nil
 }
 
 // ZipAttachments writes a message's attachments as a zip archive into what open gives once the message reads.
@@ -98,17 +95,14 @@ func singlePart(c *imapclient.Client, mboxName string, uid imap.UID, partPath []
 	if err := ensureMailboxSelected(c, mboxName); err != nil {
 		return nil, err
 	}
-	msgs, err := c.Fetch(imap.UIDSetNum(uid), &imap.FetchOptions{
+	msg, err := fetchOne(c, uid, &imap.FetchOptions{
 		UID: true, BodyStructure: &imap.FetchItemBodyStructure{Extended: true},
-	}).Collect()
+	})
 	if err != nil {
 		return nil, err
 	}
-	if len(msgs) == 0 {
-		return nil, alborz.NotFound("notfound.message", fmt.Sprint(uid))
-	}
 	var part *imap.BodyStructureSinglePart
-	msgs[0].BodyStructure.Walk(func(p []int, bs imap.BodyStructure) bool {
+	msg.BodyStructure.Walk(func(p []int, bs imap.BodyStructure) bool {
 		if single, ok := bs.(*imap.BodyStructureSinglePart); ok && slices.Equal(p, partPath) {
 			part = single
 		}
@@ -187,7 +181,7 @@ func joinedHTML(c *imapclient.Client, msg *IMAPMessage, pieces []IMAPPartNode) (
 		if headerBuf == nil || bodyBuf == nil {
 			return nil, fmt.Errorf("server didn't return HTML piece %v", p.PathString())
 		}
-		h, err := textproto.ReadHeader(bufio.NewReader(bytes.NewReader(headerBuf)))
+		h, err := readHeaderBytes(headerBuf)
 		if err != nil {
 			return nil, err
 		}
@@ -302,16 +296,13 @@ func CalendarPartAt(ctx context.Context, login *alborz.Login, mboxName string, u
 		if err := ensureMailboxSelected(c, mboxName); err != nil {
 			return err
 		}
-		msgs, err := c.Fetch(imap.UIDSetNum(uid), &imap.FetchOptions{
+		buf, err := fetchOne(c, uid, &imap.FetchOptions{
 			UID: true, BodyStructure: &imap.FetchItemBodyStructure{Extended: true},
-		}).Collect()
+		})
 		if err != nil {
 			return err
 		}
-		if len(msgs) == 0 {
-			return alborz.NotFound("notfound.message", fmt.Sprint(uid))
-		}
-		msg = &IMAPMessage{FetchMessageBuffer: msgs[0], Mailbox: mboxName}
+		msg = &IMAPMessage{FetchMessageBuffer: buf, Mailbox: mboxName}
 		return nil
 	}); err != nil {
 		return nil, "", err
@@ -337,14 +328,11 @@ func CalendarPart(ctx context.Context, login *alborz.Login, msg *IMAPMessage, mb
 		if err := ensureMailboxSelected(c, mboxName); err != nil {
 			return err
 		}
-		msgs, err := c.Fetch(imap.UIDSetNum(uid), partFetchOptions(part.Path, true, true)).Collect()
+		msg, err := fetchOne(c, uid, partFetchOptions(part.Path, true, true))
 		if err != nil {
 			return err
 		}
-		if len(msgs) == 0 {
-			return alborz.NotFound("notfound.message", fmt.Sprint(uid))
-		}
-		_, entity, err := messagePart(msgs[0], mboxName, uid, part.Path, true)
+		_, entity, err := messagePart(msg, mboxName, uid, part.Path, true)
 		if err != nil {
 			return err
 		}
@@ -370,16 +358,13 @@ func OneClick(c *imapclient.Client, mboxName string, uid imap.UID) (string, erro
 	}
 	header := &imap.FetchItemBodySection{Peek: true, Specifier: imap.PartSpecifierHeader,
 		HeaderFields: []string{"List-Unsubscribe", "List-Unsubscribe-Post"}}
-	msgs, err := c.Fetch(imap.UIDSetNum(uid), &imap.FetchOptions{
+	buf, err := fetchOne(c, uid, &imap.FetchOptions{
 		BodySection: []*imap.FetchItemBodySection{header},
-	}).Collect()
+	})
 	if err != nil {
 		return "", err
 	}
-	if len(msgs) == 0 {
-		return "", alborz.NotFound("notfound.message", fmt.Sprint(uid))
-	}
-	h, err := textproto.ReadHeader(bufio.NewReader(bytes.NewReader(msgs[0].FindBodySection(header))))
+	h, err := readHeaderBytes(buf.FindBodySection(header))
 	if err != nil {
 		return "", err
 	}
@@ -535,7 +520,7 @@ func (p *Mailboxes) Read(ctx context.Context, r ReadAsk) (*Opened, error) {
 				}
 			}
 			if held == nil {
-				if msg, part, err = getShownPart(c, r.Mailbox, r.UID, partPath); err != nil {
+				if msg, part, err = fetchMessagePart(c, r.Mailbox, r.UID, partPath, true); err != nil {
 					return err
 				}
 				// The cached listings are marked read rather than fetched again for one flag.

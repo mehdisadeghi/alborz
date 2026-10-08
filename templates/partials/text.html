@@ -11,6 +11,9 @@
 <p class="hint">{{.text}}{{ with .example }} <code>{{.}}</code>{{ end }}</p>
 {{ end }}
 
+{{/* dict: items. Render a compact list of related hints consistently. */}}
+{{ define "hint-list" }}{{ range .items }}<p class="hint list-option">{{.}}</p>{{ end }}{{ end }}
+
 {{/* dict: g time. */}}
 {{ define "date-full" }}{{ .g.FormatDate .time }}{{ with .g.SecondaryDate .time }} <span class="date-secondary">{{.}}</span>{{ end }}{{ end }}
 

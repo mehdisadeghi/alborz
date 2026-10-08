@@ -1,7 +1,3 @@
-{{ define "rail" }}
-  {{ template "settings-rail" . }}
-{{ end }}
-
 {{ define "main-class" }} class="settings"{{ end }}
 
 {{ define "main" }}
@@ -42,7 +38,7 @@
           {{ end }}
         </div>
         <div class="action-group">
-          <button type="submit" class="button-primary">{{$.T "common.save"}}</button>
+          {{ template "settings-submit" ($.T "common.save") }}
         </div>
       </form>
       {{ end }}

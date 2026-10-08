@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"slices"
 	"strings"
 
 	"git.mehdix.org/alborz"
@@ -14,7 +15,7 @@ import (
 )
 
 type SettingsRenderData struct {
-	web.BaseRenderData
+	web.PageData[map[string][]web.RailRow]
 	// AuthServGuess is the server's apparent authserv-id, empty when recent mail disagrees.
 	AuthServGuess string
 	Mailboxes     []mail.MailboxInfo
@@ -22,7 +23,6 @@ type SettingsRenderData struct {
 	Subscriptions Subscriptions
 	// Storage says where this account's settings are written and what is written there.
 	Storage SettingsStorage
-	Rail    map[string][]web.RailRow
 	// Shown is what the form was drawn from, which a save compares the form against.
 	Shown string
 }
@@ -61,52 +61,51 @@ func settingsStorage(ctx *web.Context) (SettingsStorage, error) {
 type Subscriptions []string
 
 func (s Subscriptions) Has(sub string) bool {
-	for _, cand := range s {
-		if cand == sub {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(s, sub)
 }
 
 // SignaturesRenderData is the signature list.
 type SignaturesRenderData struct {
-	web.BaseRenderData
+	web.PageData[map[string][]web.RailRow]
 	Settings *mail.Settings
-	Rail     map[string][]web.RailRow
 }
 
 // SignatureRenderData is one signature's form, new or existing.
 type SignatureRenderData struct {
-	web.BaseRenderData
+	web.PageData[map[string][]web.RailRow]
 	Editing mail.Signature
 	// Was is the name the form started with, so a rename replaces; empty when adding.
-	Was  string
-	Rail map[string][]web.RailRow
+	Was string
 	// Shown is the signature the form was drawn from, which a save compares the form against.
 	Shown string
 }
 
-func handleSignatures(ctx *web.Context) error {
+func loadAccountSettings(ctx *web.Context) (*mail.Settings, error) {
 	settings, err := mail.LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
-		return fmt.Errorf("failed to load settings: %w", err)
+		return nil, fmt.Errorf("failed to load settings: %w", err)
+	}
+	return settings, nil
+}
+
+func handleSignatures(ctx *web.Context) error {
+	settings, err := loadAccountSettings(ctx)
+	if err != nil {
+		return err
 	}
 	return ctx.Render(http.StatusOK, "settings/signatures", &SignaturesRenderData{
-		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.signatures")),
-		Settings:       settings,
-		Rail:           web.SettingsRail(ctx),
+		PageData: *web.NewSettingsPageData(ctx, ctx.T("settings.signatures")),
+		Settings: settings,
 	})
 }
 
 func handleSignatureForm(ctx *web.Context) error {
-	settings, err := mail.LoadSettings(ctx.Request().Context(), ctx.Login.Store())
+	settings, err := loadAccountSettings(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to load settings: %w", err)
+		return err
 	}
 	data := &SignatureRenderData{
-		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.signatures")),
-		Rail:           web.SettingsRail(ctx),
+		PageData: *web.NewSettingsPageData(ctx, ctx.T("settings.signatures")),
 	}
 	if name := ctx.Param("name"); name != "" {
 		found, ok := settings.SignatureNamed(name)
@@ -129,11 +128,10 @@ func handleSignatureSave(ctx *web.Context) error {
 	editing := mail.Signature{Name: name, Text: text}
 	render := func(message string) error {
 		return ctx.Render(http.StatusUnprocessableEntity, "settings/signature-edit", &SignatureRenderData{
-			BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.signatures")).Refused(message),
-			Editing:        editing,
-			Was:            was,
-			Rail:           web.SettingsRail(ctx),
-			Shown:          ctx.FormValue("shown"),
+			PageData: *web.NewSettingsPageData(ctx, ctx.T("settings.signatures")).WithRefused(message),
+			Editing:  editing,
+			Was:      was,
+			Shown:    ctx.FormValue("shown"),
 		})
 	}
 	switch {
@@ -145,11 +143,11 @@ func handleSignatureSave(ctx *web.Context) error {
 
 	// What the form changed is what it sends that differs from what it showed; the rest stays as stored.
 	var drawn *mail.Signature
-	if shown := ctx.FormValue("shown"); shown != "" {
-		drawn = &mail.Signature{}
-		if err := json.Unmarshal([]byte(shown), drawn); err != nil {
-			return web.NewError(http.StatusBadRequest, "the form's shown signature does not decode")
-		}
+	var shown mail.Signature
+	if sent, err := web.DecodeForm(ctx, "shown", &shown, "the form's shown signature does not decode"); err != nil {
+		return err
+	} else if sent {
+		drawn = &shown
 	}
 	refusal, replaced := "", false
 	err := mail.UpdateSettings(ctx.Request().Context(), ctx.Login, func(settings *mail.Settings) error {
@@ -197,12 +195,19 @@ func handleSignatureSave(ctx *web.Context) error {
 			ctx.URL("mail.signature", name),
 			ctx.URL("mail.signatures.create"))
 	}
-	return ctx.Redirect(http.StatusFound, ctx.URL("mail.signatures"))
+	return ctx.FoundRedirect(ctx.URL("mail.signatures"))
+}
+
+func updateSettingsRedirect(ctx *web.Context, to string, edit func(*mail.Settings) error) error {
+	if err := mail.UpdateSettings(ctx.Request().Context(), ctx.Login, edit); err != nil {
+		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: ctx.SaveRefusal(err)})
+	}
+	return ctx.FoundRedirect(to)
 }
 
 func handleSignatureDelete(ctx *web.Context) error {
 	name := ctx.FormValue("name")
-	err := mail.UpdateSettings(ctx.Request().Context(), ctx.Login, func(settings *mail.Settings) error {
+	return updateSettingsRedirect(ctx, ctx.URL("mail.signatures"), func(settings *mail.Settings) error {
 		kept := settings.Signatures[:0]
 		for _, sig := range settings.Signatures {
 			if sig.Name != name {
@@ -215,14 +220,10 @@ func handleSignatureDelete(ctx *web.Context) error {
 		}
 		return nil
 	})
-	if err != nil {
-		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: ctx.SaveRefusal(err)})
-	}
-	return ctx.Redirect(http.StatusFound, ctx.URL("mail.signatures"))
 }
 
 func handleSignatureDefault(ctx *web.Context) error {
-	err := mail.UpdateSettings(ctx.Request().Context(), ctx.Login, func(settings *mail.Settings) error {
+	return updateSettingsRedirect(ctx, ctx.URL("mail.signatures"), func(settings *mail.Settings) error {
 		// An empty name clears the default.
 		chosen := ctx.FormValue("name")
 		if _, ok := settings.SignatureNamed(chosen); !ok {
@@ -231,16 +232,12 @@ func handleSignatureDefault(ctx *web.Context) error {
 		settings.DefaultSignature = chosen
 		return nil
 	})
-	if err != nil {
-		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: ctx.SaveRefusal(err)})
-	}
-	return ctx.Redirect(http.StatusFound, ctx.URL("mail.signatures"))
 }
 
 func (p *plugin) handleSettings(ctx *web.Context) error {
-	settings, err := mail.LoadSettings(ctx.Request().Context(), ctx.Login.Store())
+	settings, err := loadAccountSettings(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to load settings: %w", err)
+		return err
 	}
 
 	mailboxes, err := mail.Folders(ctx.Request().Context(), ctx.Login)
@@ -262,11 +259,8 @@ func (p *plugin) handleSettings(ctx *web.Context) error {
 		}
 		// What the form changed is what it sends that differs from what it showed; the rest stays as stored.
 		drawn := *settings
-		if v := ctx.FormValue("shown"); v != "" {
-			drawn = mail.Settings{}
-			if err := json.Unmarshal([]byte(v), &drawn); err != nil {
-				return web.NewError(http.StatusBadRequest, "the form's shown settings do not decode")
-			}
+		if _, err := web.DecodeForm(ctx, "shown", &drawn, "the form's shown settings do not decode"); err != nil {
+			return err
 		}
 		mine := drawn
 		mine.From = ctx.FormValue("from")
@@ -280,13 +274,12 @@ func (p *plugin) handleSettings(ctx *web.Context) error {
 				return err
 			}
 			return ctx.Render(http.StatusUnprocessableEntity, "settings/account", &SettingsRenderData{
-				BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.account")).Refused(message),
-				Settings:       settings,
-				Mailboxes:      mailboxes,
-				Subscriptions:  Subscriptions(settings.Subscriptions),
-				Storage:        storage,
-				Rail:           web.SettingsRail(ctx),
-				Shown:          shown,
+				PageData:      *web.NewSettingsPageData(ctx, ctx.T("settings.account")).WithRefused(message),
+				Settings:      settings,
+				Mailboxes:     mailboxes,
+				Subscriptions: Subscriptions(settings.Subscriptions),
+				Storage:       storage,
+				Shown:         shown,
 			})
 		}
 		refusal := ""
@@ -306,8 +299,7 @@ func (p *plugin) handleSettings(ctx *web.Context) error {
 			return reject(ctx.SaveRefusal(err))
 		}
 		p.Changed(ctx.Login.Username())
-		ctx.PutNotice(ctx.T("notice.settingssaved"))
-		return ctx.Redirect(http.StatusFound, ctx.URL("mail.account"))
+		return ctx.NoticeRedirect(ctx.T("notice.settingssaved"), ctx.URL("mail.account"))
 	}
 
 	// The suggestion costs a fetch, so only when nothing is set.
@@ -320,29 +312,24 @@ func (p *plugin) handleSettings(ctx *web.Context) error {
 		return err
 	}
 	return ctx.Render(http.StatusOK, "settings/account", &SettingsRenderData{
-		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.account")),
-		AuthServGuess:  guess,
-		Settings:       settings,
-		Mailboxes:      mailboxes,
-		Subscriptions:  Subscriptions(settings.Subscriptions),
-		Storage:        storage,
-		Rail:           web.SettingsRail(ctx),
-		Shown:          shown,
+		PageData:      *web.NewSettingsPageData(ctx, ctx.T("settings.account")),
+		AuthServGuess: guess,
+		Settings:      settings,
+		Mailboxes:     mailboxes,
+		Subscriptions: Subscriptions(settings.Subscriptions),
+		Storage:       storage,
+		Shown:         shown,
 	})
 }
 
 func (p *plugin) handleForget(ctx *web.Context) error {
 	store, ok := ctx.Login.Store().(alborz.Settings)
-	if !ok {
-		// Nothing else outlives the process to forget.
-		ctx.Notify(web.Notice{Kind: web.NoticeDone, Text: ctx.T("settings.forgotten")})
-		return ctx.Redirect(http.StatusFound, ctx.URL("mail.account"))
+	var err error
+	if ok {
+		err = store.Forget(ctx.Request().Context())
+		if err == nil {
+			p.Changed(ctx.Login.Username())
+		}
 	}
-	if err := store.Forget(ctx.Request().Context()); err != nil {
-		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: ctx.SaveRefusal(err)})
-		return ctx.Redirect(http.StatusFound, ctx.URL("mail.account"))
-	}
-	p.Changed(ctx.Login.Username())
-	ctx.Notify(web.Notice{Kind: web.NoticeDone, Text: ctx.T("settings.forgotten")})
-	return ctx.Redirect(http.StatusFound, ctx.URL("mail.account"))
+	return ctx.SaveRedirect(err, ctx.T("settings.forgotten"), ctx.URL("mail.account"))
 }

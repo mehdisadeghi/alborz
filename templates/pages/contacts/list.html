@@ -1,6 +1,6 @@
 {{ define "rail" }}
   {{ $q := .GlobalData.AccountQuery }}{{ $sep := "?" }}{{ if $q }}{{ $sep = "&" }}{{ end }}
-  {{ template "pim-rail" (dict "g" $ "urlaccount" .GlobalData.URLAccount "path" (url "contacts.list") "items" .AddressBooks "field" "book" "itemclass" "addressbook-item" "action" (url "contacts.list") "edit" "contacts.book" "invitations" .Invitations
+  {{ template "pim-rail" (dict "g" $ "urlaccount" .GlobalData.URLAccount "path" (url "contacts.list") "items" .Collections "field" "book" "itemclass" "addressbook-item" "action" (url "contacts.list") "edit" "contacts.book" "invitations" .Invitations
      "new" (dict "href" (printf "%s?next=%s" (url "contacts.books.create") (.GlobalData.URL.RequestURI | qv)) "label" ($.T "contacts.newbook"))
      "views" (dict "path" (url "contacts.list") "view" .View "account" .GlobalData.URLAccount)
      "groups" (dict "key" (printf "groups:%s" $q) "label" ($.T "aside.groups") "open" (ne .Group "") "rows" .GroupRows "editlabel" ($.T "common.edit") "new" (dict "href" (printf "%s%s%skind=group" (url "contacts.contact.create") $q $sep) "label" ($.T "contacts.newgroup")))
@@ -8,8 +8,7 @@
 {{ end }}
 
 {{ define "before-main" }}
-    {{ template "next-form" (dict "id" "address-book-form" "next" $.GlobalData.URL.RequestURI) }}
-    {{ template "next-form" (dict "id" "refresh-form" "action" (url "contacts.refresh") "next" $.GlobalData.URL.RequestURI) }}
+    {{ template "pim-list-before" (dict "select" "address-book-form" "refresh" (url "contacts.refresh")) }}
 {{ end }}
 
 {{ define "main-class" }} class="contact-list"{{ end }}
@@ -17,28 +16,21 @@
 {{ define "main" }}
         {{ template "contacts-toolbar" . }}
 
-      {{ template "section-crumb" (dict "g" $ "section" ($.T "nav.contacts") "home" (url "contacts.list") "field" "book" "items" .AddressBooks "collection" "" "path" "" "heading" true) }}
-
-      {{ template "filter-chips" (dict "filters" .Filters "remove" ($.T "filter.remove")) }}
+      {{ template "pim-list-head" (dict "crumb" (dict "g" $ "section" ($.T "nav.contacts") "home" (url "contacts.list") "field" "book" "items" .Collections "collection" "" "path" "" "heading" true) "filters" (dict "filters" .Filters "remove" ($.T "filter.remove"))) }}
 
       <section class="contacts">
-        {{ $multi := gt (len .GlobalData.Accounts) 1 }}
         <div {{ template "contact-grid" }}>
           {{if .AddressObjects}}
-          <div class="list-row" role="row">
-          <div class="list-header list-checkbox" role="columnheader"></div>
-          {{ template "sort-col" (dict "s" .Sorting "key" "starred" "label" "★" "idle" "☆" "class" "flag-sort" "cell" "list-star" "hidden" ($.T "sort.starred")) }}
-          <div class="list-header contact-list-photo" role="columnheader"></div>
-          {{ template "sort-col" (dict "s" .Sorting "key" "name" "label" ($.T "common.name") "cell" "list-primary contact-list-name") }}
-          {{ template "sort-col" (dict "s" .Sorting "key" "email" "label" ($.T "contacts.email") "cell" "contact-list-email") }}
-          {{ template "sort-col" (dict "s" .Sorting "key" "phone" "label" ($.T "contacts.phone") "cell" "contact-list-phone") }}
-          {{ template "sort-col" (dict "s" .Sorting "key" "changed" "label" ($.T "common.modified") "cell" "contact-list-changed") }}
-          {{ template "sort-col" (dict "s" .Sorting "key" "book" "label" ($.T "contacts.book") "cell" "contact-list-book") }}
-          </div>
+          {{ template "pim-list-sort-header" (dict "s" .Sorting "starred" ($.T "sort.starred") "photo" true "columns" (tuple
+             (tuple "name" ($.T "common.name") "list-primary contact-list-name" "" "")
+             (tuple "email" ($.T "contacts.email") "contact-list-email" "" "")
+             (tuple "phone" ($.T "contacts.phone") "contact-list-phone" "" "")
+             (tuple "changed" ($.T "common.modified") "contact-list-changed" "" "")
+             (tuple "book" ($.T "contacts.book") "contact-list-book" "" ""))) }}
           {{end}}
           {{ template "contact-rows" $ }}
           {{if not .AddressObjects}}
-          <p class="empty-list">{{if .Query}}{{printf (.T "common.noresults") .Query}}{{else}}{{$.T "common.empty"}}{{end}}</p>
+          {{ template "pim-list-empty" (dict "query" .Query "noresults" ($.T "common.noresults") "empty" ($.T "common.empty")) }}
           {{end}}
         </div>
       </section>

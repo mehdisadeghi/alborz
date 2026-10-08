@@ -38,22 +38,27 @@ func handleShare(ctx *web.Context) error {
 	if len(body) > 0 {
 		q.Set("body", strings.Join(body, "\n\n"))
 	}
+	err = putAttachments(ctx, files, func(id string) { q.Add("upload", id) })
+	if err == web.ErrAttachmentCacheSize {
+		return web.NewError(http.StatusRequestEntityTooLarge, ctx.T("attach.toolarge"))
+	} else if err != nil {
+		return err
+	}
+	return ctx.QuietRedirect(web.QueryPath(ctx.Path("mail.compose"), q))
+}
+
+func putAttachments(ctx *web.Context, files []*web.File, add func(string)) error {
 	for i, f := range files {
 		id, err := ctx.PutAttachment(f)
 		if err != nil {
 			for _, f := range files[i:] {
 				f.Close()
 			}
-		}
-		if err == web.ErrAttachmentCacheSize {
-			return web.NewError(http.StatusRequestEntityTooLarge, ctx.T("attach.toolarge"))
-		} else if err != nil {
 			return err
 		}
-		q.Add("upload", id)
+		add(id)
 	}
-	ctx.Quiet()
-	return ctx.Redirect(http.StatusFound, ctx.Path("mail.compose")+"?"+web.Query(q))
+	return nil
 }
 
 // uploaded are the session's uploads the query names, attached as compose shows its uploads.

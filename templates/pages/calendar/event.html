@@ -1,14 +1,10 @@
-{{ define "rail" }}
-  {{ template "dav-rail" (dict "g" $ "rail" .Rail) }}
-{{ end }}
-
 {{ define "main-class" }} class="event"{{ end }}
 
 {{ define "main" }}
       {{ $acct := .GlobalData.AccountQuery }}
       {{ template "object-toolbar" (dict "g" $ "object" "calendar.event" "id" .Event.Path "acct" $acct "list" .List "new" (url "calendar.event.create") "newlabel" ($.T "calendar.new") "edit" "update" "ext" ".ics" "readonly" .Event.ReadOnly
          "copy" (printf "%s%s" (url "calendar.event.copy" .Event.Path) $acct)
-         "section" ($.T "nav.calendar") "home" (url "calendar.month") "field" "cal" "collection" .Calendar.Name "path" .Calendar.Path) }}
+         "section" ($.T "nav.calendar") "home" (url "calendar.month") "field" "cal" "collection" .Collection.Name "path" .Collection.Path) }}
 
       {{ if not .Event.ReadOnly }}
       {{ template "next-form" (dict "id" "event-color-form" "next" $.GlobalData.URL.RequestURI) }}

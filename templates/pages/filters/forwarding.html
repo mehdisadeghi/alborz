@@ -1,8 +1,5 @@
-{{ define "rail" }}
-  {{ template "filters-rail" (dict "g" $ "accounts" .GlobalData.Accounts) }}
-{{ end }}
+{{ define "rail" }}{{ template "filters-page-rail" . }}{{ end }}
 
-{{ define "main-class" }} class="list"{{ end }}
 
 {{ define "main" }}
   {{ $aq := .GlobalData.AccountQuery }}
@@ -10,12 +7,11 @@
 
       {{ template "filters-crumb" (dict "g" $ "collection" ($.T "filters.forwarding") "path" (url "filters.forwarding")) }}
 
-      {{ if not .CanWire }}<div class="alert" role="alert">{{$.T "filters.needsinclude"}}</div>{{ end }}
-      {{ if .ByHand }}<div class="alert" role="alert">{{$.T "filters.byhand"}} <a href="{{url "filters.filter" .Script}}{{$aq}}">{{$.T "filters.openscript"}}</a></div>{{ end }}
+      {{ template "filters-status" (dict "g" $ "CanWire" .CanWire "ByHand" .ByHand "Script" .Script "aq" $aq) }}
 
       {{ if .CanKeep }}
       <form method="post" action="{{url "filters.forwarding.keep"}}{{$aq}}" class="aside-filter list-option">
-        <input type="hidden" name="loaded" value="{{.Loaded}}">
+        {{ template "filters-loaded" .Loaded }}
         <label class="checkbox">
           <input type="checkbox" name="keep" value="1"{{ if .Keep }} checked{{ end }} data-submit-on-change>
           {{$.T "filters.keepcopy"}}
@@ -33,16 +29,9 @@
             <span class="list-summary">{{ template "ltr" .Address }}</span>
             {{ if .Off }}<span class="list-meta">{{$.T "filters.off"}}</span>{{ end }}
           </div>
-          <form method="post" action="{{url "filters.forwarding.toggle"}}{{$aq}}">
-            <input type="hidden" name="loaded" value="{{$.Loaded}}">
-            <input type="hidden" name="address" value="{{.Address}}">
-            <button>{{ if .Off }}{{$.T "filters.activate"}}{{ else }}{{$.T "filters.deactivate"}}{{ end }}</button>
-          </form>
-          <form method="post" action="{{url "filters.forwarding.delete"}}{{$aq}}">
-            <input type="hidden" name="loaded" value="{{$.Loaded}}">
-            <input type="hidden" name="address" value="{{.Address}}">
-            <button class="button-danger">{{$.T "common.delete"}}</button>
-          </form>
+          {{ $toggle := "filters.deactivate" }}{{ if .Off }}{{ $toggle = "filters.activate" }}{{ end }}
+          {{ template "filter-action" (dict "g" $ "action" (printf "%s%s" (url "filters.forwarding.toggle") $aq) "fields" (tuple (dict "name" "loaded" "value" $.Loaded) (dict "name" "address" "value" .Address)) "button" $toggle) }}
+          {{ template "filter-action" (dict "g" $ "action" (printf "%s%s" (url "filters.forwarding.delete") $aq) "fields" (tuple (dict "name" "loaded" "value" $.Loaded) (dict "name" "address" "value" .Address)) "button" "common.delete" "class" "button-danger") }}
         </div>
         {{ end }}
         {{ if and (not .Forwards) (not .ByHand) }}

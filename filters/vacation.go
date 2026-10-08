@@ -71,12 +71,10 @@ func (r *Replies) Put(index int, v Reply) (made int, err error) {
 // ActiveReply is the index in items of the reply the script sends, -1 when none;
 // byHand says the script is in a shape the page did not write.
 func ActiveReply(c alborz.SieveClient, items []Reply) (active int, loaded string, byHand bool, err error) {
-	content, exists, err := scriptIfAny(c, VacationScript)
-	if err != nil || !exists {
-		return -1, "", false, err
-	}
-	_, ok := readReply(content)
-	return activeIndex(items, content), Fingerprint(content), !ok, nil
+	return loadScript(c, VacationScript, -1, func(content string) (int, bool) {
+		_, written := readReply(content)
+		return activeIndex(items, content), written
+	})
 }
 
 // ReplaceReply sends v at once if the reply at index in was is the one being sent.

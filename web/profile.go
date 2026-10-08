@@ -236,33 +236,28 @@ func (ctx *Context) profileDiff(theirs, ours alborz.Profile) []profileChange {
 	})
 	add("settings.alignscript", func(p alborz.Profile) string { return onOff(p.Display.AlignByScript) })
 	add("settings.status", func(p alborz.Profile) string {
-		var on []string
-		for _, seg := range ctx.Server.Status {
-			if slices.Contains(p.Display.Status, seg.Name) {
-				on = append(on, g.T(seg.Name+".status"))
-			}
-		}
-		if len(on) == 0 {
-			return g.T("profile.off")
-		}
-		return strings.Join(on, " · ")
+		return selectedLabels(g, ctx.Server.Status, p.Display.Status, func(seg Segment) string { return seg.Name }, ".status")
 	})
 	add("settings.addons", func(p alborz.Profile) string {
-		var on []string
-		for _, a := range ctx.Server.Addons {
-			if slices.Contains(p.Display.Addons, a.Name) {
-				on = append(on, g.T(a.Name+".addon"))
-			}
-		}
-		if len(on) == 0 {
-			return g.T("profile.off")
-		}
-		return strings.Join(on, " · ")
+		return selectedLabels(g, ctx.Server.Addons, p.Display.Addons, func(a Addon) string { return a.Name }, ".addon")
 	})
 	add("settings.language", func(p alborz.Profile) string {
 		return or(locale.Name(p.Display.Language), "settings.langauto")
 	})
 	return out
+}
+
+func selectedLabels[T any](g GlobalRenderData, offered []T, selected []string, name func(T) string, suffix string) string {
+	var on []string
+	for _, item := range offered {
+		if name := name(item); slices.Contains(selected, name) {
+			on = append(on, g.T(name+suffix))
+		}
+	}
+	if len(on) == 0 {
+		return g.T("profile.off")
+	}
+	return strings.Join(on, " · ")
 }
 
 // SettingsRail is the settings pages' rail: what this browser keeps, then each account's pages.

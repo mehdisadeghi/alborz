@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -58,12 +59,10 @@ const classPublic = "PUBLIC"
 
 // The object goes whole: a moved occurrence tells of its series.
 func guarded(cal *ical.Calendar) bool {
-	for _, child := range cal.Children {
-		if class := child.Props.Get(ical.PropClass); class != nil && !strings.EqualFold(class.Value, classPublic) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(cal.Children, func(child *ical.Component) bool {
+		class := child.Props.Get(ical.PropClass)
+		return class != nil && !strings.EqualFold(class.Value, classPublic)
+	})
 }
 
 func anonymous(comp *ical.Component) *ical.Component {

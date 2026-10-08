@@ -136,6 +136,7 @@ func (p *plugin) sidebarAccounts(ctx *web.Context) []AccountSidebar {
 }
 
 func assembleIMAPBase(ctx *web.Context, base *web.BaseRenderData, mboxName string, sb mail.Rail, view string) *IMAPBaseRenderData {
+	base.GlobalData.HasRail = true
 	if mboxName != "" {
 		sb.Statuses[mboxName] = sb.Active
 	}
@@ -176,14 +177,11 @@ func assembleIMAPBase(ctx *web.Context, base *web.BaseRenderData, mboxName strin
 func (p *plugin) newIMAPBaseRenderData(ctx *web.Context,
 	base *web.BaseRenderData) (*IMAPBaseRenderData, error) {
 
-	mboxName, err := mailboxRef(ctx)
+	mboxName := mailboxRef(ctx)
+
+	settings, err := loadAccountSettings(ctx)
 	if err != nil {
 		return nil, err
-	}
-
-	settings, err := mail.LoadSettings(ctx.Request().Context(), ctx.Login.Store())
-	if err != nil {
-		return nil, fmt.Errorf("failed to load settings: %w", err)
 	}
 
 	sb, err := mail.LoadRail(ctx.Request().Context(), ctx.Login, settings, mboxName)
@@ -245,20 +243,16 @@ func mailboxCrumb(mailboxes []mail.MailboxInfo, name, account string, folder fun
 
 // handleMerged keeps which of an account's role folders feed the merged folders, and lands back where the tick was.
 func handleMerged(ctx *web.Context) error {
-	form, err := ctx.FormParams()
+	form, err := formParams(ctx)
 	if err != nil {
-		return web.NewError(http.StatusBadRequest, err)
+		return err
 	}
 	for _, role := range form["shown"] {
 		if !slices.Contains(mail.Roles, role) {
 			return web.NewError(http.StatusBadRequest, fmt.Sprintf("%q is not a merged folder", role))
 		}
 	}
-	if err := mail.ChooseMerged(ctx.Request().Context(), ctx.Login, form["shown"], form["merged"]); err != nil {
-		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: ctx.SaveRefusal(err)})
-	} else {
-		// The rail and the list come back holding what was chosen.
-		ctx.Quiet()
-	}
-	return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.Path("mail.mailbox", "INBOX")))
+	to := ctx.NextOr(ctx.Path("mail.mailbox", "INBOX"))
+	// The rail and the list come back holding what was chosen.
+	return ctx.SaveQuietRedirect(mail.ChooseMerged(ctx.Request().Context(), ctx.Login, form["shown"], form["merged"]), to)
 }

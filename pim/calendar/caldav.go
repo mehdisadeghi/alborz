@@ -26,36 +26,21 @@ import (
 
 var ErrNoCalendar = alborz.NotFound("notfound.calendar")
 
-func SupportsTodo(components []string) bool {
-	// Without a component set, a calendar is not promoted to a task list.
+func supports(components []string, name string, empty bool) bool {
 	if len(components) == 0 {
-		return false
+		return empty
 	}
-	for _, comp := range components {
-		if strings.EqualFold(comp, "VTODO") {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(components, func(comp string) bool { return strings.EqualFold(comp, name) })
 }
+
+func SupportsTodo(components []string) bool { return supports(components, ical.CompToDo, false) }
 
 // SupportsJournal says a calendar takes journal entries; without a component set it is not a journal.
 func SupportsJournal(components []string) bool {
-	return slices.ContainsFunc(components, func(comp string) bool { return strings.EqualFold(comp, ical.CompJournal) })
+	return supports(components, ical.CompJournal, false)
 }
 
-func SupportsEvent(components []string) bool {
-	// Servers that advertise no component set are taken to hold events.
-	if len(components) == 0 {
-		return true
-	}
-	for _, comp := range components {
-		if strings.EqualFold(comp, "VEVENT") {
-			return true
-		}
-	}
-	return false
-}
+func SupportsEvent(components []string) bool { return supports(components, ical.CompEvent, true) }
 
 func makeCalendar(ctx context.Context, client *http.Client, base *url.URL, path, name, color string, components []string) error {
 	c, err := caldav.NewClient(client, base.String())
@@ -378,24 +363,20 @@ func (p *Calendars) QuerySites(ctx context.Context, sites []pim.Site[*caldav.Cli
 }
 
 func FirstEvent(cal *ical.Calendar) *ical.Component {
-	if evs := cal.Events(); len(evs) > 0 {
-		return evs[0].Component
-	}
-	return nil
+	return firstComponent(cal, ical.CompEvent)
 }
 
 func FirstTodo(cal *ical.Calendar) *ical.Component {
-	for _, child := range cal.Children {
-		if child.Name == ical.CompToDo {
-			return child
-		}
-	}
-	return nil
+	return firstComponent(cal, ical.CompToDo)
 }
 
 func FirstJournal(cal *ical.Calendar) *ical.Component {
+	return firstComponent(cal, ical.CompJournal)
+}
+
+func firstComponent(cal *ical.Calendar, name string) *ical.Component {
 	for _, child := range cal.Children {
-		if child.Name == ical.CompJournal {
+		if child.Name == name {
 			return child
 		}
 	}

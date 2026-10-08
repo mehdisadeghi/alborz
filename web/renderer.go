@@ -103,6 +103,8 @@ type GlobalRenderData struct {
 
 	// Swap says the page answers a swap into main: its main block, and the rail rows it moves (ADR 13).
 	Swap bool
+	// HasRail says the page data carries a feature rail for the shared page shell.
+	HasRail bool
 
 	// Tour is the tour open on this page, nil for none; TourStart opens it here (ADR 76).
 	Tour      *Tour
@@ -511,6 +513,14 @@ func loadTemplates(files fs.FS, funcs template.FuncMap) (*renderer, error) {
 		src, defined, err := parseFile(files, name, funcs)
 		if err != nil {
 			return err
+		}
+		if !slices.Contains(defined, "main") && !slices.Contains(defined, "body") {
+			return fmt.Errorf("%s: page must define main or body", name)
+		}
+		for _, forbidden := range []string{"layout", "nav", "status-bar"} {
+			if slices.Contains(defined, forbidden) {
+				return fmt.Errorf("%s: page cannot replace shared %q", name, forbidden)
+			}
 		}
 		// A page fills the layout's blocks, or a partial's empty one; replacing a partial would change it for this page alone.
 		for _, t := range defined {

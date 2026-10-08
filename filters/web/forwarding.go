@@ -12,24 +12,16 @@ import (
 )
 
 type ForwardingRenderData struct {
-	web.BaseRenderData
+	sievePageData
 	filters.Forwarding
-	Loaded string
-	// ByHand says the script exists in a shape the page did not write.
-	ByHand bool
-	Script string
-	// CanKeep and CanWire say the server supports :copy and include.
+	// CanKeep says the server supports :copy.
 	CanKeep bool
-	CanWire bool
 	Address string
-	Rail    map[string][]web.RailRow
 }
 
 func forwardingData(ctx *web.Context) (*ForwardingRenderData, error) {
 	data := &ForwardingRenderData{
-		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("filters.forwarding")),
-		Script:         filters.ForwardScript,
-		Rail:           rail(ctx),
+		sievePageData: sievePage(ctx, ctx.T("filters.forwarding"), filters.ForwardScript),
 	}
 	err := ctx.DoSieve(func(c alborz.SieveClient) error {
 		data.CanKeep = filters.HasExtension(c, "copy")
@@ -42,19 +34,19 @@ func forwardingData(ctx *web.Context) (*ForwardingRenderData, error) {
 }
 
 func handleForwarding(ctx *web.Context) error {
+	return renderForwarding(ctx, "filters/forwarding")
+}
+
+func renderForwarding(ctx *web.Context, page string) error {
 	data, err := forwardingData(ctx)
 	if err != nil {
 		return err
 	}
-	return ctx.Render(http.StatusOK, "filters/forwarding", data)
+	return ctx.Render(http.StatusOK, page, data)
 }
 
 func handleForwardingCreate(ctx *web.Context) error {
-	data, err := forwardingData(ctx)
-	if err != nil {
-		return err
-	}
-	return ctx.Render(http.StatusOK, "filters/forwarding-create", data)
+	return renderForwarding(ctx, "filters/forwarding-create")
 }
 
 func changeForwarding(ctx *web.Context, change func(f *filters.Forwarding)) error {
@@ -71,8 +63,7 @@ func handleForwardingAdd(ctx *web.Context) error {
 			return err
 		}
 		data.Address = address
-		data.Refused(fmt.Sprintf(ctx.T("filters.notanaddress"), address))
-		return ctx.Render(http.StatusUnprocessableEntity, "filters/forwarding-create", data)
+		return web.RenderRefused(ctx, "filters/forwarding-create", data, fmt.Sprintf(ctx.T("filters.notanaddress"), address))
 	}
 	err := changeForwarding(ctx, func(f *filters.Forwarding) {
 		for _, fw := range f.Forwards {
@@ -128,5 +119,5 @@ func answer(ctx *web.Context, err error, route, saved string) error {
 	default:
 		ctx.PutNotice(saved)
 	}
-	return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.URL(route)))
+	return ctx.FoundRedirect(ctx.NextOr(ctx.URL(route)))
 }

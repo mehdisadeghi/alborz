@@ -8,9 +8,7 @@
   </div>
   {{ end }}
   {{ template "row-star-cell" (dict "g" $g "action" (printf "%s%s" (url "calendar.entry.color" .Path) (account "?" .Account)) "star" .Star "next" $next) }}
-  <div class="journal-list-summary list-primary list-cell" role="cell" data-label="{{$g.T "journal.summary"}}">
-    <a href="{{.Href}}" dir="auto"{{ with .AddedBy }} title="{{ printf ($g.T "share.addedby") . }}"{{ end }}>{{.Summary}}</a>
-  </div>
+  {{ template "row-summary" (dict "g" $g "class" "journal-list-summary" "label" ($g.T "journal.summary") "href" .Href "summary" .Summary "addedby" .AddedBy) }}
   {{ template "row-collection" (dict "g" $g "cell" "journal-list-calendar" "label" ($g.T "journal.journal") "list" (url "calendar.journal") "coll" .Calendar "account" .Account) }}
   {{ template "row-date" (dict "g" $g "cell" "journal-list-date" "label" ($g.T "journal.date") "time" .Date) }}
   {{ template "row-date" (dict "g" $g "cell" "journal-list-added" "label" ($g.T "common.added") "time" .Added "since" true) }}

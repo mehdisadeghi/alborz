@@ -13,7 +13,7 @@
   {{ $keep := printf "&month=%s" .Page }}{{ if eq .Span "month" }}{{ $keep = printf "%s&span=month" $keep }}{{ end }}
         {{ template "calendar-toolbar" . }}
 
-      {{ template "section-crumb" (dict "g" $ "section" ($.T "nav.calendar") "home" (url "calendar.month") "field" "cal" "items" .Calendars "keep" $keep "collection" "" "path" "") }}
+      {{ template "section-crumb" (dict "g" $ "section" ($.T "nav.calendar") "home" (url "calendar.month") "field" "cal" "items" .Collections "keep" $keep "collection" "" "path" "") }}
 
       <section class="dates">
         {{range .Weekdays}}

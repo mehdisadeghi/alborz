@@ -21,16 +21,13 @@ const searchRole = "INBOX"
 const folderTrackMax = 16
 
 func (p *plugin) handleSearch(ctx *web.Context) error {
-	ask, err := readListAsk(ctx, "account")
+	ask, err := readListAskAt(ctx, ctx.QueryParams(), "account")
 	if err != nil {
 		return err
 	}
-	ask.Query = strings.TrimSpace(ask.Query)
-	if !mail.StarView(ask.View) {
-		ask.View = ""
-	}
+	ask = normalizeSearchAsk(ask)
 	if ask.Query == "" && ask.View == "" {
-		return ctx.Redirect(http.StatusFound, ctx.URL("mail.mailbox", "INBOX"))
+		return ctx.FoundRedirect(ctx.URL("mail.mailbox", "INBOX"))
 	}
 	data, down, err := p.searchRows(ctx, ask)
 	if err != nil {
@@ -59,6 +56,16 @@ func (p *plugin) handleSearch(ctx *web.Context) error {
 	data.IMAPBaseRenderData = *ibase
 	data.Crumb = []CrumbLink{{Label: title}}
 	return ctx.Render(http.StatusOK, "mail/mailbox", data)
+}
+
+// normalizeSearchAsk applies the search page's canonical source shape before
+// it is used for rows, navigation, or cross-section results.
+func normalizeSearchAsk(ask mail.ListAsk) mail.ListAsk {
+	ask.Query = strings.TrimSpace(ask.Query)
+	if !mail.StarView(ask.View) {
+		ask.View = ""
+	}
+	return ask
 }
 
 // searchRows are a page of a search across folders as its list draws them, and the accounts whose

@@ -1,7 +1,6 @@
 package web
 
 import (
-	"context"
 	"net/http"
 	"net/url"
 	"slices"
@@ -20,19 +19,8 @@ import (
 )
 
 type JournalRenderData struct {
-	web.BaseRenderData
-	Calendars  []dav.Collection
-	Entries    []EntryRow
-	View       string
-	Filters    []web.Filter
-	FilterRows []web.FilterRow
-	Query      string
-	Sorting    pimweb.Sorting
-	Pager      web.Pager
-	// SelectForm is the form a row's checkbox belongs to; empty where rows offer none.
-	SelectForm string
-
-	Invitations *pimweb.RailInvitations
+	pimweb.ListRenderData
+	Entries []EntryRow
 }
 
 // EntryRow is one row of the journal.
@@ -70,76 +58,27 @@ func entryTie(row EntryRow) string {
 	return strings.ToLower(row.Account + "\x00" + row.Calendar.Name + "\x00" + row.Summary)
 }
 
-// JournalList is the list page's rows in order, their journals, and what shaped them.
-type JournalList struct {
-	Rows      []EntryRow
-	Calendars []dav.Collection
-	// Items are the rows as a single entry's neighbours, in the same order.
-	Items   []pimweb.Item
-	Query   string
-	View    string
-	Sorting pimweb.Sorting
-	Unread  []pim.Unread
-}
+type JournalList = CalendarList[EntryRow]
 
 func (p *plugin) journalList(ctx *web.Context) (JournalList, error) {
-	text := ctx.QueryParam("query")
-	view := ctx.QueryParam("view")
-	if !validStarView(view) {
-		return JournalList{}, web.NewError(http.StatusBadRequest, "no such view")
-	}
-	params := pimweb.RowParams(ctx, ctx.Path("calendar.journal"), pimweb.ListParams(ctx, journalListParams...))
-	rows, calendars, unread, err := p.shownEntries(ctx, pimweb.Only(ctx, "cal"), view, ctx.QueryParam("category"), search.Parse(text), params)
-	if err != nil {
-		return JournalList{}, err
-	}
-	sorting, err := pimweb.Sort(ctx, rows, entryColumns, entryTie, journalListParams...)
-	if err != nil {
-		return JournalList{}, err
-	}
-	items := make([]pimweb.Item, len(rows))
-	for i, row := range rows {
-		items[i] = pimweb.Item{Path: row.Path, URL: row.Href}
-	}
-	return JournalList{Rows: rows, Items: items, Calendars: calendars, Query: text, View: view, Sorting: sorting, Unread: unread}, nil
+	return calendarList(ctx, "calendar.journal", journalListParams, web.ValidStarView,
+		func(view string, q search.Query, params url.Values) ([]EntryRow, []dav.Collection, []pim.Unread, error) {
+			return p.shownEntries(ctx, pimweb.Only(ctx, "cal"), view, ctx.QueryParam("category"), q, params)
+		}, entryColumns, entryTie, func(row EntryRow) pimweb.Item { return pimweb.Item{Path: row.Path, URL: row.Href} })
 }
 
 // shownEntries are the rows of the entries a view, a category and a query find in the journals in the
 // request's scope, and every journal for the rail, with the journals and entries it could not read;
 // params go into each row's link.
 func (p *plugin) shownEntries(ctx *web.Context, only map[string]bool, view, category string, q search.Query, params url.Values) ([]EntryRow, []dav.Collection, []pim.Unread, error) {
-	q, starred, err := web.StarFilter(q, view)
-	if err != nil {
-		return nil, nil, nil, web.NewError(http.StatusBadRequest, err.Error())
-	}
-	accounts, err := p.pooledCalendars(ctx)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	calendars, sites, err := calendar.Visible(ctx.Request().Context(), accounts, ctx.URLAccount(), only, calendar.SupportsJournal, calendar.JournalVisibility)
+	rows, calendars, unread, err := shownCalendarRows(p, ctx, only, q, view, calendar.SupportsJournal, calendar.JournalVisibility, calendar.JournalQuery,
+		calendar.FirstJournal, func(journal *ical.Component, starred func(string) bool, q search.Query) bool {
+			return entryShown(journal, starred, category, q)
+		}, func(obj *caldav.CalendarObject, collection dav.Collection) EntryRow {
+			return entryRow(ctx, obj, collection, web.UserLocation(ctx), params)
+		})
 	if err != nil {
 		return nil, nil, nil, err
-	}
-	loc := web.UserLocation(ctx)
-	query := calendar.JournalQuery()
-	var rows []EntryRow
-	var unread []pim.Unread
-	for _, result := range pim.Present(p.DAV, dav.Across(ctx.Request().Context(), sites, pim.Site[*caldav.Client].Account, func(ctx context.Context, site pim.Site[*caldav.Client]) ([]caldav.CalendarObject, error) {
-		return site.Client.QueryCalendar(ctx, site.Collection.Path, &query)
-	})) {
-		if result.Err != nil {
-			unread = append(unread, pim.Unread{Collection: result.Site.Collection.Name, Err: result.Err})
-			continue
-		}
-		for _, obj := range result.Value {
-			if obj.Data == nil {
-				unread = append(unread, calendar.Unparsed(result.Site.Collection.Name, &obj))
-				continue
-			}
-			if entryShown(calendar.FirstJournal(obj.Data), starred, category, q) {
-				rows = append(rows, entryRow(ctx, &obj, result.Site.Collection, loc, params))
-			}
-		}
 	}
 	return rows, calendars, unread, nil
 }
@@ -187,30 +126,12 @@ func (p *plugin) journal(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	pimweb.WarnUnread(ctx, list.Unread)
-	rows, pager, err := web.Paginate(ctx, list.Rows)
-	if err != nil {
-		return err
-	}
-	addedBy := p.DAV.AddedBy(ctx.Login.Username())
-	for i := range rows {
-		rows[i].AddedBy = addedBy(rows[i].Calendar.Account, rows[i].Path)
-	}
-	invitations, err := p.invitations(ctx)
+	rows, pager, invitations, err := calendarListParts(ctx, p, list, func(row EntryRow) (string, string) { return row.Calendar.Account, row.Path }, func(row *EntryRow, value string) { row.AddedBy = value })
 	if err != nil {
 		return err
 	}
 	return ctx.Render(http.StatusOK, "journal/list", &JournalRenderData{
-		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("title.journal")),
-		View:           list.View,
-		Filters:        journalFilters(ctx),
-		FilterRows:     web.ViewRows(ctx, list.View, false, ctx.WithoutParam("view")),
-		Calendars:      list.Calendars,
+		ListRenderData: calendarListData(ctx, ctx.T("title.journal"), list, pager, journalFilters(ctx), web.ViewRows(ctx, list.View, false, ctx.WithoutParam("view")), journalForm, invitations),
 		Entries:        rows,
-		Pager:          pager,
-		Query:          list.Query,
-		Sorting:        list.Sorting,
-		SelectForm:     journalForm,
-		Invitations:    invitations,
 	})
 }

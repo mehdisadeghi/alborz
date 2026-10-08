@@ -1,44 +1,41 @@
 {{ define "rail" }}
-  {{ template "pim-rail" (dict "g" $ "urlaccount" .GlobalData.URLAccount "path" (url "calendar.tasks") "items" .Calendars "field" "cal" "itemclass" "calendar-item" "action" (url "calendar.tasks") "edit" "calendar.collection" "invitations" .Invitations
+  {{ template "pim-rail" (dict "g" $ "urlaccount" .GlobalData.URLAccount "path" (url "calendar.tasks") "items" .Collections "field" "cal" "itemclass" "calendar-item" "action" (url "calendar.tasks") "edit" "calendar.collection" "invitations" .Invitations
      "new" (dict "href" (printf "%s?for=tasks&next=%s" (url "calendar.calendars.create") (.GlobalData.URL.RequestURI | qv)) "label" ($.T "tasks.newlist"))
      "views" (dict "path" (url "calendar.tasks") "view" .View "account" .GlobalData.URLAccount)) }}
 {{ end }}
 
 {{ define "before-main" }}
-    {{ template "next-form" (dict "id" "tasks-form" "next" $.GlobalData.URL.RequestURI) }}
-    {{ template "next-form" (dict "id" "refresh-form" "action" (url "calendar.tasks.refresh") "next" $.GlobalData.URL.RequestURI) }}
+    {{ template "pim-list-before" (dict "select" "tasks-form" "refresh" (url "calendar.tasks.refresh")) }}
 {{ end }}
 
 {{ define "main-class" }} class="task-list"{{ end }}
 
 {{ define "main" }}
         {{ template "toolbar-head" (dict "g" . "selectall" true "newhref" (url "calendar.task.create") "back" .GlobalData.URL.RequestURI "newlabel" ($.T "tasks.new")) }}
-          <span class="icon-group">
-            {{ template "action-icon" (dict "icon" "check" "label" ($.T "tasks.markcomplete") "priority" 12 "form" "tasks-form" "formaction" (url "calendar.tasks.complete")) }}
-            {{ template "action-icon" (dict "icon" "trash" "label" ($.T "common.delete") "class" "icon-danger" "form" "tasks-form" "formaction" (url "calendar.tasks.delete") "priority" 11) }}
-            {{ template "action-icon" (dict "icon" "download" "label" ($.T "common.download") "form" "tasks-form" "formaction" (url "calendar.tasks.export") "priority" 10 "download" true) }}
-          </span>
+          {{ template "pim-action-group" (tuple
+             (dict "icon" "check" "label" ($.T "tasks.markcomplete") "priority" 12 "form" "tasks-form" "formaction" (url "calendar.tasks.complete"))
+             (dict "icon" "trash" "label" ($.T "common.delete") "class" "icon-danger" "form" "tasks-form" "formaction" (url "calendar.tasks.delete") "priority" 11)
+             (dict "icon" "download" "label" ($.T "common.download") "form" "tasks-form" "formaction" (url "calendar.tasks.export") "priority" 10 "download" true)) }}
           {{ template "more-open" $ }}
               <button form="tasks-form" formaction="{{url "calendar.tasks.move"}}" formmethod="get">{{$.T "mailbox.moveto"}}</button>
               <button form="refresh-form" title="{{$.T "common.checkserverhint"}}">{{$.T "common.forcerefresh"}}</button>
           {{ template "more-close" }}
         {{ template "toolbar-end" }}
-            {{template "toolbar-search" (dict "query" .Query "placeholder" ($.T "tasks.searchph") "button" ($.T "mailbox.search") "disabled" (and (not .Tasks) (not .Query)))}}
-            {{ template "list-pager" (dict "g" $ "pager" .Pager) }}
-            {{ template "filter-menu" (dict "id" "menu-filter" "icon" "list-filter" "title" ($.T "filter.menu") "rows" .FilterRows "priority" 25 "class" "filter-overflow") }}
-            {{ template "sort-menu" (dict "g" $ "s" .Sorting "disabled" (not .Tasks) "wide" true "rows" (tuple
+            {{ template "pim-list-controls" (dict
+               "search" (dict "query" .Query "placeholder" ($.T "tasks.searchph") "button" ($.T "mailbox.search") "disabled" (and (not .Tasks) (not .Query)))
+               "pager" (dict "g" $ "pager" .Pager)
+               "filter" (dict "id" "menu-filter" "icon" "list-filter" "title" ($.T "filter.menu") "rows" .FilterRows "priority" 25 "class" "filter-overflow")
+               "sort" (dict "g" $ "s" .Sorting "disabled" (not .Tasks) "wide" true "rows" (tuple
                (tuple ($.T "sort.starred") "starred") (tuple ($.T "tasks.status") "status") (tuple ($.T "tasks.priority") "priority")
                (tuple ($.T "tasks.summary") "summary") (tuple ($.T "common.calendar") "calendar") (tuple ($.T "tasks.duedate") "due")
-               (tuple ($.T "common.added") "added"))) }}
+               (tuple ($.T "common.added") "added")))) }}
         {{ template "toolbar-foot" }}
 
-      {{ template "section-crumb" (dict "g" $ "section" ($.T "nav.tasks") "home" (url "calendar.tasks") "field" "cal" "items" .Calendars "collection" "" "path" "" "heading" true) }}
-
-      {{ template "filter-chips" (dict "filters" .Filters "remove" ($.T "filter.remove")) }}
+      {{ template "pim-list-head" (dict "crumb" (dict "g" $ "section" ($.T "nav.tasks") "home" (url "calendar.tasks") "field" "cal" "items" .Collections "collection" "" "path" "" "heading" true) "filters" (dict "filters" .Filters "remove" ($.T "filter.remove"))) }}
 
       {{ with .Quick }}
       <form method="post" action="{{url "calendar.task.create"}}" class="quick-add" hx-boost="false" data-tour="tasks">
-        <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}#quick-add">
+        {{ template "next-field" (printf "%s#quick-add" $.GlobalData.URL.RequestURI) }}
         <input type="hidden" name="quick" value="1">
         {{ $one := .Only }}
         {{ $list := .Name }}{{ if $.GlobalData.Unified }}{{ $list = printf "%s · %s" .Name ($.GlobalData.AccountLabel .Account) }}{{ end }}
@@ -55,19 +52,16 @@
       <section class="tasks">
         <div {{ template "task-grid" $ }}>
           {{if .Tasks}}
-          <div class="task-header-row list-row" role="row">
-            <div class="list-header list-checkbox" role="columnheader"></div>
-            {{ template "sort-col" (dict "s" .Sorting "key" "starred" "label" "★" "idle" "☆" "class" "flag-sort" "cell" "list-star" "hidden" ($.T "sort.starred")) }}
-            {{ template "sort-col" (dict "s" .Sorting "key" "status" "label" "✓" "class" "status-sort" "cell" "task-list-status" "hidden" ($.T "tasks.status")) }}
-            {{ template "sort-col" (dict "s" .Sorting "key" "summary" "label" ($.T "tasks.summary") "cell" "list-primary task-list-summary") }}
-            {{ template "sort-col" (dict "s" .Sorting "key" "calendar" "label" ($.T "common.calendar") "cell" "task-list-calendar") }}
-            {{ template "sort-col" (dict "s" .Sorting "key" "due" "label" ($.T "tasks.duedate") "cell" "task-list-due") }}
-            {{ template "sort-col" (dict "s" .Sorting "key" "added" "label" ($.T "common.added") "cell" "task-list-added") }}
-          </div>
+          {{ template "pim-list-sort-header" (dict "s" .Sorting "starred" ($.T "sort.starred") "class" "task-header-row" "columns" (tuple
+             (tuple "status" "✓" "task-list-status" ($.T "tasks.status") "status-sort")
+             (tuple "summary" ($.T "tasks.summary") "list-primary task-list-summary" "" "")
+             (tuple "calendar" ($.T "common.calendar") "task-list-calendar" "" "")
+             (tuple "due" ($.T "tasks.duedate") "task-list-due" "" "")
+             (tuple "added" ($.T "common.added") "task-list-added" "" ""))) }}
 
           {{ template "task-rows" $ }}
           {{else}}
-          <p class="empty-list">{{if .Query}}{{printf ($.T "common.noresults") .Query}}{{else}}{{$.T "tasks.empty"}}{{end}}</p>
+          {{ template "pim-list-empty" (dict "query" .Query "noresults" ($.T "common.noresults") "empty" ($.T "tasks.empty")) }}
           {{end}}
         </div>
       </section>

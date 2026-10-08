@@ -1,12 +1,8 @@
-{{ define "rail" }}
-  {{ template "dav-rail" (dict "g" $ "rail" .Rail) }}
-{{ end }}
-
 {{ define "main-class" }} class="create-update"{{ end }}
 
 {{ define "main" }}
       <form method="post">
-        <input type="hidden" name="next" value="{{.Next}}">
+        {{ template "next-field" .Next }}
         {{ template "section-crumb" (dict "g" $ "section" ($.T "nav.calendar") "home" (url "calendar.month") "field" "" "collection" "" "path" "" "chooses" (gt (len .Accounts) 1)) }}
         <h1>{{$.T "calendar.subscribe"}}</h1>
 

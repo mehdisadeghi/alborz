@@ -177,7 +177,7 @@ func TestAnArchiveImportsWhatItCan(t *testing.T) {
 
 	imap, dir := IMAP(t), t.TempDir()
 	a = Alborz(t, WithIMAP(imap), DataDir(dir))
-	encrypt(t, a.SignIn(t, User), Password)
+	encrypt(t, a.SignIn(t, User))
 	a.Close()
 	imap.SetPassword(User, "reset")
 	locked, _ := signInWith(t, Alborz(t, WithIMAP(imap), DataDir(dir)), "reset")

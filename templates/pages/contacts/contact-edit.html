@@ -1,10 +1,6 @@
-{{ define "rail" }}
-  {{ template "dav-rail" (dict "g" $ "rail" .Rail) }}
-{{ end }}
-
 {{ define "before-main" }}
-    {{ if and .AddressObject .Photo }}
-    {{ template "next-form" (dict "id" "photo-remove-form" "action" (printf "%s%s" (url "contacts.contact.photo.delete" .AddressObject.Path) .GlobalData.AccountQuery) "next" .GlobalData.URL.RequestURI) }}
+    {{ if and .Object .Photo }}
+    {{ template "next-form" (dict "id" "photo-remove-form" "action" (printf "%s%s" (url "contacts.contact.photo.delete" .Object.Path) .GlobalData.AccountQuery) "next" .GlobalData.URL.RequestURI) }}
     {{ end }}
 {{ end }}
 
@@ -13,8 +9,8 @@
 {{ define "main" }}
   {{ $acct := .GlobalData.AccountQuery }}
       <form method="post" enctype="multipart/form-data" hx-boost="false">
-        {{ template "object-form-head" (dict "g" $ "editing" .AddressObject "collection" .AddressBook "groups" .Groups "section" ($.T "nav.contacts") "home" (url "contacts.list") "field" "book"
-           "title" (or (and .AddressObject ($.T "contacts.edittitle")) ($.T "contacts.createtitle")) "name" "addressbook" "key" "contact") }}
+        {{ template "object-form-head" (dict "g" $ "editing" .Object "collection" .Collection "groups" .Groups "section" ($.T "nav.contacts") "home" (url "contacts.list") "field" "book"
+           "title" (or (and .Object ($.T "contacts.edittitle")) ($.T "contacts.createtitle")) "name" "addressbook" "key" "contact") }}
 
 
         <div class="field photo-field">

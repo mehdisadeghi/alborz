@@ -54,6 +54,14 @@ type FilterRenderData struct {
 	Account  string
 }
 
+func newFilterRenderData(ctx *web.Context, title, refused string) *FilterRenderData {
+	page := web.NewPageData(ctx, title, rail(ctx))
+	if refused != "" {
+		page.WithRefused(refused)
+	}
+	return &FilterRenderData{PageData: *page}
+}
+
 func registerRoutes(g *web.Group) {
 	requireAccount := func(h func(*web.Context) error) func(*web.Context) error {
 		return func(ctx *web.Context) error {
@@ -192,11 +200,8 @@ func filterData(ctx *web.Context, title string) (*FilterRenderData, error) {
 	if account == "" {
 		account = accounts[0].Username
 	}
-	data := &FilterRenderData{
-		PageData: *web.NewPageData(ctx, title, rail(ctx)),
-		Accounts: accounts,
-		Account:  account,
-	}
+	data := newFilterRenderData(ctx, title, "")
+	data.Accounts, data.Account = accounts, account
 	return data, nil
 }
 
@@ -249,12 +254,9 @@ func handleEditFilter(ctx *web.Context) error {
 		return err
 	}
 
-	return ctx.Render(http.StatusOK, "filters/filter-edit", &FilterRenderData{
-		PageData: *web.NewPageData(ctx, "", rail(ctx)),
-		Name:     name,
-		Content:  content,
-		Loaded:   filters.Fingerprint(content),
-	})
+	data := newFilterRenderData(ctx, "", "")
+	data.Name, data.Content, data.Loaded = name, content, filters.Fingerprint(content)
+	return ctx.Render(http.StatusOK, "filters/filter-edit", data)
 }
 
 func handleSaveFilter(ctx *web.Context) error {
@@ -301,11 +303,10 @@ func handleSaveFilter(ctx *web.Context) error {
 }
 
 func renderFilterRefusal(ctx *web.Context, status int, message, name, content, loaded string) error {
-	return ctx.Render(status, "filters/filter-edit", &FilterRenderData{
-		PageData: *web.NewPageData(ctx, "", rail(ctx)).WithRefused(message),
-		Name:     name, Content: content, Loaded: loaded,
-		Accounts: sieveAccounts(ctx), Account: ctx.FormValue("account"),
-	})
+	data := newFilterRenderData(ctx, "", message)
+	data.Name, data.Content, data.Loaded = name, content, loaded
+	data.Accounts, data.Account = sieveAccounts(ctx), ctx.FormValue("account")
+	return ctx.Render(status, "filters/filter-edit", data)
 }
 
 func handleActivateFilter(ctx *web.Context) error {

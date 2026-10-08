@@ -324,6 +324,16 @@ func parseUpstream(s string) (*url.URL, error) {
 	return url.Parse(s)
 }
 
+func hostWithDefaultPort(host string, secure bool, securePort, plainPort string) string {
+	if strings.ContainsRune(host, ':') {
+		return host
+	}
+	if secure {
+		return host + ":" + securePort
+	}
+	return host + ":" + plainPort
+}
+
 type NoUpstreamError struct {
 	schemes []string
 }
@@ -388,14 +398,7 @@ func (s *Server) parseIMAPUpstream(domain string) error {
 		d.imap.insecure = true
 	}
 
-	d.imap.host = u.Host
-	if !strings.ContainsRune(d.imap.host, ':') {
-		if u.Scheme == "imaps" {
-			d.imap.host += ":993"
-		} else {
-			d.imap.host += ":143"
-		}
-	}
+	d.imap.host = hostWithDefaultPort(u.Host, u.Scheme == "imaps", "993", "143")
 
 	if s.Options.Debug {
 		s.log.Printf("Domain %q: configured upstream IMAP server: %v", domain, u)
@@ -441,14 +444,7 @@ func (s *Server) parseSMTPUpstream(domain string) error {
 		d.smtp.insecure = true
 	}
 
-	d.smtp.host = u.Host
-	if !strings.ContainsRune(d.smtp.host, ':') {
-		if u.Scheme == "smtps" {
-			d.smtp.host += ":465"
-		} else {
-			d.smtp.host += ":587"
-		}
-	}
+	d.smtp.host = hostWithDefaultPort(u.Host, u.Scheme == "smtps", "465", "587")
 
 	if s.Options.Debug {
 		s.log.Printf("Domain %q: configured upstream SMTP server: %v", domain, u)

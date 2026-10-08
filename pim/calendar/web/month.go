@@ -24,7 +24,6 @@ type CalendarRenderData struct {
 	Dates              []time.Time
 	Events             []calendar.Object
 	Page               string
-	View               string
 	PrevPage, NextPage string
 	PrevTime, NextTime time.Time
 	// Scope is the account and calendars the page is narrowed to.
@@ -102,7 +101,6 @@ func (p *plugin) month(ctx *web.Context) error {
 		Dates:                  mv.dates,
 		Events:                 mv.events,
 		Page:                   mv.page,
-		View:                   mv.view,
 		PrevPage:               mv.prevPage,
 		NextPage:               mv.nextPage,
 		PrevTime:               mv.prevTime,

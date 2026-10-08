@@ -227,21 +227,22 @@ func (p *plugin) exportVisible(ctx *web.Context, kind func([]string) bool, chose
 			left = append(left, fmt.Errorf("%s: %w", r.Site.Collection.Name, err))
 		}
 	}
-	// A VCALENDAR holds one component at least (RFC 5545 3.6).
-	if len(children) == 0 && len(left) == 0 {
-		ctx.Notify(web.Notice{Kind: web.NoticeWarning, Text: ctx.T("calendar.noevents")})
+	redirectMonth := func() error {
 		page := *ctx.Request().URL
 		page.Path = ctx.Path("calendar.month")
 		return ctx.FoundRedirect(page.RequestURI())
+	}
+	// A VCALENDAR holds one component at least (RFC 5545 3.6).
+	if len(children) == 0 && len(left) == 0 {
+		ctx.Notify(web.Notice{Kind: web.NoticeWarning, Text: ctx.T("calendar.noevents")})
+		return redirectMonth()
 	}
 	body, err := calendar.Encode(children, left)
 	if err := pimweb.LeftOut(ctx, err); err != nil {
 		return err
 	}
 	if len(body) == 0 {
-		page := *ctx.Request().URL
-		page.Path = ctx.Path("calendar.month")
-		return ctx.FoundRedirect(page.RequestURI())
+		return redirectMonth()
 	}
 	return pimweb.Download(ctx, name+".ics", body)
 }

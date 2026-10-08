@@ -4,8 +4,7 @@
 {{ end }}
 
 {{ define "before-main" }}
-    {{ template "next-form" (dict "id" "events-form" "next" $.GlobalData.URL.RequestURI) }}
-    {{ template "next-form" (dict "id" "refresh-form" "action" (printf "%s%s" (url "calendar.refresh") $.GlobalData.AccountQuery) "next" $.GlobalData.URL.RequestURI) }}
+    {{ template "pim-list-before" (dict "select" "events-form" "refresh" (printf "%s%s" (url "calendar.refresh") $.GlobalData.AccountQuery)) }}
 {{ end }}
 
 

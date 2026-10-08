@@ -4851,23 +4851,29 @@ h1.no-word .title-short {
 
   .event-grid-grouped .event-row .event-time { grid-column: 2 / 4; }
 
-  .task-grid { display: block; }
+  .task-grid,
+  .journal-grid { display: block; }
 
-  .task-header-row { display: none; }
+  .task-header-row,
+  .journal-header-row { display: none; }
 
   /* As the event row: the due date spans the star's track instead of
      sizing it, so the summary ends on one edge in every row. */
-  .task-row {
+  .task-row,
+  .journal-row {
     display: grid;
-    grid-template-columns: auto 2rem minmax(0, 1fr) auto var(--control-height);
     grid-template-rows: auto auto;
     column-gap: var(--space-2);
     padding: var(--space-2);
     border-bottom: 1px solid var(--border-light);
   }
 
+  .task-row { grid-template-columns: auto 2rem minmax(0, 1fr) auto var(--control-height); }
+  .journal-row { grid-template-columns: auto minmax(0, 1fr) auto var(--control-height); }
+
   /* A box starting at the card's top edge would sit above the text it is for. */
-  .task-row .task-list-checkbox {
+  .task-row .task-list-checkbox,
+  .journal-row .journal-list-checkbox {
     grid-column: 1;
     grid-row: 1;
     align-self: center;
@@ -4880,12 +4886,15 @@ h1.no-word .title-short {
   }
 
 
-  .task-row .list-star {
+  .task-row .list-star,
+  .journal-row .list-star {
     grid-column: 5;
     grid-row: 1;
     justify-self: end;
     align-self: center;
   }
+
+  .journal-row .list-star { grid-column: 4; }
 
   /* At the card's end the chevron hangs inwards; past the end it widened the page. */
   .list-row .row-star .flag-split .flag-more.icon-button {
@@ -4896,7 +4905,6 @@ h1.no-word .title-short {
   .task-row .task-list-summary {
     grid-column: 3 / 5;
     grid-row: 1;
-    font-weight: 600;
   }
 
   .task-row .task-list-calendar {
@@ -4913,41 +4921,17 @@ h1.no-word .title-short {
     justify-self: end;
   }
 
-  .task-row .task-list-added { display: none; }
+  .task-row .task-list-added,
+  .journal-row .journal-list-added { display: none; }
 
-  .journal-grid { display: block; }
-
-  .journal-header-row { display: none; }
-
-  /* As the task row: the date spans the star's track instead of sizing
-     it, so the summary ends on one edge in every row. */
-  .journal-row {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto var(--control-height);
-    grid-template-rows: auto auto;
-    column-gap: var(--space-2);
-    padding: var(--space-2);
-    border-bottom: 1px solid var(--border-light);
-  }
-
-  .journal-row .journal-list-checkbox {
-    grid-column: 1;
-    grid-row: 1;
-    align-self: center;
-  }
-
-  .journal-row .list-star {
-    grid-column: 4;
-    grid-row: 1;
-    justify-self: end;
-    align-self: center;
-  }
-
+  /* As the task row, the date spans the star's track instead of sizing it. */
   .journal-row .journal-list-summary {
     grid-column: 2 / 4;
     grid-row: 1;
-    font-weight: 600;
   }
+
+  .task-row .task-list-summary,
+  .journal-row .journal-list-summary { font-weight: 600; }
 
   .journal-row .journal-list-calendar {
     display: flex;

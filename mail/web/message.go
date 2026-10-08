@@ -25,7 +25,6 @@ type MessageRenderData struct {
 	AsText         bool
 	View           interface{}
 	MailboxPage    int
-	Flags          map[imap.Flag]bool
 	ContextPending bool
 	ContextURL     template.URL
 
@@ -239,14 +238,6 @@ func (p *plugin) handleGetPart(ctx *web.Context) error {
 		}
 	}
 
-	flags := make(map[imap.Flag]bool)
-	for _, f := range shown.PermanentFlags {
-		if f == imap.FlagWildcard {
-			continue
-		}
-		flags[f] = msg.HasFlag(f)
-	}
-
 	ibase := assembleIMAPBase(ctx, web.NewBaseRenderData(ctx), mboxName, shown.Rail, railView)
 	ibase.SidebarAccounts = p.sidebarAccounts(ctx)
 	ibase.WithTitle(msg.Envelope.Subject).WithItem()
@@ -268,7 +259,6 @@ func (p *plugin) handleGetPart(ctx *web.Context) error {
 		AsText:             asText,
 		View:               view.Body,
 		MailboxPage:        int(*mbox.NumMessages-msg.SeqNum) / messagesPerPage,
-		Flags:              flags,
 		Neighbours:         nav,
 		Query:              query,
 		AuthResults:        shown.AuthResults,

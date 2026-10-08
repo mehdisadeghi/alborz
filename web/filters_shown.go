@@ -72,9 +72,6 @@ func pageHref(at *url.URL, n int) string {
 	if n > 0 {
 		q.Set("page", strconv.Itoa(n))
 	}
-	if len(q) == 0 {
-		return at.Path
-	}
 	return QueryPath(at.Path, q)
 }
 

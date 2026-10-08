@@ -185,10 +185,10 @@ func (p *plugin) handleGetPart(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	messagesPerPage := web.PerPage(ctx)
-
-	query := ctx.QueryParam("query")
-	railView, err := readView(ctx.QueryParams())
+	state := web.ReadListState(ctx)
+	messagesPerPage := state.PageSize(ctx)
+	query := state.Query
+	railView, err := readViewValue(state.View)
 	if err != nil {
 		return err
 	}
@@ -199,7 +199,7 @@ func (p *plugin) handleGetPart(ctx *web.Context) error {
 		Login: ctx.Login, Logins: ctx.Logins(), Settings: settings,
 		Mailbox: mboxName, UID: uid, Part: partPath, Named: ctx.QueryParam("part") != "",
 		List: mail.ListAsk{Page: alborz.Page{Size: messagesPerPage}, Query: query, View: railView,
-			Sort: ctx.QueryParam("sort"), Dir: ctx.QueryParam("dir")},
+			Sort: state.Sort, Dir: state.Direction},
 		PreferHTML: ctx.Reading().PreferHTML, Partial: ctx.Partial(), Merged: merged != nil,
 		MoneyWords: strings.Split(ctx.T("indicator.moneywords"), ","),
 	})

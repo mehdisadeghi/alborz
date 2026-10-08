@@ -55,8 +55,8 @@ type ContactList struct {
 }
 
 func (p *plugin) contactList(ctx *web.Context) (ContactList, error) {
-	queryText, query := pimweb.SearchQuery(ctx)
-	view := ctx.QueryParam("view")
+	state := web.ReadListState(ctx)
+	queryText, query, view := state.Query, state.ParsedQuery(), state.View
 	if !web.ValidStarView(view) {
 		return ContactList{}, web.NewError(http.StatusBadRequest, "no such view")
 	}
@@ -68,7 +68,7 @@ func (p *plugin) contactList(ctx *web.Context) (ContactList, error) {
 		return ContactList{}, err
 	}
 
-	sorting, err := pimweb.Sort(ctx, aos, contactColumns(addressBookInfos), cardTie, contactListParams...)
+	sorting, err := pimweb.SortList(ctx, state, aos, contactColumns(addressBookInfos), cardTie, contactListParams...)
 	if err != nil {
 		return ContactList{}, err
 	}

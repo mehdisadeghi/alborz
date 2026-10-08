@@ -73,7 +73,8 @@ func (p *plugin) handleMessageNavigation(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	view, err := readView(ctx.QueryParams())
+	state := web.ReadListState(ctx)
+	view, err := readViewValue(state.View)
 	if err != nil {
 		return err
 	}
@@ -83,14 +84,14 @@ func (p *plugin) handleMessageNavigation(ctx *web.Context) error {
 	}
 	sb = sb.Clone()
 	sb.Active = sb.Statuses[mailbox]
-	data := &MessageRenderData{Query: ctx.QueryParam("query")}
+	data := &MessageRenderData{Query: state.Query}
 	settings, err := mail.LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
 		return err
 	}
 	merged := mergedOrigin(ctx)
-	list := mail.ListAsk{Page: alborz.Page{Size: web.PerPage(ctx)}, Query: data.Query, View: view,
-		Sort: ctx.QueryParam("sort"), Dir: ctx.QueryParam("dir")}
+	list := mail.ListAsk{Page: alborz.Page{Size: state.PageSize(ctx)}, Query: data.Query, View: view,
+		Sort: state.Sort, Dir: state.Direction}
 	around, err := p.Around(ctx.Request().Context(), ctx.Login, settings, &sb, mailbox, uid, list, merged != nil)
 	if err != nil {
 		return err

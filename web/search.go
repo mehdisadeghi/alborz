@@ -88,8 +88,8 @@ func SearchRoutes(g *Group) {
 }
 
 func handleSearch(ctx *Context) error {
-	text := strings.TrimSpace(ctx.QueryParam("query"))
-	view := ctx.QueryParam("view")
+	state := ReadListState(ctx)
+	text, view := strings.TrimSpace(state.Query), state.View
 	if !ValidStarView(view) {
 		return NewError(http.StatusBadRequest, "no such view")
 	}
@@ -122,7 +122,7 @@ func handleSearch(ctx *Context) error {
 	}
 	if text != "" || view != "" {
 		var err error
-		if data.Blocks, err = ctx.searchSections(searchers, search.Parse(text), view, held, data.GlobalData); err != nil {
+		if data.Blocks, err = ctx.searchSections(searchers, state.ParsedQuery(), view, held, data.GlobalData); err != nil {
 			return err
 		}
 	}

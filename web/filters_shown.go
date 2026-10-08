@@ -3,7 +3,6 @@ package web
 import (
 	"errors"
 	"fmt"
-	"net/http"
 	"net/url"
 	"slices"
 	"sort"
@@ -99,11 +98,11 @@ func PerPageChoices(ctx *Context) []int {
 
 // PerPage is how many rows a page of a list holds, the reader's rather than the account's.
 func PerPage(ctx *Context) int {
-	return perPage(ctx, ctx.QueryParams())
+	return ReadListState(ctx).PageSize(ctx)
 }
 
-func perPage(ctx *Context, q url.Values) int {
-	if raw := q.Get("ipp"); raw != "" {
+func perPageValue(ctx *Context, raw string) int {
+	if raw != "" {
 		if n, err := locale.ReadInt(raw); err == nil &&
 			n > 0 && n <= MaxMessagesPerPage {
 			return n
@@ -122,15 +121,7 @@ func (ctx *Context) ListPage() (alborz.Page, error) {
 
 // ListPageAt is the page a list's address asks for, read as ListPage reads the request's.
 func (ctx *Context) ListPageAt(q url.Values) (alborz.Page, error) {
-	p := alborz.Page{Size: perPage(ctx, q)}
-	if raw := q.Get("page"); raw != "" {
-		n, err := locale.ReadInt(raw)
-		if err != nil || n < 0 {
-			return p, NewError(http.StatusBadRequest, "invalid page index")
-		}
-		p.Number = n
-	}
-	return p, nil
+	return ListStateFrom(q).Page(ctx)
 }
 
 // Pager is where one page lies in its list, and the addresses of the pages beside it.

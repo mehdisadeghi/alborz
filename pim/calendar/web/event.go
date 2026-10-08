@@ -114,8 +114,8 @@ func (p *plugin) eventItems(ctx *web.Context) ([]pimweb.Item, error) {
 		shown = mv.shown()
 	// A list with no month is a search across all time.
 	case ctx.QueryParam("query") != "" || ctx.QueryParam("view") != "":
-		_, query := pimweb.SearchQuery(ctx)
-		found, err := p.eventSearch(ctx, pimweb.Only(ctx, "cal"), ctx.QueryParam("view"), query)
+		state := web.ReadListState(ctx)
+		found, err := p.eventSearch(ctx, pimweb.Only(ctx, "cal"), state.View, state.ParsedQuery())
 		if err != nil {
 			return nil, err
 		}

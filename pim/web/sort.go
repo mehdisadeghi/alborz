@@ -21,7 +21,13 @@ var sortDrops = []string{"sort", "dir", "page"}
 
 // Sort orders rows as the URL asks, by the first column by default; tie breaks equal rows.
 func Sort[T any](ctx *web.Context, rows []T, columns []pim.Column[T], tie func(T) string, keep ...string) (Sorting, error) {
-	key, dir := ctx.QueryParam("sort"), ctx.QueryParam("dir")
+	return SortList(ctx, web.ReadListState(ctx), rows, columns, tie, keep...)
+}
+
+// SortList applies the shared list state to section columns and preserves the
+// same order contract for each section's projection.
+func SortList[T any](ctx *web.Context, state web.ListState, rows []T, columns []pim.Column[T], tie func(T) string, keep ...string) (Sorting, error) {
+	key, dir := state.Sort, state.Direction
 	s := Sorting{Key: key, Dir: dir, Explicit: key != "", DirExplicit: dir != "", Reset: "?"}
 	if key == "" {
 		s.Key = columns[0].Key
@@ -33,7 +39,7 @@ func Sort[T any](ctx *web.Context, rows []T, columns []pim.Column[T], tie func(T
 	if dir != "" && dir != "asc" && dir != "desc" {
 		return s, web.NewError(http.StatusBadRequest, "invalid sort direction")
 	}
-	kept := Keep(ctx.QueryParams(), keep...)
+	kept := state.Keep(keep...)
 	for _, k := range sortDrops {
 		kept.Del(k)
 	}

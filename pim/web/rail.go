@@ -16,6 +16,14 @@ type ObjectRenderData struct {
 	Neighbours rootweb.Neighbours
 }
 
+// NewObjectRenderData builds the common frame shared by every individual PIM object page.
+func NewObjectRenderData(ctx *rootweb.Context, title string, rail Rail, collection *dav.Collection, authors dav.Authors, list, star string, neighbours rootweb.Neighbours) ObjectRenderData {
+	return ObjectRenderData{
+		PageData: *rootweb.NewPageData(ctx, title, rail).WithItem(), Collection: collection,
+		Authors: authors, List: list, Star: star, Neighbours: neighbours,
+	}
+}
+
 // ListRenderData is the shared frame for every collection-backed list page.
 // Sections add only their rows and section-specific filters around this frame.
 type ListRenderData struct {

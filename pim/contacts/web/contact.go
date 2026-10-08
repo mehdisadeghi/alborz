@@ -123,12 +123,10 @@ func (p *plugin) contact(ctx *web.Context) error {
 	// A birthday with no date stays zero and is shown as written.
 	birthday, _ := ao.Card.Birthday()
 	return ctx.Render(http.StatusOK, "contacts/contact", &AddressObjectRenderData{
-		Authors:       p.DAV.Authors(object.Path, ctx.Login.Username()),
+		ObjectRenderData: pimweb.NewObjectRenderData(ctx, contacts.AddressObject{AddressObject: ao}.DisplayName(), rail, addressBook,
+			p.DAV.Authors(object.Path, ctx.Login.Username()), cmp.Or(ctx.From(), pimweb.ListURL(ctx.Path("contacts.list"), pimweb.ListParams(ctx, contactListParams...))), "", web.Neighbours{}),
 		In:            in,
 		Groups:        rest,
-		List:          cmp.Or(ctx.From(), pimweb.ListURL(ctx.Path("contacts.list"), pimweb.ListParams(ctx, contactListParams...))),
-		PageData:      *web.NewPageData(ctx, contacts.AddressObject{AddressObject: ao}.DisplayName(), rail).WithItem(),
-		Collection:    addressBook,
 		AddressObject: contacts.AddressObject{AddressObject: ao},
 		Birthday:      contacts.Birthday(ao.Card),
 		BirthdayDate:  birthday,

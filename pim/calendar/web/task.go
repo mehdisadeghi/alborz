@@ -51,14 +51,11 @@ func (p *plugin) task(ctx *web.Context) error {
 		return err
 	}
 	return ctx.Render(http.StatusOK, "tasks/task", &TaskRenderData{
-		PageData:   *web.NewPageData(ctx, summary, rail).WithItem(),
-		Collection: e.collection,
-		Task:       calendar.TaskObject{CalendarObject: task},
-		List:       cmp.Or(ctx.From(), pimweb.ListURL(ctx.Path("calendar.tasks"), pimweb.ListParams(ctx, taskListParams...))),
-		Star:       calendar.ComponentColor(todo),
-		Priority:   calendar.PriorityBand(todo),
-		Neighbours: pimweb.Around(list.Items, path),
-		Authors:    p.DAV.Authors(task.Path, ctx.Login.Username()),
+		CalendarObjectRenderData: pimweb.NewObjectRenderData(ctx, summary, rail, e.collection,
+			p.DAV.Authors(task.Path, ctx.Login.Username()), cmp.Or(ctx.From(), pimweb.ListURL(ctx.Path("calendar.tasks"), pimweb.ListParams(ctx, taskListParams...))), calendar.ComponentColor(todo), pimweb.Around(list.Items, path)),
+		Task:     calendar.TaskObject{CalendarObject: task},
+		Star:     calendar.ComponentColor(todo),
+		Priority: calendar.PriorityBand(todo),
 	})
 }
 func (p *plugin) updateTask(ctx *web.Context) error {

@@ -29,7 +29,6 @@ type AddressObjectRenderData struct {
 	AddressObject contacts.AddressObject
 	Birthday      string
 	BirthdayDate  time.Time
-	Neighbours    web.Neighbours
 	// In are the groups naming this contact, Groups the others.
 	In     []contacts.AddressObject
 	Groups []contacts.AddressObject
@@ -127,7 +126,6 @@ func (p *plugin) contact(ctx *web.Context) error {
 		Authors:       p.DAV.Authors(object.Path, ctx.Login.Username()),
 		In:            in,
 		Groups:        rest,
-		Neighbours:    pimweb.Around(list.Items, path),
 		List:          cmp.Or(ctx.From(), pimweb.ListURL(ctx.Path("contacts.list"), pimweb.ListParams(ctx, contactListParams...))),
 		PageData:      *web.NewPageData(ctx, contacts.AddressObject{AddressObject: ao}.DisplayName(), rail).WithItem(),
 		Collection:    addressBook,

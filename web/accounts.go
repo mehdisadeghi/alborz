@@ -357,10 +357,7 @@ func Scoped(h HandlerFunc) HandlerFunc {
 
 // AccountQuery is the query naming an account, empty for none.
 func AccountQuery(address string) string {
-	if address == "" {
-		return ""
-	}
-	return "?account=" + QueryValue(address)
+	return string(AccountParam("?", address))
 }
 
 // AccountURL appends an explicit account to a route, preserving existing query values.

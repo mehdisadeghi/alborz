@@ -691,6 +691,7 @@ func (pg Page) HandleImportPage(p *dav.Provider, list, section, title, hint, key
 			data.Refused(err.Error())
 			return ctx.Render(http.StatusUnprocessableEntity, "pim/import", data)
 		}
+		redirectList := func() error { return ctx.FoundRedirect(ctx.URL(list)) }
 		if place, isNew := strings.CutPrefix(collPath, newPrefix); isNew || len(files) > 1 {
 			if err := pg.importMany(ctx, ctx.Path(list), files, place, isNew, collPath); pim.ImportAnswered(err) {
 				data.Refused(ImportRefusal(ctx, err))
@@ -698,7 +699,7 @@ func (pg Page) HandleImportPage(p *dav.Provider, list, section, title, hint, key
 			} else if err != nil {
 				return err
 			}
-			return ctx.FoundRedirect(ctx.URL(list))
+			return redirectList()
 		}
 		if err := pg.importRaw(ctx, collPath, raw); pim.ImportAnswered(err) {
 			// A file that is not what it claims answers on the form, where another can be picked.
@@ -707,7 +708,7 @@ func (pg Page) HandleImportPage(p *dav.Provider, list, section, title, hint, key
 		} else if err != nil {
 			return err
 		}
-		return ctx.FoundRedirect(ctx.URL(list))
+		return redirectList()
 	}
 	return page, over
 }

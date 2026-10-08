@@ -5,22 +5,23 @@
 {{ with .part }}{{ template "hidden-field" (dict "name" "part" "value" .) }}{{ end }}
 {{ with .next }}{{ template "next-field" . }}{{ end }}
 {{ end }}
-{{/* dict: g row merged. */}}
-{{ define "message-link" }}
-{{ $g := .g }}{{ $r := .row }}
-{{ if .merged }}
-  {{ $link := url "mail.message" $r.Mailbox $r.UID }}{{ $sep := "?" }}
-  {{ with $r.Account }}{{ $link = printf "%s%saccount=%s" $link $sep (. | qv) }}{{ $sep = "&" }}{{ end }}
-  {{ with $g.ListView }}{{ $link = printf "%s%sview=%s" $link $sep . }}{{ $sep = "&" }}{{ end }}{{ with $g.Query }}{{ $link = printf "%s%squery=%s" $link $sep (. | qv) }}{{ $sep = "&" }}{{ end }}
-  {{ with $g.Sort }}{{ $link = printf "%s%ssort=%s&dir=%s" $link $sep . $g.SortDir }}{{ $sep = "&" }}{{ end }}
-  {{ localhref (from $link $g.GlobalData.URL.RequestURI) }}
-{{ else }}
-  {{ $link := "" }}{{ $sep := "?" }}{{ with .open }}{{ $link = printf "%s%s" (url "mail.message" $r.Mailbox $r.UID) (partquery . "") }}{{ $sep = "&" }}{{ else }}{{ $link = url "mail.message" $r.Mailbox $r.UID }}{{ end }}
-  {{ with $g.ListView }}{{ $link = printf "%s%sview=%s" $link $sep . }}{{ $sep = "&" }}{{ end }}{{ with $g.Query }}{{ $link = printf "%s%squery=%s" $link $sep (. | qv) }}{{ $sep = "&" }}{{ end }}
-  {{ with $g.Sort }}{{ $link = printf "%s%ssort=%s&dir=%s" $link $sep . $g.SortDir }}{{ $sep = "&" }}{{ end }}{{ with $g.GlobalData.URLAccount }}{{ $link = printf "%s%saccount=%s" $link $sep (. | qv) }}{{ end }}
-  {{ localhref (from $link $g.GlobalData.URL.RequestURI) }}
-{{ end }}
-{{ end }}
+{{/* dict: base g account [part] [queryFirst accountFirst withSort from]. */}}
+{{ define "mail-list-url" -}}
+  {{- $link := .base }}{{ $sep := "?" -}}
+  {{- with .part }}{{ $link = printf "%s%s" $link (partquery . "") }}{{ $sep = "&" }}{{ end -}}
+  {{- if .accountFirst }}{{ with .account }}{{ $link = printf "%s%saccount=%s" $link $sep (. | qv) }}{{ $sep = "&" }}{{ end }}{{ end -}}
+  {{- if .queryFirst }}{{ with .g.Query }}{{ $link = printf "%s%squery=%s" $link $sep (. | qv) }}{{ $sep = "&" }}{{ else }}{{ with .g.ListView }}{{ $link = printf "%s%sview=%s" $link $sep . }}{{ $sep = "&" }}{{ end }}{{ end -}}
+  {{- else }}{{ with .g.ListView }}{{ $link = printf "%s%sview=%s" $link $sep . }}{{ $sep = "&" }}{{ end }}{{ with .g.Query }}{{ $link = printf "%s%squery=%s" $link $sep (. | qv) }}{{ $sep = "&" }}{{ end }}{{ end -}}
+  {{- if .withSort }}{{ with .g.Sort }}{{ $link = printf "%s%ssort=%s&dir=%s" $link $sep . $.g.SortDir }}{{ $sep = "&" }}{{ end }}{{ end -}}
+  {{- if not .accountFirst }}{{ with .account }}{{ $link = printf "%s%saccount=%s" $link $sep (. | qv) }}{{ end }}{{ end -}}
+  {{- if .from }}{{ localhref (from $link .g.GlobalData.URL.RequestURI) }}{{ else }}{{ localhref $link }}{{ end -}}
+{{- end }}
+{{/* dict: g row merged open. */}}
+{{ define "message-link" -}}
+  {{- $g := .g }}{{ $r := .row -}}
+  {{- if .merged }}{{ template "mail-list-url" (dict "base" (url "mail.message" $r.Mailbox $r.UID) "g" $g "account" $r.Account "accountFirst" true "withSort" true "from" true) }}
+  {{- else }}{{ template "mail-list-url" (dict "base" (url "mail.message" $r.Mailbox $r.UID) "g" $g "account" $g.GlobalData.URLAccount "part" .open "withSort" true "from" true) }}{{ end -}}
+{{- end }}
 
 {{/* dict: g action groups name label button mailbox uid part next. */}}
 {{ define "attachment-import" }}

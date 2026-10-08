@@ -16,9 +16,7 @@
         </div>
         <div class="actions">
           <button type="submit" class="button-primary"{{ if eq .Count 0 }} disabled{{ end }}>{{$.T "folder.exportdo"}}</button>
-          {{/* Built in one piece: the escaper cannot follow a URL whose query grows across branches. */}}
-          {{ $back := url "mail.mailbox" .Mailbox.Name }}{{ $sep := "?" }}{{ with .Query }}{{ $back = printf "%s?query=%s" $back (. | qv) }}{{ $sep = "&" }}{{ else }}{{ with .ListView }}{{ $back = printf "%s?view=%s" $back . }}{{ $sep = "&" }}{{ end }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $back = printf "%s%saccount=%s" $back $sep (. | qv) }}{{ end }}
-          <a class="button-link button-quiet" href="{{ localhref $back }}">{{$.T "common.cancel"}}</a>
+          <a class="button-link button-quiet" href="{{ template "mail-list-url" (dict "base" (url "mail.mailbox" .Mailbox.Name) "g" $ "account" $.GlobalData.URLAccount "queryFirst" true) }}">{{$.T "common.cancel"}}</a>
         </div>
       </form>
 {{ end }}

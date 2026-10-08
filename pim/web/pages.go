@@ -819,17 +819,18 @@ func (pg Page) HandleDelete(p *dav.Provider) func(*web.Context) error {
 		if err != nil {
 			return err
 		}
+		back := func() error { return ctx.FoundRedirect(pg.pageOf(ctx, collPath)) }
 		if err := c.RemoveAll(rc, collPath); err != nil {
 			ctx.Notify(web.Notice{Kind: web.NoticeFailed,
 				Text: fmt.Sprintf(ctx.T("notice.collectiondeletefailed"), info.Name)})
-			return ctx.FoundRedirect(pg.pageOf(ctx, collPath))
+			return back()
 		}
 		pg.Forget(ctx.Login.Username())
 		// A 2xx is not taken as proof; listing again shows what the reader will see.
 		if _, _, _, _, err := pg.Lookup(ctx, collPath); err == nil {
 			ctx.Notify(web.Notice{Kind: web.NoticeFailed,
 				Text: fmt.Sprintf(ctx.T("notice.collectionnotdeleted"), info.Name)})
-			return ctx.FoundRedirect(pg.pageOf(ctx, collPath))
+			return back()
 		}
 		done := "notice.collectiondeleted"
 		if info.SharedBy != "" {

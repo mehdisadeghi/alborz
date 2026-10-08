@@ -1,3 +1,12 @@
+{{/* dict: mailbox uid [part next]. Import forms carry the same message identity. */}}
+{{ define "message-source-fields" }}
+{{ template "hidden-field" (dict "name" "mbox" "value" .mailbox) }}
+{{ template "hidden-field" (dict "name" "uid" "value" .uid) }}
+{{ with .part }}{{ template "hidden-field" (dict "name" "part" "value" .) }}{{ end }}
+{{ with .next }}{{ template "next-field" . }}{{ end }}
+{{ end }}
+{{ define "message-uids" }}{{ template "hidden-field" (dict "name" "uids" "value" .) }}{{ end }}
+
 {{ define "message-navigation" }}
 {{ $load := "" }}{{ if .ContextPending }}{{ $load = .ContextURL }}{{ end }}
 {{ template "object-nav" (dict "g" . "n" .Neighbours "id" "message-navigation" "load" $load) }}
@@ -28,3 +37,4 @@
 <span class="sig sig-bad" title="{{$.T .Signature.Reason}}">{{$.T "pgp.bad"}}</span>
 {{ end }}
 {{ end }}
+{{ define "message-action-fields" }}{{ template "message-uids" .uid }}{{ with .next }}{{ template "next-field" . }}{{ end }}{{ end }}

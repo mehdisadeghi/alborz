@@ -4,10 +4,7 @@
 {
 	const form = document.getElementById("push-form");
 	const says = document.getElementById("script-failed");
-	const fail = text => {
-		says.querySelector(".notice-text").textContent = text;
-		says.show();
-	};
+	const fail = text => showScriptFailure(text);
 	const toBuffer = text => Uint8Array.from(atob(text.replace(/-/g, "+").replace(/_/g, "/")), c => c.charCodeAt(0));
 	form.addEventListener("submit", async event => {
 		if (form.elements.endpoint.value) {

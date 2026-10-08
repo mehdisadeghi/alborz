@@ -21,10 +21,10 @@ type feed struct {
 	*httptest.Server
 }
 
-func startFeed(t *testing.T, summary string) *feed {
+func startFeed(t *testing.T) *feed {
 	t.Helper()
 	f := &feed{}
-	f.summary.Store(summary)
+	f.summary.Store("Feast")
 	f.Server = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		f.hits.Add(1)
 		if f.down.Load() {
@@ -97,7 +97,7 @@ func events(t *testing.T, a *App, c *Client) []string {
 
 // A subscription is a calendar kept here, so a phone sees it as one and cannot write to it.
 func TestASubscriptionIsAReadOnlyCalendar(t *testing.T) {
-	f := startFeed(t, "Feast")
+	f := startFeed(t)
 	a, c := subscriber(t, f.Server)
 	path := subscribe(t, c, f.URL+"/f.ics")
 	home := Here + CalendarsOf(User)
@@ -137,7 +137,7 @@ func TestASubscriptionIsAReadOnlyCalendar(t *testing.T) {
 // A feed's address may carry a secret, so a guest of a shared subscription reads its events but never the
 // address, over DAV or on a page; the owner's page still names it.
 func TestASharedSubscriptionKeepsItsFeedFromTheGuest(t *testing.T) {
-	f := startFeed(t, "Feast")
+	f := startFeed(t)
 	a, owner := subscriber(t, f.Server)
 	path := subscribe(t, owner, f.URL+"/f.ics")
 	if resp := owner.Post(t, "calendar.collection.share", url.Values{"to": {User2}, "access": {"read"}}, path); resp.StatusCode != http.StatusFound {
@@ -177,7 +177,7 @@ func TestASharedSubscriptionKeepsItsFeedFromTheGuest(t *testing.T) {
 // Refreshing replaces what the feed dropped, keeps the copy while it is down, and unsubscribing takes both
 // the calendar and the account's entry, so the feed can be followed afresh.
 func TestASubscriptionFollowsItsFeed(t *testing.T) {
-	f := startFeed(t, "Feast")
+	f := startFeed(t)
 	a, c := subscriber(t, f.Server)
 	path := subscribe(t, c, f.URL+"/f.ics")
 
@@ -214,7 +214,7 @@ func TestASubscriptionFollowsItsFeed(t *testing.T) {
 
 // A phone deleting the calendar is the reader unsubscribing: the next page does not make it again.
 func TestAPhoneDeletingASubscriptionUnsubscribes(t *testing.T) {
-	f := startFeed(t, "Feast")
+	f := startFeed(t)
 	a, c := subscriber(t, f.Server)
 	path := subscribe(t, c, f.URL+"/f.ics")
 	if resp := a.DAV(t, http.MethodDelete, strings.TrimPrefix(path, Here), nil, ""); resp.StatusCode != http.StatusNoContent {
@@ -243,11 +243,11 @@ func followers(t *testing.T, f *feed) (first, second *Client, path string) {
 }
 
 func TestAnotherAlborzFollowsTheSameList(t *testing.T) {
-	followers(t, startFeed(t, "Feast"))
+	followers(t, startFeed(t))
 }
 
 func TestARenameTravels(t *testing.T) {
-	first, second, path := followers(t, startFeed(t, "Feast"))
+	first, second, path := followers(t, startFeed(t))
 	resp := first.Post(t, "calendar.collection", url.Values{"name": {"Feasts"}, "color": {"#654321"}}, path)
 	if resp.StatusCode != http.StatusFound {
 		t.Fatalf("renaming answered %s", resp.Status)
@@ -260,7 +260,7 @@ func TestARenameTravels(t *testing.T) {
 }
 
 func TestAnUnsubscribeTravels(t *testing.T) {
-	first, second, path := followers(t, startFeed(t, "Feast"))
+	first, second, path := followers(t, startFeed(t))
 	resp := first.Post(t, "calendar.collection.delete", url.Values{}, path)
 	if resp.StatusCode != http.StatusFound {
 		t.Fatalf("unsubscribing answered %s", resp.Status)

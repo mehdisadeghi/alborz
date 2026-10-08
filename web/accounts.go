@@ -100,16 +100,21 @@ func Query(q url.Values) string {
 	return b.String()
 }
 
-// AccountPath appends the request's account parameter to path.
-func (ctx *Context) AccountPath(path string) string {
-	if ctx.urlAccount == "" {
+// QueryPath appends encoded query values to a path, preserving an existing query.
+func QueryPath(path string, q url.Values) string {
+	if len(q) == 0 {
 		return path
 	}
 	sep := "?"
 	if strings.Contains(path, "?") {
 		sep = "&"
 	}
-	return path + sep + "account=" + QueryValue(ctx.urlAccount)
+	return path + sep + Query(q)
+}
+
+// AccountPath appends the request's account parameter to path.
+func (ctx *Context) AccountPath(path string) string {
+	return AccountURL(path, ctx.urlAccount)
 }
 
 // NextOr returns the local page the form asked to return to, or fallback.
@@ -344,7 +349,7 @@ func (ctx *Context) RestoreRememberedAccounts() bool {
 func Scoped(h HandlerFunc) HandlerFunc {
 	return func(ctx *Context) error {
 		if ctx.Unified && ctx.Request().Method == http.MethodGet {
-			return ctx.Redirect(http.StatusFound, ctx.Request().URL.Path+AccountQuery(ctx.Login.Username()))
+			return ctx.FoundRedirect(ctx.Request().URL.Path + AccountQuery(ctx.Login.Username()))
 		}
 		return h(ctx)
 	}
@@ -356,4 +361,12 @@ func AccountQuery(address string) string {
 		return ""
 	}
 	return "?account=" + QueryValue(address)
+}
+
+// AccountURL appends an explicit account to a route, preserving existing query values.
+func AccountURL(path, address string) string {
+	if address == "" {
+		return path
+	}
+	return QueryPath(path, url.Values{"account": {address}})
 }

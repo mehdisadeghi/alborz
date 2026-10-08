@@ -14,45 +14,30 @@ import (
 )
 
 type CalendarRenderData struct {
-	web.BaseRenderData
-	Time time.Time
-	Now  time.Time
+	CalendarPageRenderData
+	Now time.Time
 	// Since is the first day the agenda lists: today in the current month, else the first.
 	Since time.Time
 	// Span is "month" when the agenda was asked for the whole month.
 	Span               string
 	ThisMonth          bool
 	Dates              []time.Time
-	Calendars          []dav.Collection
 	Events             []calendar.Object
 	Page               string
 	View               string
 	PrevPage, NextPage string
 	PrevTime, NextTime time.Time
-	// ListQuery is carried to an event's page so it can name its neighbours.
-	ListQuery string
 	// Scope is the account and calendars the page is narrowed to.
 	Scope string
-	// SelectForm is the form a row's checkbox belongs to; empty where rows offer none.
-	SelectForm string
 
 	EventsForDate func(time.Time) []calendar.Occurrence
-	// CollectionFor is a row's calendar, CollectionHref the agenda narrowed to it.
-	CollectionFor  func(account, path string) dav.Collection
-	CollectionHref func(account, path string) string
-	// AddedBy names who added an event, where not the row's own account.
-	AddedBy func(account, path string) string
 	// StarView is the star the agenda is narrowed to.
 	StarView string
-	Filters  []web.Filter
 	// FilterRows and GroupRows are the agenda's filter and sort menus.
-	FilterRows []web.FilterRow
-	GroupRows  []web.FilterRow
+	GroupRows []web.FilterRow
 	// Group is "day" when the agenda is banded by day, else empty.
 	Group string
 	Sub   func(a, b int) int
-
-	Invitations *pimweb.RailInvitations
 }
 
 type monthView struct {
@@ -104,55 +89,41 @@ func (p *plugin) month(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
+	selectForm := ""
+	if mv.view != "" {
+		selectForm = "events-form"
+	}
 	return ctx.Render(http.StatusOK, template, &CalendarRenderData{
-		BaseRenderData: *web.NewBaseRenderData(ctx).
-			WithTitle(ctx.T("nav.calendar") + ": " + ctx.Dates().MonthYear(mv.start)),
-		Time:      mv.start,
-		Now:       mv.now,
-		Since:     mv.since,
-		Span:      mv.span,
-		ThisMonth: mv.thisMonth,
-		Calendars: mv.calendars,
-		Dates:     mv.dates,
-		Events:    mv.events,
-		Page:      mv.page,
-		View:      mv.view,
-		PrevPage:  mv.prevPage,
-		NextPage:  mv.nextPage,
-		PrevTime:  mv.prevTime,
-		NextTime:  mv.nextTime,
-		ListQuery: monthQuery(ctx, mv),
-		Scope:     web.Query(pimweb.ListParams(ctx, "account", "cal")),
-		SelectForm: func() string {
-			if mv.view != "" {
-				return "events-form"
-			}
-			return ""
-		}(),
+		CalendarPageRenderData: calendarPageData(ctx, ctx.T("nav.calendar")+": "+ctx.Dates().MonthYear(mv.start), mv.calendars, pimweb.NewCollectionLabels(p.DAV, ctx.Login.Username(), collection, href), mv.view, "", calendarFilters(ctx), agendaRows(ctx, mv), selectForm, invitations, monthQuery(ctx, mv), mv.start),
+		Now:                    mv.now,
+		Since:                  mv.since,
+		Span:                   mv.span,
+		ThisMonth:              mv.thisMonth,
+		Dates:                  mv.dates,
+		Events:                 mv.events,
+		Page:                   mv.page,
+		View:                   mv.view,
+		PrevPage:               mv.prevPage,
+		NextPage:               mv.nextPage,
+		PrevTime:               mv.prevTime,
+		NextTime:               mv.nextTime,
+		Scope:                  web.Query(pimweb.ListParams(ctx, "account", "cal")),
 		StarView: func() string {
 			if mv.view == "list" {
 				return ""
 			}
 			return mv.view
 		}(),
-		Filters:    calendarFilters(ctx),
-		FilterRows: agendaRows(ctx, mv),
-		GroupRows:  groupRows(ctx, mv),
-		Group:      mv.group,
+		GroupRows: groupRows(ctx, mv),
+		Group:     mv.group,
 
 		EventsForDate: func(when time.Time) []calendar.Occurrence {
 			return mv.on[mv.day(when)]
 		},
 
-		AddedBy:        p.DAV.AddedBy(ctx.Login.Username()),
-		CollectionFor:  collection,
-		CollectionHref: href,
-
 		Sub: func(a, b int) int {
 			return a - b
 		},
-
-		Invitations: invitations,
 	})
 }
 
@@ -175,7 +146,7 @@ func (p *plugin) monthView(ctx *web.Context) (monthView, error) {
 
 	// A star view narrows the agenda; a grid cannot be narrowed and stay a month.
 	view := ctx.QueryParam("view")
-	if view != "list" && !validStarView(view) {
+	if view != "list" && !web.ValidStarView(view) {
 		return monthView{}, web.NewError(http.StatusBadRequest, "invalid view")
 	}
 
@@ -241,14 +212,13 @@ func (p *plugin) monthView(ctx *web.Context) (monthView, error) {
 	}
 	gridEnd := gridStart.AddDate(0, 0, rows*7)
 	eventMap := make(map[time.Time][]calendar.Occurrence)
-	for _, ev := range events {
-		occurrences, err := calendar.Occurrences(ev, loc, queryStart, queryEnd)
-		if err != nil {
-			unread = append(unread, pim.Unread{Collection: ev.Calendar, Err: err})
-		}
-		for _, oc := range occurrences {
+	unread = append(unread, eachOccurrence(events,
+		func(ev calendar.Object) ([]calendar.Occurrence, error) {
+			return calendar.Occurrences(ev, loc, queryStart, queryEnd)
+		},
+		func(oc calendar.Occurrence) {
 			if view != "list" && !web.StarMatches(oc.Star(), view) {
-				continue
+				return
 			}
 			var first, last time.Time
 			if oc.AllDay() {
@@ -271,8 +241,7 @@ func (p *plugin) monthView(ctx *web.Context) (monthView, error) {
 			for d := first; !d.After(last) && d.Before(gridEnd); d = d.AddDate(0, 0, 1) {
 				eventMap[d] = append(eventMap[d], oc)
 			}
-		}
-	}
+		})...)
 
 	for _, evs := range eventMap {
 		sort.Slice(evs, func(i, j int) bool {

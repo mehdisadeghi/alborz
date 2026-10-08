@@ -93,10 +93,10 @@ func Pooled[C any](ctx *web.Context, p *dav.Provider, load func(context.Context,
 	ctx.Unreachable(down)
 	for _, username := range slices.Sorted(maps.Keys(answered)) {
 		code := answered[username]
-		key, action := "notice.davanswered", &web.NoticeAction{Label: ctx.T("settings.account"), Path: ctx.Path("mail.account") + "?account=" + web.QueryValue(username)}
+		key, action := "notice.davanswered", &web.NoticeAction{Label: ctx.T("settings.account"), Path: web.AccountURL(ctx.Path("mail.account"), username)}
 		// A 403 stays a permission answer, with the way to the password beside it.
 		if code == http.StatusForbidden {
-			key, action = "notice.davforbidden", &web.NoticeAction{Label: ctx.T("servers.dav"), Path: ctx.Path("pim.server") + "?account=" + web.QueryValue(username)}
+			key, action = "notice.davforbidden", &web.NoticeAction{Label: ctx.T("servers.dav"), Path: web.AccountURL(ctx.Path("pim.server"), username)}
 		}
 		ctx.Notify(web.Notice{Kind: web.NoticeWarning,
 			Text:    fmt.Sprintf(ctx.T(key), username, fmt.Sprintf("%d %s", code, http.StatusText(code))),
@@ -106,7 +106,7 @@ func Pooled[C any](ctx *web.Context, p *dav.Provider, load func(context.Context,
 	if len(refused) > 0 {
 		ctx.Notify(web.Notice{Kind: web.NoticeWarning,
 			Text:    ctx.Tf("notice.davrefused", len(refused), strings.Join(refused, ", ")),
-			Actions: []*web.NoticeAction{{Label: ctx.T("servers.dav"), Path: ctx.Path("pim.server") + "?account=" + web.QueryValue(refused[0])}}})
+			Actions: []*web.NoticeAction{{Label: ctx.T("servers.dav"), Path: web.AccountURL(ctx.Path("pim.server"), refused[0])}}})
 	}
 	return accounts, nil
 }
@@ -141,12 +141,10 @@ func HandleChoose(p *dav.Provider, list, field string, keep func(ctx context.Con
 			err = keep(ctx.Request().Context(), ctx.Login, all, params["shown"], params[field])
 		}
 		if err != nil {
-			ctx.Notify(Refused(ctx, err))
-		} else {
-			// The list comes back holding what was chosen.
-			ctx.Quiet()
+			return ctx.NotifyRedirect(Refused(ctx, err), to)
 		}
-		return ctx.Redirect(http.StatusFound, to)
+		// The list comes back holding what was chosen.
+		return ctx.QuietRedirect(to)
 	}
 }
 
@@ -192,4 +190,49 @@ func WarnUnread(ctx *web.Context, unread []pim.Unread) {
 	ctx.Notify(web.Notice{Kind: web.NoticeWarning,
 		Text:   ctx.Tf("notice.unread", len(names), strings.Join(names, ", ")),
 		Markup: template.HTML(ctx.Tf("notice.unread", len(names), strings.Join(marked, ", ")))})
+}
+
+// ProjectResults turns answers from a collection query into page rows while
+// keeping collection and object parse failures in the same unread stream.
+// The callback may return an object-level unread, and its final result says
+// whether the projected value belongs in the list.
+func ProjectResults[C, O, T any](results []dav.Result[pim.Site[C], []O], project func(*O, dav.Collection) (T, *pim.Unread, bool)) ([]T, []pim.Unread) {
+	var rows []T
+	var unread []pim.Unread
+	for _, result := range results {
+		if result.Err != nil {
+			unread = append(unread, pim.Unread{Collection: result.Site.Collection.Name, Err: result.Err})
+			continue
+		}
+		for i := range result.Value {
+			row, failed, include := project(&result.Value[i], result.Site.Collection)
+			if failed != nil {
+				unread = append(unread, *failed)
+			}
+			if include {
+				rows = append(rows, row)
+			}
+		}
+	}
+	return rows, unread
+}
+
+// ListParts applies the common list-page boundary: report incomplete sources,
+// paginate the rows, and load the section's invitations before rendering.
+func ListParts[T any](ctx *web.Context, unread []pim.Unread, rows []T, invitations func() (*RailInvitations, error)) ([]T, web.Pager, *RailInvitations, error) {
+	WarnUnread(ctx, unread)
+	shown, pager, err := web.Paginate(ctx, rows)
+	if err != nil {
+		return nil, web.Pager{}, nil, err
+	}
+	offers, err := invitations()
+	return shown, pager, offers, err
+}
+
+// SearchRows applies the common cross-section search result boundary: report incomplete sources,
+// retain the total, and keep only the rows shown in the cross-section result.
+func SearchRows[T any](ctx *web.Context, rows []T, unread []pim.Unread, limit int) ([]T, int) {
+	WarnUnread(ctx, unread)
+	total := len(rows)
+	return rows[:min(limit, total)], total
 }

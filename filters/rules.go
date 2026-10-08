@@ -201,12 +201,7 @@ func readRules(content string) (rules []Rule, ok bool) {
 
 // LoadRules reads the rules script; byHand says it is in a shape the page did not write.
 func LoadRules(c alborz.SieveClient) (rules []Rule, loaded string, byHand bool, err error) {
-	content, exists, err := scriptIfAny(c, RulesScript)
-	if err != nil || !exists {
-		return nil, "", false, err
-	}
-	rules, ok := readRules(content)
-	return rules, Fingerprint(content), !ok, nil
+	return loadScript(c, RulesScript, []Rule(nil), readRules)
 }
 
 // ChangeRules rewrites the rules as loaded; ErrByHand leaves a script the page did not write alone.

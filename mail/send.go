@@ -290,7 +290,7 @@ func Quotable(ctx context.Context, login *alborz.Login, path MessagePath, partPa
 	fetch := func(p []int) error {
 		return login.DoIMAPContext(ctx, alborz.RoundTripTimeout, func(c *imapclient.Client) error {
 			var err error
-			msg, part, err = getShownPart(c, path.Mailbox, path.UID, p)
+			msg, part, err = fetchMessagePart(c, path.Mailbox, path.UID, p, true)
 			return err
 		})
 	}
@@ -329,7 +329,7 @@ func QuotedHTML(ctx context.Context, login *alborz.Login, path MessagePath, msg 
 		if pieces := msg.HTMLPieces(node.Path); pieces != nil {
 			part, err = joinedHTML(c, msg, pieces)
 		} else {
-			_, part, err = getShownPart(c, path.Mailbox, path.UID, node.Path)
+			_, part, err = fetchMessagePart(c, path.Mailbox, path.UID, node.Path, true)
 		}
 		if err != nil {
 			return err

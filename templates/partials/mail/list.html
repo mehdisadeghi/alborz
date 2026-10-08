@@ -22,11 +22,11 @@
            folder loaded. */}}
       <section class="messages" data-live-folder="{{.Mailbox.Name}}" data-live-account="{{$.GlobalData.URLAccount}}"{{ if .Merged }} data-live-merged="1"{{ end }}{{ if not .Merged }} data-drop-mbox="{{url "mail.mailbox" .Mailbox.Name}}{{ $.GlobalData.AccountQuery }}" data-drop-import="{{url "mail.mailbox.import" .Mailbox.Name}}{{ $.GlobalData.AccountQuery }}"{{ end }}>
         <div {{ template "message-grid" . }}>
-          {{ $hsort := .Sort }}{{ if eq $hsort "" }}{{ $hsort = "date" }}{{ end }}
+          {{ $hsort := sortkey .Sort }}
           {{ $hexp := ne ($.GlobalData.URL.Query.Get "sort") "" }}
           {{ $hreset := ne ($.GlobalData.URL.Query.Get "dir") "" }}
-          {{ $hbase := "?" }}{{ with $.Query }}{{ $hbase = printf "?query=%s" (. | qv) }}{{ end }}{{ with $.ListView }}{{ $hbase = printf "?view=%s" . }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ if eq $hbase "?" }}{{ $hbase = printf "?account=%s" (. | qv) }}{{ else }}{{ $hbase = printf "%s&account=%s" $hbase (. | qv) }}{{ end }}{{ end }}{{ if $.GlobalData.Unified }}{{ if eq $hbase "?" }}{{ $hbase = "?all=1" }}{{ else }}{{ $hbase = printf "%s&all=1" $hbase }}{{ end }}{{ end }}
-          {{ $hparams := "" }}{{ with $.Query }}{{ $hparams = printf "&query=%s" (. | qv) }}{{ end }}{{ with $.ListView }}{{ $hparams = printf "%s&view=%s" $hparams . }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $hparams = printf "%s&account=%s" $hparams (. | qv) }}{{ end }}{{ if $.GlobalData.Unified }}{{ $hparams = printf "%s&all=1" $hparams }}{{ end }}{{ with $.GlobalData.URL.Query.Get "ipp" }}{{ $hparams = printf "%s&ipp=%s" $hparams . }}{{ end }}
+          {{ $baseparams := mailparams $.Query $.ListView $.GlobalData.URLAccount $.GlobalData.Unified "" }}{{ $hbase := "?" }}{{ with $baseparams }}{{ $hbase = printf "?%s" . }}{{ end }}
+          {{ $params := mailparams $.Query $.ListView $.GlobalData.URLAccount $.GlobalData.Unified ($.GlobalData.URL.Query.Get "ipp") }}{{ $hparams := "" }}{{ with $params }}{{ $hparams = printf "&%s" . }}{{ end }}
           <div class="list-row" role="row">
           <div class="list-header list-checkbox" role="columnheader"></div>
           {{ $s := dict "Key" $hsort "Dir" .SortDir "Explicit" $hexp "DirExplicit" $hreset "Params" $hparams "Reset" $hbase }}

@@ -8,6 +8,18 @@ import (
 	"git.mehdix.org/alborz/web"
 )
 
+type sievePageData struct {
+	web.PageData[map[string][]web.RailRow]
+	Loaded  string
+	ByHand  bool
+	Script  string
+	CanWire bool
+}
+
+func sievePage(ctx *web.Context, title, script string) sievePageData {
+	return sievePageData{PageData: *web.NewPageData(ctx, title, rail(ctx)), Script: script}
+}
+
 // rail reads extensions from the warmed connection's greeting: no round trip.
 func rail(ctx *web.Context) map[string][]web.RailRow {
 	path := ctx.Request().URL.Path

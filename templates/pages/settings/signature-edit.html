@@ -1,7 +1,3 @@
-{{ define "rail" }}
-  {{ template "settings-rail" . }}
-{{ end }}
-
 {{ define "main-class" }} class="create-update"{{ end }}
 
 {{ define "main" }}
@@ -12,7 +8,7 @@
 
 
         <input type="hidden" name="was" value="{{.Was}}">
-        {{ with .Shown }}<input type="hidden" name="shown" value="{{.}}">{{ end }}
+        {{ with .Shown }}{{ template "shown-field" . }}{{ end }}
         {{ template "field" (dict "label" ($.T "settings.signaturename") "name" "name" "value" .Editing.Name "dir" "auto" "required" true "autofocus" true) }}
         <div class="action-group">
           {{ template "field" (dict "label" ($.T "settings.signaturetext") "name" "text" "rows" 6 "dir" "auto" "value" .Editing.Text) }}

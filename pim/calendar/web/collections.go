@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/pim/calendar"
 	"git.mehdix.org/alborz/pim/dav"
 	pimweb "git.mehdix.org/alborz/pim/web"
@@ -61,23 +60,17 @@ func (p *plugin) collectionPage() pimweb.Page {
 			return calendar.Export(ctx.Request().Context(), c, path, from, to)
 		},
 		Lookup: func(ctx *web.Context, path string) (dav.Collection, func() int, string, string, error) {
-			_, calendars, err := p.Open(ctx.Request().Context(), ctx.Login)
-			if err != nil {
-				return dav.Collection{}, nil, "", "", err
-			}
-			info := dav.At(calendars, path)
-			if info == nil {
-				return dav.Collection{}, nil, "", "", alborz.NotFound("notfound.collection")
-			}
-			list := collectionList(ctx, *info)
-			label := ctx.T("nav.calendar")
-			switch list {
-			case ctx.Path("calendar.tasks"):
-				label = ctx.T("nav.tasks")
-			case ctx.Path("calendar.journal"):
-				label = ctx.T("nav.journal")
-			}
-			return *info, p.DAV.CountObjects(ctx.Request().Context(), ctx.Login, info.Path), list, label, nil
+			return pimweb.LookupCollection(ctx, path, p.Open, p.DAV.CountObjects, func(info dav.Collection) (string, string) {
+				list := collectionList(ctx, info)
+				label := ctx.T("nav.calendar")
+				switch list {
+				case ctx.Path("calendar.tasks"):
+					label = ctx.T("nav.tasks")
+				case ctx.Path("calendar.journal"):
+					label = ctx.T("nav.journal")
+				}
+				return list, label
+			})
 		},
 	}
 }
@@ -123,8 +116,7 @@ func (p *plugin) createForm(ctx *web.Context) (pimweb.CreateForm, error) {
 
 // SubscribeRenderData renders subscribe-calendar.html.
 type SubscribeRenderData struct {
-	web.BaseRenderData
-	Rail     pimweb.Rail
+	web.PageData[pimweb.Rail]
 	Accounts []web.Account
 	Account  string
 	Address  string
@@ -138,11 +130,10 @@ func handleSubscribe(p *plugin) func(*web.Context) error {
 			return err
 		}
 		data := &SubscribeRenderData{
-			Rail:           rail,
-			BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("calendar.subscribe")),
-			Accounts:       ctx.Accounts(),
-			Account:        ctx.Login.Username(),
-			Next:           ctx.FormValue("next"),
+			PageData: *web.NewPageData(ctx, ctx.T("calendar.subscribe"), rail),
+			Accounts: ctx.Accounts(),
+			Account:  ctx.Login.Username(),
+			Next:     ctx.FormValue("next"),
 		}
 		if ctx.Request().Method != http.MethodPost {
 			return ctx.Render(http.StatusOK, "calendar/subscribe", data)
@@ -193,7 +184,6 @@ func handleSubscribe(p *plugin) func(*web.Context) error {
 		if err := p.Fill(rc, login, sub.URL, got, cal); err != nil {
 			return err
 		}
-		ctx.Notify(web.Notice{Kind: web.NoticeDone, Text: fmt.Sprintf(ctx.T("notice.subscribed"), sub.Name)})
-		return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.Path("calendar.month")))
+		return ctx.NotifyRedirect(web.Notice{Kind: web.NoticeDone, Text: fmt.Sprintf(ctx.T("notice.subscribed"), sub.Name)}, ctx.NextOr(ctx.Path("calendar.month")))
 	}
 }

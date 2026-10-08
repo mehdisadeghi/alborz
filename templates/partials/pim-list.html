@@ -1,0 +1,28 @@
+{{ define "pim-list-head" }}
+  {{ template "section-crumb" .crumb }}
+  {{ template "filter-chips" .filters }}
+{{ end }}
+
+{{/* dict: search pager filter sort. The four controls form one list toolbar on every PIM page. */}}
+{{ define "pim-list-controls" }}
+  {{ template "toolbar-search" .search }}
+  {{ template "list-pager" .pager }}
+  {{ template "filter-menu" .filter }}
+  {{ with .sort }}{{ template "sort-menu" . }}{{ end }}
+{{ end }}
+
+{{/* Shared selection actions keep list toolbars structurally identical. */}}
+{{ define "pim-action-group" }}<span class="icon-group">{{ range . }}{{ template "action-icon" . }}{{ end }}</span>{{ end }}
+
+{{/* dict: query noresults empty. Every PIM list explains an empty result the same way. */}}
+{{ define "pim-list-empty" }}<p class="empty-list">{{ if .query }}{{ printf .noresults .query }}{{ else }}{{ .empty }}{{ end }}</p>{{ end }}
+
+{{ define "pim-list-selection-header" }}
+  <div class="list-header list-checkbox" role="columnheader"></div>
+  {{ template "sort-col" (dict "s" .s "key" "starred" "label" "★" "idle" "☆" "class" "flag-sort" "cell" "list-star" "hidden" .starred) }}
+{{ end }}
+
+{{ define "pim-list-sort-header" }}<div class="list-row{{ with .class }} {{.}}{{ end }}" role="row">
+  {{ template "pim-list-selection-header" (dict "s" .s "starred" .starred) }}{{ if .photo }}<div class="list-header contact-list-photo" role="columnheader"></div>{{ end }}
+  {{ range .columns }}{{ template "sort-col" (dict "s" $.s "key" (index . 0) "label" (index . 1) "cell" (index . 2) "hidden" (index . 3) "class" (index . 4)) }}{{ end }}
+</div>{{ end }}

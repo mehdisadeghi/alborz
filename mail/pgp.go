@@ -1,7 +1,6 @@
 package mail
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"errors"
@@ -46,14 +45,11 @@ func (p *Mailboxes) Verify(ctx context.Context, login *alborz.Login, mboxName st
 		if err := ensureMailboxSelected(c, mboxName); err != nil {
 			return err
 		}
-		msgs, err := c.Fetch(imap.UIDSetNum(uid), partFetchOptions(nil, true, false)).Collect()
+		buf, err := fetchOne(c, uid, partFetchOptions(nil, true, false))
 		if err != nil {
 			return err
 		}
-		if len(msgs) == 0 {
-			return alborz.NotFound("notfound.message", fmt.Sprint(uid))
-		}
-		msg, _, err := messagePart(msgs[0], mboxName, uid, nil, false)
+		msg, _, err := messagePart(buf, mboxName, uid, nil, false)
 		if err != nil {
 			return err
 		}
@@ -134,7 +130,7 @@ func (p *Mailboxes) verifySignature(ctx context.Context, client *http.Client, c 
 	}
 	innerBytes := msgs[0].FindBodySection(inner)
 	// A broken header only loses the protected From; the root's still names the authors.
-	innerHeader, _ := textproto.ReadHeader(bufio.NewReader(bytes.NewReader(innerBytes)))
+	innerHeader, _ := readHeaderBytes(innerBytes)
 	signature, err := io.ReadAll(transferDecoded(second.Encoding, bytes.NewReader(msgs[0].FindBodySection(sig))))
 	if err != nil {
 		return Verification{}, nil

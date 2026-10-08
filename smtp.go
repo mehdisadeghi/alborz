@@ -14,22 +14,19 @@ func (s *Server) dialSMTP(domain string) (*smtp.Client, error) {
 
 	var c *smtp.Client
 	var err error
-	if d.smtp.tls {
+	kind := "SMTP"
+	switch {
+	case d.smtp.tls:
+		kind = "SMTPS"
 		c, err = smtp.DialTLS(d.smtp.host, nil)
-		if err != nil {
-			return nil, fmt.Errorf("failed to connect to SMTPS server: %v", err)
-		}
-	} else if !d.smtp.insecure {
+	case !d.smtp.insecure:
 		c, err = smtp.DialStartTLS(d.smtp.host, nil)
-		if err != nil {
-			return nil, fmt.Errorf("failed to connect to SMTP server: %v", err)
-		}
-	} else {
+	default:
 		c, err = smtp.Dial(d.smtp.host)
-		if err != nil {
-			return nil, fmt.Errorf("failed to connect to SMTP server: %v", err)
-		}
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to %s server: %v", kind, err)
 	}
 
-	return c, err
+	return c, nil
 }

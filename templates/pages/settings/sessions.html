@@ -1,8 +1,3 @@
-{{ define "rail" }}
-  {{ template "settings-rail" . }}
-{{ end }}
-
-{{ define "main-class" }} class="list"{{ end }}
 
 {{ define "main" }}
   {{ $aq := .GlobalData.AccountQuery }}
@@ -11,7 +6,7 @@
         {{ range .Signed }}
         <div class="list-item">
           <div class="list-content">
-            <span class="list-summary" title="{{.Device}}">{{ template "device-name" (dict "g" $ "ua" .Device) }}</span>
+            {{ template "device-summary" (dict "g" $ "device" .Device) }}
             <span class="list-detail">{{ printf ($.T "sessions.lastused") (printf "%s %s" ($.GlobalData.ShortDate .Seen) ($.GlobalData.FormatTime .Seen)) }} · {{ printf ($.T "sessions.since") ($.GlobalData.ShortDate .Created) }}{{ with .Address }} · {{ template "ltr" . }}{{ end }}{{ if .Current }} · {{$.T "sessions.current"}}{{ end }}</span>
           </div>
           <form method="post" action="{{ if .Current }}{{url "auth.logout"}}{{ else }}{{url "settings.sessions"}}{{ end }}{{$aq}}">

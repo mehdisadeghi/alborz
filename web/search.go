@@ -79,7 +79,7 @@ func (ctx *Context) SearchURL(route string, q search.Query, view string) string 
 	if view != "" {
 		params.Set("view", view)
 	}
-	return ctx.AccountPath(ctx.Path(route) + "?" + Query(params))
+	return ctx.AccountPath(QueryPath(ctx.Path(route), params))
 }
 
 // SearchRoutes serve the search across sections.
@@ -90,7 +90,7 @@ func SearchRoutes(g *Group) {
 func handleSearch(ctx *Context) error {
 	text := strings.TrimSpace(ctx.QueryParam("query"))
 	view := ctx.QueryParam("view")
-	if view != "" && view != alborz.ViewStarred && !slices.Contains(alborz.FlagColors[:], view) {
+	if !ValidStarView(view) {
 		return NewError(http.StatusBadRequest, "no such view")
 	}
 	searchers := ctx.searchers()

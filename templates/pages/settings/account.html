@@ -1,7 +1,3 @@
-{{ define "rail" }}
-  {{ template "settings-rail" . }}
-{{ end }}
-
 {{ define "main-class" }} class="settings"{{ end }}
 
 {{ define "main" }}
@@ -9,7 +5,7 @@
       {{ template "settings-head" (dict "g" $ "title" ($.T "settings.account") "path" (url "mail.account")) }}
 
       <form method="post">
-        <input type="hidden" name="shown" value="{{.Shown}}">
+        {{ template "shown-field" .Shown }}
         <div class="action-group">
           <label for="from">{{$.T "settings.fullname"}}</label>
           <input
@@ -72,7 +68,7 @@
           </select>
         </div>
 
-        <button type="submit" class="button-primary">{{$.T "settings.save"}}</button>
+        {{ template "settings-submit" ($.T "settings.save") }}
       </form>
 
       {{ if .Storage.Host }}

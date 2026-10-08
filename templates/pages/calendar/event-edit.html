@@ -1,14 +1,10 @@
-{{ define "rail" }}
-  {{ template "dav-rail" (dict "g" $ "rail" .Rail) }}
-{{ end }}
-
 {{ define "main-class" }} class="create-update"{{ end }}
 
 {{ define "main" }}
   {{ $acct := .GlobalData.AccountQuery }}
       <form method="post">
-        {{ template "object-form-head" (dict "g" $ "editing" .CalendarObject "collection" .Calendar "groups" .Groups "section" ($.T "nav.calendar") "home" (url "calendar.month") "field" "cal"
-           "title" (or (and .CalendarObject ($.T "calendar.edittitle")) ($.T "calendar.createtitle")) "name" "calendar" "key" "event") }}
+        {{ template "object-form-head" (dict "g" $ "editing" .Object "collection" .Collection "groups" .Groups "section" ($.T "nav.calendar") "home" (url "calendar.month") "field" "cal"
+           "title" (or (and .Object ($.T "calendar.edittitle")) ($.T "calendar.createtitle")) "name" "calendar" "key" "event") }}
 
         {{ template "field" (dict "label" ($.T "calendar.eventname") "name" "summary" "value" (.Event.Props.Text "SUMMARY") "dir" "auto" "required" true) }}
 

@@ -2,13 +2,24 @@
 
 {{/* dict: g action star next. */}}
 {{ define "row-star-cell" }}
+  {{ $row := . }}
   <div class="list-star list-cell" role="cell">
+    {{ with $row.action }}
     {{ template "card-star" (dict
-       "Action" .action
-       "Current" .star
-       "Next" .next
-       "Label" (or (and .star (.g.T "mailbox.flagnone")) (.g.T "mailbox.flagcolor"))
-       "MenuLabel" (.g.T "mailbox.flagcolor")) }}
+       "Action" .
+       "Current" $row.star
+       "Next" $row.next
+       "Label" (or (and $row.star ($row.g.T "mailbox.flagnone")) ($row.g.T "mailbox.flagcolor"))
+       "MenuLabel" ($row.g.T "mailbox.flagcolor")) }}
+    {{ end }}
+  </div>
+{{ end }}
+
+{{/* dict: g class label href summary addedby. */}}
+{{ define "row-summary" }}
+  {{ $g := .g }}
+  <div class="{{.class}} list-primary list-cell" role="cell" data-label="{{.label}}">
+    <a href="{{.href}}" dir="auto"{{ with .addedby }} title="{{ printf ($g.T "share.addedby") . }}"{{ end }}>{{.summary}}</a>
   </div>
 {{ end }}
 

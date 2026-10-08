@@ -1,14 +1,10 @@
-{{ define "rail" }}
-  {{ template "settings-rail" . }}
-{{ end }}
-
 {{ define "main-class" }} class="settings"{{ end }}
 
 {{ define "main" }}
       {{ template "settings-head" (dict "g" $ "title" ($.T "settings.general") "path" (url "settings.profile") "chooses" true) }}
       {{/* A whole page: these are attributes of the root, which a swap keeps. */}}
       <form method="post" hx-boost="false">
-        <input type="hidden" name="shown" value="{{.Shown}}">
+        {{ template "shown-field" .Shown }}
         <div class="action-group">
           <label for="messages_per_page">{{$.T "settings.perpage"}}</label>
           <input
@@ -136,7 +132,7 @@
         {{ end }}
 
         <div class="action-group">
-          <button type="submit" class="button-primary">{{$.T "settings.save"}}</button>
+          {{ template "settings-submit" ($.T "settings.save") }}
         </div>
 
         <div class="action-group" id="handler-group" hidden>

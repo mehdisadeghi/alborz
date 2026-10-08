@@ -1,6 +1,4 @@
-{{ define "rail" }}
-  {{ template "filters-rail" (dict "g" $ "accounts" .GlobalData.Accounts) }}
-{{ end }}
+{{ define "rail" }}{{ template "filters-page-rail" . }}{{ end }}
 
 {{ define "main-class" }} class="create-update"{{ end }}
 
@@ -9,7 +7,7 @@
       <form method="post" action="{{url "filters.forwarding"}}{{$aq}}">
         {{ template "filters-crumb" (dict "g" $ "collection" ($.T "filters.forwarding") "path" (url "filters.forwarding")) }}
         <h1>{{$.T "filters.forwardnew"}}</h1>
-        <input type="hidden" name="loaded" value="{{.Loaded}}">
+        {{ template "filters-loaded" .Loaded }}
         {{ template "field" (dict "label" ($.T "filters.forwardto") "name" "address" "type" "email" "dir" "ltr" "value" .Address "required" true "autofocus" true) }}
         {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (printf "%s%s" (url "filters.forwarding") $aq) "cancelLabel" ($.T "common.cancel")) }}
       </form>

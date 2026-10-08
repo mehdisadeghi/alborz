@@ -18,25 +18,10 @@ import (
 )
 
 type AddressBookRenderData struct {
-	// Pager walks the pages of AddressObjects.
-	Pager web.Pager
-	web.BaseRenderData
-	AddressBooks   []dav.Collection
+	pimweb.ListRenderData
 	AddressObjects []contacts.AddressObject
-	Sorting        pimweb.Sorting
-	Query          string
-	// View is the colour the rail is filtering by, empty for all.
-	View string
-	// Filters are the narrowings nothing else on the page states; FilterRows the filter menu.
-	Filters    []web.Filter
-	FilterRows []web.FilterRow
-	// CollectionFor is a contact's address book, CollectionHref the list narrowed to it.
-	CollectionFor  func(account, path string) dav.Collection
-	CollectionHref func(account, path string) string
 	// HrefFor is a contact's page with the list carried along.
 	HrefFor func(account, path string) string
-	// AddedBy names who added a card, where not the row's own account.
-	AddedBy func(account, path string) string
 	// Groups are the accounts' group cards, Categories the words in use.
 	Groups     []contacts.AddressObject
 	Categories []string
@@ -46,8 +31,6 @@ type AddressBookRenderData struct {
 	GroupRows, CategoryRows []FilterRow
 	// SelectForm is the form a row's checkbox belongs to; empty where rows offer none.
 	SelectForm string
-
-	Invitations *pimweb.RailInvitations
 }
 
 var contactListParams = []string{"account", "book", "query", "view", "group", "category", "sort", "dir", "page", "ipp"}
@@ -76,7 +59,7 @@ type ContactList struct {
 func (p *plugin) contactList(ctx *web.Context) (ContactList, error) {
 	queryText := ctx.QueryParam("query")
 	view := ctx.QueryParam("view")
-	if view != "" && view != alborz.ViewStarred && !slices.Contains(alborz.FlagColors[:], view) {
+	if !web.ValidStarView(view) {
 		return ContactList{}, web.NewError(http.StatusBadRequest, "no such view")
 	}
 	group, category := ctx.QueryParam("group"), ctx.QueryParam("category")
@@ -93,8 +76,9 @@ func (p *plugin) contactList(ctx *web.Context) (ContactList, error) {
 	}
 
 	// The group names its members by UID; the filter asks which cards it holds.
+	var members map[string]bool
 	if group != "" {
-		members := map[string]bool{}
+		members = map[string]bool{}
 		for _, g := range groups {
 			if g.UID() != group {
 				continue
@@ -103,22 +87,11 @@ func (p *plugin) contactList(ctx *web.Context) (ContactList, error) {
 				members[uid] = true
 			}
 		}
-		kept := aos[:0]
-		for _, ao := range aos {
-			if members[ao.UID()] {
-				kept = append(kept, ao)
-			}
-		}
-		aos = kept
 	}
-	if category != "" {
-		kept := aos[:0]
-		for _, ao := range aos {
-			if slices.Contains(ao.Categories(), category) {
-				kept = append(kept, ao)
-			}
-		}
-		aos = kept
+	if group != "" || category != "" {
+		aos = slices.DeleteFunc(aos, func(ao contacts.AddressObject) bool {
+			return (group != "" && !members[ao.UID()]) || (category != "" && !slices.Contains(ao.Categories(), category))
+		})
 	}
 	var words []string
 	for _, ao := range aos {
@@ -130,10 +103,9 @@ func (p *plugin) contactList(ctx *web.Context) (ContactList, error) {
 		return strings.ToLower(groups[i].DisplayName()) < strings.ToLower(groups[j].DisplayName())
 	})
 
-	items := make([]pimweb.Item, len(aos))
-	for i, ao := range aos {
-		items[i] = pimweb.Item{Path: ao.Path, URL: pimweb.ObjectURL(ctx, "contacts.contact", ao.Path, ao.Account, params)}
-	}
+	items := pimweb.ItemsFor(aos, func(ao contacts.AddressObject) pimweb.Item {
+		return pimweb.Item{Path: ao.Path, URL: pimweb.ObjectURL(ctx, "contacts.contact", ao.Path, ao.Account, params)}
+	})
 	return ContactList{
 		Cards:      aos,
 		Books:      addressBookInfos,
@@ -165,31 +137,21 @@ func (p *plugin) shownCards(ctx *web.Context, only map[string]bool, view, queryT
 		return nil, nil, nil, nil, web.NewError(http.StatusBadRequest, err.Error())
 	}
 	query := contacts.Query(words.String())
-	for _, result := range pim.Present(p.DAV, dav.Across(ctx.Request().Context(), sites, pim.Site[*carddav.Client].Account, func(ctx context.Context, site pim.Site[*carddav.Client]) ([]carddav.AddressObject, error) {
+	results := pim.Present(p.DAV, dav.Across(ctx.Request().Context(), sites, pim.Site[*carddav.Client].Account, func(ctx context.Context, site pim.Site[*carddav.Client]) ([]carddav.AddressObject, error) {
 		return site.Client.QueryAddressBook(ctx, site.Collection.Path, &query)
-	})) {
-		name := result.Site.Collection.Name
-		if result.Err != nil {
-			unread = append(unread, pim.Unread{Collection: name, Err: result.Err})
-			continue
+	}))
+	aos, unread = pimweb.ProjectResults(results, func(object *carddav.AddressObject, collection dav.Collection) (contacts.AddressObject, *pim.Unread, bool) {
+		if object.Card == nil {
+			failed := contacts.Unparsed(collection.Name, object)
+			return contacts.AddressObject{}, &failed, false
 		}
-		for i := range result.Value {
-			if result.Value[i].Card == nil {
-				unread = append(unread, contacts.Unparsed(name, &result.Value[i]))
-				continue
-			}
-			ao := contacts.AddressObject{AddressObject: &result.Value[i], Account: result.Site.Collection.Account}
-			// A group is a card and arrives with the contacts, but is not a person.
-			if ao.IsGroup() {
-				groups = append(groups, ao)
-				continue
-			}
-			// A colour is a view, as in the mail rail; starred is any colour.
-			if starred(ao.Color()) {
-				aos = append(aos, ao)
-			}
+		ao := contacts.AddressObject{AddressObject: object, Account: collection.Account}
+		if ao.IsGroup() {
+			groups = append(groups, ao)
+			return contacts.AddressObject{}, nil, false
 		}
-	}
+		return ao, nil, starred(ao.Color())
+	})
 	return aos, groups, books, unread, nil
 }
 
@@ -217,43 +179,29 @@ func (p *plugin) contacts(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	pimweb.WarnUnread(ctx, list.Unread)
 	addressBookInfos := list.Books
 	hrefs := make(map[string]string, len(list.Items))
 	for _, item := range list.Items {
 		hrefs[item.Path] = item.URL
 	}
-	cards, pager, err := web.Paginate(ctx, list.Cards)
+	cards, pager, invitations, err := pimweb.ListParts(ctx, list.Unread, list.Cards, func() (*pimweb.RailInvitations, error) { return p.invitations(ctx) })
 	if err != nil {
 		return err
 	}
 	collection, href := pimweb.Labels(ctx, addressBookInfos, "contacts.list", "book", nil)
-	invitations, err := p.invitations(ctx)
-	if err != nil {
-		return err
-	}
+	listData := pimweb.NewListRenderData(ctx, ctx.T("nav.contacts"), addressBookInfos, list.View, list.Query, list.Sorting, pager,
+		searchFilter(ctx, list), web.ViewRows(ctx, list.View, false, ctx.WithoutParam("view")), "address-book-form", invitations)
+	listData.CollectionLabels = pimweb.NewCollectionLabels(p.DAV, ctx.Login.Username(), collection, href)
 	return ctx.Render(http.StatusOK, "contacts/list", &AddressBookRenderData{
-		SelectForm:     "address-book-form",
-		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("nav.contacts")),
-		AddressBooks:   addressBookInfos,
+		ListRenderData: listData,
 		AddressObjects: cards,
-		Pager:          pager,
 		HrefFor:        func(_, contactPath string) string { return hrefs[contactPath] },
-		AddedBy:        p.DAV.AddedBy(ctx.Login.Username()),
-		Query:          list.Query,
-		View:           list.View,
 		Groups:         list.Groups,
 		Categories:     list.Categories,
 		GroupRows:      contactGroupRows(ctx, list.Groups, list.Group, ctx.URLAccount()),
 		CategoryRows:   contactCategoryRows(ctx, list.Categories, list.Category, ctx.URLAccount()),
 		Group:          list.Group,
 		Category:       list.Category,
-		Filters:        searchFilter(ctx, list),
-		FilterRows:     web.ViewRows(ctx, list.View, false, ctx.WithoutParam("view")),
-		Sorting:        list.Sorting,
-		CollectionFor:  collection,
-		CollectionHref: href,
-		Invitations:    invitations,
 	})
 }
 
@@ -295,23 +243,20 @@ func (p *plugin) found(ctx *web.Context, q search.Query, view string, limit int)
 	if err != nil {
 		return web.Found{}, err
 	}
-	pimweb.WarnUnread(ctx, unread)
 	if _, err := pimweb.Sort(ctx, cards, contactColumns(books), cardTie); err != nil {
 		return web.Found{}, err
 	}
+	shown, total := pimweb.SearchRows(ctx, cards, unread, limit)
 	params := pimweb.ListParams(ctx, contactListParams...)
 	params.Set("from", ctx.Request().URL.RequestURI())
-	shown := cards[:min(limit, len(cards))]
 	hrefs := make(map[string]string, len(shown))
 	for _, ao := range shown {
 		hrefs[ao.Path] = pimweb.ObjectURL(ctx, "contacts.contact", ao.Path, ao.Account, params)
 	}
 	collection, href := pimweb.Labels(ctx, books, "contacts.list", "book", nil)
 	return web.Found{Rows: &AddressBookRenderData{
+		ListRenderData: pimweb.ListRenderData{CollectionLabels: pimweb.NewCollectionLabels(p.DAV, ctx.Login.Username(), collection, href)},
 		AddressObjects: shown,
 		HrefFor:        func(_, path string) string { return hrefs[path] },
-		AddedBy:        p.DAV.AddedBy(ctx.Login.Username()),
-		CollectionFor:  collection,
-		CollectionHref: href,
-	}, Total: len(cards), All: ctx.SearchURL("contacts.list", q, view)}, nil
+	}, Total: total, All: ctx.SearchURL("contacts.list", q, view)}, nil
 }

@@ -1,0 +1,10 @@
+{{ define "filters-page-rail" }}
+  {{ template "filters-rail" (dict "g" $ "accounts" .GlobalData.Accounts) }}
+{{ end }}
+
+{{ define "filters-status" }}
+  {{ if not .CanWire }}<div class="alert" role="alert">{{.g.T "filters.needsinclude"}}</div>{{ end }}
+  {{ if .ByHand }}<div class="alert" role="alert">{{.g.T "filters.byhand"}} <a href="{{url "filters.filter" .Script}}{{.aq}}">{{.g.T "filters.openscript"}}</a></div>{{ end }}
+{{ end }}
+
+{{ define "filters-loaded" }}<input type="hidden" name="loaded" value="{{.}}">{{ end }}

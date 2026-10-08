@@ -19,13 +19,10 @@ import (
 )
 
 func (p *plugin) handleExportMbox(ctx *web.Context) error {
-	mboxName, err := mailboxRef(ctx)
+	mboxName := mailboxRef(ctx)
+	params, err := formParams(ctx)
 	if err != nil {
 		return err
-	}
-	params, err := ctx.FormParams()
-	if err != nil {
-		return web.NewError(http.StatusBadRequest, err)
 	}
 	strip := ctx.FormValue("strip") != ""
 	var uids []imap.UID
@@ -144,10 +141,7 @@ func (p *plugin) exportPage(ctx *web.Context, uids []imap.UID, form url.Values) 
 }
 
 func (p *plugin) handleExportPage(ctx *web.Context) error {
-	mboxName, err := mailboxRef(ctx)
-	if err != nil {
-		return err
-	}
+	mboxName := mailboxRef(ctx)
 	ibase, err := p.newIMAPBaseRenderData(ctx, web.NewBaseRenderData(ctx))
 	if err != nil {
 		return err
@@ -177,33 +171,15 @@ const importMaxSize = 1 << 30
 
 // Always into a new folder, so an import never lands in an existing one.
 func (p *plugin) handleImport(ctx *web.Context) error {
-	ibase, err := p.newIMAPBaseRenderData(ctx, web.NewBaseRenderData(ctx))
+	data, err := p.newMailboxRenderData(ctx, ctx.T("folder.import"))
 	if err != nil {
 		return err
 	}
-	ibase.WithTitle(ctx.T("folder.import"))
-	selectedAccount := ctx.Login.Username()
-	if ctx.URLAccount() != "" {
-		selectedAccount = ctx.URLAccount()
-	}
-	locationGroups := p.newMailboxLocationGroups(ctx)
-	selectedLocation := ""
-	for _, group := range locationGroups {
-		if group.Account == selectedAccount && len(group.Locations) > 0 {
-			selectedLocation = group.Locations[0].Key
-			break
-		}
-	}
-	name := ""
+	name := data.Name
 	render := func(status int, errText string) error {
-		ibase.Refused(errText)
-		return ctx.Render(status, "mail/import", &NewMailboxRenderData{
-			IMAPBaseRenderData: *ibase,
-			Name:               name,
-			SelectedAccount:    selectedAccount,
-			SelectedLocation:   selectedLocation,
-			LocationGroups:     locationGroups,
-		})
+		data.Name = name
+		data.Refused(errText)
+		return ctx.Render(status, "mail/import", data)
 	}
 	if ctx.Request().Method != http.MethodPost {
 		return render(http.StatusOK, "")
@@ -226,25 +202,25 @@ func (p *plugin) handleImport(ctx *web.Context) error {
 		}
 		switch part.FormName() {
 		case "location":
-			selectedLocation = formField(part)
+			data.SelectedLocation = formField(part)
 		case "name":
 			name = strings.TrimSpace(formField(part))
 		case "file":
 			file = part
 		}
 	}
-	location, account := locationByKey(locationGroups, selectedLocation)
+	location, account := locationByKey(data.LocationGroups, data.SelectedLocation)
 	if location == nil {
 		return render(http.StatusUnprocessableEntity, ctx.T("form.destinationneeded"))
 	}
-	selectedAccount = account
+	data.SelectedAccount = account
 	if name == "" {
 		name = strings.TrimSuffix(path.Base(file.FileName()), path.Ext(file.FileName()))
 	}
 	if name == "" {
 		return render(http.StatusUnprocessableEntity, ctx.T("form.nameneeded"))
 	}
-	login := ctx.LoginFor(selectedAccount)
+	login := ctx.LoginFor(data.SelectedAccount)
 	if login == nil {
 		return web.NewError(http.StatusBadRequest, "not signed in to that account")
 	}
@@ -260,7 +236,7 @@ func (p *plugin) handleImport(ctx *web.Context) error {
 	} else {
 		ctx.PutNotice(importSaid(ctx, "notice.imported", n, fullName))
 	}
-	return ctx.Redirect(http.StatusFound, folderURL(ctx, selectedAccount, fullName))
+	return ctx.FoundRedirect(folderURL(ctx, data.SelectedAccount, fullName))
 }
 
 // importSaid is an import's notice: what was added, as key says, then what was not.
@@ -285,10 +261,7 @@ func importBodyError(err error) error {
 }
 
 func (p *plugin) handleDropImport(ctx *web.Context) error {
-	mboxName, err := mailboxRef(ctx)
-	if err != nil {
-		return err
-	}
+	mboxName := mailboxRef(ctx)
 	req := ctx.Request()
 	form, err := req.MultipartReader()
 	if err != nil {

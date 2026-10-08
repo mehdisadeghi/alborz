@@ -1,8 +1,7 @@
 {{/* dict: mbox aq uid next to label [icon] [class]. */}}
 {{ define "msg-move-form" }}
 <form class="action-group{{ with .formclass }} {{.}}{{ end }}" method="post" action="{{url "mail.messages.move" .mbox}}{{.aq}}"{{ with .priority }} data-priority="{{.}}"{{ end }}>
-  <input type="hidden" name="uids" value="{{.uid}}">
-  {{ with .next }}<input type="hidden" name="next" value="{{.}}">{{ end }}
+  {{ template "message-action-fields" . }}
   <input type="hidden" name="to" value="{{.to}}">
   {{ if .icon }}
   <button class="icon-button{{with .class}} {{.}}{{end}}" title="{{.label}}" aria-label="{{.label}}"{{ template "icon-key" .icon }}>{{ template "icon" .icon }}<span class="label">{{.label}}</span></button>
@@ -30,8 +29,13 @@
         {{end}}
       {{end}}
 
-{{ define "rail" }}
-  {{ template "mail-rail" . }}
+{{ define "message-block-form" }}
+<form method="POST" action="{{url "filters.rules.block"}}{{.aq}}">
+  <input type="hidden" name="value" value="{{.value}}">
+  {{ if .domain }}<input type="hidden" name="domain" value="1">{{ end }}
+  <input type="hidden" name="next" value="{{.next}}">
+  <button>{{ printf .label .value }}</button>
+</form>
 {{ end }}
 
 {{ define "main-class" }} class="message"{{ end }}
@@ -41,8 +45,7 @@
   {{ $partq := $aq }}{{ $partallq := $aq }}{{ $partlistq := printf "?list=1%s" $aamp }}{{ with .Message.PreferredPart $.PreferHTML }}{{ $partq = printf "?part=%s%s" .PathString $aamp }}{{ $partallq = printf "?part=%s&all=true%s" .PathString $aamp }}{{ $partlistq = printf "?part=%s&list=1%s" .PathString $aamp }}{{ end }}
       {{ $here := printf "%s%s" (url "mail.message" .Message.Mailbox .Message.UID) $partq }}
       <form id="message-flag-form" method="post" hx-boost="false">
-        <input type="hidden" name="uids" value="{{.Message.UID}}">
-        <input type="hidden" name="next" value="{{$here}}">
+        {{ template "message-action-fields" (dict "uid" .Message.UID "next" $here) }}
       </form>
       {{ template "toolbar-head" (dict "g" $) }}
             {{$back := printf "%s?page=%v%s" (url "mail.mailbox" .Mailbox.Name) .MailboxPage $aamp}}{{ with .GlobalData.From }}{{ $back = . }}{{ end }}
@@ -83,8 +86,7 @@
               {{ end }}
               {{ if or (eq .Mailbox.Name $trash) (eq .Mailbox.Name $junk) (not $trash) }}
               <form class="action-group" method="post" action="{{url "mail.messages.delete" .Mailbox.Name}}{{$aq}}">
-                <input type="hidden" name="uids" value="{{.Message.UID}}">
-                <input type="hidden" name="next" value="{{$back}}">
+                {{ template "message-action-fields" (dict "uid" .Message.UID "next" $back) }}
                 <button class="icon-button icon-danger" title="{{$.T "mailbox.deleteperm"}}" aria-label="{{$.T "mailbox.deleteperm"}}">{{ template "icon" "trash" }}</button>
               </form>
               {{ else }}
@@ -98,18 +100,9 @@
                 {{ $from := "" }}{{ with .Message.Envelope.From }}{{ $from = (index . 0).Addr }}{{ end }}
                 <a class="button-link" href="{{ localhref (printf "%s?from=%s&list=%s&subject=%s%v" (url "filters.rules.create") ($from | qv) (.Message.ListID | qv) (.Message.Envelope.Subject | qv) (account "&" $.GlobalData.URLAccount)) }}">{{$.T "message.newrule"}}</a>
                 {{ if $from }}
-                <form method="POST" action="{{url "filters.rules.block"}}{{$aq}}">
-                  <input type="hidden" name="value" value="{{$from}}">
-                  <input type="hidden" name="next" value="{{url "mail.message" $.Message.Mailbox $.Message.UID}}">
-                  <button>{{ printf ($.T "message.blocksender") $from }}</button>
-                </form>
+                {{ template "message-block-form" (dict "aq" $aq "value" $from "next" $here "label" ($.T "message.blocksender")) }}
                 {{ $domain := .Message.FromDomain }}
-                <form method="POST" action="{{url "filters.rules.block"}}{{$aq}}">
-                  <input type="hidden" name="value" value="{{$domain}}">
-                  <input type="hidden" name="domain" value="1">
-                  <input type="hidden" name="next" value="{{url "mail.message" $.Message.Mailbox $.Message.UID}}">
-                  <button>{{ printf ($.T "message.blockdomain") $domain }}</button>
-                </form>
+                {{ template "message-block-form" (dict "aq" $aq "value" $domain "domain" true "next" $here "label" ($.T "message.blockdomain")) }}
                 {{ end }}
                 {{ end }}
                 {{ if .Contact }}
@@ -132,15 +125,14 @@
                 {{ end }}
 
                 <form method="post" action="{{url "mail.messages.flag" .Mailbox.Name}}{{$aq}}">
-                  <input type="hidden" name="uids" value="{{.Message.UID}}">
+                  {{ template "message-action-fields" (dict "uid" .Message.UID "next" $back) }}
                   <input type="hidden" name="action" value="remove">
                   <input type="hidden" name="flags" value="\Seen">
-                  <input type="hidden" name="next" value="{{$back}}">
                   <button>{{$.T "message.markunread"}}</button>
                 </form>
 
                 <form method="post" action="{{url "mail.messages.move" .Mailbox.Name}}{{$aq}}">
-                  <input type="hidden" name="uids" value="{{.Message.UID}}">
+                  {{ template "message-uids" .Message.UID }}
                   <select name="to">
                     <option value="" disabled selected>{{$.T "mailbox.moveto"}}</option>
                     {{range .Mailboxes}}
@@ -325,7 +317,7 @@
                 </dl>
                 {{ if and (not .Cancelled) (not .Answer) (not .Published) }}
                 <form method="post" action="{{url "calendar.invite" $.Mailbox.Name $.Message.UID}}{{$aq}}" class="invitation-actions">
-                  <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
+                  {{ template "next-field" $.GlobalData.URL.RequestURI }}
                   <button name="status" value="ACCEPTED" class="button-primary">{{$.T "invite.accept"}}</button>
                   <button name="status" value="TENTATIVE">{{$.T "invite.tentative"}}</button>
                   <button name="status" value="DECLINED" class="button-danger">{{$.T "invite.decline"}}</button>
@@ -334,9 +326,7 @@
                 {{ end }}
                 {{ if $.InviteFiled }}
                 <form method="post" action="{{url "calendar.frommessage"}}{{$aq}}" class="invitation-actions">
-                  <input type="hidden" name="mbox" value="{{$.Mailbox.Name}}">
-                  <input type="hidden" name="uid" value="{{$.Message.UID}}">
-                  <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
+                  {{ template "message-source-fields" (dict "mailbox" $.Mailbox.Name "uid" $.Message.UID "next" $.GlobalData.URL.RequestURI) }}
                   {{ if .Cancelled }}
                   <button type="submit" class="button-danger">{{$.T "invite.removefromcalendar"}}</button>
                   {{ else if .Answer }}
@@ -347,8 +337,7 @@
                 </form>
                 {{ else if $.InviteCalendars }}
                 <form method="post" action="{{url "calendar.frommessage"}}{{$aq}}" class="invitation-actions">
-                  <input type="hidden" name="mbox" value="{{$.Mailbox.Name}}">
-                  <input type="hidden" name="uid" value="{{$.Message.UID}}">
+                  {{ template "message-source-fields" (dict "mailbox" $.Mailbox.Name "uid" $.Message.UID) }}
                   {{ template "collection-picker" (dict "groups" $.InviteCalendars "name" "calendar" "label" ($.T "common.calendar") "multi" (gt (len $.GlobalData.Accounts) 1)) }}
                   <button type="submit">{{$.T "invite.addtocalendar"}}</button>
                 </form>
@@ -415,20 +404,14 @@
               </a> ({{.MIMEType}}, {{.SizeString}})
               {{ if and (or (eq .MIMEType "text/calendar") (eq .MIMEType "application/ics")) $.ImportCalendars }}
               <form method="post" action="{{url "calendar.fromattachment"}}{{$aq}}" class="invitation-actions">
-                <input type="hidden" name="mbox" value="{{$.Mailbox.Name}}">
-                <input type="hidden" name="uid" value="{{$.Message.UID}}">
-                <input type="hidden" name="part" value="{{.PathString}}">
-                <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
+                {{ template "message-source-fields" (dict "mailbox" $.Mailbox.Name "uid" $.Message.UID "part" .PathString "next" $.GlobalData.URL.RequestURI) }}
                 {{ template "collection-picker" (dict "groups" $.ImportCalendars "name" "calendar" "label" ($.T "common.calendar") "multi" (gt (len $.GlobalData.Accounts) 1)) }}
                 <button type="submit">{{$.T "import.tocalendar"}}</button>
               </form>
               {{ end }}
               {{ if and (or (eq .MIMEType "text/vcard") (eq .MIMEType "text/x-vcard") (eq .MIMEType "text/directory")) $.ImportBooks }}
               <form method="post" action="{{url "contacts.frommessage"}}{{$aq}}" class="invitation-actions">
-                <input type="hidden" name="mbox" value="{{$.Mailbox.Name}}">
-                <input type="hidden" name="uid" value="{{$.Message.UID}}">
-                <input type="hidden" name="part" value="{{.PathString}}">
-                <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
+                {{ template "message-source-fields" (dict "mailbox" $.Mailbox.Name "uid" $.Message.UID "part" .PathString "next" $.GlobalData.URL.RequestURI) }}
                 {{ template "collection-picker" (dict "groups" $.ImportBooks "name" "addressbook" "label" ($.T "contacts.book") "multi" (gt (len $.GlobalData.Accounts) 1)) }}
                 <button type="submit">{{$.T "import.tocontacts"}}</button>
               </form>

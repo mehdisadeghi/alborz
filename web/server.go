@@ -17,6 +17,7 @@ import (
 	"path"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -199,12 +200,7 @@ const (
 )
 
 func (s *Server) hasTheme(name string) bool {
-	for _, t := range s.themes {
-		if t.Name == name {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(s.themes, func(t Theme) bool { return t.Name == name })
 }
 
 const (
@@ -337,7 +333,7 @@ func redirectToLogin(ctx *Context) error {
 	if ctx.Fragment() {
 		return ctx.Relocate(to)
 	}
-	return ctx.Redirect(http.StatusFound, to)
+	return ctx.FoundRedirect(to)
 }
 
 // A reader told "internal error" checks their password, so this names the server and the wait.

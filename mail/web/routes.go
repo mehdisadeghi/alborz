@@ -13,28 +13,24 @@ const composeBodySize = web.MaxAttachmentSize + web.MaxFormSize
 
 func (p *plugin) registerRoutes(g *web.Group) {
 	g.GET("home", "/{$}", func(ctx *web.Context) error {
-		return ctx.Redirect(http.StatusFound, ctx.Path("mail.mailbox", "INBOX"))
+		return ctx.FoundRedirect(ctx.Path("mail.mailbox", "INBOX"))
 	})
 
 	g.GET("mailbox", "/mailbox/{mbox}", p.handleGetMailbox)
 	g.GET("sidebar", "/mail/sidebar", p.handleSidebar)
 	g.POST("merged", "/mail/merged", handleMerged)
 	g.GET("search", "/mail/search", p.handleSearch)
-	g.GET("mailbox.empty", "/mailbox/{mbox}/empty", p.handleEmptyMailbox)
-	g.POST("mailbox.empty", "/mailbox/{mbox}/empty", p.handleEmptyMailbox)
+	g.Page("mailbox.empty", "/mailbox/{mbox}/empty", p.handleEmptyMailbox)
 	g.POST("role.empty", "/mailbox/{role}/empty-all", p.handleEmptyAllMailbox)
 	g.POST("role.act", "/mailbox/{role}/all/act", p.handleUnifiedAct)
 	g.POST("mailbox", "/mailbox/{mbox}", p.handleGetMailbox)
 
-	g.GET("mailbox.create", "/new-mailbox", p.handleNewMailbox)
-	g.POST("mailbox.create", "/new-mailbox", p.handleNewMailbox)
+	g.Page("mailbox.create", "/new-mailbox", p.handleNewMailbox)
 	g.GET("import", "/import", p.handleImport)
 	g.Stream("import", "/import", importMaxSize, p.handleImport)
 
-	g.GET("mailbox.rename", "/rename-mailbox/{mbox}", p.handleRenameMailbox)
-	g.POST("mailbox.rename", "/rename-mailbox/{mbox}", p.handleRenameMailbox)
-	g.GET("mailbox.delete", "/delete-mailbox/{mbox}", p.handleDeleteMailbox)
-	g.POST("mailbox.delete", "/delete-mailbox/{mbox}", p.handleDeleteMailbox)
+	g.Page("mailbox.rename", "/rename-mailbox/{mbox}", p.handleRenameMailbox)
+	g.Page("mailbox.delete", "/delete-mailbox/{mbox}", p.handleDeleteMailbox)
 
 	g.GET("message", "/message/{mbox}/{uid}", p.handleGetPart)
 	g.Verbatim("message.raw", "/message/{mbox}/{uid}/raw", handleRaw)
@@ -75,29 +71,19 @@ func (p *plugin) registerRoutes(g *web.Group) {
 
 	g.POST("messages.flag", "/message/{mbox}/flag", p.handleSetFlags)
 
-	g.GET("signatures", "/signatures", web.Scoped(handleSignatures))
-	g.GET("signatures.create", "/signatures/create", web.Scoped(handleSignatureForm))
-	g.GET("signature", "/signatures/{name}", web.Scoped(handleSignatureForm))
+	scoped := g.Group("", "", web.Scoped)
+	scoped.GET("signatures", "/signatures", handleSignatures)
+	scoped.GET("signatures.create", "/signatures/create", handleSignatureForm)
+	scoped.GET("signature", "/signatures/{name}", handleSignatureForm)
 	g.POST("signatures", "/signatures", handleSignatureSave)
 	g.POST("signatures.delete", "/signatures/delete", handleSignatureDelete)
 	g.POST("signatures.default", "/signatures/default", handleSignatureDefault)
-	g.GET("account", "/settings/account", web.Scoped(p.handleSettings))
+	scoped.GET("account", "/settings/account", p.handleSettings)
 	g.POST("account", "/settings/account", p.handleSettings)
 	g.POST("account.forget", "/settings/account/forget", p.handleForget)
 }
 
-// folderPath is a folder's address, for code that builds many.
-func folderPath(ctx *web.Context) func(string) string {
-	return func(name string) string { return ctx.Path("mail.mailbox", name) }
-}
-
-func mailboxURL(ctx *web.Context, mboxName string) string {
-	return ctx.URL("mail.mailbox", mboxName)
-}
-
-func mailboxRef(ctx *web.Context) (string, error) {
-	return ctx.Param("mbox"), nil
-}
+func mailboxRef(ctx *web.Context) string { return ctx.Param("mbox") }
 
 // MessageRef is the message the route's path names.
 func MessageRef(ctx *web.Context) (string, imap.UID, error) {

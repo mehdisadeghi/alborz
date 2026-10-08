@@ -14,7 +14,7 @@ import (
 )
 
 type FiltersRenderData struct {
-	web.BaseRenderData
+	web.PageData[map[string][]web.RailRow]
 	// Groups holds every account with scripts on a bare URL, else the one the URL names.
 	Groups []AccountFilters
 	// Rows are the scripts of every group, one page of them.
@@ -23,7 +23,6 @@ type FiltersRenderData struct {
 	Accounts []web.Account
 	// Explained is shown once for the page rather than in every server card.
 	Explained []web.Explained
-	Rail      map[string][]web.RailRow
 }
 
 // ScriptRow is a script as the list shows it, with the account holding it.
@@ -45,7 +44,7 @@ type AccountFilters struct {
 }
 
 type FilterRenderData struct {
-	web.BaseRenderData
+	web.PageData[map[string][]web.RailRow]
 	Name      string
 	Content   string
 	Loaded    string
@@ -53,7 +52,6 @@ type FilterRenderData struct {
 
 	Accounts []web.Account
 	Account  string
-	Rail     map[string][]web.RailRow
 }
 
 func registerRoutes(g *web.Group) {
@@ -66,13 +64,13 @@ func registerRoutes(g *web.Group) {
 				return web.NewError(http.StatusBadRequest, "filters require an account")
 			}
 			if !ctx.Unified && ctx.Server.SieveEnabled(ctx.Login.Domain()) {
-				target := ctx.Request().URL.Path + "?account=" + web.QueryValue(ctx.Login.Username())
-				return ctx.Redirect(http.StatusFound, target)
+				target := web.AccountURL(ctx.Request().URL.Path, ctx.Login.Username())
+				return ctx.FoundRedirect(target)
 			}
 			for _, login := range ctx.Logins() {
 				if ctx.Server.SieveEnabled(login.Domain()) {
-					target := ctx.Request().URL.Path + "?account=" + web.QueryValue(login.Username())
-					return ctx.Redirect(http.StatusFound, target)
+					target := web.AccountURL(ctx.Request().URL.Path, login.Username())
+					return ctx.FoundRedirect(target)
 				}
 			}
 			return web.NewError(http.StatusNotFound)
@@ -109,15 +107,10 @@ func registerRoutes(g *web.Group) {
 	g.POST("filter.delete", "/{name}/delete", requireAccount(handleDeleteFilter))
 }
 
-func filterName(ctx *web.Context) (string, error) {
-	return ctx.Param("name"), nil
-}
-
 func handleListFilters(ctx *web.Context) error {
 	data := &FiltersRenderData{
-		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("filters.title")),
-		Accounts:       sieveAccounts(ctx),
-		Rail:           rail(ctx),
+		PageData: *web.NewPageData(ctx, ctx.T("filters.title"), rail(ctx)),
+		Accounts: sieveAccounts(ctx),
 	}
 	unreachable := 0
 	for _, account := range data.Accounts {
@@ -185,23 +178,14 @@ func sieveAccounts(ctx *web.Context) []web.Account {
 }
 
 func handleCreateFilter(ctx *web.Context) error {
-	accounts := sieveAccounts(ctx)
-	if len(accounts) == 0 {
-		return web.NewError(http.StatusNotFound)
+	data, err := filterData(ctx, "")
+	if err != nil {
+		return err
 	}
-	account := ctx.URLAccount()
-	if account == "" {
-		account = accounts[0].Username
-	}
-	return ctx.Render(http.StatusOK, "filters/filter-edit", &FilterRenderData{
-		BaseRenderData: *web.NewBaseRenderData(ctx),
-		Rail:           rail(ctx),
-		Accounts:       accounts,
-		Account:        account,
-	})
+	return ctx.Render(http.StatusOK, "filters/filter-edit", data)
 }
 
-func importFilterData(ctx *web.Context) (*FilterRenderData, error) {
+func filterData(ctx *web.Context, title string) (*FilterRenderData, error) {
 	accounts := sieveAccounts(ctx)
 	if len(accounts) == 0 {
 		return nil, web.NewError(http.StatusNotFound)
@@ -211,26 +195,24 @@ func importFilterData(ctx *web.Context) (*FilterRenderData, error) {
 		account = accounts[0].Username
 	}
 	data := &FilterRenderData{
-		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("filters.import")),
-		Rail:           rail(ctx),
-		Accounts:       accounts,
-		Account:        account,
+		PageData: *web.NewPageData(ctx, title, rail(ctx)),
+		Accounts: accounts,
+		Account:  account,
 	}
 	return data, nil
 }
 
 // handleImportFilterTooLarge answers a script past the limit on the import form.
 func handleImportFilterTooLarge(ctx *web.Context) error {
-	data, err := importFilterData(ctx)
+	data, err := filterData(ctx, ctx.T("filters.import"))
 	if err != nil {
 		return err
 	}
-	data.Refused(ctx.Tf("import.toolarge", maxScriptSize>>20))
-	return ctx.Render(http.StatusUnprocessableEntity, "filters/import", data)
+	return web.RenderRefused(ctx, "filters/import", data, ctx.Tf("import.toolarge", maxScriptSize>>20))
 }
 
 func handleImportFilter(ctx *web.Context) error {
-	data, err := importFilterData(ctx)
+	data, err := filterData(ctx, ctx.T("filters.import"))
 	if err != nil {
 		return err
 	}
@@ -242,12 +224,10 @@ func handleImportFilter(ctx *web.Context) error {
 	}
 	file, err := ctx.FormFile("file")
 	if err == nil && file.Size() > maxScriptSize {
-		data.Refused(ctx.Tf("import.toolarge", maxScriptSize>>20))
-		return ctx.Render(http.StatusUnprocessableEntity, "filters/import", data)
+		return web.RenderRefused(ctx, "filters/import", data, ctx.Tf("import.toolarge", maxScriptSize>>20))
 	}
 	if err != nil {
-		data.Refused(ctx.T("form.fileneeded"))
-		return ctx.Render(http.StatusUnprocessableEntity, "filters/import", data)
+		return web.RenderRefused(ctx, "filters/import", data, ctx.T("form.fileneeded"))
 	}
 	raw, err := io.ReadAll(file.Open())
 	if err != nil {
@@ -259,13 +239,10 @@ func handleImportFilter(ctx *web.Context) error {
 }
 
 func handleEditFilter(ctx *web.Context) error {
-	name, err := filterName(ctx)
-	if err != nil {
-		return err
-	}
+	name := ctx.Param("name")
 
 	var content string
-	err = ctx.DoSieve(func(c alborz.SieveClient) error {
+	err := ctx.DoSieve(func(c alborz.SieveClient) error {
 		var err error
 		content, err = c.GetScript(name)
 		return err
@@ -275,11 +252,10 @@ func handleEditFilter(ctx *web.Context) error {
 	}
 
 	return ctx.Render(http.StatusOK, "filters/filter-edit", &FilterRenderData{
-		BaseRenderData: *web.NewBaseRenderData(ctx),
-		Rail:           rail(ctx),
-		Name:           name,
-		Content:        content,
-		Loaded:         filters.Fingerprint(content),
+		PageData: *web.NewPageData(ctx, "", rail(ctx)),
+		Name:     name,
+		Content:  content,
+		Loaded:   filters.Fingerprint(content),
 	})
 }
 
@@ -287,13 +263,7 @@ func handleSaveFilter(ctx *web.Context) error {
 	name := ctx.FormValue("name")
 	content := ctx.FormValue("content")
 	if strings.TrimSpace(name) == "" {
-		return ctx.Render(http.StatusUnprocessableEntity, "filters/filter-edit", &FilterRenderData{
-			BaseRenderData: *web.NewBaseRenderData(ctx).Refused(ctx.T("form.nameneeded")),
-			Rail:           rail(ctx),
-			Content:        content,
-			Accounts:       sieveAccounts(ctx),
-			Account:        ctx.FormValue("account"),
-		})
+		return renderFilterRefusal(ctx, http.StatusUnprocessableEntity, ctx.T("form.nameneeded"), "", content, "")
 	}
 
 	// The account choice holds for this request only, like an account-carrying link.
@@ -313,71 +283,53 @@ func handleSaveFilter(ctx *web.Context) error {
 		return err
 	})
 	if errors.Is(err, filters.ErrChanged) {
-		return ctx.Render(http.StatusConflict, "filters/filter-edit", &FilterRenderData{
-			BaseRenderData: *web.NewBaseRenderData(ctx).Refused(ctx.T("filters.changed")),
-			Rail:           rail(ctx),
-			Name:           name,
-			Content:        content,
-			Loaded:         loaded,
-			Accounts:       sieveAccounts(ctx),
-			Account:        ctx.FormValue("account"),
-		})
+		return renderFilterRefusal(ctx, http.StatusConflict, ctx.T("filters.changed"), name, content, loaded)
 	}
 	if err != nil {
 		// Show the server's rejection next to the script instead of an error page.
-		return ctx.Render(http.StatusUnprocessableEntity, "filters/filter-edit", &FilterRenderData{
-			BaseRenderData: *web.NewBaseRenderData(ctx).Refused(err.Error()),
-			Rail:           rail(ctx),
-			Name:           name,
-			Content:        content,
-			Loaded:         loaded,
-			Accounts:       sieveAccounts(ctx),
-			Account:        ctx.FormValue("account"),
-		})
+		return renderFilterRefusal(ctx, http.StatusUnprocessableEntity, err.Error(), name, content, loaded)
 	}
 
 	switch {
 	case warnings != "":
 		ctx.Notify(web.Notice{Kind: web.NoticeWarning, Text: fmt.Sprintf(ctx.T("notice.filterwarn"), warnings)})
 	case loaded == "":
-		account := "?account=" + web.QueryValue(ctx.Login.Username())
 		ctx.Made(ctx.T("notice.filtercreated"), name,
-			ctx.Path("filters.filter", name)+account, ctx.Path("filters.create")+account)
+			web.AccountURL(ctx.Path("filters.filter", name), ctx.Login.Username()), web.AccountURL(ctx.Path("filters.create"), ctx.Login.Username()))
 	default:
 		ctx.PutNotice(ctx.T("notice.filtersaved"))
 	}
-	return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.Path("filters.list")+"?account="+web.QueryValue(ctx.Login.Username())))
+	return ctx.FoundRedirect(ctx.NextOr(web.AccountURL(ctx.Path("filters.list"), ctx.Login.Username())))
+}
+
+func renderFilterRefusal(ctx *web.Context, status int, message, name, content, loaded string) error {
+	return ctx.Render(status, "filters/filter-edit", &FilterRenderData{
+		PageData: *web.NewPageData(ctx, "", rail(ctx)).WithRefused(message),
+		Name:     name, Content: content, Loaded: loaded,
+		Accounts: sieveAccounts(ctx), Account: ctx.FormValue("account"),
+	})
 }
 
 func handleActivateFilter(ctx *web.Context) error {
-	name, err := filterName(ctx)
-	if err != nil {
-		return err
-	}
-
-	err = ctx.DoSieve(func(c alborz.SieveClient) error {
+	return filterAction(ctx, "notice.filteron", func(c alborz.SieveClient, name string) error {
 		return c.ActivateScript(name)
 	})
-	return answer(ctx, err, "filters.list", ctx.T("notice.filteron"))
 }
 
 func handleDeactivateFilter(ctx *web.Context) error {
-	err := ctx.DoSieve(func(c alborz.SieveClient) error {
-		return c.ActivateScript("")
-	})
-	return answer(ctx, err, "filters.list", ctx.T("notice.filteroff"))
+	return answer(ctx, ctx.DoSieve(func(c alborz.SieveClient) error { return c.ActivateScript("") }), "filters.list", ctx.T("notice.filteroff"))
 }
 
 func handleDeleteFilter(ctx *web.Context) error {
-	name, err := filterName(ctx)
-	if err != nil {
-		return err
-	}
-
-	err = ctx.DoSieve(func(c alborz.SieveClient) error {
+	return filterAction(ctx, "notice.filterdeleted", func(c alborz.SieveClient, name string) error {
 		return c.DeleteScript(name)
 	})
-	return answer(ctx, err, "filters.list", ctx.T("notice.filterdeleted"))
+}
+
+func filterAction(ctx *web.Context, notice string, action func(alborz.SieveClient, string) error) error {
+	name := ctx.Param("name")
+	err := ctx.DoSieve(func(c alborz.SieveClient) error { return action(c, name) })
+	return answer(ctx, err, "filters.list", ctx.T(notice))
 }
 
 // An extension with no entry keeps its bare name: an invented hint is worse than none.

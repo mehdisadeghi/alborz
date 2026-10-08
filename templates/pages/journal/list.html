@@ -1,53 +1,45 @@
 {{ define "rail" }}
-  {{ template "pim-rail" (dict "g" $ "urlaccount" .GlobalData.URLAccount "path" (url "calendar.journal") "items" .Calendars "field" "cal" "itemclass" "calendar-item" "action" (url "calendar.journal") "edit" "calendar.collection" "invitations" .Invitations
+  {{ template "pim-rail" (dict "g" $ "urlaccount" .GlobalData.URLAccount "path" (url "calendar.journal") "items" .Collections "field" "cal" "itemclass" "calendar-item" "action" (url "calendar.journal") "edit" "calendar.collection" "invitations" .Invitations
      "new" (dict "href" (printf "%s?for=journal&next=%s" (url "calendar.calendars.create") (.GlobalData.URL.RequestURI | qv)) "label" ($.T "journal.newjournal"))
      "views" (dict "path" (url "calendar.journal") "view" .View "account" .GlobalData.URLAccount)) }}
 {{ end }}
 
 {{ define "before-main" }}
-    {{ template "next-form" (dict "id" "journal-form" "next" $.GlobalData.URL.RequestURI) }}
-    {{ template "next-form" (dict "id" "refresh-form" "action" (url "calendar.journal.refresh") "next" $.GlobalData.URL.RequestURI) }}
+    {{ template "pim-list-before" (dict "select" "journal-form" "refresh" (url "calendar.journal.refresh")) }}
 {{ end }}
 
 {{ define "main-class" }} class="journal-list"{{ end }}
 
 {{ define "main" }}
         {{ template "toolbar-head" (dict "g" . "selectall" true "newhref" (url "calendar.entry.create") "back" .GlobalData.URL.RequestURI "newlabel" ($.T "journal.new")) }}
-          <span class="icon-group">
-            {{ template "action-icon" (dict "icon" "trash" "label" ($.T "common.delete") "class" "icon-danger" "form" "journal-form" "formaction" (url "calendar.journal.delete") "priority" 11) }}
-            {{ template "action-icon" (dict "icon" "download" "label" ($.T "common.download") "form" "journal-form" "formaction" (url "calendar.journal.export") "priority" 10 "download" true) }}
-          </span>
-          {{ template "more-open" $ }}
-              <button form="refresh-form" title="{{$.T "common.checkserverhint"}}">{{$.T "common.forcerefresh"}}</button>
-          {{ template "more-close" }}
+          {{ template "pim-action-group" (tuple
+             (dict "icon" "trash" "label" ($.T "common.delete") "class" "icon-danger" "form" "journal-form" "formaction" (url "calendar.journal.delete") "priority" 11)
+             (dict "icon" "download" "label" ($.T "common.download") "form" "journal-form" "formaction" (url "calendar.journal.export") "priority" 10 "download" true)) }}
+          {{ template "refresh-menu" $ }}
         {{ template "toolbar-end" }}
-            {{template "toolbar-search" (dict "query" .Query "placeholder" ($.T "journal.searchph") "button" ($.T "mailbox.search") "disabled" (and (not .Entries) (not .Query)))}}
-            {{ template "list-pager" (dict "g" $ "pager" .Pager) }}
-            {{ template "filter-menu" (dict "id" "menu-filter" "icon" "list-filter" "title" ($.T "filter.menu") "rows" .FilterRows "priority" 25 "class" "filter-overflow") }}
-            {{ template "sort-menu" (dict "g" $ "s" .Sorting "disabled" (not .Entries) "wide" true "rows" (tuple
+            {{ template "pim-list-controls" (dict
+               "search" (dict "query" .Query "placeholder" ($.T "journal.searchph") "button" ($.T "mailbox.search") "disabled" (and (not .Entries) (not .Query)))
+               "pager" (dict "g" $ "pager" .Pager)
+               "filter" (dict "id" "menu-filter" "icon" "list-filter" "title" ($.T "filter.menu") "rows" .FilterRows "priority" 25 "class" "filter-overflow")
+               "sort" (dict "g" $ "s" .Sorting "disabled" (not .Entries) "wide" true "rows" (tuple
                (tuple ($.T "sort.starred") "starred") (tuple ($.T "journal.summary") "summary") (tuple ($.T "journal.journal") "calendar")
-               (tuple ($.T "journal.date") "date") (tuple ($.T "common.added") "added"))) }}
+               (tuple ($.T "journal.date") "date") (tuple ($.T "common.added") "added")))) }}
         {{ template "toolbar-foot" }}
 
-      {{ template "section-crumb" (dict "g" $ "section" ($.T "nav.journal") "home" (url "calendar.journal") "field" "cal" "items" .Calendars "collection" "" "path" "" "heading" true) }}
-
-      {{ template "filter-chips" (dict "filters" .Filters "remove" ($.T "filter.remove")) }}
+      {{ template "pim-list-head" (dict "crumb" (dict "g" $ "section" ($.T "nav.journal") "home" (url "calendar.journal") "field" "cal" "items" .Collections "collection" "" "path" "" "heading" true) "filters" (dict "filters" .Filters "remove" ($.T "filter.remove"))) }}
 
       <section class="journal">
         <div {{ template "journal-grid" $ }}>
           {{if .Entries}}
-          <div class="journal-header-row list-row" role="row">
-            <div class="list-header list-checkbox" role="columnheader"></div>
-            {{ template "sort-col" (dict "s" .Sorting "key" "starred" "label" "★" "idle" "☆" "class" "flag-sort" "cell" "list-star" "hidden" ($.T "sort.starred")) }}
-            {{ template "sort-col" (dict "s" .Sorting "key" "summary" "label" ($.T "journal.summary") "cell" "list-primary journal-list-summary") }}
-            {{ template "sort-col" (dict "s" .Sorting "key" "calendar" "label" ($.T "journal.journal") "cell" "journal-list-calendar") }}
-            {{ template "sort-col" (dict "s" .Sorting "key" "date" "label" ($.T "journal.date") "cell" "journal-list-date") }}
-            {{ template "sort-col" (dict "s" .Sorting "key" "added" "label" ($.T "common.added") "cell" "journal-list-added") }}
-          </div>
+          {{ template "pim-list-sort-header" (dict "s" .Sorting "starred" ($.T "sort.starred") "class" "journal-header-row" "columns" (tuple
+             (tuple "summary" ($.T "journal.summary") "list-primary journal-list-summary" "" "")
+             (tuple "calendar" ($.T "journal.journal") "journal-list-calendar" "" "")
+             (tuple "date" ($.T "journal.date") "journal-list-date" "" "")
+             (tuple "added" ($.T "common.added") "journal-list-added" "" ""))) }}
 
           {{ template "entry-rows" $ }}
           {{else}}
-          <p class="empty-list">{{if .Query}}{{printf ($.T "common.noresults") .Query}}{{else}}{{$.T "journal.empty"}}{{end}}</p>
+          {{ template "pim-list-empty" (dict "query" .Query "noresults" ($.T "common.noresults") "empty" ($.T "journal.empty")) }}
           {{end}}
         </div>
       </section>

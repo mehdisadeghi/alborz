@@ -1,9 +1,9 @@
 {{ define "mail-toolbar" }}
 {{$aq := ""}}{{with .GlobalData.URLAccount}}{{$aq = printf "?account=%s" .}}{{end}}
-{{ $hsort := .Sort }}{{ if eq $hsort "" }}{{ $hsort = "date" }}{{ end }}
+{{ $hsort := sortkey .Sort }}
 {{ $hexp := ne ($.GlobalData.URL.Query.Get "sort") "" }}
 {{ $hdirx := ne ($.GlobalData.URL.Query.Get "dir") "" }}
-{{ $hplain := "" }}{{ with .Query }}{{ $hplain = printf "&query=%s" (. | qv) }}{{ end }}{{ with .ListView }}{{ $hplain = printf "%s&view=%s" $hplain . }}{{ end }}{{ with $.GlobalData.URLAccount }}{{ $hplain = printf "%s&account=%s" $hplain (. | qv) }}{{ end }}{{ if $.GlobalData.Unified }}{{ $hplain = printf "%s&all=1" $hplain }}{{ end }}{{ with $.GlobalData.URL.Query.Get "ipp" }}{{ $hplain = printf "%s&ipp=%s" $hplain . }}{{ end }}
+{{ $hplain := "" }}{{ with (mailparams .Query .ListView $.GlobalData.URLAccount $.GlobalData.Unified ($.GlobalData.URL.Query.Get "ipp")) }}{{ $hplain = printf "&%s" . }}{{ end }}
 {{ $hreset := "?" }}{{ if ne $hplain "" }}{{ $hreset = printf "?%s" (slice $hplain 1) }}{{ end }}
 {{ $asked := or .Query .ListView }}
 {{ $empty := and .Mailbox.IsEmpty (not $asked) }}
@@ -63,18 +63,14 @@
     {{ template "more-open" $ }}
         <button form="messages-form" formaction="{{url "mail.messages.forward" .Mailbox.Name}}{{$aq}}">{{$.T "message.forward"}}</button>
         <button form="messages-form" formaction="{{url "mail.messages.export" .Mailbox.Name}}{{ or $aq "?" }}{{ if $aq }}&{{ end }}ask=1">{{$.T "mailbox.export"}}</button>
-        {{ if not .Merged }}
         {{ $exportall := printf "%s%s" (url "mail.messages.export" .Mailbox.Name) $aq }}{{ with .Query }}{{ $exportall = printf "%s%squery=%s" $exportall (or (and $aq "&") "?") (. | qv) }}{{ else }}{{ with .ListView }}{{ $exportall = printf "%s%sview=%s" $exportall (or (and $aq "&") "?") . }}{{ end }}{{ end }}
         <a class="button-link" href="{{ localhref $exportall }}"{{ if $empty }} aria-disabled="true"{{ end }}>{{ if .Query }}{{$.T "mailbox.exportresults"}}{{ else }}{{$.T "mailbox.exportfolder"}}{{ end }}</a>
-        {{ end }}
         <button form="refresh-form" title="{{$.T "mailbox.refreshhint"}}">{{$.T "common.forcerefresh"}}</button>
-        {{ $read := print (url "mail.messages.flag" .Mailbox.Name) "?action=add&to=%5CSeen" (account "&" $.GlobalData.URLAccount) }}<button form="messages-form" formaction="{{$read}}"{{ template "swap-main" $read }}>{{$.T "mailbox.markread"}}</button>
-        {{ $unread := print (url "mail.messages.flag" .Mailbox.Name) "?action=remove&to=%5CSeen" (account "&" $.GlobalData.URLAccount) }}<button form="messages-form" formaction="{{$unread}}"{{ template "swap-main" $unread }}>{{$.T "mailbox.markunread"}}</button>
+        {{ $read := print (url "mail.messages.flag" .Mailbox.Name) "?action=add&to=%5CSeen" (account "&" $.GlobalData.URLAccount) }}{{ $unread := print (url "mail.messages.flag" .Mailbox.Name) "?action=remove&to=%5CSeen" (account "&" $.GlobalData.URLAccount) }}
+        {{ template "mail-read-actions" (dict "g" $ "read" $read "unread" $unread) }}
         <button form="messages-form" formaction="{{url "mail.messages.move" .Mailbox.Name}}{{$aq}}">{{$.T "mailbox.moveto"}}</button>
         {{ if or (and $junk (eq .Mailbox.Name $junk)) (and $trash (eq .Mailbox.Name $trash)) }}
-        <form method="post" action="{{url "mail.mailbox.empty" .Mailbox.Name}}{{$aq}}">
-          <button class="button-danger"{{ if .Mailbox.IsEmpty }} disabled{{ end }}>{{$.T "mailbox.emptyfolder"}}</button>
-        </form>
+        {{ template "empty-mailbox-action" (dict "action" (printf "%s%s" (url "mail.mailbox.empty" .Mailbox.Name) $aq) "label" ($.T "mailbox.emptyfolder") "disabled" .Mailbox.IsEmpty) }}
         {{ end }}
         {{ if not (eq .Mailbox.Name "INBOX") }}
         <a class="button-link" href="{{url "mail.mailbox.rename" .Mailbox.Name}}{{$aq}}">{{$.T "mailbox.renamefolder"}}</a>
@@ -88,13 +84,9 @@
     {{ template "more-open" $ }}
         <button form="messages-form" formaction="{{$act}}?action=export" data-download>{{$.T "mailbox.export"}}</button>
         <button form="refresh-form" title="{{$.T "mailbox.refreshhint"}}">{{$.T "common.forcerefresh"}}</button>
-        {{ $read := print $act "?action=read" }}<button form="messages-form" formaction="{{$read}}"{{ template "swap-main" $read }}>{{$.T "mailbox.markread"}}</button>
-        {{ $unread := print $act "?action=unread" }}<button form="messages-form" formaction="{{$unread}}"{{ template "swap-main" $unread }}>{{$.T "mailbox.markunread"}}</button>
+        {{ template "mail-read-actions" (dict "g" $ "read" (printf "%s?action=read" $act) "unread" (printf "%s?action=unread" $act)) }}
         {{ if or (eq $path (url "mail.mailbox" "Junk")) (eq $path (url "mail.mailbox" "Trash")) }}
-        <form method="post" action="{{url "mail.role.empty" $role}}">
-          <input type="hidden" name="next" value="{{$.GlobalData.URL.RequestURI}}">
-          <button class="button-danger"{{ if eq .Total 0 }} disabled{{ end }}>{{$.T "mailbox.emptyfolder"}}</button>
-        </form>
+        {{ template "empty-mailbox-action" (dict "action" (url "mail.role.empty" $role) "next" $.GlobalData.URL.RequestURI "label" ($.T "mailbox.emptyfolder") "disabled" (eq .Total 0)) }}
         {{ end }}
     {{ template "more-close" }}
     {{ end }}
@@ -118,3 +110,13 @@
 
 {{ template "toolbar-foot" }}
 {{ end }}
+
+{{/* dict: action label disabled [next]. */}}
+{{ define "empty-mailbox-action" }}
+<form method="post" action="{{.action}}">
+  {{ with .next }}<input type="hidden" name="next" value="{{.}}">{{ end }}
+  <button class="button-danger"{{ if .disabled }} disabled{{ end }}>{{.label}}</button>
+</form>
+{{ end }}
+
+{{ define "mail-read-actions" }}<button form="messages-form" formaction="{{.read}}"{{ template "swap-main" .read }}>{{.g.T "mailbox.markread"}}</button><button form="messages-form" formaction="{{.unread}}"{{ template "swap-main" .unread }}>{{.g.T "mailbox.markunread"}}</button>{{ end }}

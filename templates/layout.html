@@ -45,10 +45,10 @@
 {{ block "body" . }}
 {{ template "nav" . }}
 <div class="page-wrap">
-  {{ block "rail" . }}{{ end }}
+  {{ block "rail" . }}{{ template "page-rail" . }}{{ end }}
   <div class="container">
     {{ block "before-main" . }}{{ end }}
-    <main id="main" tabindex="-1"{{ block "main-class" . }}{{ end }}>
+    <main id="main" tabindex="-1"{{ block "main-class" . }} class="list"{{ end }}>
 {{ block "main" . }}{{ end }}
     </main>
   </div>

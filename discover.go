@@ -38,22 +38,30 @@ func discoverTCP(service, name string) (string, error) {
 	return fmt.Sprintf("%v:%v", target, addr.Port), nil
 }
 
+type discoveredService struct{ lookup, scheme string }
+
+func discoverServices(domain string, services ...discoveredService) (*url.URL, string, error) {
+	for _, service := range services {
+		host, err := discoverTCP(service.lookup, domain)
+		if err != nil {
+			return nil, "", err
+		}
+		if host != "" {
+			return &url.URL{Scheme: service.scheme, Host: host}, srvName(service.lookup, domain), nil
+		}
+	}
+	return nil, "", nil
+}
+
 // discoverIMAP discovers the IMAP server via DNS (RFC 6186 section 3.2).
 func discoverIMAP(domain string) (*url.URL, string, error) {
-	imapsHost, err := discoverTCP("imaps", domain)
+	u, source, err := discoverServices(domain,
+		discoveredService{"imaps", "imaps"}, discoveredService{"imap", "imap"})
 	if err != nil {
 		return nil, "", err
 	}
-	if imapsHost != "" {
-		return &url.URL{Scheme: "imaps", Host: imapsHost}, srvName("imaps", domain), nil
-	}
-
-	imapHost, err := discoverTCP("imap", domain)
-	if err != nil {
-		return nil, "", err
-	}
-	if imapHost != "" {
-		return &url.URL{Scheme: "imap", Host: imapHost}, srvName("imap", domain), nil
+	if u != nil {
+		return u, source, nil
 	}
 
 	return nil, "", fmt.Errorf("IMAP service discovery not configured for domain %q", domain)
@@ -62,35 +70,17 @@ func discoverIMAP(domain string) (*url.URL, string, error) {
 // discoverSieve discovers the ManageSieve server via DNS (RFC 5804); a missing
 // record is no URL and no error.
 func discoverSieve(domain string) (*url.URL, string, error) {
-	host, err := discoverTCP("sieve", domain)
-	if err != nil {
-		return nil, "", err
-	}
-	if host == "" {
-		return nil, "", nil
-	}
-	return &url.URL{Scheme: "sieve", Host: host}, srvName("sieve", domain), nil
+	return discoverServices(domain, discoveredService{"sieve", "sieve"})
 }
 
 // discoverSMTP discovers the submission server via DNS (RFC 6186 section 3.1),
 // including the implicit-TLS submissions service of RFC 8314; a missing record
 // is no URL and no error.
 func discoverSMTP(domain string) (*url.URL, string, error) {
-	smtpsHost, err := discoverTCP("submissions", domain)
+	u, source, err := discoverServices(domain,
+		discoveredService{"submissions", "smtps"}, discoveredService{"submission", "smtp"})
 	if err != nil {
 		return nil, "", err
 	}
-	if smtpsHost != "" {
-		return &url.URL{Scheme: "smtps", Host: smtpsHost}, srvName("submissions", domain), nil
-	}
-
-	smtpHost, err := discoverTCP("submission", domain)
-	if err != nil {
-		return nil, "", err
-	}
-	if smtpHost != "" {
-		return &url.URL{Scheme: "smtp", Host: smtpHost}, srvName("submission", domain), nil
-	}
-
-	return nil, "", nil
+	return u, source, nil
 }

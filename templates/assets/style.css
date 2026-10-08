@@ -1992,10 +1992,7 @@ main .details > .subject-row > h1 {
 
 .message-list-unread.message-list-sender,
 .message-list-unread.message-list-subject,
-.message-list-unread.message-list-date { font-weight: bold; }
-
-.message-list-unread.message-list-sender,
-.message-list-unread.message-list-date { color: var(--fg);}
+.message-list-unread.message-list-date { font-weight: bold; color: var(--fg); }
 
 .message-list-unread.message-list-subject {
   font-weight: normal;
@@ -2145,8 +2142,13 @@ main.create-update > form > .allday-label::before {
   overflow-wrap: anywhere;
 }
 
-.list-card dt { color: var(--fg-dim); font-size: var(--text-sm); }
-.list-card dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.list-card dt,
+.detail-card dt { color: var(--fg-dim); font-size: var(--text-sm); }
+
+.list-card dd,
+.detail-card dd,
+.info-card dd,
+.info-explain dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 
 .detail-card > h2 {
   margin: 0 0 var(--space-2);
@@ -2160,8 +2162,6 @@ main.create-update > form > .allday-label::before {
   margin: 0;
 }
 
-.detail-card dt { color: var(--fg-dim); font-size: var(--text-sm); }
-.detail-card dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 
 .invitation .attendee-list { margin: 0; padding: 0; list-style: none; }
 
@@ -2619,8 +2619,6 @@ main > .info-explain {
 }
 
 .info-explain dt { color: var(--fg-faint); }
-.info-explain dd { margin: 0; min-width: 0; }
-
 .card-only { display: none; }
 
 .info-card {
@@ -2668,7 +2666,6 @@ details.info-card[open] > summary { margin-bottom: var(--space-2); }
 }
 
 .info-card dt { color: var(--fg-faint); }
-.info-card dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 
 .info-abilities {
   list-style: none;
@@ -3339,7 +3336,9 @@ aside details.folder-branch details.folder-branch > ul > li {
 .event-row { display: contents; }
 
 .event-header-row > *,
-.event-row > * {
+.event-row > *,
+.task-row > *,
+.journal-row > * {
   min-height: 2.5rem;
   padding: var(--row-pad);
   border-bottom: 1px solid var(--border-light);
@@ -3348,7 +3347,9 @@ aside details.folder-branch details.folder-branch > ul > li {
   min-width: 0;
 }
 
-.event-row:hover > * { background: var(--bg-active); }
+.event-row:hover > *,
+.task-row:hover > *,
+.journal-row:hover > * { background: var(--bg-active); }
 
 /* A read-only event has no star; its row keeps the star's height. */
 .event-row .list-star::before {
@@ -3464,19 +3465,6 @@ aside details.folder-branch details.folder-branch > ul > li {
   .journal-grid .journal-list-calendar { display: none; }
 }
 
-.task-row > *,
-.journal-row > * {
-  min-height: 2.5rem;
-  padding: var(--row-pad);
-  border-bottom: 1px solid var(--border-light);
-  display: flex;
-  align-items: center;
-  min-width: 0;
-}
-
-.task-row:hover > *,
-.journal-row:hover > * { background: var(--bg-active); }
-
 .task-list-summary a,
 .journal-list-summary a {
   color: inherit;
@@ -3543,9 +3531,6 @@ aside details.folder-branch details.folder-branch > ul > li {
 
 .list-cell {
   border-bottom: 1px solid var(--border-light);
-}
-
-.list-cell {
   white-space: nowrap;
   min-height: 2.35rem;
   padding: var(--row-pad);
@@ -4830,14 +4815,18 @@ h1.no-word .title-short {
     align-self: center;
   }
 
-  .event-row > * {
+  .event-row > *,
+  .task-row > *,
+  .journal-row > * {
     min-height: 0;
     padding: 0;
     border: 0;
     background: transparent;
   }
 
-  .event-row:hover > * { background: transparent; }
+  .event-row:hover > *,
+  .task-row:hover > *,
+  .journal-row:hover > * { background: transparent; }
 
   .event-row .event-summary {
     grid-column: 2 / 5;
@@ -4881,15 +4870,6 @@ h1.no-word .title-short {
     padding: var(--space-2);
     border-bottom: 1px solid var(--border-light);
   }
-
-  .task-row > * {
-    min-height: 0;
-    padding: 0;
-    border: 0;
-    background: transparent;
-  }
-
-  .task-row:hover > * { background: transparent; }
 
   /* A box starting at the card's top edge would sit above the text it is for. */
   .task-row .task-list-checkbox {
@@ -4954,15 +4934,6 @@ h1.no-word .title-short {
     padding: var(--space-2);
     border-bottom: 1px solid var(--border-light);
   }
-
-  .journal-row > * {
-    min-height: 0;
-    padding: 0;
-    border: 0;
-    background: transparent;
-  }
-
-  .journal-row:hover > * { background: transparent; }
 
   .journal-row .journal-list-checkbox {
     grid-column: 1;
@@ -5201,14 +5172,6 @@ h1.no-word .title-short {
     white-space: normal;
     max-width: none;
     overflow-wrap: anywhere;
-  }
-
-  main.create-update .headers { grid-template-columns: auto minmax(0, 1fr); }
-  main.create-update #attachment-list {
-    grid-column: 1 / -1;
-    grid-row: auto;
-    width: auto;
-    height: 8rem;
   }
 
   .contact-row > .contact-list-changed { display: none; }

@@ -24,8 +24,7 @@ var placeIDs = []string{"domain", "host", "own", "here"}
 
 // ServerRenderData is the DAV servers' page, with the servers the account names for itself.
 type ServerRenderData struct {
-	web.BaseRenderData
-	Rail map[string][]web.RailRow
+	web.PageData[map[string][]web.RailRow]
 	*web.Servers
 	Services        dav.Services
 	HasHTTPPassword bool
@@ -48,8 +47,7 @@ func (d *ServerRenderData) DefaultPlace() string {
 
 func handleServer(ctx *web.Context) error {
 	data := &ServerRenderData{
-		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("servers." + web.ServerDAV)),
-		Rail:           web.SettingsRail(ctx),
+		PageData: *web.NewPageData(ctx, ctx.T("servers."+web.ServerDAV), web.SettingsRail(ctx)),
 	}
 	render := func(status int) error {
 		servers, err := ctx.Servers(web.ServerDAV)
@@ -82,12 +80,10 @@ func handleServer(ctx *web.Context) error {
 
 	// What the form changed is what it sends that differs from what it showed; the rest stays as stored.
 	drawn := data.Services
-	if v := ctx.FormValue("shown"); v != "" {
-		drawn = dav.Services{}
-		if err := json.Unmarshal([]byte(v), &drawn); err != nil {
-			return web.NewError(http.StatusBadRequest, "the form's shown servers do not decode")
-		}
-		data.Drawn = v
+	if shown, err := web.DecodeForm(ctx, "shown", &drawn, "the form's shown servers do not decode"); err != nil {
+		return err
+	} else if shown {
+		data.Drawn = ctx.FormValue("shown")
 	}
 	// What was typed is what the form shows again when one is refused.
 	named := dav.Services{
@@ -134,6 +130,5 @@ func handleServer(ctx *web.Context) error {
 	}
 	// The cache was read with the servers or password just left.
 	ctx.Server.ForgetAccount(ctx.Login.Username())
-	ctx.PutNotice(ctx.T("notice.serverssaved"))
-	return ctx.Redirect(http.StatusFound, ctx.URL("pim.server"))
+	return ctx.NoticeRedirect(ctx.T("notice.serverssaved"), ctx.URL("pim.server"))
 }

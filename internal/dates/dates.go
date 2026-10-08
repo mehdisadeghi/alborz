@@ -88,8 +88,7 @@ func (r Reader) Full(t time.Time) string {
 
 // Short is a bare date, without the current year.
 func (r Reader) Short(t time.Time) string {
-	cal := calsys.For(r.Calendar(), r.In(t))
-	year, m, day := cal.Date(r.In(t))
+	cal, year, m, day := r.calendarDate(t)
 	thisYear, _, _ := cal.Date(r.In(time.Now()))
 	month := r.ShortMonth(cal, m)
 	if year != thisYear {
@@ -144,8 +143,7 @@ func (r Reader) Weekday(d time.Weekday) string {
 
 // Month names the month of t, in the primary calendar.
 func (r Reader) Month(t time.Time) string {
-	cal := calsys.For(r.Calendar(), r.In(t))
-	_, m, _ := cal.Date(r.In(t))
+	cal, _, m, _ := r.calendarDate(t)
 	return r.t(cal.MonthKey(m))
 }
 
@@ -191,14 +189,12 @@ func (r Reader) MonthYear(t time.Time) string {
 
 // MonthYearShort is MonthYear with the month abbreviated, for a narrow toolbar.
 func (r Reader) MonthYearShort(t time.Time) string {
-	cal := calsys.For(r.Calendar(), r.In(t))
-	_, m, _ := cal.Date(r.In(t))
+	cal, _, m, _ := r.calendarDate(t)
 	return r.monthYear(t, r.ShortMonth(cal, m))
 }
 
 func (r Reader) monthYear(t time.Time, month string) string {
-	cal := calsys.For(r.Calendar(), r.In(t))
-	year, _, _ := cal.Date(r.In(t))
+	cal, year, _, _ := r.calendarDate(t)
 	thisYear, _, _ := cal.Date(r.In(time.Now()))
 	if year == thisYear {
 		return month
@@ -209,7 +205,15 @@ func (r Reader) monthYear(t time.Time, month string) string {
 // Long is a day heading; time.Format knows only English names.
 func (r Reader) Long(t time.Time) string {
 	weekday := r.Weekday(r.In(t).Weekday())
-	month := r.Month(t)
-	y, _, d := calsys.For(r.Calendar(), r.In(t)).Date(r.In(t))
+	cal, y, m, d := r.calendarDate(t)
+	month := r.t(cal.MonthKey(m))
 	return locale.Sprintf(r.Lang, r.t("date.long"), weekday, d, month, locale.Year(r.Lang, y))
+}
+
+// calendarDate applies the reader's zone and the calendar's date support once.
+func (r Reader) calendarDate(t time.Time) (calsys.System, int, int, int) {
+	t = r.In(t)
+	cal := calsys.For(r.Calendar(), t)
+	y, m, d := cal.Date(t)
+	return cal, y, m, d
 }

@@ -16,8 +16,7 @@ import (
 
 // ProfileRenderData is the settings page that belongs to no account.
 type ProfileRenderData struct {
-	web.BaseRenderData
-	Rail  map[string][]web.RailRow
+	web.PageData[map[string][]web.RailRow]
 	Theme string
 	// Themes are the overlays on offer, built in or dropped in by a deployment.
 	Themes        []web.Theme
@@ -40,12 +39,8 @@ type ProfileRenderData struct {
 }
 
 func handleLanguage(ctx *web.Context) error {
-	if err := ctx.SetLanguage(ctx.FormValue("language")); err != nil {
-		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: ctx.SaveRefusal(err)})
-	} else {
-		ctx.Quiet()
-	}
-	return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.Path("mail.home")))
+	to := ctx.NextOr(ctx.Path("mail.home"))
+	return ctx.SaveQuietRedirect(ctx.SetLanguage(ctx.FormValue("language")), to)
 }
 
 func handleProfile(ctx *web.Context) error {
@@ -55,21 +50,20 @@ func handleProfile(ctx *web.Context) error {
 			return err
 		}
 		return ctx.Render(status, "settings/general", &ProfileRenderData{
-			BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.general")).Refused(message),
-			Rail:           web.SettingsRail(ctx),
-			Theme:          p.Display.Theme,
-			Themes:         ctx.Themes(),
-			AlignByScript:  p.Display.AlignByScript,
-			TextSize:       p.Display.TextSize,
-			Segments:       segments(ctx),
-			StatusOn:       turnedOn(p.Display.Status),
-			Addons:         addons(ctx),
-			AddonsOn:       turnedOn(p.Display.Addons),
-			Reading:        p.Reading,
-			Writing:        p.Writing,
-			MaxPerPage:     web.MaxMessagesPerPage,
-			LockMinutes:    lockMinutes(ctx.Session().Lock()),
-			Shown:          string(shown),
+			PageData:      *web.NewSettingsPageData(ctx, ctx.T("settings.general")).WithRefused(message),
+			Theme:         p.Display.Theme,
+			Themes:        ctx.Themes(),
+			AlignByScript: p.Display.AlignByScript,
+			TextSize:      p.Display.TextSize,
+			Segments:      segments(ctx),
+			StatusOn:      turnedOn(p.Display.Status),
+			Addons:        addons(ctx),
+			AddonsOn:      turnedOn(p.Display.Addons),
+			Reading:       p.Reading,
+			Writing:       p.Writing,
+			MaxPerPage:    web.MaxMessagesPerPage,
+			LockMinutes:   lockMinutes(ctx.Session().Lock()),
+			Shown:         string(shown),
 		})
 	}
 	shown := ctx.Profile()
@@ -94,10 +88,10 @@ func handleProfile(ctx *web.Context) error {
 
 	// What the form changed is what it sends that differs from what it showed; the rest stays as stored.
 	drawn := shown
-	if v, ok := given("shown"); ok {
+	if _, ok := given("shown"); ok {
 		drawn = alborz.Profile{}
-		if err := json.Unmarshal([]byte(v), &drawn); err != nil {
-			return web.NewError(http.StatusBadRequest, "the form's shown profile does not decode")
+		if _, err := web.DecodeForm(ctx, "shown", &drawn, "the form's shown profile does not decode"); err != nil {
+			return err
 		}
 	}
 	p := drawn
@@ -166,8 +160,7 @@ func handleProfile(ctx *web.Context) error {
 			return err
 		}
 	}
-	ctx.PutNotice(ctx.T("notice.settingssaved"))
-	return ctx.Redirect(http.StatusFound, ctx.Path("settings.profile"))
+	return ctx.NoticeRedirect(ctx.T("notice.settingssaved"), ctx.Path("settings.profile"))
 }
 
 func handleProfileTake(ctx *web.Context) error {
@@ -184,20 +177,11 @@ func answerProfile(ctx *web.Context, answer func(*alborz.Login) error, done stri
 	if login == nil {
 		return web.NewError(http.StatusBadRequest, "not signed in to that account")
 	}
-	if err := answer(login); err != nil {
-		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: ctx.SaveRefusal(err)})
-	} else {
-		ctx.PutNotice(fmt.Sprintf(ctx.T(done), account))
-	}
-	return ctx.Redirect(http.StatusFound, ctx.Path("settings.profile"))
+	return ctx.SaveRedirect(answer(login), fmt.Sprintf(ctx.T(done), account), ctx.Path("settings.profile"))
 }
 
 func segments(ctx *web.Context) []string {
-	var names []string
-	for _, s := range ctx.Server.Status {
-		names = append(names, s.Name)
-	}
-	return names
+	return offeredNames(ctx.Server.Status, func(s web.Segment) string { return s.Name })
 }
 
 // chosen are the names sent among those offered; one not offered was not on the page, so it stays as it was.
@@ -212,9 +196,13 @@ func chosen(was, offered, sent []string) []string {
 }
 
 func addons(ctx *web.Context) []string {
-	var names []string
-	for _, a := range ctx.Server.Addons {
-		names = append(names, a.Name)
+	return offeredNames(ctx.Server.Addons, func(a web.Addon) string { return a.Name })
+}
+
+func offeredNames[T any](items []T, name func(T) string) []string {
+	names := make([]string, 0, len(items))
+	for _, item := range items {
+		names = append(names, name(item))
 	}
 	return names
 }

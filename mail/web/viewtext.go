@@ -93,7 +93,7 @@ func viewText(ctx *web.Context, msg *mail.IMAPMessage, path []int, part *message
 		text.Reset()
 	}
 
-	body := io.Reader(part.Body)
+	body := part.Body
 	if strings.EqualFold(params["format"], "flowed") {
 		raw, err := io.ReadAll(part.Body)
 		if err != nil {

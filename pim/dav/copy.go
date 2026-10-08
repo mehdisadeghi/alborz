@@ -141,6 +141,14 @@ func (w wire) answers(body []byte) bool {
 
 var errNotHeld = webdav.NewHTTPError(http.StatusNotFound, errors.New("dav: no such object in the copy"))
 
+func heldObject[T any](objects []T, path string, objectPath func(T) string) (*T, error) {
+	i := slices.IndexFunc(objects, func(object T) bool { return objectPath(object) == path })
+	if i < 0 {
+		return nil, errNotHeld
+	}
+	return &objects[i], nil
+}
+
 // calendars serves go-webdav's CalDAV server from a collection's copy; only reads reach it.
 type calendars struct {
 	caldav.Backend
@@ -156,11 +164,7 @@ func calendarCopy(coll string, held []object) http.Handler {
 }
 
 func (b calendars) GetCalendarObject(_ context.Context, p string, _ *caldav.CalendarCompRequest) (*caldav.CalendarObject, error) {
-	i := slices.IndexFunc(b.objects, func(o caldav.CalendarObject) bool { return o.Path == p })
-	if i < 0 {
-		return nil, errNotHeld
-	}
-	return &b.objects[i], nil
+	return heldObject(b.objects, p, func(o caldav.CalendarObject) string { return o.Path })
 }
 
 // QueryCalendarObjects parses only the objects that begin every component the filter requires.
@@ -259,11 +263,7 @@ func bookCopy(coll string, held []object) http.Handler {
 }
 
 func (b books) GetAddressObject(_ context.Context, p string, _ *carddav.AddressDataRequest) (*carddav.AddressObject, error) {
-	i := slices.IndexFunc(b.objects, func(o carddav.AddressObject) bool { return o.Path == p })
-	if i < 0 {
-		return nil, errNotHeld
-	}
-	return &b.objects[i], nil
+	return heldObject(b.objects, p, func(o carddav.AddressObject) string { return o.Path })
 }
 
 // QueryAddressObjects parses only for a filter, as the store does, and keeps a card that does not parse.

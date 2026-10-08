@@ -1,7 +1,6 @@
 package web
 
 import (
-	"errors"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -10,7 +9,6 @@ import (
 	"uuid"
 
 	"git.mehdix.org/alborz"
-	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/calendar"
 	"git.mehdix.org/alborz/pim/dav"
 	pimweb "git.mehdix.org/alborz/pim/web"
@@ -65,19 +63,8 @@ func (p *plugin) copyTo(s section) func(*web.Context) error {
 				return err
 			}
 			summary, _ := comp.Props.Text(ical.PropSummary)
-			data := &DestinationRenderData{
-				BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("common.copyask")),
-				Rail:           r,
-				Section:        ctx.T(section),
-				Home:           ctx.Path(s.list),
-				Title:          ctx.T("common.copyask"),
-				Lead:           summary,
-				Label:          ctx.T("common.saveto"),
-				Save:           ctx.T("common.copydo"),
-				Key:            key,
-				Groups:         groups,
-				Next:           back,
-			}
+			data := destinationRenderData(ctx, r, ctx.T(section), ctx.Path(s.list), ctx.T("common.copyask"), summary,
+				ctx.T("common.saveto"), ctx.T("common.copydo"), key, groups, back)
 			data.Refused(refusal)
 			return ctx.Render(status, "calendar/destination", data)
 		}
@@ -85,9 +72,12 @@ func (p *plugin) copyTo(s section) func(*web.Context) error {
 			return page(http.StatusOK, "")
 		}
 		to, err := p.destination(ctx, ctx.FormValue("to"), supports)
-		if errors.Is(err, pim.ErrNoDestination) {
-			return page(http.StatusUnprocessableEntity, ctx.T("form.destinationneeded"))
-		} else if err != nil {
+		if handled, refusal := pimweb.DestinationRefusal(ctx, err, func(message string) error {
+			return page(http.StatusUnprocessableEntity, message)
+		}); handled {
+			return refusal
+		}
+		if err != nil {
 			return err
 		}
 		source := held.Feed
@@ -115,6 +105,6 @@ func (p *plugin) copyTo(s section) func(*web.Context) error {
 			Markup: template.HTML(fmt.Sprintf(sentence, web.NoticeName(name))),
 			Actions: []*web.NoticeAction{ctx.Undo(ctx.Path(s.object+".delete", made.Path)+"?account="+web.QueryValue(to.Account),
 				url.Values{"next": {back}})}})
-		return ctx.Redirect(http.StatusFound, pimweb.ObjectURL(ctx, s.object, made.Path, to.Account, kept))
+		return ctx.FoundRedirect(pimweb.ObjectURL(ctx, s.object, made.Path, to.Account, kept))
 	}
 }

@@ -24,10 +24,6 @@ func ParseUID(s string) (imap.UID, error) {
 
 // ParseMessageRef reads the mailbox and uid a form names.
 func ParseMessageRef(mboxString, uidString string) (string, imap.UID, error) {
-	return parseMboxAndUID(mboxString, uidString)
-}
-
-func parseMboxAndUID(mboxString, uidString string) (string, imap.UID, error) {
 	mboxName, err := url.PathUnescape(mboxString)
 	if err != nil {
 		return "", 0, fmt.Errorf("invalid mailbox name: %v", err)

@@ -191,6 +191,30 @@ type Store struct {
 	watchers []func(accounts []string)
 }
 
+type viewDB interface {
+	View(func(kv.Tx) error) error
+}
+
+func viewGet[T any](db viewDB, key string) (*T, error) {
+	var value *T
+	err := db.View(func(tx kv.Tx) (err error) {
+		value, err = get[T](tx, key)
+		return err
+	})
+	return value, err
+}
+
+func viewList[T any](db viewDB, prefix string) ([]T, error) {
+	var values []T
+	err := db.View(func(tx kv.Tx) error {
+		return each(tx, prefix, func(value T) error {
+			values = append(values, value)
+			return nil
+		})
+	})
+	return values, err
+}
+
 func New(db kv.DB, root seal.Root, ring *keyring.Ring) *Store {
 	return &Store{db: sealed{db: db, key: root.Key(Name), ring: ring}, ring: ring, keys: keys{root.Names()}}
 }
@@ -339,12 +363,7 @@ func (s *Store) Create(c Collection) (*Collection, error) {
 }
 
 func (s *Store) Collection(ref Ref) (*Collection, error) {
-	var c *Collection
-	err := s.db.View(func(tx kv.Tx) (err error) {
-		c, err = get[Collection](tx, s.collectionKey(ref))
-		return err
-	})
-	return c, err
+	return viewGet[Collection](s.db, s.collectionKey(ref))
 }
 
 // Update changes a collection's own properties; a fed calendar's new name or colour is dated unless change dates it.
@@ -511,23 +530,11 @@ func (s *Store) ByPublic(secret string) (*Collection, error) {
 }
 
 func (s *Store) Objects(ref Ref) ([]Object, error) {
-	var out []Object
-	err := s.db.View(func(tx kv.Tx) error {
-		return each(tx, s.objectsOf(ref), func(o Object) error {
-			out = append(out, o)
-			return nil
-		})
-	})
-	return out, err
+	return viewList[Object](s.db, s.objectsOf(ref))
 }
 
 func (s *Store) Object(ref Ref, name string) (*Object, error) {
-	var o *Object
-	err := s.db.View(func(tx kv.Tx) (err error) {
-		o, err = get[Object](tx, s.objectKey(ref, name))
-		return err
-	})
-	return o, err
+	return viewGet[Object](s.db, s.objectKey(ref, name))
 }
 
 // ErrPrecondition is a write whose If-Match or If-None-Match did not hold.
@@ -599,14 +606,7 @@ func (s *Store) writable(tx kv.Tx, ref Ref, by string, now time.Time) error {
 
 // Dropped are the owner's fed calendars deleted since the account's list was last told.
 func (s *Store) Dropped(owner string) ([]Dropped, error) {
-	var out []Dropped
-	err := s.db.View(func(tx kv.Tx) error {
-		return each(tx, s.droppedOf(owner), func(d Dropped) error {
-			out = append(out, d)
-			return nil
-		})
-	})
-	return out, err
+	return viewList[Dropped](s.db, s.droppedOf(owner))
 }
 
 // Told forgets a Dropped once the account's list says so.
@@ -736,12 +736,7 @@ func (s *Store) PutShare(sh Share) error {
 }
 
 func (s *Store) Share(ref Ref, to string) (*Share, error) {
-	var sh *Share
-	err := s.db.View(func(tx kv.Tx) (err error) {
-		sh, err = get[Share](tx, s.shareKey(ref, to))
-		return err
-	})
-	return sh, err
+	return viewGet[Share](s.db, s.shareKey(ref, to))
 }
 
 // Answer is the invitee's yes or no: yes makes it live, no is Declined before and Left after.

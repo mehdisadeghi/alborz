@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"slices"
 	"time"
 
 	"git.mehdix.org/alborz"
@@ -41,12 +42,9 @@ func (s *Server) keepLogin(l *alborz.Login) bool {
 		s.Logger().Printf("push %s: %v", l.Username(), err)
 		return false
 	}
-	for _, d := range devices {
-		if s.Sessions.holdsLogin(d.Session, l) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(devices, func(d alborz.PushDevice) bool {
+		return s.Sessions.holdsLogin(d.Session, l)
+	})
 }
 
 // Recheck lets the account's logins kept for notifications go, where nothing keeps them now.

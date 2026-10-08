@@ -17,9 +17,7 @@
     <input type="checkbox" name="paths" value="{{$.ref}}" form="{{.}}" aria-label="{{$.selectLabel}}{{with $.summary}}: {{.}}{{end}}">
   </div>
   {{ end }}
-  <div class="list-star list-cell" role="cell">
-    {{ with .staraction }}{{ template "card-star" (dict "Action" . "Current" $.star "Next" $.next "Label" (or (and $.star $.clearLabel) $.starLabel) "MenuLabel" $.starLabel) }}{{ end }}
-  </div>
+  {{ template "row-star-cell" (dict "g" .g "action" .staraction "star" .star "next" .next) }}
   {{ with .date }}<div class="event-date list-cell" role="cell" data-label="{{$.dateLabel}}" title="{{$.dateTitle}}">{{.}}</div>{{ end }}
   <div class="event-time list-cell" role="cell" data-label="{{.timeLabel}}">{{.when}}</div>
   <div class="event-summary list-primary list-cell" role="cell" data-label="{{.eventLabel}}">

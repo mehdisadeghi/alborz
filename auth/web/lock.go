@@ -30,7 +30,7 @@ func registerPasskeyRoutes(unlock, app *web.Group) {
 	unlock.GET("unlock", "", func(ctx *web.Context) error {
 		next := ctx.NextOr(ctx.Path("mail.home"))
 		if !ctx.Session().Locked(time.Now()) {
-			return ctx.Redirect(http.StatusFound, next)
+			return ctx.FoundRedirect(next)
 		}
 		return ctx.Render(http.StatusOK, "unlock", &UnlockRenderData{
 			BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("lock.title")),
@@ -38,21 +38,16 @@ func registerPasskeyRoutes(unlock, app *web.Group) {
 		})
 	})
 	unlock.POST("unlock.begin", "/begin", func(ctx *web.Context) error {
-		options, err := ctx.BeginUnlock()
-		if err != nil {
-			return err
-		}
-		return ctx.JSON(http.StatusOK, options)
+		return web.PasskeyBegin(ctx, ctx.BeginUnlock)
 	})
 	unlock.POST("unlock.finish", "/finish", func(ctx *web.Context) error {
 		if err := ctx.FinishUnlock(); err != nil {
-			ctx.Logger().Printf("unlock refused: %v", err)
-			return ctx.JSON(http.StatusForbidden, map[string]string{"error": ctx.T("passkeys.refused")})
+			return web.PasskeyFailure(ctx, http.StatusForbidden, "unlock refused", ctx.T("passkeys.refused"), err)
 		}
 		return ctx.NoContent(http.StatusNoContent)
 	})
 	unlock.POST("unlock.leave", "/leave", func(ctx *web.Context) error {
 		ctx.EndSession()
-		return ctx.Redirect(http.StatusFound, ctx.Path("auth.login"))
+		return ctx.FoundRedirect(ctx.Path("auth.login"))
 	})
 }

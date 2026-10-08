@@ -1,13 +1,9 @@
-{{ define "rail" }}
-  {{ template "dav-rail" (dict "g" $ "rail" .Rail) }}
-{{ end }}
-
 {{ define "object-actions" }}
           {{ $todo := index .g.Task.Data.Children 0 }}
           {{ $done := eq ($todo.Props.Text "STATUS") "COMPLETED" }}
           {{ $mark := .g.T "tasks.markcomplete" }}{{ if $done }}{{ $mark = .g.T "tasks.markincomplete" }}{{ end }}
           <form action="{{url "calendar.task.complete" .id}}{{.acct}}" method="post" hx-boost="false">
-            <input type="hidden" name="next" value="{{.list}}">
+            {{ template "next-field" .list }}
             {{ if $done }}<input type="hidden" name="reopen" value="1">{{ end }}
             <button type="submit" class="icon-button" aria-pressed="{{$done}}" title="{{$mark}}" aria-label="{{$mark}}">{{ template "icon" "check" }}</button>
           </form>
@@ -25,7 +21,7 @@
 
       {{ template "object-toolbar" (dict "g" $ "object" "calendar.task" "id" .Task.Path "acct" $acct "list" .List "new" (url "calendar.task.create") "newlabel" ($.T "tasks.new") "edit" "edit" "ext" ".ics" "readonly" false
          "copy" (printf "%s%s" (url "calendar.task.copy" .Task.Path) $acct)
-         "section" ($.T "nav.tasks") "home" (url "calendar.tasks") "field" "cal" "collection" .Calendar.Name "path" .Calendar.Path) }}
+         "section" ($.T "nav.tasks") "home" (url "calendar.tasks") "field" "cal" "collection" .Collection.Name "path" .Collection.Path) }}
 
       {{ template "next-form" (dict "id" "task-color-form" "next" $.GlobalData.URL.RequestURI) }}
       <section class="details">

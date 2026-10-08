@@ -177,6 +177,21 @@
    "categories" (dict "key" "categories" "label" ($g.T "aside.categories") "rows" $r.Categories)) }}
 {{ end }}
 
+{{/* The ordinary page frame chooses the rail from the URL. Pages with a
+     special list rail keep their own rail block. */}}
+{{ define "page-rail" }}
+{{ if .GlobalData.HasRail }}
+{{ $root := index .GlobalData.Path 0 }}
+{{ if eq $root "settings" }}
+  {{ template "settings-rail" . }}
+{{ else if or (eq $root "mailbox") (eq $root "message") (eq $root "new-mailbox") (eq $root "rename-mailbox") (eq $root "delete-mailbox") (eq $root "import") (eq $root "compose") }}
+  {{ template "mail-rail" . }}
+{{ else if or (eq $root "calendar") (eq $root "calendars") (eq $root "contacts") (eq $root "tasks") (eq $root "journal") }}
+  {{ template "dav-rail" (dict "g" . "rail" .Rail) }}
+{{ end }}
+{{ end }}
+{{ end }}
+
 {{ define "settings-rail" }}
 {{ if not .GlobalData.Swap }}
 <aside>

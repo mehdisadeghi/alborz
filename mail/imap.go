@@ -1,7 +1,6 @@
 package mail
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"errors"
@@ -84,19 +83,13 @@ func (mbox *MailboxInfo) Name() string {
 }
 
 func (mbox *MailboxInfo) HasAttr(flag string) bool {
-	for _, attr := range mbox.Attrs {
-		if string(attr) == flag {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(mbox.Attrs, func(attr imap.MailboxAttr) bool {
+		return string(attr) == flag
+	})
 }
 
 func (mbox *MailboxInfo) IsInternal() bool {
-	if strings.HasPrefix(mbox.Mailbox, ".") {
-		return true
-	}
-	return slices.Contains(mbox.Attrs, imap.MailboxAttrNoSelect)
+	return strings.HasPrefix(mbox.Mailbox, ".") || slices.Contains(mbox.Attrs, imap.MailboxAttrNoSelect)
 }
 
 // Counts ride on LIST-STATUS where offered, so the sidebar needs no STATUS for those.
@@ -220,6 +213,18 @@ func ensureMailboxSelected(conn *imapclient.Client, mboxName string) error {
 	return nil
 }
 
+// fetchOne reads one UID after the mailbox has been selected.
+func fetchOne(conn *imapclient.Client, uid imap.UID, options *imap.FetchOptions) (*imapclient.FetchMessageBuffer, error) {
+	msgs, err := conn.Fetch(imap.UIDSetNum(uid), options).Collect()
+	if err != nil {
+		return nil, err
+	}
+	if len(msgs) == 0 {
+		return nil, alborz.NotFound("notfound.message", fmt.Sprint(uid))
+	}
+	return msgs[0], nil
+}
+
 type IMAPMessage struct {
 	*imapclient.FetchMessageBuffer
 
@@ -326,7 +331,7 @@ var receivedFor = regexp.MustCompile(`(?i)\bfor\s+<([^>]+)>`)
 func deliveryAddresses(h textproto.Header, authserv string) (addrs []string, cut int) {
 	seen := map[string]bool{}
 	add := func(v string) {
-		v = strings.Trim(strings.TrimSpace(v), "<>")
+		v = normalizeMessageID(v)
 		if v == "" || !strings.Contains(v, "@") {
 			return
 		}
@@ -517,13 +522,12 @@ func decodedSize(part *imap.BodyStructureSinglePart) uint32 {
 	return part.Size
 }
 
-func (msg *IMAPMessage) TextPart() *IMAPPartNode {
+func (msg *IMAPMessage) textParts() (plain, html *IMAPPartNode) {
 	if msg.BodyStructure == nil {
-		return nil
+		return nil, nil
 	}
 
 	files := fileParts(msg.BodyStructure)
-	var best *IMAPPartNode
 	isTextPlain := false
 	msg.BodyStructure.Walk(func(path []int, part imap.BodyStructure) bool {
 		singlePart, ok := part.(*imap.BodyStructureSinglePart)
@@ -538,55 +542,47 @@ func (msg *IMAPMessage) TextPart() *IMAPPartNode {
 		switch strings.ToLower(singlePart.Subtype) {
 		case "plain":
 			isTextPlain = true
-			best = newIMAPPartNode(msg, path, singlePart)
+			plain = newIMAPPartNode(msg, path, singlePart)
 		case "html":
+			node := newIMAPPartNode(msg, path, singlePart)
+			html = node
 			if !isTextPlain {
-				best = newIMAPPartNode(msg, path, singlePart)
+				plain = node
 			}
 		}
 		return true
 	})
 
-	return best
+	return plain, html
+}
+
+func (msg *IMAPMessage) TextPart() *IMAPPartNode {
+	plain, _ := msg.textParts()
+	return plain
 }
 
 // PreferredPart is the part a message opens at.
 func (msg *IMAPMessage) PreferredPart(preferHTML bool) *IMAPPartNode {
-	if preferHTML {
-		if html := msg.HTMLPart(); html != nil {
-			return html
-		}
+	plain, html := msg.textParts()
+	if preferHTML && html != nil {
+		return html
 	}
-	if text := msg.TextPart(); text != nil {
-		return text
+	if plain != nil {
+		return plain
 	}
-	return msg.HTMLPart()
+	return html
 }
 
 func (msg *IMAPMessage) HTMLPart() *IMAPPartNode {
-	if msg.BodyStructure == nil {
-		return nil
-	}
+	_, html := msg.textParts()
+	return html
+}
 
-	files := fileParts(msg.BodyStructure)
-	var best *IMAPPartNode
-	msg.BodyStructure.Walk(func(path []int, part imap.BodyStructure) bool {
-		singlePart, ok := part.(*imap.BodyStructureSinglePart)
-		if !ok {
-			return true
-		}
-
-		if !strings.EqualFold(singlePart.Type, "text") || files[fmt.Sprint(path)] {
-			return true
-		}
-
-		if singlePart.Subtype == "html" {
-			best = newIMAPPartNode(msg, path, singlePart)
-		}
-		return true
+// HasAttachment reports whether a message carries one of the MIME types.
+func (msg *IMAPMessage) HasAttachment(types ...string) bool {
+	return slices.ContainsFunc(msg.Attachments(), func(att IMAPPartNode) bool {
+		return slices.ContainsFunc(types, func(typ string) bool { return strings.EqualFold(att.MIMEType, typ) })
 	})
-
-	return best
 }
 
 func (msg *IMAPMessage) Attachments() []IMAPPartNode {
@@ -651,18 +647,6 @@ func fileParts(bs imap.BodyStructure) map[string]bool {
 	return files
 }
 
-func pathsEqual(a, b []int) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
-}
-
 func (msg *IMAPMessage) PartByPath(path []int) *IMAPPartNode {
 	if msg.BodyStructure == nil {
 		return nil
@@ -673,7 +657,7 @@ func (msg *IMAPMessage) PartByPath(path []int) *IMAPPartNode {
 
 	var result *IMAPPartNode
 	msg.BodyStructure.Walk(func(p []int, part imap.BodyStructure) bool {
-		if result == nil && pathsEqual(path, p) {
+		if result == nil && slices.Equal(path, p) {
 			result = newIMAPPartNode(msg, p, part)
 		}
 		return result == nil
@@ -692,7 +676,7 @@ func (msg *IMAPMessage) ShownImages(path []int) []IMAPPartNode {
 	msg.BodyStructure.Walk(func(p []int, part imap.BodyStructure) bool {
 		single, ok := part.(*imap.BodyStructureSinglePart)
 		if ok && strings.EqualFold(single.Type, "image") && !files[fmt.Sprint(p)] &&
-			pathsEqual(p[:len(p)-1], beside) {
+			slices.Equal(p[:len(p)-1], beside) {
 			images = append(images, *newIMAPPartNode(msg, p, single))
 		}
 		return true
@@ -714,17 +698,17 @@ func (msg *IMAPMessage) HTMLPieces(path []int) []IMAPPartNode {
 	msg.BodyStructure.Walk(func(p []int, part imap.BodyStructure) bool {
 		switch part := part.(type) {
 		case *imap.BodyStructureMultiPart:
-			if pathsEqual(p, parent) {
+			if slices.Equal(p, parent) {
 				mixed = strings.EqualFold(part.Subtype, "mixed")
 			}
 		case *imap.BodyStructureSinglePart:
-			if len(p) != len(path) || !pathsEqual(p[:len(p)-1], parent) {
+			if len(p) != len(path) || !slices.Equal(p[:len(p)-1], parent) {
 				return true
 			}
 			disp := part.Disposition()
 			switch {
 			case part.MediaType() == "text/html" && !files[fmt.Sprint(p)]:
-				named = named || pathsEqual(p, path)
+				named = named || slices.Equal(p, path)
 				pieces = append(pieces, *newIMAPPartNode(msg, p, part))
 			case strings.EqualFold(part.Type, "image") && (disp == nil || strings.EqualFold(disp.Value, "inline")):
 				pieces = append(pieces, *newIMAPPartNode(msg, p, part))
@@ -831,8 +815,7 @@ func imapPartTree(msg *IMAPMessage, bs imap.BodyStructure, path []int) *IMAPPart
 		for i, part := range bs.Children {
 			num := i + 1
 
-			partPath := append([]int(nil), path...)
-			partPath = append(partPath, num)
+			partPath := append(append([]int(nil), path...), num)
 
 			node.Children = append(node.Children, *imapPartTree(msg, part, partPath))
 		}
@@ -908,12 +891,9 @@ func FlagColorFlags(color string) (add, del []imap.Flag) {
 
 // HasFlag reports whether the message carries a flag, ignoring case.
 func (msg *IMAPMessage) HasFlag(flag imap.Flag) bool {
-	for _, f := range msg.Flags {
-		if strings.EqualFold(string(f), string(flag)) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(msg.Flags, func(f imap.Flag) bool {
+		return strings.EqualFold(string(f), string(flag))
+	})
 }
 
 // Warnings live on the message page, so a row fetches no scanner or Received lines.
@@ -951,21 +931,16 @@ func mergeFetchOptions(*imap.FetchItemBodySection) *imap.FetchOptions {
 	}
 }
 
-func wholeRows(conn *imapclient.Client, mboxName string, uids []imap.UID) ([]IMAPMessage, error) {
+func fetchRows(conn *imapclient.Client, mboxName string, uids []imap.UID, fields rowFields, failure string) ([]*imapclient.FetchMessageBuffer, *imap.FetchItemBodySection, error) {
 	if err := ensureMailboxSelected(conn, mboxName); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	header := listHeaderItem()
-	fetched, err := conn.Fetch(imap.UIDSetNum(uids...), listFetchOptions(header)).Collect()
+	fetched, err := conn.Fetch(imap.UIDSetNum(uids...), fields(header)).Collect()
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch message list: %v", err)
+		return nil, nil, fmt.Errorf("failed to fetch %s: %v", failure, err)
 	}
-	rows := make([]IMAPMessage, len(fetched))
-	for i, msg := range fetched {
-		rows[i] = IMAPMessage{FetchMessageBuffer: msg, Mailbox: mboxName}
-		rows[i].setRowHeaders(msg.FindBodySection(header))
-	}
-	return rows, nil
+	return fetched, header, nil
 }
 
 // A server that returned nothing leaves the row without its marks.
@@ -973,7 +948,7 @@ func (msg *IMAPMessage) setRowHeaders(buf []byte) {
 	if len(buf) == 0 {
 		return
 	}
-	h, err := textproto.ReadHeader(bufio.NewReader(bytes.NewReader(buf)))
+	h, err := readHeaderBytes(buf)
 	if err != nil {
 		return
 	}
@@ -1002,7 +977,7 @@ func listIDOf(conn *imapclient.Client, mboxName string, uid imap.UID) (string, e
 	if len(msgs) == 0 {
 		return "", nil
 	}
-	h, err := textproto.ReadHeader(bufio.NewReader(bytes.NewReader(msgs[0].FindBodySection(section))))
+	h, err := readHeaderBytes(msgs[0].FindBodySection(section))
 	if err != nil {
 		return "", err
 	}
@@ -1052,11 +1027,11 @@ func listMessages(conn *imapclient.Client, mboxName string, page alborz.Page, fi
 		return nil, 0, fmt.Errorf("failed to fetch message list: %v", err)
 	}
 
-	for _, msg := range imapMsgs {
-		row := IMAPMessage{FetchMessageBuffer: msg, Mailbox: mboxName}
-		row.setRowHeaders(msg.FindBodySection(header))
-		msgs = append(msgs, row)
+	want := make([]threadRow, len(imapMsgs))
+	for i, msg := range imapMsgs {
+		want[i].uid = msg.UID
 	}
+	msgs = threadRows(imapMsgs, want, mboxName, header)
 
 	for i := len(msgs)/2 - 1; i >= 0; i-- {
 		opp := len(msgs) - 1 - i
@@ -1163,12 +1138,7 @@ func threadPage(conn *imapclient.Client, mboxName string, o messageOrder, page a
 	for i := first; i < last; i++ {
 		want = append(want, threadRow{uid: o.uids[i], depth: int(o.depths[i])})
 	}
-	header := listHeaderItem()
-	fetched, err := conn.Fetch(imap.UIDSetNum(o.uids[first:last]...), listFetchOptions(header)).Collect()
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch thread page: %v", err)
-	}
-	return threadRows(fetched, want, mboxName, header), nil
+	return fetchProjectedRows(conn, mboxName, o.uids[first:last], want, listFetchOptions, "thread page")
 }
 
 // FETCH does not promise the order asked for.
@@ -1183,7 +1153,7 @@ func indexByUID(msgs []*imapclient.FetchMessageBuffer) map[imap.UID]*imapclient.
 // A message expunged between THREAD and FETCH is simply not shown.
 func threadRows(fetched []*imapclient.FetchMessageBuffer, want []threadRow, mboxName string, header *imap.FetchItemBodySection) []IMAPMessage {
 	byUID := indexByUID(fetched)
-	var msgs []IMAPMessage
+	msgs := make([]IMAPMessage, 0, len(want))
 	for _, r := range want {
 		buf, ok := byUID[r.uid]
 		if !ok {
@@ -1194,6 +1164,22 @@ func threadRows(fetched []*imapclient.FetchMessageBuffer, want []threadRow, mbox
 		msgs = append(msgs, row)
 	}
 	return msgs
+}
+
+func rowsForUIDs(uids []imap.UID) []threadRow {
+	want := make([]threadRow, len(uids))
+	for i, uid := range uids {
+		want[i].uid = uid
+	}
+	return want
+}
+
+func fetchProjectedRows(conn *imapclient.Client, mboxName string, uids []imap.UID, want []threadRow, fields rowFields, failure string) ([]IMAPMessage, error) {
+	fetched, header, err := fetchRows(conn, mboxName, uids, fields, failure)
+	if err != nil {
+		return nil, err
+	}
+	return threadRows(fetched, want, mboxName, header), nil
 }
 
 const answerLimit = 12
@@ -1245,12 +1231,7 @@ func oneThread(conn *imapclient.Client, mboxName string, algorithm imap.ThreadAl
 	for i, r := range want {
 		uids[i] = r.uid
 	}
-	header := listHeaderItem()
-	fetched, err := conn.Fetch(imap.UIDSetNum(uids...), listFetchOptions(header)).Collect()
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch thread: %v", err)
-	}
-	return threadRows(fetched, want, mboxName, header), nil
+	return fetchProjectedRows(conn, mboxName, uids, want, listFetchOptions, "thread")
 }
 
 // UIDs rise with arrival, so the highest is a thread's newest message.
@@ -1516,22 +1497,7 @@ func orderedPage(conn *imapclient.Client, mboxName string, uids []imap.UID, page
 		return nil, nil
 	}
 	uids = uids[from:to]
-	header := listHeaderItem()
-	results, err := conn.Fetch(imap.UIDSetNum(uids...), fields(header)).Collect()
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch message list: %v", err)
-	}
-	byUID := indexByUID(results)
-	// A message expunged since the order was taken is left out.
-	msgs := make([]IMAPMessage, 0, len(uids))
-	for _, uid := range uids {
-		if msg, ok := byUID[uid]; ok {
-			row := IMAPMessage{FetchMessageBuffer: msg, Mailbox: mboxName}
-			row.setRowHeaders(msg.FindBodySection(header))
-			msgs = append(msgs, row)
-		}
-	}
-	return msgs, nil
+	return fetchProjectedRows(conn, mboxName, uids, rowsForUIDs(uids), fields, "message list")
 }
 
 // placeIn finds a message in a view's order; a zero position means it is not there.
@@ -1611,11 +1577,6 @@ func (node IMAPPartNode) Cut() bool {
 	return node.octets > partReadMax
 }
 
-// getShownPart is the part as a page reads it, cut at partReadMax.
-func getShownPart(conn *imapclient.Client, mboxName string, uid imap.UID, partPath []int) (*IMAPMessage, *message.Entity, error) {
-	return fetchMessagePart(conn, mboxName, uid, partPath, true)
-}
-
 func fetchMessagePart(conn *imapclient.Client, mboxName string, uid imap.UID, partPath []int, cut bool) (*IMAPMessage, *message.Entity, error) {
 	if err := ensureMailboxSelected(conn, mboxName); err != nil {
 		return nil, nil, err
@@ -1659,7 +1620,7 @@ func messagePart(msg *imapclient.FetchMessageBuffer, mboxName string, uid imap.U
 		return nil, nil, fmt.Errorf("server didn't return the header")
 	}
 	out := &IMAPMessage{FetchMessageBuffer: msg, Mailbox: mboxName}
-	rootHeader, err := textproto.ReadHeader(bufio.NewReader(bytes.NewReader(rootHeaderBuf)))
+	rootHeader, err := readHeaderBytes(rootHeaderBuf)
 	if err == nil {
 		out.setListHeaders(rootHeader)
 	}
@@ -1674,7 +1635,7 @@ func messagePart(msg *imapclient.FetchMessageBuffer, mboxName string, uid imap.U
 		// A part path the message lacks comes back without the sections.
 		return nil, nil, alborz.NotFound("notfound.part", fmt.Sprint(uid))
 	}
-	h, err := textproto.ReadHeader(bufio.NewReader(bytes.NewReader(headerBuf)))
+	h, err := readHeaderBytes(headerBuf)
 	if err != nil {
 		// Show a broken header's part raw rather than fail the page.
 		h = textproto.Header{}

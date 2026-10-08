@@ -1,6 +1,4 @@
-{{ define "rail" }}
-  {{ template "filters-rail" (dict "g" $ "accounts" .GlobalData.Accounts) }}
-{{ end }}
+{{ define "rail" }}{{ template "filters-page-rail" . }}{{ end }}
 
 {{ define "main-class" }} class="create-update"{{ end }}
 
@@ -9,9 +7,9 @@
       <form method="post" action="{{url "filters.autoreply"}}{{$aq}}">
         {{ template "filters-crumb" (dict "g" $ "collection" ($.T "filters.autoreply") "path" (url "filters.autoreply")) }}
         <h1>{{ if ge .Index 0 }}{{$.T "filters.replyedit"}}{{ else }}{{$.T "filters.replynew"}}{{ end }}</h1>
-        <input type="hidden" name="loaded" value="{{.Loaded}}">
+        {{ template "filters-loaded" .Loaded }}
         {{ if ge .Index 0 }}<input type="hidden" name="index" value="{{.Index}}">{{ end }}
-        {{ with .Shown }}<input type="hidden" name="shown" value="{{.}}">{{ end }}
+        {{ with .Shown }}{{ template "shown-field" . }}{{ end }}
 
         {{ template "field" (dict "label" ($.T "common.name") "name" "name" "value" .Editing.Name "dir" "auto" "required" true "autofocus" true) }}
         {{ template "field" (dict "label" ($.T "filters.replysubject") "name" "subject" "value" .Editing.Subject "dir" "auto") }}

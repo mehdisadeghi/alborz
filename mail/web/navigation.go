@@ -3,7 +3,6 @@ package web
 import (
 	"net/http"
 	"net/url"
-	"strings"
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/mail"
@@ -37,10 +36,7 @@ func mergedOrigin(ctx *web.Context) *mail.Origin {
 	route, values, _ := ctx.Server.Match(u)
 	// The search across sections shows mail's search of every folder, so a message walks that.
 	if route == "mail.search" || route == "core.search" {
-		ask.Query = strings.TrimSpace(ask.Query)
-		if !mail.StarView(ask.View) {
-			ask.View = ""
-		}
+		ask = normalizeSearchAsk(ask)
 		return &mail.Origin{Search: true, Logins: logins, Ask: ask}
 	}
 	if route != "mail.mailbox" || len(logins) < 2 {

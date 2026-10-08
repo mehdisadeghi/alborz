@@ -1,10 +1,7 @@
 package mail
 
 import (
-	"bufio"
-	"bytes"
 	"context"
-	"fmt"
 	"log"
 	"slices"
 
@@ -12,7 +9,6 @@ import (
 	"git.mehdix.org/alborz/search"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
-	"github.com/emersion/go-message/textproto"
 )
 
 // Place is where a message lies in its list, and the messages either side.
@@ -110,16 +106,13 @@ func (p *Mailboxes) Around(ctx context.Context, login *alborz.Login, settings *S
 		if a.Message == nil {
 			header := &imap.FetchItemBodySection{Peek: true, Specifier: imap.PartSpecifierHeader,
 				HeaderFields: []string{"References", "List-Id"}}
-			msgs, err := c.Fetch(imap.UIDSetNum(uid), &imap.FetchOptions{UID: true, Envelope: true,
-				BodySection: []*imap.FetchItemBodySection{header}}).Collect()
+			buf, err := fetchOne(c, uid, &imap.FetchOptions{UID: true, Envelope: true,
+				BodySection: []*imap.FetchItemBodySection{header}})
 			if err != nil {
 				return err
 			}
-			if len(msgs) == 0 {
-				return alborz.NotFound("notfound.message", fmt.Sprint(uid))
-			}
-			msg := &IMAPMessage{FetchMessageBuffer: msgs[0], Mailbox: mailbox}
-			if h, err := textproto.ReadHeader(bufio.NewReader(bytes.NewReader(msgs[0].FindBodySection(header)))); err == nil {
+			msg := &IMAPMessage{FetchMessageBuffer: buf, Mailbox: mailbox}
+			if h, err := readHeaderBytes(buf.FindBodySection(header)); err == nil {
 				msg.setListHeaders(h)
 			}
 			a.Message = msg

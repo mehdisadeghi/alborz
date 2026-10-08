@@ -7,11 +7,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"path"
 	"slices"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-webdav"
@@ -30,8 +28,8 @@ func (b calendars) CalendarHomeSetPath(ctx context.Context) (string, error) {
 	return HomePath(Calendar, userOf(ctx)), nil
 }
 
-func calendarOf(viewer string, c Collection, may access) (*caldav.Calendar, error) {
-	cal := &caldav.Calendar{
+func calendarOf(viewer string, c Collection, may access) (caldav.Calendar, error) {
+	cal := caldav.Calendar{
 		Path:                  PathOf(viewer, c),
 		Name:                  c.Name,
 		Description:           c.Description,
@@ -51,27 +49,11 @@ func calendarOf(viewer string, c Collection, may access) (*caldav.Calendar, erro
 }
 
 func (b calendars) ListCalendars(ctx context.Context) ([]caldav.Calendar, error) {
-	visible, err := b.Visible(userOf(ctx), Calendar, time.Now())
-	if err != nil {
-		return nil, err
-	}
-	out := make([]caldav.Calendar, len(visible))
-	for i, c := range visible {
-		cal, err := calendarOf(userOf(ctx), c.Collection, c.may)
-		if err != nil {
-			return nil, err
-		}
-		out[i] = *cal
-	}
-	return out, nil
+	return visible(ctx, b.Store, Calendar, calendarOf)
 }
 
 func (b calendars) GetCalendar(ctx context.Context, p string) (*caldav.Calendar, error) {
-	_, c, may, err := b.reach(ctx, p, Calendar)
-	if err != nil {
-		return nil, err
-	}
-	return calendarOf(userOf(ctx), *c, may)
+	return visibleOne(ctx, b.Store, p, Calendar, calendarOf)
 }
 
 // go-webdav says a timezone was removed with an empty calendar.
@@ -137,24 +119,11 @@ func calendarObject(p string, o Object, req *caldav.CalendarCompRequest) caldav.
 }
 
 func (b calendars) GetCalendarObject(ctx context.Context, p string, req *caldav.CalendarCompRequest) (*caldav.CalendarObject, error) {
-	o, err := b.object(ctx, p, Calendar)
-	if err != nil {
-		return nil, err
-	}
-	co := calendarObject(p, *o, req)
-	return &co, nil
+	return objectAs(ctx, b.Store, p, Calendar, func(p string, o Object) caldav.CalendarObject { return calendarObject(p, o, req) })
 }
 
 func (b calendars) ListCalendarObjects(ctx context.Context, p string, req *caldav.CalendarCompRequest) ([]caldav.CalendarObject, error) {
-	objects, err := b.objects(ctx, p, Calendar)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]caldav.CalendarObject, len(objects))
-	for i, o := range objects {
-		out[i] = calendarObject(path.Join(p, o.Name), o, req)
-	}
-	return out, nil
+	return objectsAs(ctx, b.Store, p, Calendar, func(p string, o Object) caldav.CalendarObject { return calendarObject(p, o, req) })
 }
 
 // QueryCalendarObjects parses, which a filter cannot do without. An object
@@ -166,13 +135,14 @@ func (b calendars) QueryCalendarObjects(ctx context.Context, p string, query *ca
 	if err != nil {
 		return nil, err
 	}
-	all := make([]caldav.CalendarObject, len(objects))
-	for i, o := range objects {
-		all[i] = calendarObject(path.Join(p, o.Name), o, &query.CompRequest)
-		if all[i].Data, err = ical.NewDecoder(bytes.NewReader(o.Data)).Decode(); err != nil {
-			all[i].Data, all[i].Raw = nil, o.Data
+	all := queryObjects(objects, p, func(path string, o Object) caldav.CalendarObject {
+		return calendarObject(path, o, &query.CompRequest)
+	}, func(object *caldav.CalendarObject, raw []byte) {
+		object.Data, err = ical.NewDecoder(bytes.NewReader(raw)).Decode()
+		if err != nil {
+			object.Data, object.Raw = nil, raw
 		}
-	}
+	})
 	found, err := caldav.Filter(query, all)
 	for i := range found {
 		if found[i].Data != nil && found[i].Raw != nil && ical.NewEncoder(io.Discard).Encode(found[i].Data) != nil {

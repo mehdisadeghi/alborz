@@ -1,7 +1,3 @@
-{{ define "rail" }}
-  {{ template "settings-rail" . }}
-{{ end }}
-
 {{ define "main-class" }} class="settings"{{ end }}
 
 {{ define "main" }}
@@ -15,12 +11,12 @@
           <p class="hint">{{$.T "data.exporthint"}}</p>
           <p class="hint">{{$.T "data.plain"}}</p>
         </div>
-        <button type="submit" class="button-primary">{{$.T "data.download"}}</button>
+        {{ template "settings-submit" ($.T "data.download") }}
       </form>
 
       <form method="post" enctype="multipart/form-data" hx-boost="false" action="{{url "settings.data"}}{{$aq}}">
         <h2>{{$.T "data.import"}}</h2>
         {{ template "import-fields" (dict "g" $ "file" ($.T "data.importfile") "accept" ".tar.gz,.tgz,application/gzip" "hint" ($.T "data.importhint")) }}
-        <button type="submit" class="button-primary">{{$.T "data.importgo"}}</button>
+        {{ template "settings-submit" ($.T "data.importgo") }}
       </form>
 {{ end }}

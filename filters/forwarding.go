@@ -77,12 +77,7 @@ func readForwarding(content string) (f Forwarding, ok bool) {
 
 // LoadForwarding reads the forwarding script; without one, forwarding keeps a copy where the server can.
 func LoadForwarding(c alborz.SieveClient) (f Forwarding, loaded string, byHand bool, err error) {
-	content, exists, err := scriptIfAny(c, ForwardScript)
-	if err != nil || !exists {
-		return Forwarding{Keep: HasExtension(c, "copy")}, "", false, err
-	}
-	f, ok := readForwarding(content)
-	return f, Fingerprint(content), !ok, nil
+	return loadScript(c, ForwardScript, Forwarding{Keep: HasExtension(c, "copy")}, readForwarding)
 }
 
 // ChangeForwarding rewrites the forwarding as loaded; ErrByHand leaves a script the page did not write alone.

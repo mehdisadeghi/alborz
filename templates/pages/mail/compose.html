@@ -1,16 +1,10 @@
-{{ define "rail" }}
-  {{ template "mail-rail" . }}
-{{ end }}
-
 {{ define "main-class" }} class="create-update"{{ end }}
 
 {{ define "main" }}
       <form method="post" enctype="multipart/form-data" hx-boost="false" id="compose-form" data-upload="{{url "mail.attachment.add"}}" data-local-image="{{.LocalImage}}"{{ if .Reply }} data-reply{{ end }}>
         {{ template "mail-crumb" $ }}
         <h1 class="visually-hidden">{{$.T "aside.compose"}}</h1>
-        <input type="hidden" name="message_id" value="{{.Message.MessageID}}">
-        <input type="hidden" name="in_reply_to" value="{{.Message.InReplyTo}}">
-        <input type="hidden" name="references" value="{{.Message.References}}">
+        {{ template "compose-state" (dict "message" .Message "uploads" .Uploads) }}
 
         <div class="headers">
           <label for="from">{{$.T "compose.from"}}</label>
@@ -114,7 +108,6 @@
             {{end}}
           </div>
 
-          <input type="hidden" id="attachment-uuids" name="attachment-uuids" value="{{range $i, $u := .Uploads}}{{if $i}},{{end}}{{$u.ID}}{{end}}" />
         </div>
 
         <div class="text">

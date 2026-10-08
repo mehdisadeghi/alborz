@@ -13,6 +13,16 @@ type Item struct {
 	URL  string
 }
 
+// ItemsFor projects typed list rows into the ordered item identities used by
+// object neighbours and shared list tooling.
+func ItemsFor[T any](rows []T, item func(T) Item) []Item {
+	items := make([]Item, len(rows))
+	for i, row := range rows {
+		items[i] = item(row)
+	}
+	return items
+}
+
 // Around places one object among a list's items, in its order.
 func Around(items []Item, path string) web.Neighbours {
 	at := -1
@@ -62,10 +72,7 @@ func Widened(next, field string) string {
 
 // ListURL is the list those parameters name.
 func ListURL(path string, params url.Values) string {
-	if len(params) == 0 {
-		return path
-	}
-	return path + "?" + web.Query(params)
+	return web.QueryPath(path, params)
 }
 
 // Keep takes the named parameters, and only those, from a query.
@@ -108,10 +115,7 @@ func ObjectURL(ctx *web.Context, route, path, account string, params url.Values)
 		q.Set("account", account)
 	}
 	href := ctx.Path(route, path)
-	if len(q) > 0 {
-		href += "?" + web.Query(q)
-	}
-	return href
+	return web.QueryPath(href, q)
 }
 
 // Labels name the collection a pooled row lies in and the list, the route's, narrowed to it through field.
@@ -137,7 +141,7 @@ func Labels(ctx *web.Context, colls []dav.Collection, list, field string, shape 
 		if account != "" {
 			q.Set("account", account)
 		}
-		return ctx.Path(list) + "?" + web.Query(q)
+		return web.QueryPath(ctx.Path(list), q)
 	}
 	return collection, href
 }

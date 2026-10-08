@@ -1,8 +1,5 @@
-{{ define "rail" }}
-  {{ template "filters-rail" (dict "g" $ "accounts" .GlobalData.Accounts) }}
-{{ end }}
+{{ define "rail" }}{{ template "filters-page-rail" . }}{{ end }}
 
-{{ define "main-class" }} class="list"{{ end }}
 
 {{ define "main" }}
   {{ $aq := .GlobalData.AccountQuery }}
@@ -10,8 +7,7 @@
 
       {{ template "filters-crumb" (dict "g" $ "collection" ($.T "filters.autoreply") "path" (url "filters.autoreply")) }}
 
-      {{ if not .CanWire }}<div class="alert" role="alert">{{$.T "filters.needsinclude"}}</div>{{ end }}
-      {{ if .ByHand }}<div class="alert" role="alert">{{$.T "filters.byhand"}} <a href="{{url "filters.filter" .Script}}{{$aq}}">{{$.T "filters.openscript"}}</a></div>{{ end }}
+      {{ template "filters-status" (dict "g" $ "CanWire" .CanWire "ByHand" .ByHand "Script" .Script "aq" $aq) }}
 
       <section class="list-items">
         {{ range $i, $r := .Replies }}
@@ -21,21 +17,9 @@
             <span class="list-detail" dir="auto">{{ with .From }}{{ template "ltr" ($.GlobalData.InputDay .).Value }}{{ end }}{{ if or .From .Until }} – {{ end }}{{ with .Until }}{{ template "ltr" ($.GlobalData.InputDay .).Value }}{{ end }}{{ if or .From .Until }} · {{ end }}{{ with .Subject }}{{.}}{{ else }}{{.Text}}{{ end }}</span>
             {{ if eq $i $.Active }}<span class="list-meta">{{$.T "filters.active"}}</span>{{ end }}
           </div>
-          <form method="post" action="{{url "filters.autoreply.activate"}}{{$aq}}">
-            <input type="hidden" name="loaded" value="{{$.Loaded}}">
-            {{ if eq $i $.Active }}
-            <input type="hidden" name="index" value="">
-            <button>{{$.T "filters.deactivate"}}</button>
-            {{ else }}
-            <input type="hidden" name="index" value="{{$i}}">
-            <button>{{$.T "filters.activate"}}</button>
-            {{ end }}
-          </form>
-          <form method="post" action="{{url "filters.autoreply.delete"}}{{$aq}}">
-            <input type="hidden" name="loaded" value="{{$.Loaded}}">
-            <input type="hidden" name="index" value="{{$i}}">
-            <button class="button-danger">{{$.T "common.delete"}}</button>
-          </form>
+          {{ $index := $i }}{{ $toggle := "filters.activate" }}{{ if eq $i $.Active }}{{ $index = "" }}{{ $toggle = "filters.deactivate" }}{{ end }}
+          {{ template "filter-action" (dict "g" $ "action" (printf "%s%s" (url "filters.autoreply.activate") $aq) "fields" (tuple (dict "name" "loaded" "value" $.Loaded) (dict "name" "index" "value" $index)) "button" $toggle) }}
+          {{ template "filter-action" (dict "g" $ "action" (printf "%s%s" (url "filters.autoreply.delete") $aq) "fields" (tuple (dict "name" "loaded" "value" $.Loaded) (dict "name" "index" "value" $i)) "button" "common.delete" "class" "button-danger") }}
         </div>
         {{ end }}
         {{ if not .Replies }}

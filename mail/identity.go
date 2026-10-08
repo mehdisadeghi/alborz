@@ -2,6 +2,7 @@ package mail
 
 import (
 	"context"
+	"slices"
 	"strings"
 
 	"git.mehdix.org/alborz"
@@ -78,14 +79,9 @@ func SplitIdentityChoice(value string) (account, identity string) {
 }
 
 func addressed(address string, lists ...[]imap.Address) bool {
-	for _, list := range lists {
-		for _, a := range list {
-			if strings.EqualFold(a.Addr(), address) {
-				return true
-			}
-		}
-	}
-	return false
+	return slices.ContainsFunc(lists, func(list []imap.Address) bool {
+		return slices.ContainsFunc(list, func(a imap.Address) bool { return strings.EqualFold(a.Addr(), address) })
+	})
 }
 
 // Empty leaves the compose form on its own default.
@@ -128,12 +124,7 @@ func (t deliveryTrust) ours(addr string) bool {
 		strings.EqualFold(domain, t.account[account+1:]) {
 		return true
 	}
-	for _, served := range t.domains {
-		if strings.EqualFold(domain, served) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(t.domains, func(served string) bool { return strings.EqualFold(domain, served) })
 }
 
 // Everything below our server's Received was in the message before we saw it.

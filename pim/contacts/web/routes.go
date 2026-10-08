@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
-	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/contacts"
 	"git.mehdix.org/alborz/pim/dav"
 	pimweb "git.mehdix.org/alborz/pim/web"
@@ -18,12 +17,8 @@ func registerRoutes(p *plugin, g *web.Group) {
 	guard := func(h func(*web.Context) error) func(*web.Context) error {
 		return pimweb.Guarded(contacts.ErrNoAddressBook, "contacts.books.create", h)
 	}
-	GET := func(name, path string, h func(*web.Context) error) { g.GET(name, path, guard(h)) }
-	POST := func(name, path string, h func(*web.Context) error) { g.POST(name, path, guard(h)) }
-	download := func(name, path string, h func(*web.Context) error) { g.Download(name, path, guard(h)) }
-	upload := func(name, path string, limit int64, h, over func(*web.Context) error) {
-		g.Upload(name, path, limit, guard(h), guard(over))
-	}
+	GET, POST, Page, download := pimweb.GuardedRoutes(g, guard)
+	upload := pimweb.GuardedUpload(g, guard)
 	POST("list", "/contacts", pimweb.HandleChoose(p.DAV, "contacts.list", "book", contacts.Choose))
 	GET("list", "/contacts", p.contacts)
 	POST("export", "/contacts/export", pimweb.HandleExport(p.Client, "contacts.list",
@@ -33,14 +28,12 @@ func registerRoutes(p *plugin, g *web.Group) {
 
 	download("contact.raw", "/contacts/{path}/raw", func(ctx *web.Context) error { return pimweb.Raw(ctx, p.Client) })
 	page := p.collectionPage()
-	GET("books.create", "/address-books/create", page.HandleCreate(p.DAV, p.createForm))
-	POST("books.create", "/address-books/create", page.HandleCreate(p.DAV, p.createForm))
+	Page("books.create", "/address-books/create", page.HandleCreate(p.DAV, p.createForm))
 	GET("exportall", "/contacts/export-all", page.HandleExportAll("contacts.list", "address-books.zip"))
 	contactsImport, contactsOver := page.HandleImportPage(p.DAV, "contacts.list", "nav.contacts", "contacts.import", "contacts.importhint", "contact", false)
 	GET("import", "/contacts/import", contactsImport)
 	upload("import", "/contacts/import", pimweb.ImportBodySize, contactsImport, contactsOver)
-	GET("book", "/address-books/{path}", page.Handle(p.DAV))
-	POST("book", "/address-books/{path}", page.Handle(p.DAV))
+	Page("book", "/address-books/{path}", page.Handle(p.DAV))
 	POST("book.delete", "/address-books/{path}/delete", page.HandleDelete(p.DAV))
 	upload("book.import", "/address-books/{path}/import", pimweb.ImportBodySize, page.HandleImport, page.HandleImportTooLarge)
 	download("book.export", "/address-books/{path}/export", page.HandleExport)
@@ -58,10 +51,7 @@ func registerRoutes(p *plugin, g *web.Group) {
 	POST("contact.color", "/contacts/{path}/color", p.color)
 	POST("contact.note", "/contacts/{path}/note", p.note)
 	POST("contact.photo.delete", "/contacts/{path}/photo/delete", p.deletePhoto)
-	remove := pimweb.Handler(pimweb.Action[*carddav.Client]{Client: p.Client, Do: pimweb.Delete[*carddav.Client], List: "contacts.list",
-		Done: func(ctx *web.Context, done []pim.Ref[*carddav.Client], _ string) web.Notice {
-			return web.Notice{Kind: web.NoticeDone, Text: ctx.Tf("notice.contactsdeleted", len(done))}
-		}})
+	remove := pimweb.NoticeHandler(p.Client, "contacts.list", "notice.contactsdeleted", pimweb.Delete[*carddav.Client])
 	POST("contact.delete", "/contacts/{path}/delete", remove)
 	POST("delete", "/contacts/delete", remove)
 	POST("frommessage", "/contacts/from-message", p.importFromMessage)
@@ -111,15 +101,9 @@ func (p *plugin) collectionPage() pimweb.Page {
 			return contacts.Export(ctx.Request().Context(), c, path)
 		},
 		Lookup: func(ctx *web.Context, path string) (dav.Collection, func() int, string, string, error) {
-			_, books, err := p.Open(ctx.Request().Context(), ctx.Login)
-			if err != nil {
-				return dav.Collection{}, nil, "", "", err
-			}
-			info := dav.At(books, path)
-			if info == nil {
-				return dav.Collection{}, nil, "", "", alborz.NotFound("notfound.collection")
-			}
-			return *info, p.DAV.CountObjects(ctx.Request().Context(), ctx.Login, info.Path), ctx.Path("contacts.list"), ctx.T("nav.contacts"), nil
+			return pimweb.LookupCollection(ctx, path, p.Open, p.DAV.CountObjects, func(dav.Collection) (string, string) {
+				return ctx.Path("contacts.list"), ctx.T("nav.contacts")
+			})
 		},
 	}
 }

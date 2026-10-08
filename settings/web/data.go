@@ -13,17 +13,8 @@ import (
 	"git.mehdix.org/alborz/web"
 )
 
-// DataRenderData renders data.html.
-type DataRenderData struct {
-	web.BaseRenderData
-	Rail map[string][]web.RailRow
-}
-
 func renderData(ctx *web.Context, status int, alert string) error {
-	return ctx.Render(status, "settings/data", &DataRenderData{
-		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.data")).Refused(alert),
-		Rail:           web.SettingsRail(ctx),
-	})
+	return ctx.Render(status, "settings/data", web.NewSettingsPageData(ctx, ctx.T("settings.data")).WithRefused(alert))
 }
 
 func handleData(ctx *web.Context) error { return renderData(ctx, http.StatusOK, "") }
@@ -76,8 +67,7 @@ func handleImport(ctx *web.Context) error {
 	for _, k := range keys {
 		said = append(said, ctx.Tf(k, len(names[k]), strings.Join(names[k], ", ")))
 	}
-	ctx.PutNotice(strings.Join(said, " "))
-	return ctx.Redirect(http.StatusFound, ctx.URL("settings.data"))
+	return ctx.NoticeRedirect(strings.Join(said, " "), ctx.URL("settings.data"))
 }
 
 func importRefusal(ctx *web.Context, err error) error {

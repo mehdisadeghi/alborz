@@ -1,7 +1,6 @@
 package web
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -25,8 +24,7 @@ import (
 
 // DestinationRenderData asks where a move or a copy goes; a menu holds actions, so the choice is a page.
 type DestinationRenderData struct {
-	web.BaseRenderData
-	Rail          pimweb.Rail
+	web.PageData[pimweb.Rail]
 	Section, Home string
 	Title, Lead   string
 	Label, Save   string
@@ -39,22 +37,18 @@ type DestinationRenderData struct {
 	Next   string
 }
 
-type TasksRenderData struct {
-	web.BaseRenderData
-	Calendars []dav.Collection
-	Tasks     []TaskRow
-	// Quick is where a task typed above the rows goes; nil when no list takes tasks.
-	Quick      *quickList
-	View       string
-	Filters    []web.Filter
-	FilterRows []web.FilterRow
-	Query      string
-	Sorting    pimweb.Sorting
-	Pager      web.Pager
-	// SelectForm is the form a row's checkbox belongs to; empty where rows offer none.
-	SelectForm string
+func destinationRenderData(ctx *web.Context, rail pimweb.Rail, section, home, title, lead, label, save, key string, groups []dav.Group, next string) *DestinationRenderData {
+	return &DestinationRenderData{
+		PageData: *web.NewPageData(ctx, title, rail), Section: section, Home: home, Title: title,
+		Lead: lead, Label: label, Save: save, Key: key, Groups: groups, Next: next,
+	}
+}
 
-	Invitations *pimweb.RailInvitations
+type TasksRenderData struct {
+	pimweb.ListRenderData
+	Tasks []TaskRow
+	// Quick is where a task typed above the rows goes; nil when no list takes tasks.
+	Quick *quickList
 }
 
 // TaskRow is one row of the task list.
@@ -100,6 +94,7 @@ func quickListOf(ctx *web.Context, calendars []dav.Collection) *quickList {
 	scope := ctx.URLAccount()
 	var quick *quickList
 	var lists []dav.Group
+	indexes := make(map[string]int)
 	shown := 0
 	for _, cal := range calendars {
 		if !cal.Writable || !calendar.SupportsTodo(cal.Components) || (scope != "" && cal.Account != scope) {
@@ -112,15 +107,11 @@ func quickListOf(ctx *web.Context, calendars []dav.Collection) *quickList {
 				quick = &quickList{Account: cal.Account, Path: cal.Path, Name: cal.Name}
 			}
 		}
-		at := -1
-		for i := range lists {
-			if lists[i].Account == cal.Account {
-				at = i
-			}
-		}
-		if at < 0 {
+		at, ok := indexes[cal.Account]
+		if !ok {
 			lists = append(lists, dav.Group{Account: cal.Account})
 			at = len(lists) - 1
+			indexes[cal.Account] = at
 		}
 		lists[at].Collections = append(lists[at].Collections, cal)
 	}
@@ -149,47 +140,16 @@ func taskRows(ctx *web.Context, view string) []web.FilterRow {
 	return append(rows, web.ViewRows(ctx, view, false, reset)...)
 }
 
-// TaskList is the list page's rows in order, their lists, and what shaped them.
-type TaskList struct {
-	Rows      []TaskRow
-	Calendars []dav.Collection
-	// Items are the rows as a single task's neighbours, in the same order.
-	Items   []pimweb.Item
-	Query   string
-	View    string
-	Sorting pimweb.Sorting
-	Unread  []pim.Unread
-}
+type TaskList = CalendarList[TaskRow]
 
 func (p *plugin) taskList(ctx *web.Context) (TaskList, error) {
-	text := ctx.QueryParam("query")
-	// A star is a view, as in the mail rail; open tasks are the list with no view.
-	view := ctx.QueryParam("view")
-	if view != viewCompleted && view != viewAll && view != viewHigh && !validStarView(view) {
-		return TaskList{}, web.NewError(http.StatusBadRequest, "no such view")
-	}
-	params := pimweb.RowParams(ctx, ctx.Path("calendar.tasks"), pimweb.ListParams(ctx, taskListParams...))
-	rows, calendarInfos, unread, err := p.shownTasks(ctx, pimweb.Only(ctx, "cal"), view, search.Parse(text), params)
-	if err != nil {
-		return TaskList{}, err
-	}
-	sorting, err := pimweb.Sort(ctx, rows, taskColumns, taskTie, taskListParams...)
-	if err != nil {
-		return TaskList{}, err
-	}
-	items := make([]pimweb.Item, len(rows))
-	for i, row := range rows {
-		items[i] = pimweb.Item{Path: row.Task.Path, URL: row.Href}
-	}
-	return TaskList{
-		Rows:      rows,
-		Items:     items,
-		Calendars: calendarInfos,
-		Query:     text,
-		View:      view,
-		Sorting:   sorting,
-		Unread:    unread,
-	}, nil
+	return calendarList(ctx, "calendar.tasks", taskListParams,
+		func(view string) bool {
+			return view == viewCompleted || view == viewAll || view == viewHigh || web.ValidStarView(view)
+		},
+		func(view string, q search.Query, params url.Values) ([]TaskRow, []dav.Collection, []pim.Unread, error) {
+			return p.shownTasks(ctx, pimweb.Only(ctx, "cal"), view, q, params)
+		}, taskColumns, taskTie, func(row TaskRow) pimweb.Item { return pimweb.Item{Path: row.Task.Path, URL: row.Href} })
 }
 
 // shownTasks are the rows of the tasks on the list a view and a query make, from the lists in the
@@ -200,40 +160,12 @@ func (p *plugin) shownTasks(ctx *web.Context, only map[string]bool, view string,
 	if view == viewCompleted || view == viewAll || view == viewHigh {
 		star = ""
 	}
-	q, starred, err := web.StarFilter(q, star)
-	if err != nil {
-		return nil, nil, nil, web.NewError(http.StatusBadRequest, err.Error())
-	}
-	accounts, err := p.pooledCalendars(ctx)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	calendarInfos, sites, err := calendar.Visible(ctx.Request().Context(), accounts, ctx.URLAccount(), only, calendar.SupportsTodo, calendar.TaskVisibility)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	loc := web.UserLocation(ctx)
-	query := calendar.TaskQuery()
-	var rows []TaskRow
-	var unread []pim.Unread
-	for _, result := range pim.Present(p.DAV, dav.Across(ctx.Request().Context(), sites, pim.Site[*caldav.Client].Account, func(ctx context.Context, site pim.Site[*caldav.Client]) ([]caldav.CalendarObject, error) {
-		return site.Client.QueryCalendar(ctx, site.Collection.Path, &query)
-	})) {
-		if result.Err != nil {
-			unread = append(unread, pim.Unread{Collection: result.Site.Collection.Name, Err: result.Err})
-			continue
-		}
-		for _, task := range result.Value {
-			if task.Data == nil {
-				unread = append(unread, calendar.Unparsed(result.Site.Collection.Name, &task))
-				continue
-			}
-			if taskShown(calendar.FirstTodo(task.Data), view, starred, q) {
-				rows = append(rows, taskRow(ctx, &task, result.Site.Collection, loc, params))
-			}
-		}
-	}
-	return rows, calendarInfos, unread, nil
+	return shownCalendarRows(p, ctx, only, q, star, calendar.SupportsTodo, calendar.TaskVisibility, calendar.TaskQuery,
+		calendar.FirstTodo, func(todo *ical.Component, starred func(string) bool, q search.Query) bool {
+			return taskShown(todo, view, starred, q)
+		}, func(obj *caldav.CalendarObject, collection dav.Collection) TaskRow {
+			return taskRow(ctx, obj, collection, web.UserLocation(ctx), params)
+		})
 }
 
 func taskTie(row TaskRow) string {
@@ -289,32 +221,13 @@ func (p *plugin) tasks(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	pimweb.WarnUnread(ctx, list.Unread)
-	rows, pager, err := web.Paginate(ctx, list.Rows)
-	if err != nil {
-		return err
-	}
-	addedBy := p.DAV.AddedBy(ctx.Login.Username())
-	for i := range rows {
-		rows[i].AddedBy = addedBy(rows[i].Calendar.Account, rows[i].Task.Path)
-	}
-	invitations, err := p.invitations(ctx)
+	rows, pager, invitations, err := calendarListParts(ctx, p, list, func(row TaskRow) (string, string) { return row.Calendar.Account, row.Task.Path }, func(row *TaskRow, value string) { row.AddedBy = value })
 	if err != nil {
 		return err
 	}
 	return ctx.Render(http.StatusOK, "tasks/list", &TasksRenderData{
-		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("title.tasks")),
-		Quick:          quickListOf(ctx, list.Calendars),
-		View:           list.View,
-		Filters:        calendarFilters(ctx),
-		FilterRows:     taskRows(ctx, list.View),
-		Calendars:      list.Calendars,
-		Tasks:          rows,
-		Pager:          pager,
-		Query:          list.Query,
-		Sorting:        list.Sorting,
-		SelectForm:     tasksForm,
-		Invitations:    invitations,
+		ListRenderData: calendarListData(ctx, ctx.T("title.tasks"), list, pager, calendarFilters(ctx), taskRows(ctx, list.View), tasksForm, invitations),
+		Quick:          quickListOf(ctx, list.Calendars), Tasks: rows,
 	})
 }
 
@@ -437,21 +350,10 @@ func (p *plugin) move(ctx *web.Context) error {
 		if err != nil {
 			return err
 		}
-		data := &DestinationRenderData{
-			BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("folder.moveask")),
-			Rail:           rail,
-			Section:        ctx.T("nav.tasks"),
-			Home:           ctx.Path("calendar.tasks"),
-			Title:          ctx.T("folder.moveask"),
-			Lead:           ctx.Tf("tasks.movecount", len(params["paths"])),
-			Label:          ctx.T("tasks.movelist"),
-			Save:           ctx.T("folder.movedo"),
-			Action:         ctx.Path("calendar.tasks.move"),
-			Key:            "move",
-			Groups:         groups,
-			Paths:          params["paths"],
-			Next:           ctx.NextOr(ctx.URL("calendar.tasks")),
-		}
+		data := destinationRenderData(ctx, rail, ctx.T("nav.tasks"), ctx.Path("calendar.tasks"), ctx.T("folder.moveask"),
+			ctx.Tf("tasks.movecount", len(params["paths"])), ctx.T("tasks.movelist"), ctx.T("folder.movedo"), "move", groups,
+			ctx.NextOr(ctx.URL("calendar.tasks")))
+		data.Action, data.Paths = ctx.Path("calendar.tasks.move"), params["paths"]
 		data.Refused(refusal)
 		return ctx.Render(status, "calendar/destination", data)
 	}
@@ -459,9 +361,12 @@ func (p *plugin) move(ctx *web.Context) error {
 		return page(http.StatusOK, "")
 	}
 	target, err := p.destination(ctx, params.Get("to"), calendar.SupportsTodo)
-	if errors.Is(err, pim.ErrNoDestination) {
-		return page(http.StatusUnprocessableEntity, ctx.T("form.destinationneeded"))
-	} else if err != nil {
+	if handled, refusal := pimweb.DestinationRefusal(ctx, err, func(message string) error {
+		return page(http.StatusUnprocessableEntity, message)
+	}); handled {
+		return refusal
+	}
+	if err != nil {
 		return err
 	}
 	return pimweb.Run(ctx, pimweb.Action[*caldav.Client]{Client: p.Client, List: "calendar.tasks",

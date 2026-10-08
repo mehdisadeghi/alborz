@@ -9,19 +9,10 @@ import (
 	"git.mehdix.org/alborz/web"
 )
 
-// PasswordRenderData renders password.html.
-type PasswordRenderData struct {
-	web.BaseRenderData
-	Rail map[string][]web.RailRow
-}
-
 func handlePassword(ctx *web.Context) error {
 	account := ctx.Login.Username()
 	render := func(status int, alert string) error {
-		return ctx.Render(status, "settings/password", &PasswordRenderData{
-			BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("settings.password")).Refused(alert),
-			Rail:           web.SettingsRail(ctx),
-		})
+		return ctx.Render(status, "settings/password", web.NewSettingsPageData(ctx, ctx.T("settings.password")).WithRefused(alert))
 	}
 	unsupported := fmt.Sprintf(ctx.T("form.passwordunsupported"), ctx.Login.Domain())
 	if ctx.Request().Method != http.MethodPost {
@@ -69,6 +60,5 @@ func handlePassword(ctx *web.Context) error {
 	if err := ctx.PasswordChanged(login, next); err != nil {
 		return err
 	}
-	ctx.PutNotice(ctx.T("notice.passwordchanged"))
-	return ctx.Redirect(http.StatusFound, ctx.URL("settings.password"))
+	return ctx.NoticeRedirect(ctx.T("notice.passwordchanged"), ctx.URL("settings.password"))
 }

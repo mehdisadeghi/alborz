@@ -1,8 +1,3 @@
-{{ define "rail" }}
-  {{ template "settings-rail" . }}
-{{ end }}
-
-{{ define "main-class" }} class="list"{{ end }}
 
 {{ define "main" }}
       {{ template "settings-head" (dict "g" $ "title" ($.T "passkeys.title") "path" (url "settings.passkeys") "newhref" (url "settings.passkeys.create") "newlabel" ($.T "passkeys.new")) }}
@@ -23,6 +18,5 @@
         <p class="empty-list">{{$.T "passkeys.none"}}</p>
         {{ end }}
       </section>
-      <p class="hint list-option">{{$.T "passkeys.hint"}}</p>
-      <p class="hint list-option">{{$.T "passkeys.nosaved"}}</p>
+      {{ template "hint-list" (dict "items" (list ($.T "passkeys.hint") ($.T "passkeys.nosaved"))) }}
 {{ end }}

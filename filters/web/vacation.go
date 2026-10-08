@@ -20,13 +20,10 @@ import (
 )
 
 type RepliesRenderData struct {
-	web.BaseRenderData
+	sievePageData
 	Replies []filters.Reply
 	// Active is the index of the reply the script sends, -1 when none.
 	Active  int
-	Loaded  string
-	ByHand  bool
-	Script  string
 	Editing filters.Reply
 	Index   int
 	// Shown is the reply the form was drawn from, which a save compares the form against.
@@ -34,8 +31,6 @@ type RepliesRenderData struct {
 	Identities []string
 	CanReply   bool
 	CanDate    bool
-	CanWire    bool
-	Rail       map[string][]web.RailRow
 
 	// From and Until are Editing's date fields as shown.
 	From, Until dates.Field
@@ -51,13 +46,11 @@ func repliesData(ctx *web.Context) (*RepliesRenderData, error) {
 		return nil, err
 	}
 	data := &RepliesRenderData{
-		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T("filters.autoreply")),
-		Replies:        replies.Items,
-		Active:         -1,
-		Index:          -1,
-		Script:         filters.VacationScript,
-		Identities:     append([]string{ctx.Login.Username()}, settings.Identities...),
-		Rail:           rail(ctx),
+		sievePageData: sievePage(ctx, ctx.T("filters.autoreply"), filters.VacationScript),
+		Replies:       replies.Items,
+		Active:        -1,
+		Index:         -1,
+		Identities:    append([]string{ctx.Login.Username()}, settings.Identities...),
 	}
 	err = ctx.DoSieve(func(c alborz.SieveClient) error {
 		data.CanReply = filters.HasExtension(c, "vacation")
@@ -153,19 +146,19 @@ func handleReplySave(ctx *web.Context) error {
 		}
 		data.Editing, data.Index, data.Shown = v, index, ctx.FormValue("shown")
 		data.From, data.Until = ctx.DateField("from"), ctx.DateField("until")
-		data.Refused(message)
-		return ctx.Render(http.StatusUnprocessableEntity, "filters/autoreply-edit", data)
+		return web.RenderRefused(ctx, "filters/autoreply-edit", data, message)
 	}
 	if err != nil {
 		return refuse(err.Error())
 	}
 	// What the form changed is what it sends that differs from what it showed; the rest stays as stored.
 	var drawn *filters.Reply
-	if shown := ctx.FormValue("shown"); shown != "" {
-		drawn = &filters.Reply{}
-		if err := json.Unmarshal([]byte(shown), drawn); err != nil {
-			return web.NewError(http.StatusBadRequest, "the form's shown reply does not decode")
+	var shown filters.Reply
+	if ctx.FormValue("shown") != "" {
+		if _, err := web.DecodeForm(ctx, "shown", &shown, "the form's shown reply does not decode"); err != nil {
+			return err
 		}
+		drawn = &shown
 	}
 	var was []filters.Reply
 	made := -1
@@ -201,7 +194,7 @@ func handleReplySave(ctx *web.Context) error {
 		ctx.Made(ctx.T("notice.autoreplycreated"), v.Name,
 			ctx.URL("filters.autoreply.reply", made),
 			ctx.URL("filters.autoreply.create"))
-		return ctx.Redirect(http.StatusFound, ctx.URL("filters.autoreply"))
+		return ctx.FoundRedirect(ctx.URL("filters.autoreply"))
 	}
 	saved := ctx.T("notice.autoreplyinactive")
 	if sent {
@@ -228,8 +221,7 @@ func handleReplyDelete(ctx *web.Context) error {
 		return err
 	}
 	if err != nil {
-		ctx.Notify(web.Notice{Kind: web.NoticeFailed, Text: ctx.SaveRefusal(err)})
-		return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.URL("filters.autoreply")))
+		return ctx.NotifyRedirect(web.Notice{Kind: web.NoticeFailed, Text: ctx.SaveRefusal(err)}, ctx.NextOr(ctx.URL("filters.autoreply")))
 	}
 	// Deleting the reply being sent stops it.
 	loaded := ctx.FormValue("loaded")

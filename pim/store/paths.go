@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"path"
 	"regexp"
 	"slices"
 	"strings"
@@ -162,6 +163,64 @@ func (s *Store) objects(ctx context.Context, p string, kind Kind) ([]Object, err
 		return nil, err
 	}
 	return s.Objects(at.ref)
+}
+
+func objectAs[T any](ctx context.Context, s *Store, p string, kind Kind, convert func(string, Object) T) (*T, error) {
+	o, err := s.object(ctx, p, kind)
+	if err != nil {
+		return nil, err
+	}
+	out := convert(p, *o)
+	return &out, nil
+}
+
+func objectsAs[T any](ctx context.Context, s *Store, p string, kind Kind, convert func(string, Object) T) ([]T, error) {
+	objects, err := s.objects(ctx, p, kind)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]T, len(objects))
+	for i, o := range objects {
+		out[i] = convert(path.Join(p, o.Name), o)
+	}
+	return out, nil
+}
+
+// queryObjects projects stored objects before a protocol-specific filter runs.
+// Calendar and address-book queries differ in parsing, but share this path and
+// object construction boundary.
+func queryObjects[T any](objects []Object, collection string, build func(string, Object) T, prepare func(*T, []byte)) []T {
+	result := make([]T, len(objects))
+	for i, object := range objects {
+		result[i] = build(path.Join(collection, object.Name), object)
+		prepare(&result[i], object.Data)
+	}
+	return result
+}
+
+func visibleOne[T any](ctx context.Context, s *Store, p string, kind Kind, convert func(string, Collection, access) (T, error)) (*T, error) {
+	_, collection, may, err := s.reach(ctx, p, kind)
+	if err != nil {
+		return nil, err
+	}
+	out, err := convert(userOf(ctx), *collection, may)
+	return &out, err
+}
+
+func visible[T any](ctx context.Context, s *Store, kind Kind, convert func(string, Collection, access) (T, error)) ([]T, error) {
+	account := userOf(ctx)
+	seen, err := s.Visible(account, kind, time.Now())
+	if err != nil {
+		return nil, err
+	}
+	out := make([]T, len(seen))
+	for i, collection := range seen {
+		out[i], err = convert(account, collection.Collection, collection.may)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
 }
 
 // Kept octet for octet, so the tag a PUT answers names what the client holds (RFC 4791 5.3.4).

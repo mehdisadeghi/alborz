@@ -81,17 +81,7 @@ func classify(s string, mail bool) string {
 // Persian stays the default: a Persian voice reading Arabic is a smaller error than the reverse.
 func arabicLang(s string) string {
 	folded := arabicFolding.Replace(s)
-
-	words := map[string]int{}
-	for _, word := range strings.FieldsFunc(folded, func(r rune) bool {
-		return !unicode.IsLetter(r)
-	}) {
-		for lang, list := range arabicScriptWords {
-			if slices.Contains(list, word) {
-				words[lang]++
-			}
-		}
-	}
+	words := wordCounts(folded, arabicScriptWords)
 	switch {
 	case words["fa"] > words["ar"]:
 		return "fa"
@@ -111,17 +101,7 @@ func arabicLang(s string) string {
 // Letters only settle a tie, so one borrowed diacritic cannot outvote English words.
 func latinLang(s string) string {
 	lower := strings.ToLower(s)
-
-	words := map[string]int{}
-	for _, word := range strings.FieldsFunc(lower, func(r rune) bool {
-		return !unicode.IsLetter(r)
-	}) {
-		for lang, list := range latinWords {
-			if slices.Contains(list, word) {
-				words[lang]++
-			}
-		}
-	}
+	words := wordCounts(lower, latinWords)
 	if lang, ok := soleMax(words); ok {
 		return lang
 	}
@@ -138,6 +118,18 @@ func latinLang(s string) string {
 	return "en"
 }
 
+func wordCounts(s string, dictionary map[string][]string) map[string]int {
+	counts := map[string]int{}
+	for _, word := range strings.FieldsFunc(s, func(r rune) bool { return !unicode.IsLetter(r) }) {
+		for lang, list := range dictionary {
+			if slices.Contains(list, word) {
+				counts[lang]++
+			}
+		}
+	}
+	return counts
+}
+
 func soleMax(score map[string]int) (string, bool) {
 	best, top, tied := "", 0, false
 	for _, lang := range []string{"en", "de", "es"} {
@@ -152,12 +144,7 @@ func soleMax(score map[string]int) (string, bool) {
 }
 
 func containsAny(s string, runes []rune) bool {
-	for _, r := range runes {
-		if strings.ContainsRune(s, r) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(runes, func(r rune) bool { return strings.ContainsRune(s, r) })
 }
 
 // "Re: " would otherwise count as Latin text.

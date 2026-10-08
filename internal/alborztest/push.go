@@ -13,8 +13,6 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	"git.mehdix.org/alborz/internal/webpush"
 )
 
 // PushService is a browser vendor's push service with its browsers: it opens what it is sent with the
@@ -63,13 +61,13 @@ func (p *PushService) serve(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusGone)
 		return
 	}
-	key, claims, err := webpush.Verify(r.Header.Get("Authorization"))
+	key, claims, err := verifyPush(r.Header.Get("Authorization"))
 	if err != nil || claims["aud"] != p.URL {
 		http.Error(w, "vapid", http.StatusUnauthorized)
 		return
 	}
 	body, _ := io.ReadAll(r.Body)
-	plain, err := webpush.Decrypt(b.key, b.auth, body)
+	plain, err := decryptPush(b.key, b.auth, body)
 	if err != nil {
 		http.Error(w, "does not open", http.StatusBadRequest)
 		return

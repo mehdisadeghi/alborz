@@ -50,7 +50,7 @@ func (p *Mailboxes) mergedWindow(ctx context.Context, logins []*alborz.Login, ro
 			return p.fetchUnifiedAccount(c, user, name, spec, settings, size, fields, cacheable)
 		}
 		if cacheable {
-			return p.cachedListing(ctx, s, key, size, spec, folder, fetch)
+			return p.listing(ctx, s, key, size, spec, folder, fetch, true)
 		}
 		alborz.CacheTiming(ctx, "listing", false)
 		return readOn(s, class, bound, fetch)(ctx)
@@ -91,7 +91,7 @@ func (p *Mailboxes) wholePage(ctx context.Context, logins []*alborz.Login, role,
 			if err != nil || name == "" {
 				return nil, err
 			}
-			rows, err := wholeRows(c, name, uids)
+			rows, err := fetchProjectedRows(c, name, uids, rowsForUIDs(uids), listFetchOptions, "message list")
 			if err != nil {
 				return nil, err
 			}
@@ -305,6 +305,10 @@ type Listing struct {
 	Rail Rail
 }
 
+func newListing(rows []IMAPMessage, page alborz.Page, total int, headersOnly, sortSupported bool) *Listing {
+	return &Listing{Rows: rows, Page: page, Total: total, HeadersOnly: headersOnly, SortSupported: sortSupported}
+}
+
 // Folder is one page of a folder's list; cached lets it answer from what is held, and read ahead the
 // bodies of its rows and the next page.
 func (p *Mailboxes) Folder(ctx context.Context, login *alborz.Login, settings *Settings, folder string, ask ListAsk, cached, preferHTML bool) (*Listing, error) {
@@ -317,14 +321,8 @@ func (p *Mailboxes) Folder(ctx context.Context, login *alborz.Login, settings *S
 	fetch := func(c *imapclient.Client) (*listingEntry, error) {
 		return p.fetchListing(c, login.Username(), spec, settings, ask.Page)
 	}
-	var e *listingEntry
-	var err error
-	if cached {
-		e, err = p.cachedListing(ctx, login, key, ask.Page.Size, spec,
-			func(*imapclient.Client) (string, error) { return folder, nil }, fetch)
-	} else {
-		e, err = p.loadListing(ctx, login, key, ask.Page.Size, spec, fetch)
-	}
+	e, err := p.listing(ctx, login, key, ask.Page.Size, spec,
+		func(*imapclient.Client) (string, error) { return folder, nil }, fetch, cached)
 	if err != nil {
 		return nil, err
 	}
@@ -341,8 +339,9 @@ func (p *Mailboxes) Folder(ctx context.Context, login *alborz.Login, settings *S
 	for i := range msgs {
 		msgs[i].Alias = trust.alias(&msgs[i])
 	}
-	return &Listing{Rows: msgs, Page: page, Total: e.total, HeadersOnly: e.headersOnly, SortSupported: e.sortSupported,
-		ThreadAlgorithm: e.threadAlgorithm, Rail: sb}, nil
+	l := newListing(msgs, page, e.total, e.headersOnly, e.sortSupported)
+	l.ThreadAlgorithm, l.Rail = e.threadAlgorithm, sb
+	return l, nil
 }
 
 // Merged is one page of a merged folder: a role's folder in every account, or a folder by name in the
@@ -360,8 +359,7 @@ func (p *Mailboxes) Merged(ctx context.Context, logins []*alborz.Login, settings
 	if err != nil {
 		return nil, true, down, err
 	}
-	return &Listing{Rows: rows, Page: page, Total: window.total, HeadersOnly: window.headersOnly,
-		SortSupported: window.sortSupported}, true, append(down, more...), nil
+	return newListing(rows, page, window.total, window.headersOnly, window.sortSupported), true, append(down, more...), nil
 }
 
 // Search is one page of a search's rows, from every folder it spans; down names the accounts whose
@@ -381,8 +379,7 @@ func (p *Mailboxes) Search(ctx context.Context, logins []*alborz.Login, settings
 		return nil, nil, err
 	}
 	page, rows := cutPage(window, ask.Page)
-	return &Listing{Rows: rows, Page: page, Total: window.total, HeadersOnly: window.headersOnly,
-		SortSupported: window.sortSupported}, down, nil
+	return newListing(rows, page, window.total, window.headersOnly, window.sortSupported), down, nil
 }
 
 // An order the server cannot sort by is no order at all here.

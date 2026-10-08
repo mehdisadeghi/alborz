@@ -46,10 +46,7 @@
 
 	const ceremony = async (source, create, name) => {
 		const says = document.getElementById("script-failed");
-		const fail = text => {
-			says.querySelector(".notice-text").textContent = text;
-			says.show();
-		};
+		const fail = text => showScriptFailure(text);
 		if (!window.PublicKeyCredential) {
 			fail(source.dataset.unsupported);
 			return;

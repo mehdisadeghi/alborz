@@ -30,7 +30,7 @@ func contactGroupRows(ctx *web.Context, groups []contacts.AddressObject, active,
 		}
 		edit := ctx.Path("contacts.contact", g.Path)
 		if g.Account != "" {
-			edit += "?account=" + web.QueryValue(g.Account)
+			edit = web.AccountURL(edit, g.Account)
 		}
 		rows = append(rows, FilterRow{
 			Label:  g.DisplayName(),
@@ -59,7 +59,7 @@ func filterHref(ctx *web.Context, name, value, account string) string {
 	if account != "" {
 		q.Set("account", account)
 	}
-	return ctx.Path("contacts.list") + "?" + web.Query(q)
+	return web.QueryPath(ctx.Path("contacts.list"), q)
 }
 
 // A group's card names its members, so that card changes; a card without a UID gets one first.
@@ -83,8 +83,7 @@ func (p *plugin) groupContact(ctx *web.Context) error {
 			}
 		})
 		if err != nil {
-			ctx.Notify(pimweb.Refused(ctx, err))
-			return ctx.Redirect(http.StatusFound, ctx.NextOr(ctx.Path("contacts.contact", contact.Path)))
+			return ctx.NotifyRedirect(pimweb.Refused(ctx, err), ctx.NextOr(ctx.Path("contacts.contact", contact.Path)))
 		}
 	}
 
@@ -104,7 +103,7 @@ func (p *plugin) groupContact(ctx *web.Context) error {
 				return slices.DeleteFunc(members, func(m string) bool { return m == uid })
 			})
 		}
-		return ctx.Redirect(http.StatusFound, back)
+		return ctx.FoundRedirect(back)
 	}
 
 	if name := strings.TrimSpace(ctx.FormValue("newgroup")); name != "" {
@@ -122,7 +121,7 @@ func (p *plugin) groupContact(ctx *web.Context) error {
 		if err := p.putCard(ctx, c, path.Join(book.Path, uuid.New().String()+".vcf"), card); err != nil {
 			return err
 		}
-		return ctx.Redirect(http.StatusFound, back)
+		return ctx.FoundRedirect(back)
 	}
 
 	joining := ctx.FormValue("group")
@@ -137,7 +136,7 @@ func (p *plugin) groupContact(ctx *web.Context) error {
 			return append(members, uid)
 		})
 	}
-	return ctx.Redirect(http.StatusFound, back)
+	return ctx.FoundRedirect(back)
 }
 
 // changeMembers changes the group as the server holds it now, not as the list read it, so a write

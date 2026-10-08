@@ -151,6 +151,21 @@ func (ctx *Context) passkeys() (*webauthn.WebAuthn, passkeyUser, error) {
 // User verification is required: the authenticator is the whole lock.
 var userVerified = protocol.VerificationRequired
 
+// PasskeyBegin writes the common WebAuthn ceremony options response.
+func PasskeyBegin[T any](ctx *Context, begin func() (*T, error)) error {
+	options, err := begin()
+	if err != nil {
+		return err
+	}
+	return ctx.JSON(http.StatusOK, options)
+}
+
+// PasskeyFailure writes the common JSON response for a failed WebAuthn ceremony.
+func PasskeyFailure(ctx *Context, status int, label, text string, err error) error {
+	ctx.Logger().Printf("%s: %v", label, err)
+	return ctx.JSONError(status, text)
+}
+
 // BeginPasskey starts registering a passkey.
 func (ctx *Context) BeginPasskey() (*protocol.CredentialCreation, error) {
 	w, user, err := ctx.passkeys()

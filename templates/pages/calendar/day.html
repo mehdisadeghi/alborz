@@ -6,7 +6,6 @@
     {{ template "next-form" (dict "id" "refresh-form" "action" (printf "%s%s" (url "calendar.refresh") $.GlobalData.AccountQuery) "next" $.GlobalData.URL.RequestURI) }}
 {{ end }}
 
-{{ define "main-class" }} class="list"{{ end }}
 
 {{ define "main" }}
         {{ template "toolbar-head" (dict "g" $ "title" (.GlobalData.LongDate .Time) "shorttitle" (.GlobalData.ShortDay .Time) "subtitle" (.GlobalData.SecondaryDate .Time) "newhref" (printf "%s?date=%s%s" (url "calendar.event.create") (.Time.Format "2006-01-02") (account "&" .GlobalData.URLAccount)) "back" .GlobalData.URL.RequestURI "newlabel" ($.T "calendar.new")) }}
@@ -15,7 +14,7 @@
         {{ template "pagination" (dict "prev" (dict "href" (printf "%s?date=%s" (url "calendar.day") .PrevPage) "label" ($.T "calendar.prev")) "next" (dict "href" (printf "%s?date=%s" (url "calendar.day") .NextPage) "label" ($.T "calendar.next"))) }}
         {{ template "toolbar-foot" }}
 
-      {{ template "section-crumb" (dict "g" $ "section" ($.T "nav.calendar") "home" (url "calendar.month") "field" "cal" "items" .Calendars "at" (url "calendar.day") "keep" (printf "&date=%s" (.Time.Format "2006-01-02")) "collection" "" "path" "") }}
+      {{ template "section-crumb" (dict "g" $ "section" ($.T "nav.calendar") "home" (url "calendar.month") "field" "cal" "items" .Collections "at" (url "calendar.day") "keep" (printf "&date=%s" (.Time.Format "2006-01-02")) "collection" "" "path" "") }}
 
       <section class="events">
         {{$base := .}}

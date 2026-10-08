@@ -3,9 +3,7 @@
 {{ $g := .G }}{{ $next := .Next }}{{ $select := .Select }}{{ with $row := .Row }}
 <div class="journal-row list-row" role="row">
   {{ with $select }}
-  <div class="journal-list-checkbox list-checkbox list-cell" role="cell">
-    <input type="checkbox" name="paths" value="{{$row.Account}}|{{$row.Path}}" form="{{.}}" aria-label="{{$g.T "a11y.selectentry"}}{{with $row.Summary}}: {{.}}{{end}}">
-  </div>
+  {{ template "row-select-cell" (dict "class" "journal-list-checkbox" "form" . "ref" (printf "%s|%s" $row.Account $row.Path) "label" ($g.T "a11y.selectentry") "summary" $row.Summary) }}
   {{ end }}
   {{ template "row-star-cell" (dict "g" $g "action" (printf "%s%s" (url "calendar.entry.color" .Path) (account "?" .Account)) "star" .Star "next" $next) }}
   {{ template "row-summary" (dict "g" $g "class" "journal-list-summary" "label" ($g.T "journal.summary") "href" .Href "summary" .Summary "addedby" .AddedBy) }}

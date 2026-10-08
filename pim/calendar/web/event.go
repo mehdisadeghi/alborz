@@ -11,7 +11,6 @@ import (
 	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/pim/calendar"
 	pimweb "git.mehdix.org/alborz/pim/web"
-	"git.mehdix.org/alborz/search"
 	"git.mehdix.org/alborz/web"
 	"github.com/alborzmail/go-itip"
 	"github.com/emersion/go-ical"
@@ -115,7 +114,8 @@ func (p *plugin) eventItems(ctx *web.Context) ([]pimweb.Item, error) {
 		shown = mv.shown()
 	// A list with no month is a search across all time.
 	case ctx.QueryParam("query") != "" || ctx.QueryParam("view") != "":
-		found, err := p.eventSearch(ctx, pimweb.Only(ctx, "cal"), ctx.QueryParam("view"), search.Parse(ctx.QueryParam("query")))
+		_, query := pimweb.SearchQuery(ctx)
+		found, err := p.eventSearch(ctx, pimweb.Only(ctx, "cal"), ctx.QueryParam("view"), query)
 		if err != nil {
 			return nil, err
 		}

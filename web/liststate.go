@@ -89,3 +89,12 @@ func KeepParams(from url.Values, keys ...string) url.Values {
 	}
 	return kept
 }
+
+// KeepURLParams retains named query parameters from a URL address.
+func KeepURLParams(raw string, keys ...string) url.Values {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return url.Values{}
+	}
+	return KeepParams(u.Query(), keys...)
+}

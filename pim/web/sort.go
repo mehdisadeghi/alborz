@@ -19,11 +19,6 @@ type Sorting struct {
 // A new order starts at the first page, so sort links drop these.
 var sortDrops = []string{"sort", "dir", "page"}
 
-// Sort orders rows as the URL asks, by the first column by default; tie breaks equal rows.
-func Sort[T any](ctx *web.Context, rows []T, columns []pim.Column[T], tie func(T) string, keep ...string) (Sorting, error) {
-	return SortList(ctx, web.ReadListState(ctx), rows, columns, tie, keep...)
-}
-
 // SortList applies the shared list state to section columns and preserves the
 // same order contract for each section's projection.
 func SortList[T any](ctx *web.Context, state web.ListState, rows []T, columns []pim.Column[T], tie func(T) string, keep ...string) (Sorting, error) {

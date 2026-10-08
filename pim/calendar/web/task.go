@@ -52,7 +52,7 @@ func (p *plugin) task(ctx *web.Context) error {
 	}
 	return ctx.Render(http.StatusOK, "tasks/task", &TaskRenderData{
 		CalendarObjectRenderData: pimweb.NewObjectRenderData(ctx, summary, rail, e.collection,
-			p.DAV.Authors(task.Path, ctx.Login.Username()), cmp.Or(ctx.From(), pimweb.ListURL(ctx.Path("calendar.tasks"), pimweb.ListParams(ctx, taskListParams...))), calendar.ComponentColor(todo), pimweb.Around(list.Items, path)),
+			p.DAV.Authors(task.Path, ctx.Login.Username()), cmp.Or(ctx.From(), web.QueryPath(ctx.Path("calendar.tasks"), web.ReadListState(ctx).Keep(taskListParams...))), calendar.ComponentColor(todo), pimweb.Around(list.Items, path)),
 		Task:     calendar.TaskObject{CalendarObject: task},
 		Star:     calendar.ComponentColor(todo),
 		Priority: calendar.PriorityBand(todo),

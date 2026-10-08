@@ -83,13 +83,13 @@ func fillEventForm(ctx *web.Context, d *UpdateEventRenderData, loc *time.Locatio
 }
 
 func dayQuery(ctx *web.Context, start time.Time) string {
-	q := pimweb.ListParams(ctx, "account", "cal")
+	q := web.ReadListState(ctx).Keep("account", "cal")
 	q.Set("date", start.Format(datePageLayout))
 	return web.Query(q)
 }
 
 func monthQuery(ctx *web.Context, mv monthView) string {
-	q := pimweb.ListParams(ctx, "account", "cal", "span", "group")
+	q := web.ReadListState(ctx).Keep("account", "cal", "span", "group")
 	q.Set("month", mv.page)
 	if mv.view != "" {
 		q.Set("view", mv.view)
@@ -98,6 +98,7 @@ func monthQuery(ctx *web.Context, mv monthView) string {
 }
 
 func (p *plugin) eventItems(ctx *web.Context) ([]pimweb.Item, error) {
+	state := web.ReadListState(ctx)
 	var shown []calendar.Occurrence
 	switch {
 	case ctx.QueryParam("date") != "":
@@ -114,7 +115,6 @@ func (p *plugin) eventItems(ctx *web.Context) ([]pimweb.Item, error) {
 		shown = mv.shown()
 	// A list with no month is a search across all time.
 	case ctx.QueryParam("query") != "" || ctx.QueryParam("view") != "":
-		state := web.ReadListState(ctx)
 		found, err := p.eventSearch(ctx, pimweb.Only(ctx, "cal"), state.View, state.ParsedQuery())
 		if err != nil {
 			return nil, err
@@ -124,7 +124,7 @@ func (p *plugin) eventItems(ctx *web.Context) ([]pimweb.Item, error) {
 		return nil, nil
 	}
 
-	params := pimweb.RowParams(ctx, "", pimweb.ListParams(ctx, eventListParams...))
+	params := state.Rows("", state.Keep(eventListParams...))
 	var items []pimweb.Item
 	seen := map[string]bool{}
 	for _, oc := range shown {
@@ -351,11 +351,11 @@ func eventList(ctx *web.Context) string {
 	if from := ctx.From(); from != "" {
 		return from
 	}
-	params := pimweb.ListParams(ctx, eventListParams...)
+	params := web.ReadListState(ctx).Keep(eventListParams...)
 	if params.Get("date") != "" {
-		return pimweb.ListURL(ctx.Path("calendar.day"), params)
+		return web.QueryPath(ctx.Path("calendar.day"), params)
 	}
-	return pimweb.ListURL(ctx.Path("calendar.month"), params)
+	return web.QueryPath(ctx.Path("calendar.month"), params)
 }
 
 func repeatWords(ctx *web.Context, event *ical.Event, loc *time.Location) (words, until string) {

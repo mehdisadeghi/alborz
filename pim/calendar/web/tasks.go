@@ -251,7 +251,7 @@ func (p *plugin) complete(ctx *web.Context) error {
 		Done: words,
 		Piece: func(ctx *web.Context, ref pim.Ref[*caldav.Client], next string) error {
 			// A task the list no longer shows leaves it, with a notice that brings it back.
-			view := pimweb.ListParamsIn(next, "view").Get("view")
+			view := web.KeepURLParams(next, "view").Get("view")
 			if view != viewAll && done != (view == viewCompleted) {
 				ctx.Notify(words(ctx, []pim.Ref[*caldav.Client]{ref}, next))
 				return ctx.Redraw(next)
@@ -269,7 +269,7 @@ func (p *plugin) complete(ctx *web.Context) error {
 			cal := *holder
 			cal.Account = ref.Account
 			// The list's shape is in the return address, not the write's own URL.
-			params := pimweb.ListParamsIn(next, taskListParams...)
+			params := web.KeepURLParams(next, taskListParams...)
 			params.Set("from", next)
 			row := taskRow(ctx, marked, cal, web.UserLocation(ctx), params)
 			row.AddedBy = p.DAV.AddedBy(ctx.Login.Username())(cal.Account, marked.Path)

@@ -140,11 +140,6 @@ func (p *plugin) updateEntry(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	if e.object != nil {
-		if e.object.ETag, err = pimweb.Drawn(ctx, e.object.ETag); err != nil {
-			return err
-		}
-	}
 	// A form without a field changes nothing of it; one sent empty removes it.
 	_, dateSent := params["date"]
 	_, textSent := params["description"]

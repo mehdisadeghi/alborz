@@ -6,6 +6,7 @@ import (
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/calendar"
 	"git.mehdix.org/alborz/pim/dav"
+	pimweb "git.mehdix.org/alborz/pim/web"
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-webdav/caldav"
@@ -41,6 +42,11 @@ func (p *plugin) editCalendarObject(ctx *web.Context, path, notFound, failed str
 	object, err := p.openCalendarObject(ctx, path, notFound, failed, empty, component)
 	if err != nil {
 		return nil, err
+	}
+	if ctx.Request().Method == "POST" {
+		if object.object.ETag, err = pimweb.Drawn(ctx, object.object.ETag); err != nil {
+			return nil, err
+		}
 	}
 	e.client, e.object = object.client, object.object
 	e.collection, e.component = object.collection, object.component

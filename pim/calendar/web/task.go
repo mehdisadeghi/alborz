@@ -140,7 +140,8 @@ func (p *plugin) updateTask(ctx *web.Context) error {
 		}
 		_, err = e.put(ctx, to, todo, due)
 		if err != nil {
-			return reject(fmt.Sprintf(ctx.T("form.saverefused"), err))
+			ctx.Notify(pimweb.Unsaved(ctx, err))
+			return reject("")
 		}
 
 		return pimweb.Saved(ctx, creating, ctx.T("notice.taskcreated"), summary, ctx.Path("calendar.task", e.object.Path), ctx.Path("calendar.tasks"), to.Account)

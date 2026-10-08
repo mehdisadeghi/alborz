@@ -29,8 +29,6 @@ type AddressBookRenderData struct {
 	Category   string
 	// GroupRows and CategoryRows are the rail rows for groups and categories.
 	GroupRows, CategoryRows []FilterRow
-	// SelectForm is the form a row's checkbox belongs to; empty where rows offer none.
-	SelectForm string
 }
 
 var contactListParams = []string{"account", "book", "query", "view", "group", "category", "sort", "dir", "page", "ipp"}

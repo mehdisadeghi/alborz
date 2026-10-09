@@ -111,6 +111,7 @@ select {
   /* A typical address whole; a longer one ends in an ellipsis instead of turning the sections to icons. */
   --nav-label: 16rem;
   --sidebar-width: clamp(10rem, 15vw, 13rem);
+  --rail-chevron-track: 0.75rem;
   --drawer-width: 15rem;
   --content-list: 90rem;
   --content-form: 46rem;
@@ -1582,26 +1583,28 @@ main.message .message-header .parts > summary::-webkit-details-marker { display:
 main.message .message-header .parts > summary::before,
 .info-explain > summary::before,
 details.info-card > summary::before,
-aside details.folder-branch summary::after,
-aside details.acct-folders > summary::after {
+aside details.folder-branch summary::before,
+aside details.acct-folders > summary::before,
+aside div.acct-folders > a.aside-account::before {
   content: "\203A";
   transition: transform 0.1s ease-out;
 }
 main.message .message-header .parts[open] > summary::before,
 .info-explain[open] > summary::before,
 details.info-card[open] > summary::before,
-aside details.folder-branch[open] > summary::after,
-aside details.acct-folders[open] > summary::after { transform: rotate(90deg); }
+aside details.folder-branch[open] > summary::before,
+aside details.acct-folders[open] > summary::before { transform: rotate(90deg); }
 :root:dir(rtl) main.message .message-header .parts > summary::before,
 :root:dir(rtl) .info-explain > summary::before,
 :root:dir(rtl) details.info-card > summary::before,
-:root:dir(rtl) aside details.folder-branch summary::after,
-:root:dir(rtl) aside details.acct-folders > summary::after { transform: rotate(180deg); }
+:root:dir(rtl) aside details.folder-branch summary::before,
+:root:dir(rtl) aside details.acct-folders > summary::before,
+:root:dir(rtl) aside div.acct-folders > a.aside-account::before { transform: rotate(180deg); }
 :root:dir(rtl) main.message .message-header .parts[open] > summary::before,
 :root:dir(rtl) .info-explain[open] > summary::before,
 :root:dir(rtl) details.info-card[open] > summary::before,
-:root:dir(rtl) aside details.folder-branch[open] > summary::after,
-:root:dir(rtl) aside details.acct-folders[open] > summary::after { transform: rotate(90deg); }
+:root:dir(rtl) aside details.folder-branch[open] > summary::before,
+:root:dir(rtl) aside details.acct-folders[open] > summary::before { transform: rotate(90deg); }
 
 main.message .message-header .parts > summary::before {
   flex: none;
@@ -3267,20 +3270,20 @@ aside details.folder-branch summary {
   display: flex;
   min-height: 2rem;
   align-items: center;
-  padding: var(--space-1) var(--space-2);
+  padding: var(--space-1) var(--space-1);
+  padding-inline-start: var(--space-2);
+  gap: var(--space-1);
   border-inline-start: 2px solid transparent;
 }
 aside details.folder-branch summary a { flex-grow: 1; }
 aside details.folder-branch summary::-webkit-details-marker { display: none; }
-aside details.folder-branch summary::after {
+aside details.folder-branch summary::before {
   flex: none;
-  order: 1;
-  width: 2rem;
-  margin-inline-end: calc(-1 * var(--space-2));
+  width: var(--rail-chevron-track);
   align-self: stretch;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   color: var(--fg-muted);
 }
 aside details.folder-branch > ul > li,
@@ -4340,10 +4343,26 @@ aside details.acct-folders > summary.aside-account,
 aside div.acct-folders > a.aside-account {
   cursor: pointer;
   list-style: none;
-  padding: 0.4rem 0.5rem 0.2rem;
+  padding: 0.4rem var(--space-1) 0.2rem;
+  padding-inline-start: var(--space-2);
+  border-inline-start: 2px solid transparent;
   display: flex;
   align-items: center;
   gap: var(--space-1);
+}
+
+aside > details.acct-folders,
+aside > div.acct-folders,
+aside > ul.rail-views,
+aside > ul.rail-views > li.folder-li > details.folder-branch {
+  width: 100%;
+}
+
+aside > details.acct-folders > summary.aside-account,
+aside > div.acct-folders > a.aside-account,
+aside > ul.rail-views > li.folder-li > details.folder-branch > summary {
+  display: flex;
+  width: 100%;
 }
 
 aside details.acct-folders > summary.aside-account a,
@@ -4358,7 +4377,7 @@ aside a.aside-account:hover {
   text-decoration: underline;
 }
 
-/* An account out of scope is a link alone: it has no rows to disclose, so no chevron (ADR 64). */
+/* An account out of scope links into its collections, so the chevron signals that next level. */
 aside div.acct-folders > a.aside-account {
   color: var(--fg-muted);
 }
@@ -4367,21 +4386,21 @@ aside details.acct-folders > summary::-webkit-details-marker {
   display: none;
 }
 
-aside details.acct-folders > summary::after {
+aside details.acct-folders > summary::before,
+aside div.acct-folders > a.aside-account::before {
   flex: none;
-  width: 1.5rem;
-  margin-inline-end: -0.5rem;
+  width: var(--rail-chevron-track);
   align-self: stretch;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
+  color: var(--fg-muted);
 }
 
 /* A touch target is the row; the branch chevron shares its row with a link, so it has its own. */
 @media (hover: none) {
   aside details.acct-folders > summary.aside-account,
   aside div.acct-folders > a.aside-account { min-height: 2.75rem; }
-  aside details.folder-branch summary::after { width: 2.5rem; }
 }
 
 aside details.acct-folders li {

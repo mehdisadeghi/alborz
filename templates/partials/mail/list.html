@@ -1,6 +1,8 @@
 {{ define "message-list" }}
       {{ template "next-form" (dict "id" "messages-form" "next" $.GlobalData.URL.RequestURI) }}
-      {{ template "next-form" (dict "id" "refresh-form" "action" (printf "%s%s" (url "mail.mailbox.refresh" .Mailbox.Name) $.GlobalData.AccountQuery) "next" $.GlobalData.URL.RequestURI) }}
+      {{/* A search names no folder; like its toolbar, a merged list refreshes through its role. */}}
+      {{ $refresh := .Mailbox.Name }}{{ if .Merged }}{{ $refresh = .Role }}{{ end }}
+      {{ template "next-form" (dict "id" "refresh-form" "action" (printf "%s%s" (url "mail.mailbox.refresh" $refresh) $.GlobalData.AccountQuery) "next" $.GlobalData.URL.RequestURI) }}
         {{ template "mail-toolbar" . }}
       <div class="crumb-slot">
       {{ template "crumb" (dict "g" $ "home" (url "mail.mailbox" "INBOX") "heading" true "steps" .Crumb) }}

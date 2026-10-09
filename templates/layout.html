@@ -12,8 +12,11 @@
     {{/* Not deferred: it sets the scheme before the first paint. */}}
     <script src="{{call .GlobalData.Asset "scheme.js"}}"></script>
     <link rel="stylesheet" href="{{call .GlobalData.Asset "style.css"}}">
+    {{- range .GlobalData.AddonStyles}}
+    <link rel="stylesheet" href="{{.}}">
+    {{- end}}
     {{- with .GlobalData.Theme}}
-    <link rel="stylesheet" href="{{call $.GlobalData.Asset (printf "themes/%s.css" .)}}">
+    <link rel="stylesheet" href="{{call $.GlobalData.Asset $.GlobalData.ThemeAsset}}">
     {{- end}}
     {{- if .GlobalData.CustomCSS}}
     {{/* Last, so the deployment can override the theme. */}}
@@ -42,9 +45,7 @@
   <body hx-boost="true" data-events="{{url "core.events"}}" data-worker="{{url "core.worker"}}">
     <a class="skip-link visually-hidden" href="#main">{{$.T "a11y.skip"}}</a>
     {{template "icons" .}}
-    {{- if .GlobalData.Scene }}
-    {{template "scene" .}}
-    {{- end }}
+    {{ block "page-background" . }}{{ end }}
 {{ block "body" . }}
 {{ template "nav" . }}
 <div class="page-wrap">

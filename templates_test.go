@@ -15,6 +15,7 @@ func TestTranslationKeysExist(t *testing.T) {
 		key       *regexp.Regexp
 	}{
 		{"templates", ".html", regexp.MustCompile(`\{\{-?\s*\$?\.?\$?[A-Za-z.]*\bTf?\s+"([a-z0-9._]+)"`)},
+		{"addons", ".html", regexp.MustCompile(`\{\{-?\s*\$?\.?\$?[A-Za-z.]*\bTf?\s+"([a-z0-9._]+)"`)},
 		// A key handed to the HTTP layer in Go, such as a not-found page's, is shown as the templates' are.
 		{".", ".go", regexp.MustCompile(`\b(?:Tf?|Plural|NotFound)\((?:[\w.]+, )?"([a-z0-9._]+)"\s*[,)]`)},
 	}
@@ -63,6 +64,17 @@ func TestTranslationKeysExist(t *testing.T) {
 			t.Fatal(err)
 		}
 		text := string(b)
+		bundles, err := filepath.Glob(filepath.Join("addons", "*", "locales", filepath.Base(loc)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, bundle := range bundles {
+			b, err := os.ReadFile(bundle)
+			if err != nil {
+				t.Fatal(err)
+			}
+			text += "\n" + string(b)
+		}
 		for key, where := range used {
 			if !strings.Contains(text, `"`+key+`"`) {
 				t.Errorf("%s has no %q, used by %s", loc, key, where[0])

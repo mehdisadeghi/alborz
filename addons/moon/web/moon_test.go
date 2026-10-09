@@ -1,3 +1,5 @@
+//go:build !nomoon && !noaddons
+
 package web_test
 
 import (

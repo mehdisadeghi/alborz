@@ -22,7 +22,6 @@ import (
 	_ "time/tzdata"
 
 	"git.mehdix.org/alborz"
-	"git.mehdix.org/alborz/addons/weather"
 	"git.mehdix.org/alborz/cmd/alborz/app"
 )
 
@@ -66,6 +65,8 @@ func main() {
 // usageError is a command line the flags refused, already said with the usage.
 type usageError struct{ error }
 
+var addonFlags []func(*flag.FlagSet, *app.Options) func()
+
 // run serves alborz until ctx ends or a signal stops it; the environment comes through getenv.
 func run(ctx context.Context, args []string, getenv func(string) string, stdout io.Writer) error {
 	fs := flag.NewFlagSet("alborz", flag.ContinueOnError)
@@ -76,6 +77,7 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout 
 		proxies     string
 		options     app.Options
 	)
+	options.Addons = make(map[string]any)
 	fs.StringVar(&addr, "addr", ":1323", "listening address")
 	fs.StringVar(&profileAddr, "pprof", "",
 		"loopback address serving Go's profiles, the goroutine leak profile among them; unset serves none")
@@ -94,16 +96,10 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout 
 		"directory keeping alborz.db: remembered logins and settings, sealed under the login key, and the calendars and address books kept here")
 	fs.StringVar(&options.ProjectURL, "project-url", "",
 		"where the footer's project name links; unset prints the name alone")
-	fs.StringVar(&options.MOTD, "motd", "",
-		"directory of message-of-the-day collections, in the format of addons/motd/example.toml, offered as a status bar segment; unset offers none")
-	fs.StringVar(&options.Weather.Stations, "weather-stations", weather.DefaultStations,
-		"DWD's MOSMIX station catalogue, for the weather segment")
-	fs.StringVar(&options.Weather.Forecasts, "weather-forecasts", weather.DefaultForecasts,
-		"directory of DWD's MOSMIX_L single-station forecasts, for the weather segment")
-	fs.StringVar(&options.Weather.Places, "weather-places", "",
-		"Nominatim server finding the weather segment's places by name; unset searches DWD's station catalogue")
-	fs.StringVar(&options.Weather.PlacesPolicy, "weather-places-policy", "",
-		"usage policy of the -weather-places server, linked above its search; unset links none")
+	var addonValues []func()
+	for _, register := range addonFlags {
+		addonValues = append(addonValues, register(fs, &options))
+	}
 	fs.Usage = func() {
 		fmt.Fprint(fs.Output(), `usage: alborz [options...] <upstreams...>
 
@@ -122,6 +118,9 @@ upstreams are given as repeated domain=url arguments, e.g.:
 		return err
 	} else if err != nil {
 		return usageError{err}
+	}
+	for _, apply := range addonValues {
+		apply()
 	}
 	options.Upstreams = fs.Args()
 	if len(options.Upstreams) == 0 {

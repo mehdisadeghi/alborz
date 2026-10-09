@@ -15,7 +15,7 @@ var script []byte
 //go:embed settings.js
 var settings []byte
 
-//go:embed kinds
+//go:embed assets partials kinds
 var embedded embed.FS
 
 // Mount serves the script and the kinds it falls as, and offers the season to every reader.
@@ -36,5 +36,8 @@ func Mount(g *web.Group) {
 		return nil
 	})
 	s := g.Server()
+	if err := s.RegisterAddonBundle("season", embedded); err != nil {
+		panic(err)
+	}
 	s.Addons = append(s.Addons, web.Addon{Name: "season", Script: "season.script", Settings: "season.settings"})
 }

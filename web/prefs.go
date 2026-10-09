@@ -15,14 +15,26 @@ import (
 
 // The value lands in a stylesheet URL, so only listed themes are accepted.
 func readThemes(files fs.FS) (base Theme, themes []Theme, err error) {
-	names, _ := fs.Glob(files, "assets/themes/*.css")
 	base, err = readTheme(files, "assets/style.css")
+	if err != nil {
+		return base, nil, err
+	}
+	themes, err = readOverlayThemes(files, "")
+	return base, themes, err
+}
+
+func readOverlayThemes(files fs.FS, assetPrefix string) (themes []Theme, err error) {
+	names, err := fs.Glob(files, "assets/themes/*.css")
+	if err != nil {
+		return nil, err
+	}
 	for _, name := range names {
 		t, terr := readTheme(files, name)
+		t.Asset = assetPrefix + strings.TrimPrefix(name, "assets/")
 		themes = append(themes, t)
 		err = errors.Join(err, terr)
 	}
-	return base, themes, err
+	return themes, err
 }
 
 func readTheme(files fs.FS, name string) (Theme, error) {
@@ -56,7 +68,9 @@ func readTheme(files fs.FS, name string) (Theme, error) {
 
 // Theme is one overlay on offer; Scheme is the scheme it pins, empty when it answers to both.
 type Theme struct {
-	Name   string
+	Name string
+	// Asset is the theme stylesheet path in the shared asset route.
+	Asset  string
 	Scheme string
 	// Colors are what the browser paints around the window, per scheme; one with no scheme for a pinned theme.
 	Colors []ThemeColor
@@ -148,6 +162,9 @@ func (ctx *Context) setProfileCookies(d alborz.Display) {
 		ctx.SetCookie(ctx.cookie(name, value, preferenceCookieLife))
 	}
 }
+
+// Themes are the overlays this deployment offers.
+func (s *Server) Themes() []Theme { return slices.Clone(s.themes) }
 
 // Themes are the overlays this deployment offers.
 func (ctx *Context) Themes() []Theme {

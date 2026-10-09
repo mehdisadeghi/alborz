@@ -103,10 +103,12 @@ func LoginIdle(d time.Duration) Option { return func(c *config) { c.options.Logi
 func ReminderTick(d time.Duration) Option { return func(c *config) { c.options.ReminderTick = d } }
 
 // MOTD offers the message of the day from the collections in dir.
-func MOTD(dir string) Option { return func(c *config) { c.options.MOTD = dir } }
+func MOTD(dir string) Option { return func(c *config) { c.options.Addons["motd"] = dir } }
 
 // Weather has the weather segment ask these sources; without it, it asks none that answer.
-func Weather(sources weather.Sources) Option { return func(c *config) { c.options.Weather = sources } }
+func Weather(sources weather.Sources) Option {
+	return func(c *config) { c.options.Addons["weather"] = sources }
+}
 
 // Guarded carries the requests to servers outsiders name.
 func Guarded(rt http.RoundTripper) Option { return func(c *config) { c.options.Guarded = rt } }
@@ -114,7 +116,7 @@ func Guarded(rt http.RoundTripper) Option { return func(c *config) { c.options.G
 // Alborz serves alborz until the test ends.
 func Alborz(t *testing.T, opts ...Option) *App {
 	t.Helper()
-	c := config{options: app.Options{Options: web.Options{
+	c := config{options: app.Options{Addons: make(map[string]any), Options: web.Options{
 		Options: alborz.Options{LoginKey: loginKey, Cache: true},
 		// An action that sends the reader elsewhere says what it did.
 		StrictNotices: true,

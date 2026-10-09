@@ -1,6 +1,7 @@
 package web
 
 import (
+	"errors"
 	"fmt"
 	"html/template"
 	"io"
@@ -81,6 +82,10 @@ type GlobalRenderData struct {
 	Own  string
 
 	Theme string
+	// ThemeAsset is the chosen theme's asset path, including an add-on prefix when applicable.
+	ThemeAsset string
+	// AddonStyles are styles supplied by registered add-ons.
+	AddonStyles []string
 
 	// SchemePinned hides the scheme toggle for a theme written for one scheme only.
 	SchemePinned bool
@@ -279,6 +284,8 @@ func NewBaseRenderData(ctx *Context) *BaseRenderData {
 	global.Year = time.Now().Year()
 	global.Primary, global.Secondary, global.Timezone = reader.Primary, reader.Secondary, reader.Loc
 	global.Theme = ctx.Theme()
+	global.ThemeAsset = ctx.theme().Asset
+	global.AddonStyles = ctx.Server.addonStyles()
 	global.TextSize = ctx.TextSize()
 	global.Unified = ctx.Unified
 	global.AlignByScript = ctx.alignByScript()
@@ -472,71 +479,106 @@ func (r *renderer) Render(w io.Writer, name string, data interface{}, ctx *Conte
 
 // loadTemplates reads layout.html and partials/ into one set, and each file under pages/ into a clone of it,
 // named by its path without pages/ and .html.
-func loadTemplates(files fs.FS, funcs template.FuncMap) (*renderer, error) {
+func loadTemplates(files fs.FS, funcs template.FuncMap, bundles []AddonBundle) (*renderer, error) {
 	partials := template.New("").Funcs(funcs)
 	owner := map[string]string{}
-	shared := []string{"layout.html"}
-	err := fs.WalkDir(files, "partials", func(name string, d fs.DirEntry, err error) error {
-		if err == nil && !d.IsDir() {
-			shared = append(shared, name)
+	type source struct {
+		files       fs.FS
+		name, owner string
+	}
+	shared := []source{{files, "layout.html", "layout.html"}}
+	collect := func(tree fs.FS, prefix string) error {
+		if _, err := fs.Stat(tree, "partials"); errors.Is(err, fs.ErrNotExist) {
+			return nil
+		} else if err != nil {
+			return err
 		}
-		return err
-	})
-	if err != nil {
+		return fs.WalkDir(tree, "partials", func(name string, d fs.DirEntry, err error) error {
+			if err == nil && !d.IsDir() {
+				shared = append(shared, source{tree, name, prefix + name})
+			}
+			return err
+		})
+	}
+	if err := collect(files, ""); err != nil {
 		return nil, err
 	}
-	for _, name := range shared {
-		src, defined, err := parseFile(files, name, funcs)
+	for _, bundle := range bundles {
+		if err := collect(bundle.Files, "addons/"+bundle.Name+"/"); err != nil {
+			return nil, err
+		}
+	}
+	for _, file := range shared {
+		src, defined, err := parseFile(file.files, file.name, funcs)
 		if err != nil {
 			return nil, err
 		}
 		// html/template lets a second definition replace the first without a word.
 		for _, t := range defined {
 			if first, ok := owner[t]; ok {
-				return nil, fmt.Errorf("%s: %q is defined in %s already", name, t, first)
+				old := partials.Lookup(t)
+				if first != "layout.html" || old == nil || !parse.IsEmptyTree(old.Tree.Root) {
+					return nil, fmt.Errorf("%s: %q is defined in %s already", file.owner, t, first)
+				}
 			}
-			owner[t] = name
+			owner[t] = file.owner
 		}
-		if _, err := partials.New(name).Parse(src); err != nil {
+		if _, err := partials.New(file.owner).Parse(src); err != nil {
 			return nil, err
 		}
 	}
 
 	pages := map[string]*template.Template{}
-	err = fs.WalkDir(files, "pages", func(name string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
+	addPages := func(tree fs.FS, prefix string) error {
+		if _, err := fs.Stat(tree, "pages"); errors.Is(err, fs.ErrNotExist) {
+			return nil
+		} else if err != nil {
 			return err
 		}
-		src, defined, err := parseFile(files, name, funcs)
-		if err != nil {
-			return err
-		}
-		if !slices.Contains(defined, "main") && !slices.Contains(defined, "body") {
-			return fmt.Errorf("%s: page must define main or body", name)
-		}
-		for _, forbidden := range []string{"layout", "nav", "status-bar"} {
-			if slices.Contains(defined, forbidden) {
-				return fmt.Errorf("%s: page cannot replace shared %q", name, forbidden)
+		return fs.WalkDir(tree, "pages", func(name string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() {
+				return err
 			}
-		}
-		// A page fills the layout's blocks, or a partial's empty one; replacing a partial would change it for this page alone.
-		for _, t := range defined {
-			if s := partials.Lookup(t); s != nil && owner[t] != "layout.html" && !parse.IsEmptyTree(s.Tree.Root) {
-				return fmt.Errorf("%s: %q is a partial in %s, not a block", name, t, owner[t])
+			src, defined, err := parseFile(tree, name, funcs)
+			if err != nil {
+				return err
 			}
-		}
-		page, err := partials.Clone()
-		if err != nil {
-			return err
-		}
-		if _, err := page.New(name).Parse(src); err != nil {
-			return err
-		}
-		pages[strings.TrimSuffix(strings.TrimPrefix(name, "pages/"), ".html")] = page
-		return resolved(page)
-	})
-	if err != nil {
+			if !slices.Contains(defined, "main") && !slices.Contains(defined, "body") {
+				return fmt.Errorf("%s: page must define main or body", name)
+			}
+			for _, forbidden := range []string{"layout", "nav", "status-bar"} {
+				if slices.Contains(defined, forbidden) {
+					return fmt.Errorf("%s: page cannot replace shared %q", name, forbidden)
+				}
+			}
+			// A page fills the layout's blocks, or a partial's empty one; replacing a partial would change it for this page alone.
+			for _, t := range defined {
+				if s := partials.Lookup(t); s != nil && owner[t] != "layout.html" && !parse.IsEmptyTree(s.Tree.Root) {
+					return fmt.Errorf("%s: %q is a partial in %s, not a block", name, t, owner[t])
+				}
+			}
+			key := strings.TrimSuffix(strings.TrimPrefix(name, "pages/"), ".html")
+			if _, exists := pages[key]; exists {
+				return fmt.Errorf("%s%s: page %q is defined already", prefix, name, key)
+			}
+			page, err := partials.Clone()
+			if err != nil {
+				return err
+			}
+			if _, err := page.New(prefix + name).Parse(src); err != nil {
+				return err
+			}
+			pages[key] = page
+			return resolved(page)
+		})
+	}
+	if err := addPages(files, ""); err != nil {
 		return nil, err
+	}
+	for _, bundle := range bundles {
+		if err := addPages(bundle.Files, "addons/"+bundle.Name+"/"); err != nil {
+			return nil, err
+		}
 	}
 	return &renderer{partials: partials, pages: pages}, resolved(partials)
 }

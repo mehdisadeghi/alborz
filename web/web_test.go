@@ -7,8 +7,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
-	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -170,30 +168,25 @@ var themeColorMeta = regexp.MustCompile(`<meta name="theme-color"[^>]*>`)
 
 // A season paints its scene in every scheme, and no other theme paints one (ADR 77).
 func TestSeasonThemesPaintTheirSceneInEveryScheme(t *testing.T) {
-	c := Alborz(t).SignIn(t, User)
-	base, err := os.ReadFile("../templates/assets/style.css")
-	if err != nil {
-		t.Fatal(err)
-	}
-	files, err := filepath.Glob("../templates/assets/themes/*.css")
-	if err != nil {
-		t.Fatal(err)
-	}
+	a := Alborz(t)
+	c := a.SignIn(t, User)
+	base := c.Get(t, "core.asset", "style.css").Text
 	sources := map[string]string{}
 	var seasons []string
-	for _, f := range files {
-		source, err := os.ReadFile(f)
-		if err != nil {
-			t.Fatal(err)
-		}
-		name := strings.TrimSuffix(filepath.Base(f), ".css")
-		sources[name] = string(source)
-		if strings.Contains(string(source), "--scene:") {
-			seasons = append(seasons, name)
+	for _, theme := range a.Server.Themes() {
+		source := c.Get(t, "core.asset", theme.Asset).Text
+		sources[theme.Name] = source
+		if strings.Contains(source, "--scene:") {
+			seasons = append(seasons, theme.Name)
 		}
 	}
 	if len(seasons) == 0 {
-		t.Fatal("no theme declares a scene")
+		for _, addon := range a.Server.Addons {
+			if addon.Name == "season" {
+				t.Fatal("season add-on offers no scene theme")
+			}
+		}
+		t.Skip("season add-on is not in this build")
 	}
 	for name, source := range sources {
 		c.Post(t, "settings.profile", url.Values{"theme": {name}})
@@ -204,7 +197,7 @@ func TestSeasonThemesPaintTheirSceneInEveryScheme(t *testing.T) {
 			}
 			continue
 		}
-		tokens := sceneToken.FindAllStringSubmatch(scene+string(base), -1)
+		tokens := sceneToken.FindAllStringSubmatch(scene+base, -1)
 		blocks := slices.DeleteFunc(schemeBlock.FindAllString(source, -1), func(b string) bool {
 			return !strings.Contains(b, "color-scheme:")
 		})

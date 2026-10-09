@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -72,6 +73,8 @@ type Server struct {
 
 	// files is the templates tree: read from disk in debug mode, so an edit shows on reload, else embedded.
 	files fs.FS
+	// bundles are presentation trees registered by the add-ons in this build.
+	bundles []AddonBundle
 
 	// base is the stylesheet every theme overlays, standing in for a theme when none is chosen.
 	base   Theme
@@ -163,7 +166,7 @@ func (s *Server) trusts(ip netip.Addr) bool {
 func (s *Server) renderer() *renderer { return s.loaded.Load().renderer }
 
 func (s *Server) load() error {
-	renderer, err := loadTemplates(s.files, s.funcs)
+	renderer, err := loadTemplates(s.files, s.funcs, s.bundles)
 	if err != nil {
 		return fmt.Errorf("failed to load templates: %v", err)
 	}
@@ -285,10 +288,14 @@ var shellAssets = []string{"style.css", "scheme.js", "htmx.js", "helpers.js", "k
 const shellHeader = "Alborz-Shell"
 
 func (s *Server) shell() ([]string, string) {
-	urls := make([]string, 0, len(shellAssets)+1)
+	urls := make([]string, 0, len(shellAssets)+len(s.bundles)+1)
 	version := sha256.New()
 	for _, name := range shellAssets {
 		u := s.AssetURL(name)
+		urls = append(urls, u)
+		version.Write([]byte(u))
+	}
+	for _, u := range s.addonStyles() {
 		urls = append(urls, u)
 		version.Write([]byte(u))
 	}
@@ -300,8 +307,11 @@ func (s *Server) assetStamp(name string) string {
 	if name == customCSS {
 		return s.loaded.Load().customStamp
 	}
-	file := path.Join("assets", name)
-	info, err := fs.Stat(s.files, file)
+	files, file, ok := s.assetSource(name)
+	if !ok {
+		return ""
+	}
+	info, err := fs.Stat(files, file)
 	if err != nil {
 		return ""
 	}
@@ -313,13 +323,30 @@ func (s *Server) assetStamp(name string) string {
 		return e.stamp
 	}
 
-	content, err := fs.ReadFile(s.files, file)
+	content, err := fs.ReadFile(files, file)
 	if err != nil {
 		return ""
 	}
 	stamp := stampOf(content)
 	s.assets[name] = assetStamp{key: key, stamp: stamp}
 	return stamp
+}
+
+// assetSource maps a shared asset URL to the owning embedded tree.
+func (s *Server) assetSource(name string) (fs.FS, string, bool) {
+	if strings.HasPrefix(name, "addons/") {
+		segment, rest, ok := strings.Cut(strings.TrimPrefix(name, "addons/"), "/")
+		if !ok || rest == "" {
+			return nil, "", false
+		}
+		for _, bundle := range s.bundles {
+			if bundle.Name == segment {
+				return bundle.Files, path.Join("assets", rest), true
+			}
+		}
+		return nil, "", false
+	}
+	return s.files, path.Join("assets", name), true
 }
 
 func stampOf(content []byte) string {

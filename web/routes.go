@@ -1,6 +1,7 @@
 package web
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -85,11 +86,18 @@ func PublicRoutes(g *Group) {
 			}
 			return ctx.Blob(http.StatusOK, "text/css; charset=utf-8", custom)
 		}
-		assets, err := fs.Sub(s.files, "assets")
+		files, file, ok := s.assetSource(name)
+		if !ok {
+			return NewError(http.StatusNotFound)
+		}
+		assets, err := fs.Sub(files, "assets")
 		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				return NewError(http.StatusNotFound)
+			}
 			return err
 		}
-		http.ServeFileFS(ctx.Response(), ctx.Request(), assets, name)
+		http.ServeFileFS(ctx.Response(), ctx.Request(), assets, strings.TrimPrefix(file, "assets/"))
 		return nil
 	})
 }

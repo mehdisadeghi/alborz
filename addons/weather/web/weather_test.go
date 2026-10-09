@@ -1,3 +1,5 @@
+//go:build !noweather && !noaddons
+
 package web_test
 
 import (

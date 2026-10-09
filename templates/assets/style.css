@@ -445,6 +445,7 @@ header nav {
   gap: var(--space-3);
   padding-inline: var(--space-2);
 }
+header nav.is-compact { gap: var(--space-2); }
 footer { padding: var(--space-2) var(--space-4); }
 /* Dim: the name says where you are rather than asks to be read. */
 .brand {
@@ -654,6 +655,7 @@ header nav > .nav-search-open {
   box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.04);
   cursor: text;
 }
+header nav.is-compact > .nav-search-open { min-width: 6rem; }
 
 header nav > .nav-search-open + div { margin-inline-start: 0; }
 
@@ -1997,7 +1999,6 @@ main .details > .subject-row > h1 {
 .message-list-unread.message-list-date { font-weight: bold; color: var(--fg); }
 
 .message-list-unread.message-list-subject {
-  font-weight: normal;
   color: var(--fg-dim);
 }
 
@@ -4098,6 +4099,7 @@ header nav .accounts-menu[popover] {
 
   header nav {
     flex-wrap: wrap;
+    padding-block: var(--space-2);
   }
 
   .actions-search {

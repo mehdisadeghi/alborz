@@ -1,0 +1,55 @@
+{{ define "rail" }}
+  {{ template "settings-rail" . }}
+{{ end }}
+
+{{ define "main-class" }} class="settings"{{ end }}
+
+{{ define "main" }}
+      {{ template "settings-head" (dict "g" $ "title" ($.T "weather.status") "path" (url "weather.place")) }}
+
+      <form method="post" action="{{url "weather.place"}}">
+        <section class="list-items">
+          {{ with .Current }}
+          <div class="list-item">
+            {{ template "weather-choice" (dict "g" $ "choice" .) }}
+            <button class="button-danger" name="place" value="">{{$.T "weather.forget"}}</button>
+          </div>
+          {{ else }}
+          <div class="list-item">
+            <div class="list-content"><span class="list-summary">{{$.T "weather.noplace"}}</span></div>
+          </div>
+          {{ end }}
+        </section>
+        <p class="hint">{{$.T "weather.source"}}</p>
+      </form>
+
+      <form method="get" action="{{url "weather.place"}}">
+        {{ if .Places }}
+        {{ template "field" (dict "label" ($.T "weather.find") "name" "query" "type" "search" "value" .Query "required" true "hint" ($.T "weather.searches") "example" .Places "link" .Policy "linklabel" ($.T "weather.policy")) }}
+        {{ else }}
+        {{ template "field" (dict "label" ($.T "weather.find") "name" "query" "type" "search" "value" .Query "required" true "hint" ($.T "weather.searchstations")) }}
+        {{ end }}
+        <button type="submit" class="button-primary">{{$.T "weather.search"}}</button>
+        {{ if .Searched }}
+        <section class="list-items">
+          {{ range .Found }}
+          <div class="list-item">
+            {{ template "weather-choice" (dict "g" $ "choice" .) }}
+            <button formmethod="post" formaction="{{url "weather.place"}}" name="place" value="{{.Lat}},{{.Lon}},{{.Name}}">{{$.T "weather.choosedo"}}</button>
+          </div>
+          {{ else }}
+          <p class="empty-list">{{$.T "weather.notfound"}}</p>
+          {{ end }}
+        </section>
+        {{ if and .Places .Found }}<p class="hint">{{$.T "weather.osm"}}</p>{{ end }}
+        {{ end }}
+      </form>
+{{ end }}
+
+{{/* dict: g choice. */}}
+{{ define "weather-choice" }}
+            <div class="list-content">
+              <span class="list-summary" dir="auto">{{.choice.Name}}</span>
+              <span class="list-detail">{{ if .choice.Far }}{{ .g.GlobalData.Tf "weather.far" .g.FarKm }}{{ else }}{{ .g.GlobalData.T "weather.station" }} {{ template "ltr" .choice.Station }} · {{ .g.GlobalData.Tf "weather.km" .choice.Km }}{{ end }}</span>
+            </div>
+{{ end }}

@@ -1,0 +1,118 @@
+/* Season presentation and weather tokens, supplied by the season add-on. */
+:root {
+  /* What the season add-on lets fall (ADR 77): a kind beside its script, or none. */
+  --season-weather: snow;
+  /* Its mean wind in CSS pixels a second towards the inline end, the way
+     the smoke drifts: wind you see, not one that sweeps the page to one
+     edge. */
+  --season-wind: 10;
+
+  /* Autumn leaves by the pigment that colours them (Archetti et al.,
+     Trends Ecol. Evol. 24 (2009) 166-173): the colour is the data. Each
+     keeps its hue and stands 1.45:1 off autumn's light panels, 1.6:1 the
+     deep ones and tannin, and 1.7:1 and 2:1 off the dark: weather, far
+     under the 3:1 a glyph needs. */
+  --season-leaf-chlorophyll: #c2e09a;
+  --season-leaf-carotenoid: #fbce88;
+  --season-leaf-carotenoid-deep: #febd98;
+  --season-leaf-anthocyanin: #ffc9c2;
+  --season-leaf-anthocyanin-deep: #feb7cc;
+  --season-leaf-tannin: #eac3a3;
+  /* Rain is weather too: a streak stands 2.1:1 off spring's light panels,
+     2.6:1 off the dark, since a one-pixel line reads fainter than that. */
+  --season-rain: #95b4cc;
+  /* Summer's light, laid over the page at a fifth of its strength at most. */
+  --season-sunray: #ffcf66;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --season-leaf-chlorophyll: #364800;
+    --season-leaf-carotenoid: #573f02;
+    --season-leaf-carotenoid-deep: #753f05;
+    --season-leaf-anthocyanin: #7d2219;
+    --season-leaf-anthocyanin-deep: #783653;
+    --season-leaf-tannin: #674522;
+    --season-rain: #446177;
+    --season-sunray: #a8925f;
+  }
+}
+
+:root[data-theme="dark"] {
+  --season-leaf-chlorophyll: #364800;
+  --season-leaf-carotenoid: #573f02;
+  --season-leaf-carotenoid-deep: #753f05;
+  --season-leaf-anthocyanin: #7d2219;
+  --season-leaf-anthocyanin-deep: #783653;
+  --season-leaf-tannin: #674522;
+  --season-rain: #446177;
+  --season-sunray: #a8925f;
+}
+
+/* The scene of a season theme (ADR 77), behind the page. Its tokens live
+   in the season's file alone: no other theme renders the markup. It
+   mirrors with the page, so the house stands at the inline end, clear of
+   the rail at the inline start. */
+body:has(> .scene) {
+  background:
+    var(--scene-texture) fixed,
+    var(--scene-sky) fixed;
+}
+
+.scene {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: -1;
+  width: 100%;
+  height: auto;
+  pointer-events: none;
+}
+
+:root:dir(rtl) .scene {
+  transform: scaleX(-1);
+}
+
+.scene-puff {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: scene-rise 9s linear infinite;
+}
+
+.scene-puff:nth-child(2) {
+  animation-delay: -3s;
+}
+
+.scene-puff:nth-child(3) {
+  animation-delay: -6s;
+}
+
+@keyframes scene-rise {
+  0% {
+    transform: translate(0, 0) scale(0.6);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.55;
+  }
+  100% {
+    transform: translate(26px, -120px) scale(1.8);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scene-puff {
+    animation: none;
+    opacity: 0.35;
+  }
+}
+
+@media print {
+  .scene { display: none; }
+}
+
+body:has(> canvas.season) .page-wrap {
+  position: relative;
+  z-index: 2;
+}

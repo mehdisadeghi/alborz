@@ -95,8 +95,8 @@
             {{ end }}
             </a>
             {{ end }}
-                        {{ if $.GlobalData.Unified }}<span class="row-account" title="{{.Account}}">{{ template "ltr" ($.GlobalData.AccountLabel .Account) }}</span>{{ end }}
-            {{ if $.Spanning }}<a class="row-account row-folder" dir="auto" title="{{.Mailbox}}" href="{{ localhref (printf "%s?query=%s%s" (url "mail.mailbox" .Mailbox) ($.FolderQuery | qv) (account "&" .Account)) }}">{{.Mailbox}}</a>{{ end }}
+            {{ if $.Spanning }}<span class="row-meta row-meta-above"><a class="row-account row-folder" dir="auto" title="{{.Mailbox}}" href="{{ localhref (printf "%s?query=%s%s" (url "mail.mailbox" .Mailbox) ($.FolderQuery | qv) (account "&" .Account)) }}">{{.Mailbox}}</a></span>{{ end }}
+            {{ if $.GlobalData.Unified }}<span class="row-meta"><span class="row-account" title="{{.Account}}">{{ template "ltr" ($.GlobalData.AccountLabel .Account) }}</span></span>{{ end }}
           </div>
           <div class="message-list-subject list-primary {{$classes}}{{ if .Attachments }} has-attach{{ end }}" role="cell">
             {{ $open := "" }}{{ if not $.Merged }}{{ $open = .PreferredPart $.PreferHTML }}{{ end }}
@@ -134,8 +134,7 @@
           {{ end }}
 {{ end }}
 
-{{/* The grid's attributes: the tracks its account and folder columns share. */}}
-{{ define "message-grid" }}role="table" class="message-grid list-grid{{ if .GlobalData.Unified }} unified{{ end }}"{{ if or .GlobalData.Unified .Spanning }} style="{{ if .GlobalData.Unified }}--account-track: {{ .GlobalData.AccountTrack }};{{ end }}{{ if .Spanning }}--folder-track: {{ .FolderTrack }}{{ end }}"{{ end }}{{ end }}
+{{ define "message-grid" }}role="table" class="message-grid list-grid{{ if .GlobalData.Unified }} unified{{ end }}"{{ end }}
 
 {{/* A search's first rows on the search across sections. */}}
 {{ define "mail-found" }}

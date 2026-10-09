@@ -33,8 +33,6 @@ type MailboxRenderData struct {
 	FolderQuery string
 	// Everywhere is the query asked of every folder; empty when it already is.
 	Everywhere string
-	// FolderTrack is the width the rows' folder names share, so they keep one edge.
-	FolderTrack template.CSS
 	// Outgoing says the folder holds what the reader wrote, so rows name recipients.
 	Outgoing      bool
 	Sort          string

@@ -1501,9 +1501,6 @@ main.message .shown-image {
   align-self: stretch;
 }
 
-.message-grid.unified > .message-list-flags {
-  padding-inline-start: 0.5rem;
-}
 main.message .remote-content,
 main.message .part-cut {
   background: var(--bg-accent);
@@ -1766,11 +1763,14 @@ main.create-update .actions > *:not(:last-child) {
   justify-content: flex-start;
 }
 
-/* The row's button carries the hit area, so the track is its width. */
+/* The star starts at the cell's edge: the checkbox brings its own padding. */
+.message-grid .message-list-flags { padding-inline-start: 0; }
+
+/* The row's button carries the hit area and starts where the header's star
+   does; the chevron follows it. */
 .message-list-flags > form {
-  flex: 0 0 var(--control-height);
+  flex: none;
   display: flex;
-  justify-content: center;
 }
 
 .list-header.message-list-flags .flag-sort,
@@ -1825,6 +1825,11 @@ main.create-update .actions > *:not(:last-child) {
   z-index: 1;
   visibility: hidden;
 }
+
+/* Mail's marks follow the star, so its chevron keeps a slot instead of
+   covering them; hidden, it still holds it, and nothing moves on hover. */
+.message-list-flags .row-star .flag-split .flag-more.icon-button { position: static; }
+
 /* The colours menu opens only by script. */
 @media (scripting: none) {
   .row-star .flag-split .flag-more[data-row-colors] { display: none; }
@@ -3117,7 +3122,7 @@ main.calendar .actions {
   /* Fixed tracks: sorting or paging must not shift the headers under the pointer. */
   /* A capped track hands its whole loss to the flexible one beside it. */
   grid-template-columns:
-    var(--check-track) 4.4rem 14rem
+    var(--check-track) 5.4rem 14rem
     minmax(0, 1fr) 8rem 5.5rem;
   grid-template-rows: auto;
 }
@@ -3125,7 +3130,7 @@ main.calendar .actions {
 @media (width < 75rem) {
   .message-grid {
     grid-template-columns:
-      var(--check-track) 4.4rem minmax(6rem, 0.45fr)
+      var(--check-track) 5.4rem minmax(6rem, 0.45fr)
       minmax(0, 1fr) minmax(5rem, 8rem) minmax(4rem, 5.5rem);
   }
 
@@ -3145,7 +3150,7 @@ main.calendar .actions {
 @media (width < 60rem) {
   .message-grid {
     grid-template-columns:
-      var(--check-track) 4.4rem minmax(6rem, 0.45fr)
+      var(--check-track) 5.4rem minmax(6rem, 0.45fr)
       minmax(0, 1fr) minmax(5rem, 8rem);
   }
 
@@ -3177,20 +3182,33 @@ main.calendar .actions {
   white-space: nowrap;
 }
 
+/* Folder above the name and account under it, out of the flow: the name
+   keeps its centre and the row its height. Half an em off the centre clears
+   the name's ascenders and descenders and keeps both inside the shortest row. */
+.message-list-sender:has(> .row-meta) { position: relative; }
+
+.message-list-sender > .row-meta {
+  position: absolute;
+  inset-inline: var(--space-2);
+  top: calc(50% + 0.5em);
+  display: flex;
+}
+.message-list-sender > .row-meta-above { top: auto; bottom: calc(50% + 0.5em); }
+
 .message-list-sender .row-account {
-  flex: 0 4 auto;
-  min-width: 3ch;
-  max-width: 45%;
-  margin-inline: 0.4rem 0;
+  flex: 0 1 auto;
+  min-width: 0;
+  margin: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: var(--text-xs);
+  line-height: 1.25;
   font-weight: 400;
 }
 
 /* Both classes, to outrank the rule that lets the cell's links grow. */
 .message-list-sender a.row-account.row-folder {
-  flex: 0 0 var(--folder-track);
   text-decoration: none;
 }
 .message-list-sender a.row-account.row-folder:hover { text-decoration: underline; }
@@ -5048,6 +5066,19 @@ h1.no-word .title-short {
   .message-list-checkbox { grid-area: check; align-self: stretch; }
   .message-list-sender { grid-area: sender; }
   .message-list-sender a { color: inherit; }
+
+  /* No room under the name on a card: the account rides its line, the folder stays off. */
+  .message-list-sender > .row-meta { display: contents; }
+  .message-list-sender .row-account {
+    flex: 0 4 auto;
+    min-width: 3ch;
+    max-width: 45%;
+    margin-inline: 0.4rem 0;
+  }
+  .message-list-sender .row-folder { display: none; }
+
+  /* No pointer shows the chevron here; a slot for it would push the star in. */
+  .message-list-flags .row-star .flag-split .flag-more.icon-button { position: absolute; }
   .message-list-date {
     grid-area: date;
     justify-content: flex-end;

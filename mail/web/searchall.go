@@ -2,7 +2,6 @@ package web
 
 import (
 	"fmt"
-	"html/template"
 	"net/http"
 	"strings"
 
@@ -16,9 +15,6 @@ import (
 
 // The inbox's action set is the one offering archive, junk and trash.
 const searchRole = "INBOX"
-
-// folderTrackMax caps the folder column; long nested paths truncate.
-const folderTrackMax = 16
 
 func (p *plugin) handleSearch(ctx *web.Context) error {
 	ask, err := readListAskAt(ctx, ctx.QueryParams(), "account")
@@ -88,14 +84,9 @@ func (p *plugin) searchRows(ctx *web.Context, ask mail.ListAsk) (*MailboxRenderD
 
 // spanningPage is a list of rows from any folder of any account, as a search draws it.
 func spanningPage(ctx *web.Context, ask mail.ListAsk, list *mail.Listing) *MailboxRenderData {
-	track := 0
-	for i := range list.Rows {
-		track = max(track, len([]rune(list.Rows[i].Mailbox)))
-	}
 	data := listPage(ctx, ask, list)
 	data.Merged, data.Spanning, data.Role = true, true, searchRole
 	data.FolderQuery = search.Parse(ask.Query).Without(imapsearch.In)
-	data.FolderTrack = template.CSS(fmt.Sprintf("%dch", min(track, folderTrackMax)))
 	return data
 }
 

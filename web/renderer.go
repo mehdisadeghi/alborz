@@ -225,17 +225,6 @@ func (g GlobalRenderData) AccountLabel(account string) string {
 	return shortAccount(account, g.Accounts)
 }
 
-// AccountTrack is the width of the widest account label, so a column of them aligns.
-func (g GlobalRenderData) AccountTrack() template.CSS {
-	n := 0
-	for _, a := range g.Accounts {
-		if l := len([]rune(g.AccountLabel(a.Username))); l > n {
-			n = l
-		}
-	}
-	return template.CSS(fmt.Sprintf("%dch", n))
-}
-
 // Value receivers: templates box the global in a tuple, leaving pointer methods out of reach.
 func (g GlobalRenderData) Num(n int) string { return locale.Num(g.Lang, n) }
 

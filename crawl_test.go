@@ -62,7 +62,12 @@ func TestNoPageDrawsARefusedLink(t *testing.T) {
 			t.Errorf("%s draws a refused link: %q", path, page.Text[max(0, i-200):i+8])
 		}
 		for _, m := range crawledLink.FindAllStringSubmatch(page.Text, -1) {
-			queue = append(queue, html.UnescapeString(m[1]))
+			link := html.UnescapeString(m[1])
+			// An empty path segment is a name the page did not have; the router cleans it into another route.
+			if before, _, _ := strings.Cut(link, "?"); strings.Contains(before, "//") {
+				t.Errorf("%s draws a link with an empty segment: %s", path, link)
+			}
+			queue = append(queue, link)
 		}
 	}
 	// A crawl that stopped at the first page would pass by drawing nothing.

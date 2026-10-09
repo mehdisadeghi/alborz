@@ -1,3 +1,5 @@
+//go:build !noseason && !noaddons
+
 package web_test
 
 import (

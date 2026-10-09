@@ -1,19 +1,18 @@
+//go:build !noaddons && !nomotd
+
 package app_test
 
 import (
 	"io"
-	"io/fs"
 	"log"
 	"os"
-	"path"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/cmd/alborz/app"
 	. "git.mehdix.org/alborz/internal/alborztest"
-	"git.mehdix.org/alborz/locales"
+	"git.mehdix.org/alborz/internal/locale"
 	"git.mehdix.org/alborz/web"
 )
 
@@ -24,22 +23,16 @@ func TestEverySegmentAndAddonIsNamedInEveryLanguage(t *testing.T) {
 	if len(a.Server.Status) == 0 {
 		t.Fatal("no segments mounted; the check is vacuous")
 	}
-	files, err := fs.Glob(locales.FS, "*.toml")
-	if err != nil || len(files) == 0 {
-		t.Fatalf("no locales: %v", err)
-	}
-	for _, name := range files {
-		text, err := fs.ReadFile(locales.FS, name)
-		if err != nil {
-			t.Fatal(err)
-		}
+	for _, name := range locale.Languages {
 		for _, s := range a.Server.Status {
-			if !strings.Contains(string(text), `"`+s.Name+`.status"`) {
+			key := s.Name + ".status"
+			if locale.T(name, key) == key {
 				t.Errorf("%s does not name the segment %s", name, s.Name)
 			}
 		}
 		for _, addon := range a.Server.Addons {
-			if !strings.Contains(string(text), `"`+addon.Name+`.addon"`) {
+			key := addon.Name + ".addon"
+			if locale.T(name, key) == key {
 				t.Errorf("%s does not name the add-on %s", name, addon.Name)
 			}
 		}
@@ -48,22 +41,15 @@ func TestEverySegmentAndAddonIsNamedInEveryLanguage(t *testing.T) {
 
 // The settings name a theme by a key put together from its file name, which no template check sees.
 func TestEveryThemeIsNamedInEveryLanguage(t *testing.T) {
-	themes, err := fs.Glob(alborz.Templates, "templates/assets/themes/*.css")
-	if err != nil || len(themes) == 0 {
-		t.Fatalf("no themes: %v", err)
+	a := Alborz(t)
+	themes := a.Server.Themes()
+	if len(themes) == 0 {
+		t.Fatal("no themes")
 	}
-	files, err := fs.Glob(locales.FS, "*.toml")
-	if err != nil || len(files) == 0 {
-		t.Fatalf("no locales: %v", err)
-	}
-	for _, name := range files {
-		text, err := fs.ReadFile(locales.FS, name)
-		if err != nil {
-			t.Fatal(err)
-		}
+	for _, name := range locale.Languages {
 		for _, theme := range themes {
-			key := "theme." + strings.TrimSuffix(path.Base(theme), ".css")
-			if !strings.Contains(string(text), `"`+key+`"`) {
+			key := "theme." + theme.Name
+			if locale.T(name, key) == key {
 				t.Errorf("%s does not name the theme %s", name, key)
 			}
 		}
@@ -80,7 +66,7 @@ func TestAnUnreadableMOTDStopsStartup(t *testing.T) {
 	}
 	start := func(dir string) error {
 		options := app.Options{Options: web.Options{Options: alborz.Options{LoginKey: "YLZFnivEgqo-9cIJcqU6wOS7LhhCrXtgxRvYHoQ6NmA=", DataDir: t.TempDir(),
-			Upstreams: []string{"imap://127.0.0.1:1"}}}, MOTD: dir}
+			Upstreams: []string{"imap://127.0.0.1:1"}}}, Addons: map[string]any{"motd": dir}}
 		s, _, err := app.New(log.New(io.Discard, "", 0), options)
 		if err == nil {
 			s.Close()

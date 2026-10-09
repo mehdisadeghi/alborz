@@ -3,6 +3,7 @@ package locale
 
 import (
 	"fmt"
+	"io/fs"
 	"slices"
 	"strconv"
 	"strings"
@@ -17,17 +18,26 @@ import (
 )
 
 var localizers = map[string]*i18n.Localizer{}
+var bundle = i18n.NewBundle(language.English)
 
 func init() {
-	bundle := i18n.NewBundle(language.English)
 	bundle.RegisterUnmarshalFunc("toml", toml.Unmarshal)
+	if err := RegisterFS(locales.FS); err != nil {
+		panic(fmt.Sprintf("alborz: cannot load core locales: %v", err))
+	}
+}
+
+// RegisterFS adds one embedded translation file per supported language.
+// Call it while assembling the app, before serving requests.
+func RegisterFS(fsys fs.FS) error {
 	for _, code := range Languages {
 		name := code + ".toml"
-		if _, err := bundle.LoadMessageFileFS(locales.FS, name); err != nil {
-			panic(fmt.Sprintf("alborz: cannot load %s: %v", name, err))
+		if _, err := bundle.LoadMessageFileFS(fsys, name); err != nil {
+			return fmt.Errorf("load %s: %w", name, err)
 		}
 		localizers[code] = i18n.NewLocalizer(bundle, code, "en")
 	}
+	return nil
 }
 
 // Languages are the supported UI Languages, in fallback order.

@@ -1,15 +1,9 @@
 package app
 
 import (
-	"fmt"
 	"log"
 	"net/http"
 
-	moonweb "git.mehdix.org/alborz/addons/moon/web"
-	motdweb "git.mehdix.org/alborz/addons/motd/web"
-	seasonweb "git.mehdix.org/alborz/addons/season/web"
-	"git.mehdix.org/alborz/addons/weather"
-	weatherweb "git.mehdix.org/alborz/addons/weather/web"
 	authweb "git.mehdix.org/alborz/auth/web"
 	filtersweb "git.mehdix.org/alborz/filters/web"
 	mailweb "git.mehdix.org/alborz/mail/web"
@@ -23,11 +17,13 @@ import (
 // Options are the web's, and what the add-ons compiled in take.
 type Options struct {
 	web.Options
-	// MOTD is the directory of message-of-the-day collections; empty offers none.
-	MOTD string
-	// Weather are where the weather segment asks.
-	Weather weather.Sources
+	// Addons holds the options of add-ons compiled into this binary.
+	Addons map[string]any
 }
+
+type addonRegistration func(*web.Group, Options) error
+
+var addonRegistrations []addonRegistration
 
 // Mount composes the groups, from out to in, and mounts each feature on its own.
 func Mount(s *web.Server, options Options) error {
@@ -63,13 +59,9 @@ func Mount(s *web.Server, options Options) error {
 	filtersweb.Mount(app.Group("/filters", "filters"))
 	web.StatusRoutes(app)
 	web.SearchRoutes(app)
-	// The add-ons compiled in, each under its own name; an operator offers the ones that need a setting.
-	seasonweb.Mount(app.Group("/addons", "season"))
-	moonweb.Mount(app.Group("", "moon"))
-	weatherweb.Mount(app.Group("", "weather"), weather.New(options.Weather, s.Outgoing.Trusted, options.ProjectURL))
-	if options.MOTD != "" {
-		if err := motdweb.Mount(app.Group("", "motd"), options.MOTD); err != nil {
-			return fmt.Errorf("-motd: %w", err)
+	for _, register := range addonRegistrations {
+		if err := register(app, options); err != nil {
+			return err
 		}
 	}
 	web.Fallback(app)

@@ -3,6 +3,7 @@
 package web
 
 import (
+	"embed"
 	"errors"
 	"math"
 	"net/http"
@@ -15,6 +16,9 @@ import (
 	"git.mehdix.org/alborz/web"
 )
 
+//go:embed pages
+var pages embed.FS
+
 // kmh is km/h in one m/s, the unit DWD gives wind in.
 const kmh = 3.6
 
@@ -26,6 +30,9 @@ func Mount(g *web.Group, w *weather.Service) {
 	g.GET("place", "/weather", func(ctx *web.Context) error { return handlePlace(ctx, w) })
 	g.POST("place", "/weather", handleChoose)
 	s := g.Server()
+	if err := s.RegisterAddonBundle("weather", pages); err != nil {
+		panic(err)
+	}
 	s.Status = append(s.Status, web.Segment{Name: "weather", Page: "weather.place", Show: func(ctx *web.Context) (web.Shown, error) {
 		return show(ctx, w), nil
 	}})

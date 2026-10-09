@@ -303,9 +303,12 @@ const enhance = () => {
 	const primeNav = document.querySelector("header nav");
 	if (primeNav) {
 		const fitNav = () => {
-			primeNav.classList.remove("is-icons");
+			primeNav.classList.remove("is-compact", "is-icons");
 			if (primeNav.scrollWidth > primeNav.clientWidth) {
-				primeNav.classList.add("is-icons");
+				primeNav.classList.add("is-compact");
+				if (primeNav.scrollWidth > primeNav.clientWidth) {
+					primeNav.classList.add("is-icons");
+				}
 			}
 		};
 		if (once(primeNav, "fitnav")) {

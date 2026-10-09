@@ -1,9 +1,17 @@
-var emailFrame = document.getElementById("email-frame");
+(() => {
+const emailFrame = document.getElementById("email-frame");
 if (emailFrame) {
+	const frameStyle = document.getElementById("email-frame-style");
+	let styleReady = !frameStyle || !!frameStyle.sheet;
+	if (!styleReady) {
+		const ready = () => { styleReady = true; };
+		frameStyle.addEventListener("load", ready, { once: true });
+		frameStyle.addEventListener("error", ready, { once: true });
+	}
 	// Size the frame to its content, scaling a too-wide mail down whole.
 	// The frame arrives hidden and is shown once sized, so the unsized box never paints.
-	var shown = false;
-	var show = function() {
+	let shown = false;
+	const show = function() {
 		if (!shown) {
 			shown = true;
 			emailFrame.style.visibility = "";
@@ -11,7 +19,7 @@ if (emailFrame) {
 	};
 	// Without a doctype the size may live on body, so take the larger of both.
 	// Offset sizes follow the frame, not the content, so only scroll sizes are read.
-	var contentSize = function() {
+	const contentSize = function() {
 		var doc = emailFrame.contentWindow.document;
 		var root = doc.documentElement, body = doc.body;
 		// Body margins are outside its scroll width; without them the frame is too narrow.
@@ -26,7 +34,7 @@ if (emailFrame) {
 		};
 	};
 	// How much of the mail the frame cannot show at its current height.
-	var unseen = function() {
+	const unseen = function() {
 		var doc = emailFrame.contentWindow.document;
 		var root = doc.documentElement;
 		if (!root || !root.clientHeight) {
@@ -36,7 +44,7 @@ if (emailFrame) {
 	};
 
 	// Grow the frame until the document shows all of it, in at most three passes.
-	var fitFrame = function(scale) {
+	const fitFrame = function(scale) {
 		for (var pass = 0; pass < 3; pass++) {
 			var height = Math.ceil(contentSize().height) +
 				Math.max(0, emailFrame.offsetHeight - emailFrame.clientHeight);
@@ -53,11 +61,14 @@ if (emailFrame) {
 		}
 	};
 
-	var applied = { width: -1, height: -1, avail: -1 };
+	let applied = { width: -1, height: -1, avail: -1 };
 	// The height this script last wrote; one set by anyone else is left alone.
-	var ours = "";
-	var resizeFrame = function(force) {
+	let ours = "";
+	const resizeFrame = function(force) {
 		try {
+			if (!styleReady) {
+				return;
+			}
 			if (!force && emailFrame.style.height !== ours) {
 				return;
 			}
@@ -99,7 +110,7 @@ if (emailFrame) {
 		}
 	};
 	// Keep the frame sized to its content, so its scrollbar never competes with the page's.
-	var lockFrame = function() {
+	const lockFrame = function() {
 		try {
 			var win = emailFrame.contentWindow;
 			var doc = win.document;
@@ -132,12 +143,12 @@ if (emailFrame) {
 	window.addEventListener("resize", function() {
 		resizeFrame(true);
 	});
-	// load may fire before this script attaches; poll briefly, then show the frame regardless.
-	var bootTicks = 0;
-	var boot = setInterval(function() {
+	// load may fire before this script attaches, so poll for the completed document.
+	let bootTicks = 0;
+	const boot = setInterval(function() {
 		bootTicks++;
 		var doc = emailFrame.contentDocument;
-		if (doc && doc.body && doc.body.childNodes.length > 0) {
+		if (styleReady && doc && doc.readyState === "complete" && doc.body && doc.body.childNodes.length > 0) {
 			lockFrame();
 			resizeFrame(true);
 		}
@@ -156,3 +167,4 @@ if (emailFrame) {
 		doc.close();
 	}
 }
+})();

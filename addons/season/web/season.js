@@ -106,7 +106,7 @@ const fall = async () => {
 		throw new TypeError("--season-wind is not a number");
 	}
 	canvas.style.opacity = kind.opacity;
-	document.documentElement.appendChild(canvas);
+	document.body.appendChild(canvas);
 	reading();
 	document.addEventListener("htmx:afterSwap", reading);
 	const ctx2d = canvas.getContext("2d");

@@ -18,7 +18,7 @@ const RAY_SWAY = 2.5;
 const RAY_FAST = 1 / 18;
 const RAY_SLOW = 1 / 40;
 // The brightest a shaft gets at its root; it fades to nothing along it.
-const RAY_ALPHA = 0.22;
+const RAY_ALPHA = 0.6;
 // The sprite: a wedge along x, its root at the left edge.
 const RAY_LENGTH = 512;
 const RAY_WIDTH = 128;
@@ -49,9 +49,8 @@ export default {
 	area: 1,
 	most: RAY_COUNT,
 	opacity: 1,
-	// A shaft is a blur, so a sixty-fourth of the pixels draws the same
-	// light at a fraction of the cost where the canvas is not on a GPU.
-	detail: 0.125,
+	// Half resolution keeps the shafts soft without losing their shape.
+	detail: 0.5,
 	sprites: (style) => [raySprite(style.getPropertyValue("--season-sunray").trim())],
 	make: () => ({
 		x: 0,

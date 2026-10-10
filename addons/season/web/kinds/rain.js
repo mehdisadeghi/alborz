@@ -30,7 +30,7 @@ const diameter = () => {
 };
 
 export default {
-	area: 6000,
+	area: 2000,
 	most: 300,
 	opacity: 1,
 	detail: 1,
@@ -67,7 +67,7 @@ export default {
 	},
 	draw: (c, d, sprites) => {
 		c.strokeStyle = sprites[0];
-		c.lineWidth = 1;
+		c.lineWidth = 2;
 		c.beginPath();
 		c.moveTo(d.x, d.y);
 		c.lineTo(d.x - d.vx * RAIN_BLUR, d.y - d.vy * RAIN_BLUR);

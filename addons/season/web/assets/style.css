@@ -7,46 +7,40 @@
      edge. */
   --season-wind: 10;
 
-  /* Autumn leaves by the pigment that colours them (Archetti et al.,
-     Trends Ecol. Evol. 24 (2009) 166-173): the colour is the data. Each
-     keeps its hue and stands 1.45:1 off autumn's light panels, 1.6:1 the
-     deep ones and tannin, and 1.7:1 and 2:1 off the dark: weather, far
-     under the 3:1 a glyph needs. */
-  --season-leaf-chlorophyll: #c2e09a;
-  --season-leaf-carotenoid: #fbce88;
-  --season-leaf-carotenoid-deep: #febd98;
-  --season-leaf-anthocyanin: #ffc9c2;
-  --season-leaf-anthocyanin-deep: #feb7cc;
-  --season-leaf-tannin: #eac3a3;
-  /* Rain is weather too: a streak stands 2.1:1 off spring's light panels,
-     2.6:1 off the dark, since a one-pixel line reads fainter than that. */
-  --season-rain: #95b4cc;
-  /* Summer's light, laid over the page at a fifth of its strength at most. */
-  --season-sunray: #ffcf66;
+  /* Keep the pigment families of autumn leaves while letting their
+     silhouettes show against the light valley. */
+  --season-leaf-chlorophyll: #6d9046;
+  --season-leaf-carotenoid: #aa681c;
+  --season-leaf-carotenoid-deep: #9b5532;
+  --season-leaf-anthocyanin: #9f4c46;
+  --season-leaf-anthocyanin-deep: #92355c;
+  --season-leaf-tannin: #806038;
+  --season-rain: #4a718d;
+  --season-sunray: #b77b17;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --season-leaf-chlorophyll: #364800;
-    --season-leaf-carotenoid: #573f02;
-    --season-leaf-carotenoid-deep: #753f05;
-    --season-leaf-anthocyanin: #7d2219;
-    --season-leaf-anthocyanin-deep: #783653;
-    --season-leaf-tannin: #674522;
-    --season-rain: #446177;
-    --season-sunray: #a8925f;
+    --season-leaf-chlorophyll: #b9d582;
+    --season-leaf-carotenoid: #f2ba70;
+    --season-leaf-carotenoid-deep: #eaa282;
+    --season-leaf-anthocyanin: #e59b9a;
+    --season-leaf-anthocyanin-deep: #db92b7;
+    --season-leaf-tannin: #d2ad89;
+    --season-rain: #a5c7de;
+    --season-sunray: #ffda89;
   }
 }
 
 :root[data-theme="dark"] {
-  --season-leaf-chlorophyll: #364800;
-  --season-leaf-carotenoid: #573f02;
-  --season-leaf-carotenoid-deep: #753f05;
-  --season-leaf-anthocyanin: #7d2219;
-  --season-leaf-anthocyanin-deep: #783653;
-  --season-leaf-tannin: #674522;
-  --season-rain: #446177;
-  --season-sunray: #a8925f;
+  --season-leaf-chlorophyll: #b9d582;
+  --season-leaf-carotenoid: #f2ba70;
+  --season-leaf-carotenoid-deep: #eaa282;
+  --season-leaf-anthocyanin: #e59b9a;
+  --season-leaf-anthocyanin-deep: #db92b7;
+  --season-leaf-tannin: #d2ad89;
+  --season-rain: #a5c7de;
+  --season-sunray: #ffda89;
 }
 
 /* The scene of a season theme (ADR 77), behind the page. Its tokens live
@@ -112,7 +106,7 @@ body:has(> .scene) {
   .scene { display: none; }
 }
 
-body:has(> canvas.season) .page-wrap {
+:root:has(> canvas.season) .page-wrap {
   position: relative;
   z-index: 2;
 }

@@ -29,8 +29,8 @@
   --border-strong: rgba(70, 55, 15, 0.28);
 
   --link: #7d5000;
-  --link-read: #716247;
-  --link-unread: #5a3a00;
+  --link-read: var(--fg);
+  --link-unread: var(--link-read);
 
   --on-accent: #fff;
   --accent-strong: #946410;
@@ -86,8 +86,8 @@
     --border-strong: rgba(250, 238, 200, 0.32);
 
     --link: #f2c46a;
-    --link-read: #cbbb94;
-    --link-unread: #ffe0a0;
+    --link-read: var(--fg);
+    --link-unread: var(--link-read);
 
     --on-accent: #1b1810;
     --accent-strong: #f5dca8;
@@ -143,8 +143,8 @@
   --border-strong: rgba(250, 238, 200, 0.32);
 
   --link: #f2c46a;
-  --link-read: #cbbb94;
-  --link-unread: #ffe0a0;
+  --link-read: var(--fg);
+  --link-unread: var(--link-read);
 
   --on-accent: #1b1810;
   --accent-strong: #f5dca8;

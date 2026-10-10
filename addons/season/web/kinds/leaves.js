@@ -46,6 +46,10 @@ const LEAF_LARGE = 32;
 const LEAF_SPRITE = 64;
 // The sprite's side in half-chords: the outline's length of two and a margin.
 const LEAF_BOX = 2.2;
+// The card model's pitch is not an in-plane spin of a face-on leaf.
+// Show it as a shallow roll of the visible blade instead.
+const LEAF_VISIBLE_SWAY = 0.12;
+const LEAF_EDGE_SCALE = 0.65;
 
 // I* by regime: the paper's flutter (1.1), tumble (1.4, 1.45) and chaos
 // (1.8-2.8), in shares that keep the page mostly rocking. The band
@@ -184,9 +188,9 @@ const leafSprite = (outline, colour) => {
 };
 
 export default {
-	area: 60000,
+	area: 30000,
 	most: 40,
-	opacity: 0.28,
+	opacity: 0.85,
 	detail: 1,
 	sprites: (style) => Object.entries(LEAF_PIGMENTS).flatMap(([tree, pigments]) => {
 		const outline = outlines[tree]();
@@ -210,6 +214,7 @@ export default {
 			state: state,
 			length: length,
 			sprite: Math.floor(Math.random() * sprites.length),
+			heading: Math.random() * Math.PI * 2,
 			// The air it last felt, in the model's units; a new leaf is let go in still air.
 			ax: 0,
 			ay: 0,
@@ -256,8 +261,10 @@ export default {
 		const drawn = leaf.length * LEAF_BOX / 2;
 		c.save();
 		c.translate(leaf.x, leaf.y);
-		// The model's angle is anticlockwise with y up; the screen turns clockwise.
-		c.rotate(-leaf.state[3]);
+		// The model's pitch changes the blade's apparent width, while its
+		// screen-plane heading only rocks a little around its starting angle.
+		c.rotate(leaf.heading + LEAF_VISIBLE_SWAY * Math.sin(leaf.state[3]));
+		c.scale(1, LEAF_EDGE_SCALE + (1 - LEAF_EDGE_SCALE) * Math.abs(Math.cos(leaf.state[3])));
 		c.drawImage(sprites[leaf.sprite], -drawn / 2, -drawn / 2, drawn, drawn);
 		c.restore();
 	},

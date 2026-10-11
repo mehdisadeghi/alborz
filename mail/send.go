@@ -32,21 +32,75 @@ type ComposeOptions struct {
 	Signature string
 }
 
+var (
+	ErrSentMailboxMissing  = errors.New("sent mailbox is missing")
+	ErrSendAlreadyAccepted = errors.New("message already submitted")
+	ErrSendFollowupUnknown = errors.New("message submitted but follow-up status is uncertain")
+	ErrSendUncertain       = errors.New("mail server acceptance is uncertain")
+	ErrSendAccepted        = errors.New("message submitted with follow-up errors")
+)
+
 // Submit delivers msg from sender and files it in Sent, marking what it answers or forwards and dropping
 // its draft on account; it says where the Sent copy landed, and to whom the message went.
 func (p *Mailboxes) Submit(ctx context.Context, account, sender *alborz.Login, msg *OutgoingMessage, options *ComposeOptions) (*MailboxInfo, imap.UID, []*mail.Address, error) {
-	body, err := deliver(sender, msg)
+	to, err := prepareAddressList(slices.Concat(msg.To, msg.Cc, msg.Bcc))
 	if err != nil {
 		return nil, 0, nil, err
 	}
+	state, fresh, err := p.claimSend(sender.Username(), msg.MessageID)
+	if err != nil {
+		return nil, 0, nil, err
+	}
+	switch state {
+	case sendComplete:
+		return nil, 0, nil, ErrSendAlreadyAccepted
+	case sendAccepted, sendPartial:
+		return nil, 0, nil, ErrSendFollowupUnknown
+	case sendClaiming:
+		if !fresh {
+			return nil, 0, nil, ErrSendUncertain
+		}
+	default:
+		return nil, 0, nil, fmt.Errorf("unknown send claim state %d", state)
+	}
+	defer p.endSend(sender.Username(), msg.MessageID)
+	var sent *MailboxInfo
+	err = sender.DoIMAPTransfer(ctx, func(c *imapclient.Client) error {
+		var err error
+		sent, err = getMailboxByRole(c, "sent")
+		return err
+	})
+	if err == nil && sent == nil {
+		err = ErrSentMailboxMissing
+	}
+	if err != nil {
+		if releaseErr := p.finishSend(sender.Username(), msg.MessageID, 0); releaseErr != nil {
+			err = errors.Join(err, releaseErr)
+		}
+		return nil, 0, nil, err
+	}
+	body, uncertain, err := deliverWithPhase(sender, msg)
+	if err != nil {
+		if uncertain {
+			return nil, 0, nil, fmt.Errorf("%w: %w", ErrSendUncertain, err)
+		}
+		if releaseErr := p.finishSend(sender.Username(), msg.MessageID, 0); releaseErr != nil {
+			return nil, 0, nil, errors.Join(err, releaseErr)
+		}
+		return nil, 0, nil, err
+	}
 	defer body.Close()
+	var after error
+	if err := p.finishSend(sender.Username(), msg.MessageID, sendAccepted); err != nil {
+		after = errors.Join(after, fmt.Errorf("failed to record SMTP acceptance: %w", err))
+	}
 
 	if inReplyTo := options.InReplyTo; inReplyTo != nil {
 		err = account.DoIMAPContext(ctx, alborz.RoundTripTimeout, func(c *imapclient.Client) error {
 			return markMessageAnswered(c, inReplyTo.Mailbox, inReplyTo.UID)
 		})
 		if err != nil {
-			return nil, 0, nil, fmt.Errorf("failed to mark original message as answered: %w", err)
+			after = errors.Join(after, fmt.Errorf("failed to mark original message as answered: %w", err))
 		}
 	}
 
@@ -60,30 +114,38 @@ func (p *Mailboxes) Submit(ctx context.Context, account, sender *alborz.Login, m
 		}
 	}
 
-	var sent *MailboxInfo
 	var sentUID imap.UID
 	err = sender.DoIMAPTransfer(ctx, func(c *imapclient.Client) error {
 		var err error
-		sent, sentUID, err = appendMessage(c, body.Open(), "sent")
+		sentUID, err = appendToMailbox(c, body.Open(), sent, "sent")
 		return err
 	})
 	if err != nil {
-		return nil, 0, nil, fmt.Errorf("failed to save message to Sent mailbox: %w", err)
+		after = errors.Join(after, fmt.Errorf("failed to save message to Sent mailbox: %w", err))
 	}
 
-	if draft := options.Draft; draft != nil {
+	if draft := options.Draft; draft != nil && err == nil {
 		err = account.DoIMAPContext(ctx, alborz.RoundTripTimeout, func(c *imapclient.Client) error {
 			return deleteMessage(c, draft.Mailbox, draft.UID)
 		})
 		if err != nil {
-			return nil, 0, nil, fmt.Errorf("failed to delete draft: %w", err)
+			after = errors.Join(after, fmt.Errorf("failed to delete draft: %w", err))
 		}
 	}
 
 	p.accountChanged(account.Username())
 	p.accountChanged(sender.Username())
-	to, err := prepareAddressList(slices.Concat(msg.To, msg.Cc, msg.Bcc))
-	return sent, sentUID, to, err
+	state = sendComplete
+	if after != nil {
+		state = sendPartial
+	}
+	if err := p.finishSend(sender.Username(), msg.MessageID, state); err != nil {
+		after = errors.Join(after, fmt.Errorf("failed to record send result: %w", err))
+	}
+	if after != nil {
+		return sent, sentUID, to, fmt.Errorf("%w: %w", ErrSendAccepted, after)
+	}
+	return sent, sentUID, to, nil
 }
 
 // SentRecipients are who the account wrote to in its last n sent messages.

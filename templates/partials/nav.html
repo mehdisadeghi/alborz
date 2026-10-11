@@ -99,17 +99,14 @@
   </dialog>
   {{ end }}
 </header>
-{{ if .GlobalData.LoggedIn }}
-<label for="sidebar" class="sidebar-backdrop" aria-hidden="true"></label>
-{{ end }}
 {{ end }}
 
 {{/* dict: g page. */}}
 {{ define "nav-menus" }}
 {{ $g := .g }}{{ $page := .page }}
 <div class="nav-menus">
-  <div class="accounts"><button type="button" class="accounts-button" data-tour="accounts settings" popovertarget="menu-accounts"><span class="label"{{ if or $g.GlobalData.Scope (not $g.GlobalData.Merged) }} dir="ltr"{{ end }}>{{ if $g.GlobalData.Scope }}{{ template "ltr" $g.GlobalData.Scope }}{{ else if $g.GlobalData.Merged }}{{$g.T "nav.allaccounts"}}{{ else }}{{ template "ltr" $g.GlobalData.Username }}{{ end }}</span>{{ template "icon" "down" }}</button>
-  <div class="accounts-menu" popover id="menu-accounts">
+  <details class="accounts"><summary class="accounts-button" data-tour="accounts settings"><span class="label"{{ if or $g.GlobalData.Scope (not $g.GlobalData.Merged) }} dir="ltr"{{ end }}>{{ if $g.GlobalData.Scope }}{{ template "ltr" $g.GlobalData.Scope }}{{ else if $g.GlobalData.Merged }}{{$g.T "nav.allaccounts"}}{{ else }}{{ template "ltr" $g.GlobalData.Username }}{{ end }}</span>{{ template "icon" "down" }}</summary>
+  <div class="accounts-menu">
     {{ $section := printf "/%s" $page }}
     {{ $merged := $section }}
     {{ if or (eq $page "mailbox") (eq $page "message") (eq $page "compose") }}{{ $section = url "mail.mailbox" "INBOX" }}{{ $merged = $section }}{{ end }}
@@ -137,9 +134,9 @@
     </form>
     {{ end }}
   </div>
-  </div>
-  <div class="accounts lang-menu"><button type="button" class="accounts-button" popovertarget="menu-language"><span class="label">{{ with $g.GlobalData.LanguageName }}{{.}}{{ else }}{{$g.T "settings.langauto"}}{{ end }}</span>{{ template "icon" "down" }}</button>
-  <div class="accounts-menu" popover id="menu-language">
+  </details>
+  <details class="accounts lang-menu"><summary class="accounts-button"><span class="label">{{ with $g.GlobalData.LanguageName }}{{.}}{{ else }}{{$g.T "settings.langauto"}}{{ end }}</span>{{ template "icon" "down" }}</summary>
+  <div class="accounts-menu">
     {{/* A whole page: lang and dir live on the root, which a swap keeps. */}}
     <form method="post" action="{{url "settings.language"}}" hx-boost="false">
       <input type="hidden" name="next" value="{{$g.GlobalData.URL.RequestURI}}">
@@ -152,6 +149,7 @@
     </form>
     {{ end }}
   </div>
+  </details>
   </div>
 </div>
 {{ end }}

@@ -4,7 +4,7 @@
   {{ if .rows }}
   <textarea name="{{.name}}" id="{{.name}}"{{ with .dir }} dir="{{.}}"{{ end }} rows="{{.rows}}"{{ if .autofocus }} autofocus{{ end }}>{{.value}}</textarea>
   {{ else }}
-  <input type="{{with .type}}{{.}}{{else}}text{{end}}" name="{{.name}}" id="{{.name}}"{{ with .dir }} dir="{{.}}"{{ end }} value="{{.value}}"{{ if .placeholder }} placeholder="{{.placeholder}}"{{ end }}{{ with .autocomplete }} autocomplete="{{.}}"{{ end }}{{ if .required }} required{{ end }}{{ if .readonly }} readonly{{ end }}{{ if .autofocus }} autofocus{{ end }}>
+  <input type="{{with .type}}{{.}}{{else}}text{{end}}" name="{{.name}}" id="{{.name}}"{{ with .dir }} dir="{{.}}"{{ end }} value="{{.value}}"{{ if .placeholder }} placeholder="{{.placeholder}}"{{ end }}{{ with .autocomplete }} autocomplete="{{.}}"{{ end }}{{ if .required }} required{{ end }}{{ if .readonly }} readonly{{ end }}{{ if .autofocus }} autofocus{{ end }}{{ with .localNameError }} data-local-name-error="{{.}}" data-local-place="{{$.localPlace}}"{{ end }}>
   {{ end }}
   {{ with .hint }}<p class="hint">{{.}}{{ with $.example }} {{ template "ltr" . }}{{ end }}{{ with $.link }} · <a href="{{.}}" rel="noreferrer">{{$.linklabel}}</a>{{ end }}</p>{{ end }}
 </div>

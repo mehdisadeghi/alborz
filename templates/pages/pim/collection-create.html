@@ -37,7 +37,7 @@
         </div>
         {{ end }}
 
-        {{ template "field" (dict "label" ($.T "common.name") "name" "name" "value" .Name "dir" "auto" "required" true "autofocus" true) }}
+        {{ template "field" (dict "label" ($.T "common.name") "name" "name" "value" .Name "dir" "auto" "required" true "autofocus" true "localNameError" ($.T "form.localcollectionname") "localPlace" .Place) }}
         {{ template "field" (dict "label" ($.T "common.color") "name" "color" "type" "color" "value" .Color) }}
 
         {{ if .OffersHolds }}

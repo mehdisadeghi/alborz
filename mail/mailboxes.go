@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/internal/kv"
 	"git.mehdix.org/alborz/internal/memo"
 	"github.com/emersion/go-imap/v2"
 )
@@ -20,6 +21,11 @@ type Mailboxes struct {
 	authServGuesses *memo.Memo[string]
 	wkd             *wkdCache
 	watchers        sync.Map
+	sendStoreOnce   sync.Once
+	sendStore       kv.DB
+	sendStoreErr    error
+	sendMu          sync.Mutex
+	sendActive      map[string]bool
 	// NewMail is told of mail arriving in an account's INBOX, named by the newest message's UID.
 	NewMail func(account string, validity uint32, newest imap.UID)
 }

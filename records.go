@@ -140,7 +140,7 @@ func (r *records) Each(f func(*SessionRecord)) error {
 // Sweep drops the sessions not seen since before.
 func (r *records) Sweep(before time.Time) error {
 	return r.db.Update(func(tx kv.Tx) error {
-		return kv.DeleteUnder(tx, sessionsOwner+"/", func(sealed []byte) bool {
+		return kv.DeleteUnder(tx, sessionsOwner+"/", func(_ string, sealed []byte) bool {
 			var rec SessionRecord
 			return r.read(sealed, &rec) && rec.Seen.Before(before)
 		})

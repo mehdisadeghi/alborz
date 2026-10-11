@@ -521,37 +521,52 @@ const imapEightBit = true
 // copy. The originals come off the mail server first, so the session waits
 // only on local disk while the message is written as its EHLO allows.
 func deliver(sender *alborz.Login, msg *OutgoingMessage) (*seal.Spool, error) {
+	body, _, err := deliverWithPhase(sender, msg)
+	return body, err
+}
+
+// deliverWithPhase says whether the server may have accepted DATA when an error is returned.
+func deliverWithPhase(sender *alborz.Login, msg *OutgoingMessage) (*seal.Spool, bool, error) {
 	local, done, err := fetchOriginals(msg)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	defer done()
 	var body *seal.Spool
 	var spoolErr error
+	var dataStarted, dataAccepted bool
 	err = sender.DoSMTP(func(c *smtp.Client) error {
 		eightBit, _ := c.Extension("8BITMIME")
 		if body, spoolErr = spool(local, eightBit); spoolErr != nil {
 			return spoolErr
 		}
-		return sendMessage(c, msg, body.Open())
+		if err := sendMessage(c, msg, body.Open(), &dataStarted); err != nil {
+			return err
+		}
+		dataAccepted = true
+		return nil
 	})
 	if spoolErr != nil {
-		return nil, spoolErr
+		return nil, false, spoolErr
+	}
+	// DATA's final success is acceptance; a failed QUIT cannot withdraw it.
+	if dataAccepted {
+		return body, false, nil
 	}
 	if err != nil {
 		if body != nil {
 			body.Close()
 		}
 		if _, ok := err.(alborz.AuthError); ok {
-			return nil, err
+			return nil, false, err
 		}
-		return nil, Refused{"form.sendrefused", err}
+		return nil, dataStarted, Refused{"form.sendrefused", err}
 	}
-	return body, nil
+	return body, false, nil
 }
 
 // sendMessage transmits body, a spooled msg, from its start.
-func sendMessage(c *smtp.Client, msg *OutgoingMessage, body io.ReadSeeker) error {
+func sendMessage(c *smtp.Client, msg *OutgoingMessage, body io.ReadSeeker, dataStarted *bool) error {
 	addr, err := mail.ParseAddress(msg.From)
 	if err != nil {
 		return fmt.Errorf("parsing 'From' address failed: %v", err)
@@ -579,6 +594,7 @@ func sendMessage(c *smtp.Client, msg *OutgoingMessage, body io.ReadSeeker) error
 	if err != nil {
 		return fmt.Errorf("DATA failed: %v", err)
 	}
+	*dataStarted = true
 	defer w.Close()
 
 	if _, err := io.Copy(w, body); err != nil {

@@ -245,6 +245,22 @@ func TestSendWithoutMessageIDStillSends(t *testing.T) {
 	}
 }
 
+func TestRepeatedComposePostDoesNotSendTwice(t *testing.T) {
+	smtp := SMTP(t)
+	c := Alborz(t, WithSMTP(smtp)).SignIn(t, User)
+	page := c.Page(t, "mail.compose")
+	fields := url.Values{"subject": {"once"}, "text": {"Body."}}
+	if resp := c.Compose(t, page, fields, "mail.compose"); resp.StatusCode >= 400 {
+		t.Fatalf("first send: %s", resp.Status)
+	}
+	if resp := c.Compose(t, page, fields, "mail.compose"); resp.StatusCode >= 400 {
+		t.Fatalf("repeated send: %s", resp.Status)
+	}
+	if got := len(smtp.All()); got != 1 {
+		t.Fatalf("the same form delivered %d messages, want one", got)
+	}
+}
+
 func TestRefusedSendKeepsItsUploads(t *testing.T) {
 	smtp := SMTP(t)
 	c := Alborz(t, WithSMTP(smtp)).SignIn(t, User)

@@ -537,6 +537,9 @@ header nav.is-icons .accounts:not(.lang-menu) { min-width: 0; }
 header nav > div > :not(.nav-menus),
 .nav-menus > :not(.accounts) { flex-shrink: 0; }
 header nav .accounts { display: inline-block; position: relative; }
+header nav .accounts > summary::-webkit-details-marker { display: none; }
+header nav .accounts > summary::marker { content: ""; }
+header nav .accounts[open] > summary .icon { transform: rotate(180deg); }
 header nav .accounts-button { max-width: 100%; }
 header nav .accounts-button .label {
   max-width: var(--nav-label);
@@ -575,12 +578,12 @@ header nav .accounts-button {
 }
 /* The guards repeat the generic button hover's, which would otherwise outweigh this. */
 header nav .accounts-button:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover,
-header nav .accounts:has(> :popover-open) > .accounts-button {
+header nav .accounts[open] > .accounts-button {
   background: none;
   border: 0;
   color: var(--fg);
 }
-header nav .accounts-menu:popover-open {
+header nav .accounts-menu {
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -3872,7 +3875,7 @@ form[aria-busy="true"] button[disabled] {
   cursor: progress;
 }
 
-/* Every menu is a popover, hung from its button through popovertarget's implicit anchor. */
+/* Row menus remain popovers; the account disclosures stay in the drawer's flow. */
 div.overflow {
   position: relative;
   display: inline-block;
@@ -3882,8 +3885,7 @@ div.overflow {
   margin-inline-start: 0.3rem;
 }
 
-.overflow-menu[popover],
-header nav .accounts-menu[popover] {
+.overflow-menu[popover] {
   inset: auto;
   margin: 0;
   margin-block-start: 2px;
@@ -3893,9 +3895,19 @@ header nav .accounts-menu[popover] {
 }
 
 /* A long account list ends at the viewport and scrolls, or its last rows are out of reach. */
-header nav .accounts-menu[popover] {
-  max-block-size: calc(100% - 2px);
+header nav .accounts-menu {
+  display: none;
+  position: absolute;
+  z-index: 30;
+  inset-block-start: 100%;
+  inset-inline-start: 0;
+  margin-block-start: 2px;
+  color: inherit;
+  max-block-size: calc(100dvh - var(--toolbar-height));
   overflow-y: auto;
+}
+header nav .accounts[open] > .accounts-menu {
+  display: flex;
 }
 
 .icon-sprite {
@@ -4765,14 +4777,13 @@ h1.no-word .title-short {
   /* The trailing group is out of the row here, so the button pushes itself. */
   header nav > div ~ .scheme-toggle { margin-inline-start: auto; }
   .nav-menus { display: contents; }
-  header nav .accounts { max-width: 100%; }
-  /* The dock sits at the bottom, so its menus open upward across the viewport. */
-  header nav .accounts-menu[popover] {
-    position-area: block-start span-all;
-    justify-self: stretch;
-    inset-inline: var(--space-2);
+  header nav .accounts { width: 100%; max-width: 100%; }
+  /* The dock grows upward when a disclosure expands. */
+  header nav .accounts-menu {
+    position: static;
     width: auto;
-    margin-block: 0 2px;
+    max-block-size: none;
+    margin-block: var(--space-1) 0;
   }
   header nav .header-brand { display: none; }
 
@@ -4800,6 +4811,8 @@ h1.no-word .title-short {
     background-color: var(--surface-raised);
     border-top: 1px solid var(--border);
     border-inline-end: 1px solid var(--border);
+    max-height: calc(100dvh - env(safe-area-inset-top));
+    overflow-y: auto;
   }
 
   .sidebar-toggle:checked ~ header nav > div > a { margin-inline-start: 0; }
@@ -4831,7 +4844,7 @@ h1.no-word .title-short {
     background-color: var(--scrim);
   }
 
-  .sidebar-toggle:checked ~ .sidebar-backdrop { display: block; }
+  .sidebar-toggle:checked ~ .page-wrap .sidebar-backdrop { display: block; }
 
   main { padding: 0 0 var(--space-bottom); }
   main.create-update { padding: var(--space-2); }

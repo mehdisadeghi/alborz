@@ -14,7 +14,7 @@
 {{ end }}
 
 {{ define "status-slot" }}
-<span class="status-segment" id="status-{{.Name}}-{{idpart .Page.GlobalData.URLAccount}}" hx-preserve hx-get="{{url "core.status" .Name}}{{.Page.GlobalData.AccountQuery}}" hx-trigger="load, every {{.Page.GlobalData.StatusSeconds}}s, htmx:pushedIntoHistory from:body" hx-headers='{"Alborz-Unasked": "1"}'>–</span>
+<span class="status-segment" id="status-{{.Name}}-{{idpart .Page.GlobalData.URLAccount}}" hx-preserve hx-get="{{url "core.status" .Name}}{{.Page.GlobalData.AccountQuery}}" hx-trigger="load, every {{.Page.GlobalData.StatusSeconds}}s, alborz:status-refresh" hx-headers='{"Alborz-Unasked": "1"}'>–</span>
 {{ end }}
 
 {{/* The title holds the whole text for a segment cut short. */}}

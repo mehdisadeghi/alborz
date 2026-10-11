@@ -10,6 +10,7 @@ import (
 
 	. "git.mehdix.org/alborz/internal/alborztest"
 	"github.com/emersion/go-imap/v2"
+	"golang.org/x/net/html"
 )
 
 // A page that 500s is invisible to every test that does not open it.
@@ -18,6 +19,38 @@ func TestPagesAnswer(t *testing.T) {
 	c := a.SignIn(t, User)
 
 	body := c.Page(t, "mail.mailbox", "INBOX")
+	doc, err := html.Parse(strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wrap, rail, content *html.Node
+	var walk func(*html.Node)
+	walk = func(n *html.Node) {
+		if n.Type == html.ElementNode {
+			if n.Data == "aside" && rail == nil {
+				rail = n
+			}
+			for _, a := range n.Attr {
+				if a.Key == "class" {
+					for _, class := range strings.Fields(a.Val) {
+						if class == "page-wrap" {
+							wrap = n
+						}
+						if class == "container" {
+							content = n
+						}
+					}
+				}
+			}
+		}
+		for child := n.FirstChild; child != nil; child = child.NextSibling {
+			walk(child)
+		}
+	}
+	walk(doc)
+	if wrap == nil || rail == nil || content == nil || rail.Parent != wrap || content.Parent != wrap {
+		t.Fatal("mail sidebar and message list must be siblings inside the page layout")
+	}
 	if !strings.Contains(body, "message-row") {
 		t.Fatalf("inbox has no messages; the rig seeded none and every other check is vacuous")
 	}

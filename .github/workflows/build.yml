@@ -112,8 +112,8 @@ jobs:
           # writing them by hand duplicates what the history already says.
           generate_release_notes: true
 
-  # The same builds as an image on ghcr.io: latest follows main, and a
-  # tag, which is what a release is made from, gets its own.
+  # The complete image is latest; the noaddons image is minimal.
+  # Release tags publish both variants with the v prefix removed.
   image:
     needs: test
     if: github.event_name == 'push'
@@ -124,10 +124,12 @@ jobs:
         include:
           - variant: full
             build_tags: ""
+            channel_tag: latest
             tag_suffix: ""
           - variant: core
             build_tags: noaddons
-            tag_suffix: -core
+            channel_tag: minimal
+            tag_suffix: -minimal
     permissions:
       contents: read
       packages: write
@@ -144,9 +146,10 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository }}
+          flavor: latest=false
           tags: |
-            type=raw,value=latest${{ matrix.tag_suffix }},enable={{is_default_branch}}
-            type=ref,event=tag,suffix=${{ matrix.tag_suffix }}
+            type=raw,value=${{ matrix.channel_tag }},enable={{is_default_branch}}
+            type=semver,pattern={{version}},suffix=${{ matrix.tag_suffix }}
       - uses: docker/build-push-action@v6
         with:
           context: .

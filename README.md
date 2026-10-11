@@ -71,8 +71,9 @@ Release binaries for linux/amd64, arm64 and armv7 are attached to every
 [release]; see [INSTALLATION.md](INSTALLATION.md) for a systemd unit and
 for building from source.
 
-A container image is published at `ghcr.io/mehdisadeghi/alborz`, tagged
-`latest` and per release:
+A container image is published at `ghcr.io/mehdisadeghi/alborz`. The complete
+app is `:latest` or a version such as `:0.18.0`; the build without add-ons is
+`:minimal` or `:0.18.0-minimal`:
 
     docker run -p 1323:1323 -v alborz-data:/data -e LBRZ_LOGIN_KEY=<key> ghcr.io/mehdisadeghi/alborz example.org
 

@@ -74,6 +74,7 @@
   {{ with .new }}<a href="{{.href}}" class="aside-create{{ if .active }} active{{ end }}">{{.label}}</a>{{ end }}
   {{ with .follow }}{{ if not .hidden }}<a href="{{.href}}" class="aside-create{{ if .active }} active{{ end }}">{{.label}}</a>{{ end }}{{ end }}
   {{ with .import }}{{ if not .hidden }}<a href="{{.href}}" class="aside-create{{ if .active }} active{{ end }}">{{.label}}</a>{{ end }}{{ end }}
+  {{ template "nav-menus" (dict "g" .g "page" (index .g.GlobalData.Path 0) "mobile" true) }}
 {{ end }}
 
 {{ define "rail-rows" }}

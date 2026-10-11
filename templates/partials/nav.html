@@ -101,11 +101,11 @@
 </header>
 {{ end }}
 
-{{/* dict: g page. */}}
+{{/* dict: g page [mobile]. */}}
 {{ define "nav-menus" }}
 {{ $g := .g }}{{ $page := .page }}
-<div class="nav-menus">
-  <details class="accounts"><summary class="accounts-button" data-tour="accounts settings"><span class="label"{{ if or $g.GlobalData.Scope (not $g.GlobalData.Merged) }} dir="ltr"{{ end }}>{{ if $g.GlobalData.Scope }}{{ template "ltr" $g.GlobalData.Scope }}{{ else if $g.GlobalData.Merged }}{{$g.T "nav.allaccounts"}}{{ else }}{{ template "ltr" $g.GlobalData.Username }}{{ end }}</span>{{ template "icon" "down" }}</summary>
+<div class="nav-menus{{ if .mobile }} nav-menus-mobile{{ end }}">
+  <details class="accounts{{ if .mobile }} acct-folders{{ end }}" name="{{ if .mobile }}rail{{ else }}header{{ end }}-switchers"><summary class="accounts-button{{ if .mobile }} aside-account{{ end }}" data-tour="accounts settings"><span class="label"{{ if or $g.GlobalData.Scope (not $g.GlobalData.Merged) }} dir="ltr"{{ end }}>{{ if $g.GlobalData.Scope }}{{ template "ltr" $g.GlobalData.Scope }}{{ else if $g.GlobalData.Merged }}{{$g.T "nav.allaccounts"}}{{ else }}{{ template "ltr" $g.GlobalData.Username }}{{ end }}</span>{{ template "icon" "down" }}</summary>
   <div class="accounts-menu">
     {{ $section := printf "/%s" $page }}
     {{ $merged := $section }}
@@ -135,7 +135,7 @@
     {{ end }}
   </div>
   </details>
-  <details class="accounts lang-menu"><summary class="accounts-button"><span class="label">{{ with $g.GlobalData.LanguageName }}{{.}}{{ else }}{{$g.T "settings.langauto"}}{{ end }}</span>{{ template "icon" "down" }}</summary>
+  <details class="accounts lang-menu{{ if .mobile }} acct-folders{{ end }}" name="{{ if .mobile }}rail{{ else }}header{{ end }}-switchers"><summary class="accounts-button{{ if .mobile }} aside-account{{ end }}"><span class="label">{{ with $g.GlobalData.LanguageName }}{{.}}{{ else }}{{$g.T "settings.langauto"}}{{ end }}</span>{{ template "icon" "down" }}</summary>
   <div class="accounts-menu">
     {{/* A whole page: lang and dir live on the root, which a swap keeps. */}}
     <form method="post" action="{{url "settings.language"}}" hx-boost="false">
@@ -150,7 +150,6 @@
     {{ end }}
   </div>
   </details>
-  </div>
 </div>
 {{ end }}
 

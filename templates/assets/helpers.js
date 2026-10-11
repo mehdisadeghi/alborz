@@ -431,7 +431,7 @@ const enhance = () => {
 
 	// Without anchor positioning the UA sheet centres a popover in the viewport.
 	if (!CSS.supports("position-area", "block-end")) {
-		for (const panel of document.querySelectorAll("[popover].overflow-menu, [popover].accounts-menu")) {
+		for (const panel of document.querySelectorAll("[popover].overflow-menu")) {
 			if (!once(panel, "popoverplace")) {
 				continue;
 			}
@@ -596,6 +596,14 @@ document.addEventListener("click", ev => {
 	}
 });
 
+document.addEventListener("click", ev => {
+	for (const menu of document.querySelectorAll(".nav-menus details.accounts[open]")) {
+		if (!menu.contains(ev.target)) {
+			menu.open = false;
+		}
+	}
+});
+
 // The rail stays; only its mark moves, matched by path, account and view.
 const railPlace = href => {
 	const u = new URL(href, location.href);
@@ -648,6 +656,23 @@ let shown = pathOf(location.href);
 let restoring = null;
 document.addEventListener("htmx:pushedIntoHistory", ev => {
 	shown = pathOf(ev.detail.path);
+});
+// The old page's segments are still present when history is pushed. Refresh only those the swap preserves;
+// a new account's segments ask on load.
+const statusBeforeSwap = new WeakMap();
+document.addEventListener("htmx:beforeSwap", ev => {
+	if (ev.detail?.boosted && ev.detail.xhr) {
+		statusBeforeSwap.set(ev.detail.xhr, [...document.querySelectorAll(".status-segment")]);
+	}
+});
+document.addEventListener("htmx:afterSettle", ev => {
+	const xhr = ev.detail?.xhr;
+	const segments = xhr && statusBeforeSwap.get(xhr);
+	if (!segments) return;
+	statusBeforeSwap.delete(xhr);
+	for (const segment of segments) {
+		if (segment.isConnected) htmx.trigger(segment, "alborz:status-refresh");
+	}
 });
 document.addEventListener("htmx:replacedInHistory", ev => {
 	shown = pathOf(ev.detail.path);

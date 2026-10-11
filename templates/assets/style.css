@@ -531,6 +531,7 @@ header nav > div {
   align-items: center;
   gap: var(--space-1);
 }
+.nav-menus-mobile { display: none; }
 header nav.is-icons > div,
 header nav.is-icons .nav-menus,
 header nav.is-icons .accounts:not(.lang-menu) { min-width: 0; }
@@ -584,15 +585,9 @@ header nav .accounts[open] > .accounts-button {
   color: var(--fg);
 }
 header nav .accounts-menu {
-  display: flex;
   flex-direction: column;
   align-items: stretch;
   gap: var(--space-1);
-  padding: var(--space-2);
-  background-color: var(--surface-raised);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-raised);
 }
 header nav .accounts-menu .active {
   font-weight: 500;
@@ -616,22 +611,19 @@ header nav .account-menu-row {
 }
 header nav .account-menu-row > form { margin: 0; }
 
-/* A long address would set the menu's width; it yields instead. */
-header nav .account-menu-row > form a,
+/* The address wraps inside its column; the sign-out control keeps its own width. */
 header nav .account-menu-row > a {
   display: block;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
-/* Left to right, so the ellipsis cuts the end of the address, yet on the menu's edge. */
 header nav .account-menu-row:dir(rtl) > a { text-align: right; }
 header nav .account-menu-row > form:first-child { grid-column: 1; }
 header nav .account-menu-row .account-signout { grid-column: 2; }
 header nav .account-menu-row .account-signout button {
   color: var(--fg-muted);
   font-size: var(--text-sm);
+  white-space: nowrap;
 }
 header nav .account-menu-row .account-signout button:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover { color: var(--alert-fg); }
 header a.active {
@@ -3895,16 +3887,31 @@ div.overflow {
 }
 
 /* A long account list ends at the viewport and scrolls, or its last rows are out of reach. */
-header nav .accounts-menu {
-  display: none;
-  position: absolute;
-  z-index: 30;
-  inset-block-start: 100%;
-  inset-inline-start: 0;
-  margin-block-start: 2px;
-  color: inherit;
-  max-block-size: calc(100dvh - var(--toolbar-height));
-  overflow-y: auto;
+header nav .accounts-menu { display: none; }
+@media (width > 600px) {
+  header nav .accounts-menu {
+    position: absolute;
+    z-index: 30;
+    inset-block-start: 100%;
+    inset-inline-end: 0;
+    margin-block-start: 2px;
+    padding: var(--space-2);
+    inline-size: max-content;
+    max-inline-size: min(24rem, calc(100vw - 2 * var(--space-2)));
+    overflow-wrap: anywhere;
+    color: inherit;
+    background-color: var(--surface-raised);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-raised);
+    max-block-size: calc(100dvh - var(--toolbar-height));
+    overflow-y: auto;
+  }
+  header nav .accounts-menu > * { min-block-size: var(--control-height); }
+  header nav .accounts-menu > :is(a, button, form) {
+    display: flex;
+    align-items: center;
+  }
 }
 header nav .accounts[open] > .accounts-menu {
   display: flex;
@@ -4776,46 +4783,48 @@ h1.no-word .title-short {
   header nav > div { float: none; display: none; }
   /* The trailing group is out of the row here, so the button pushes itself. */
   header nav > div ~ .scheme-toggle { margin-inline-start: auto; }
-  .nav-menus { display: contents; }
-  header nav .accounts { width: 100%; max-width: 100%; }
-  /* The dock grows upward when a disclosure expands. */
-  header nav .accounts-menu {
-    position: static;
-    width: auto;
-    max-block-size: none;
-    margin-block: var(--space-1) 0;
-  }
   header nav .header-brand { display: none; }
+
+  aside .nav-menus-mobile {
+    display: block;
+    margin-block-start: var(--space-3);
+    padding-block-start: var(--space-2);
+    border-block-start: 1px solid var(--border);
+  }
+  aside .nav-menus-mobile .accounts-button { width: 100%; }
+  aside .nav-menus-mobile .accounts-button .icon { display: none; }
+  aside .nav-menus-mobile .accounts-menu {
+    display: none;
+    padding: var(--space-1) var(--space-2) var(--space-2);
+    padding-inline-start: 1rem;
+  }
+  aside .nav-menus-mobile .accounts[open] > .accounts-menu {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-1);
+  }
+  aside .nav-menus-mobile .account-menu-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-1);
+  }
+  aside .nav-menus-mobile .account-menu-row > a {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  aside .nav-menus-mobile .accounts-menu :is(a, button) {
+    color: var(--fg);
+    text-decoration: none;
+  }
+  aside .nav-menus-mobile .accounts-menu button { text-align: start; padding: 0; }
+  aside .nav-menus-mobile .accounts-menu .active { font-weight: 500; }
+  aside .nav-menus-mobile .account-signout button { color: var(--fg-muted); font-size: var(--text-sm); white-space: nowrap; }
 
   .rail-brand {
     display: flex;
     padding: var(--space-1) var(--space-2) var(--space-3);
   }
-
-  /* The header's z-index makes a stacking context the dock cannot leave; dropping it lets the dock rise. */
-  .sidebar-toggle:checked ~ header { z-index: auto; }
-
-  .sidebar-toggle:checked ~ header nav > div {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.5rem;
-    position: fixed;
-    bottom: 0;
-    inset-inline-start: 0;
-    width: var(--drawer-width);
-    z-index: 21;
-    padding: 0.75rem;
-    /* Installed, the dock would sit on the home indicator. */
-    padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
-    background-color: var(--surface-raised);
-    border-top: 1px solid var(--border);
-    border-inline-end: 1px solid var(--border);
-    max-height: calc(100dvh - env(safe-area-inset-top));
-    overflow-y: auto;
-  }
-
-  .sidebar-toggle:checked ~ header nav > div > a { margin-inline-start: 0; }
 
   /* They float over the page, so they paint on the opaque raised surface. */
   aside {
@@ -4827,7 +4836,7 @@ h1.no-word .title-short {
     overflow-y: auto;
     /* Full height, so the first row would sit under an installed window's status bar. */
     padding-top: max(var(--space-3), env(safe-area-inset-top));
-    padding-bottom: 10rem; /* room for the docked account block */
+    padding-bottom: max(var(--space-3), env(safe-area-inset-bottom));
     background-color: var(--surface-raised);
     border-inline-end: 1px solid var(--border);
     transition: inset-inline-start 0.15s ease-out;

@@ -291,16 +291,6 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *mail.OutgoingMessage, opti
 			msg.Text = mail.ComposedText(msg.HTML)
 		}
 
-		// Choosing a signature is a submit, so it works without script.
-		if _, ok := formParams["signature_apply"]; ok {
-			chosen := ctx.FormValue("signature")
-			sig, _ := settings.SignatureNamed(chosen)
-			msg.Text = mail.WithSignature(msg.Text, sig.Text)
-			if msg.HTML != "" {
-				msg.HTML = mail.WithSignatureHTML(msg.HTML, sig.Text)
-			}
-			return render(http.StatusOK, sig.Name, "")
-		}
 		// Read at send, never from a page flag, which a tab opened earlier can lose.
 		msg.SendHTML = msg.HTML == "" && !ctx.Profile().Writing.NoDirectionPart && lang.HasRTL(msg.Text)
 		if msg.SendHTML && options.InReplyTo != nil {
@@ -384,6 +374,17 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *mail.OutgoingMessage, opti
 				return err
 			}
 			msg.Inline = images
+		}
+
+		// A signature change keeps the same uploads and message as a refused send.
+		if _, ok := formParams["signature_apply"]; ok {
+			chosen := ctx.FormValue("signature")
+			sig, _ := settings.SignatureNamed(chosen)
+			msg.Text = mail.WithSignature(msg.Text, sig.Text)
+			if msg.HTML != "" {
+				msg.HTML = mail.WithSignatureHTML(msg.HTML, sig.Text)
+			}
+			return render(http.StatusOK, sig.Name, "")
 		}
 
 		// A draft may be addressed later; a message with nowhere to go is not sent.

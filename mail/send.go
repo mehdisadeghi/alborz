@@ -183,6 +183,7 @@ func SentRecipients(s *alborz.Login, n int) ([]*mail.Address, error) {
 
 // The delimiter must start a line, so a quoted "> -- " is not mistaken for the writer's own.
 func WithSignature(body, text string) string {
+	body = strings.ReplaceAll(body, "\r\n", "\n")
 	if i := strings.LastIndex(body, "\n-- \n"); i >= 0 {
 		body = body[:i]
 	}

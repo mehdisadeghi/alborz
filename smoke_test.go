@@ -51,6 +51,14 @@ func TestPagesAnswer(t *testing.T) {
 	if wrap == nil || rail == nil || content == nil || rail.Parent != wrap || content.Parent != wrap {
 		t.Fatal("mail sidebar and message list must be siblings inside the page layout")
 	}
+	for _, route := range []string{"mail.signatures", "mail.signatures.create"} {
+		if path := a.Path(route); !strings.HasPrefix(path, a.Path("settings.profile")+"/") {
+			t.Errorf("%s is outside settings: %s", route, path)
+		}
+		if page := c.Page(t, route); !strings.Contains(page, "<aside") {
+			t.Errorf("%s has no settings sidebar", route)
+		}
+	}
 	if !strings.Contains(body, "message-row") {
 		t.Fatalf("inbox has no messages; the rig seeded none and every other check is vacuous")
 	}

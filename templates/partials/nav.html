@@ -110,7 +110,7 @@
     {{ $section := printf "/%s" $page }}
     {{ $merged := $section }}
     {{ if or (eq $page "mailbox") (eq $page "message") (eq $page "compose") }}{{ $section = url "mail.mailbox" "INBOX" }}{{ $merged = $section }}{{ end }}
-    {{ if or (eq $page "settings") (eq $page "signatures") }}{{ $section = url "mail.account" }}{{ $merged = url "settings.profile" }}{{ end }}
+    {{ if eq $page "settings" }}{{ $section = url "mail.account" }}{{ $merged = url "settings.profile" }}{{ end }}
     {{ range $g.GlobalData.Accounts }}
     <div class="account-menu-row">
     {{ $to := printf "%s%s" $section (account "?" .Username) }}{{ if and $g.GlobalData.Item (eq .Username $g.GlobalData.URLAccount) }}{{ $to = $g.GlobalData.Own }}{{ end }}
@@ -125,7 +125,7 @@
     <a href="{{ localhref $all }}"{{ if $g.GlobalData.Merged }} class="active" aria-current="true"{{ end }}>{{$g.T "nav.allaccounts"}}</a>
     {{ end }}
     <a href="{{url "auth.login"}}?add=1">{{$g.T "nav.addaccount"}}</a>
-    <a href="{{url "settings.profile"}}"{{ if or (eq $page "settings") (eq $page "signatures") }} class="active" aria-current="page"{{ end }}>{{$g.T "nav.settings"}}</a>
+    <a href="{{url "settings.profile"}}"{{ if eq $page "settings" }} class="active" aria-current="page"{{ end }}>{{$g.T "nav.settings"}}</a>
     <button type="button" class="keys-open" commandfor="keys-help" command="show-modal">{{$g.T "keys.title"}}</button>
     <a href="{{ localhref $g.GlobalData.TourStart }}">{{$g.T "tour.take"}}</a>
     {{ if $g.GlobalData.LockSeconds }}

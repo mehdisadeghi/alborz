@@ -12,9 +12,13 @@ if ("reply" in composeForm.dataset) {
 
 const sendButton = document.getElementById("send-button"),
 	saveButton = document.getElementById("save-button");
+const signatureSelect = document.getElementById("signature");
+const signatureApply = composeForm.querySelector('button[name="signature_apply"]');
+signatureSelect.addEventListener("change", () => composeForm.requestSubmit(signatureApply));
 
 const sendProgress = document.getElementById("send-progress");
 composeForm.addEventListener("submit", ev => {
+	if (ev.submitter === signatureApply) return;
 	[...document.querySelectorAll("input, textarea")].map(
 		i => i.setAttribute("readonly", "readonly"));
 	sendProgress.style.display = 'flex';
@@ -68,9 +72,11 @@ function updateState() {
 	if (complete) {
 		sendButton.removeAttribute("disabled");
 		saveButton.removeAttribute("disabled");
+		signatureSelect.removeAttribute("disabled");
 	} else {
 		sendButton.setAttribute("disabled", "disabled");
 		saveButton.setAttribute("disabled", "disabled");
+		signatureSelect.setAttribute("disabled", "disabled");
 	}
 
 	attachmentUUIDsNode.value = attachments.

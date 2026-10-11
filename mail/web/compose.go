@@ -171,10 +171,24 @@ func attachedRef(p mail.MessagePath) string {
 // The sender is the From account; the draft and the answered message stay on the request's account.
 func (p *plugin) submitCompose(ctx *web.Context, sender *alborz.Login, msg *mail.OutgoingMessage, options *mail.ComposeOptions) error {
 	sent, sentUID, to, err := p.Submit(ctx.Request().Context(), ctx.Login, sender, msg, options)
+	if errors.Is(err, mail.ErrSendUncertain) {
+		ctx.Logger().Printf("send outcome uncertain: %v", err)
+		return ctx.NotifyRedirect(web.Notice{Kind: web.NoticeWarning, Text: ctx.T("notice.senduncertain")}, ctx.URL("mail.mailbox", "INBOX"))
+	}
+	if errors.Is(err, mail.ErrSendAlreadyAccepted) {
+		return ctx.NotifyRedirect(web.Notice{Kind: web.NoticeDone, Text: ctx.T("notice.sent")}, ctx.URL("mail.mailbox", "INBOX"))
+	}
+	if errors.Is(err, mail.ErrSendFollowupUnknown) {
+		return ctx.NotifyRedirect(web.Notice{Kind: web.NoticeWarning, Text: ctx.T("notice.sentfollowup")}, ctx.URL("mail.mailbox", "INBOX"))
+	}
+	acceptedWithIssues := errors.Is(err, mail.ErrSendAccepted)
+	if acceptedWithIssues {
+		ctx.Logger().Printf("after sending: %v", err)
+	}
 	if _, ok := err.(alborz.AuthError); ok {
 		return web.NewError(http.StatusForbidden, err)
 	}
-	if err != nil {
+	if err != nil && !acceptedWithIssues {
 		return err
 	}
 	// The message has left: what a feature does with that is not the send's to fail.
@@ -185,6 +199,9 @@ func (p *plugin) submitCompose(ctx *web.Context, sender *alborz.Login, msg *mail
 	}
 
 	notice := web.Notice{Kind: web.NoticeDone, Text: ctx.T("notice.sent")}
+	if acceptedWithIssues {
+		notice.Kind, notice.Text = web.NoticeWarning, ctx.T("notice.sentfollowup")
+	}
 	if sent != nil && sentUID != 0 {
 		// The Sent copy may be outside the reader's scope, so the link names its account.
 		view := web.AccountURL(ctx.Path("mail.message", sent.Name(), sentUID), sender.Username())
@@ -236,6 +253,9 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *mail.OutgoingMessage, opti
 		var uploads []string
 		submit := func(f func() error) error {
 			err := f()
+			if errors.Is(err, mail.ErrSentMailboxMissing) {
+				return render(http.StatusServiceUnavailable, ctx.FormValue("signature"), ctx.T("form.sentmissing"))
+			}
 			var no mail.Refused
 			if errors.As(err, &no) {
 				return render(http.StatusUnprocessableEntity, ctx.FormValue("signature"), fmt.Sprintf(ctx.T(no.Key), no.Err))

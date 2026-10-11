@@ -164,6 +164,22 @@ const enhance = () => {
 		});
 	}
 
+	for (const name of document.querySelectorAll("input[data-local-name-error]")) {
+		if (!once(name, "localname")) {
+			continue;
+		}
+		const place = name.form.elements.namedItem("place");
+		const validate = () => {
+			const local = (place ? place.value : name.dataset.localPlace) === "here";
+			const segment = name.value.trim().replaceAll(" ", "-");
+			const valid = /^[A-Za-z0-9._@-]{1,120}$/.test(segment) && segment !== "." && segment !== "..";
+			name.setCustomValidity(local && !valid ? name.dataset.localNameError : "");
+		};
+		name.addEventListener("input", validate);
+		place?.addEventListener("change", validate);
+		validate();
+	}
+
 	// The secondary calendar never repeats the primary; without a script saving drops the repeat.
 	for (const secondary of document.querySelectorAll("select[data-excludes]")) {
 		const primary = secondary.form && secondary.form.elements[secondary.dataset.excludes];

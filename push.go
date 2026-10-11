@@ -161,7 +161,7 @@ func (p *Pushes) Remove(account, id string) error {
 // SignedOut deletes the account's devices the browser of that session turned on: signing out ends them.
 func (p *Pushes) SignedOut(account, session string) error {
 	return p.db.Update(func(tx kv.Tx) error {
-		return kv.DeleteUnder(tx, p.prefix(account), func(sealed []byte) bool {
+		return kv.DeleteUnder(tx, p.prefix(account), func(_ string, sealed []byte) bool {
 			var d PushDevice
 			return p.open(account, sealed, &d) && d.Session == session
 		})
@@ -179,10 +179,13 @@ func (p *Pushes) Claim(endpoint, item string, now time.Time) (bool, error) {
 			return nil
 		}
 		first = true
-		err := kv.DeleteUnder(tx, sent, func(sealed []byte) bool {
+		err := kv.DeleteExpired(tx, sent, now, func(_ string, sealed []byte) (time.Time, bool) {
 			var when time.Time
 			raw, err := p.key.Open(sealed)
-			return err == nil && when.UnmarshalBinary(raw) == nil && now.Sub(when) > pushSentKeep
+			if err != nil || when.UnmarshalBinary(raw) != nil {
+				return time.Time{}, false
+			}
+			return when.Add(pushSentKeep), true
 		})
 		if err != nil {
 			return err
@@ -221,7 +224,7 @@ func (p *Pushes) reseal(account string) error {
 func (p *Pushes) drop(account string) error {
 	name := p.keys.Name(account)
 	return p.db.Update(func(tx kv.Tx) error {
-		return kv.DeleteUnder(tx, p.prefix(account), func(sealed []byte) bool {
+		return kv.DeleteUnder(tx, p.prefix(account), func(_ string, sealed []byte) bool {
 			_, err := p.keys.Open(name, pushOwner, sealed)
 			return errors.Is(err, keyring.ErrLocked)
 		})

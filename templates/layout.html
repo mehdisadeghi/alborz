@@ -49,6 +49,7 @@
 {{ block "body" . }}
 {{ template "nav" . }}
 <div class="page-wrap">
+  {{ if .GlobalData.LoggedIn }}<label for="sidebar" class="sidebar-backdrop" aria-hidden="true"></label>{{ end }}
   {{ block "rail" . }}{{ template "page-rail" . }}{{ end }}
   <div class="container">
     {{ block "before-main" . }}{{ end }}

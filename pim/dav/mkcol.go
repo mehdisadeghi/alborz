@@ -7,11 +7,18 @@ import (
 	"net/url"
 	"strings"
 
+	"git.mehdix.org/alborz/pim/store"
 	"github.com/emersion/go-webdav"
 )
 
 // Past this many taken names, something other than a clash is going on.
 const MaxCreateAttempts = 20
+
+// ValidLocalCollectionName checks the address derived from a display name before the local DAV store sees it.
+func ValidLocalCollectionName(name string) bool {
+	segment := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(name), " ", "-"))
+	return store.ValidName(segment)
+}
 
 // CreateCollection makes a collection at the first free address under homeSet, walking past taken ones.
 func CreateCollection(ctx context.Context, homeSet, name, fallback string, create func(ctx context.Context, path string) error) (string, error) {

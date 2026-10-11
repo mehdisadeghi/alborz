@@ -1936,13 +1936,17 @@ func appendMessage(c *imapclient.Client, body io.ReadSeeker, role string) (*Mail
 	if mbox == nil {
 		return nil, 0, errors.New("unable to resolve mailbox")
 	}
+	uid, err := appendToMailbox(c, body, mbox, role)
+	return mbox, uid, err
+}
 
+func appendToMailbox(c *imapclient.Client, body io.ReadSeeker, mbox *MailboxInfo, role string) (imap.UID, error) {
 	size, err := body.Seek(0, io.SeekEnd)
 	if err != nil {
-		return nil, 0, err
+		return 0, err
 	}
 	if _, err := body.Seek(0, io.SeekStart); err != nil {
-		return nil, 0, err
+		return 0, err
 	}
 
 	flags := []imap.Flag{imap.FlagSeen}
@@ -1953,16 +1957,16 @@ func appendMessage(c *imapclient.Client, body io.ReadSeeker, role string) (*Mail
 	appendCmd := c.Append(mbox.Name(), size, &options)
 	defer appendCmd.Close()
 	if _, err := io.Copy(appendCmd, body); err != nil {
-		return nil, 0, err
+		return 0, err
 	}
 	if err := appendCmd.Close(); err != nil {
-		return nil, 0, err
+		return 0, err
 	}
 	data, err := appendCmd.Wait()
 	if err != nil {
-		return nil, 0, err
+		return 0, err
 	}
-	return mbox, data.UID, nil
+	return data.UID, nil
 }
 
 func deleteMessage(conn *imapclient.Client, mboxName string, uid imap.UID) error {

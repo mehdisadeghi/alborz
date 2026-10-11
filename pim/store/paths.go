@@ -26,8 +26,8 @@ const aliasSep = "~"
 // Names become keys and path segments.
 var nameRule = regexp.MustCompile(`^[A-Za-z0-9._@-]{1,120}$`)
 
-// The rule admits "." and "..", which a path reads as steps.
-func named(s string) bool { return nameRule.MatchString(s) && s != "." && s != ".." }
+// ValidName checks a collection or object path segment in the local DAV store.
+func ValidName(s string) bool { return nameRule.MatchString(s) && s != "." && s != ".." }
 
 type userKey struct{}
 
@@ -95,7 +95,7 @@ func parsePath(p string) (place, error) {
 	if len(parts) == 4 {
 		at.object = parts[3]
 	}
-	if !named(name) || (at.object != "" && !named(at.object)) {
+	if !ValidName(name) || (at.object != "" && !ValidName(at.object)) {
 		return place{}, httpError(http.StatusBadRequest, errors.New("names are letters, digits, and . _ @ -"))
 	}
 	return at, nil

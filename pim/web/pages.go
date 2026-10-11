@@ -144,6 +144,9 @@ func (pg Page) HandleCreate(p *dav.Provider, form func(*web.Context) (CreateForm
 		if data.Name == "" {
 			return web.RenderRefused(ctx, "pim/collection-create", data, ctx.T("form.nameneeded"))
 		}
+		if data.Place == dav.SourceHere && !dav.ValidLocalCollectionName(data.Name) {
+			return web.RenderRefused(ctx, "pim/collection-create", data, ctx.T("form.localcollectionname"))
+		}
 		login := ctx.LoginFor(data.Account)
 		if login == nil {
 			return web.NewError(http.StatusBadRequest, "not signed in to that account")

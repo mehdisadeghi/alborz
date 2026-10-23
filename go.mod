@@ -6,7 +6,7 @@ require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/ProtonMail/go-crypto v1.5.0
 	github.com/alborzmail/go-itip v0.0.0-20261023171023-8ed1a5b917c4
-	github.com/alborzmail/go-recur v0.0.0-20260929133629-dcb73b0bbb94
+	github.com/alborzmail/go-recur v0.0.0-20261023173503-77f6455159ba
 	github.com/aymerick/douceur v0.2.0
 	github.com/cention-sany/utf7 v0.0.0-20170124080048-26cad61bd60a
 	github.com/emersion/go-ical v0.0.0-20250609112844-439c63cef608
@@ -90,7 +90,7 @@ replace github.com/emersion/go-mbox => github.com/alborzmail/go-mbox v0.0.0-2026
 // VTIMEZONE where the zone database lacks it, and as floating where
 // neither defines it; and a decoder that reports a malformed parameter or
 // a file cut off inside a component instead of panicking or ending early.
-replace github.com/emersion/go-ical => github.com/alborzmail/go-ical v0.0.0-20260930180944-1eca68c44cbd
+replace github.com/emersion/go-ical => github.com/alborzmail/go-ical v0.0.0-20261023173852-9b59a918ab0d
 
 // Our fork of go-imap carries what upstream has open: ID with fields
 // RFC 2971 does not name, so Dovecot learns the reader's address

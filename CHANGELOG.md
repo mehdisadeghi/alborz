@@ -13,6 +13,8 @@
 
 ### Changed
 
+- Update the go-ical and go-recur forks for calendar-day recurrence spans and
+  all-day shifts across daylight-saving transitions.
 - Update the go-vcard, go-itip and go-webdav forks, preserving atomic DAV
   deletion checks for both ETag preconditions.
 

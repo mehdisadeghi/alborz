@@ -2,8 +2,8 @@ github.com/BurntSushi/toml v1.6.0 h1:dRaEfpa2VI55EwlIW72hMRHdWouJeRF7TPYhI+AUQjk
 github.com/BurntSushi/toml v1.6.0/go.mod h1:ukJfTF/6rtPPRCnwkur4qwRxa8vTRFBF0uk2lLoLwho=
 github.com/ProtonMail/go-crypto v1.5.0 h1:sKmuvjOgsnrtpMvZ+84MCnTJCpjxZ1qCFn076lz1yT0=
 github.com/ProtonMail/go-crypto v1.5.0/go.mod h1:/RaSu30DaKO4RY+XdV/ACcCcZkGr7AhUIduq5sjzzCo=
-github.com/alborzmail/go-ical v0.0.0-20260930180944-1eca68c44cbd h1:2WyUUTSgBnDvVziWvSaugOkOIoma4pu4nmrvbq+6tbo=
-github.com/alborzmail/go-ical v0.0.0-20260930180944-1eca68c44cbd/go.mod h1:aOkxw4zyl8kedQiRO7l4AzcubyqLb+jY/ISo/fuNzuA=
+github.com/alborzmail/go-ical v0.0.0-20261023173852-9b59a918ab0d h1:unCJu9XFqbT9vRvWGkEGTq13xiscTzFF2Y04DGZMqh8=
+github.com/alborzmail/go-ical v0.0.0-20261023173852-9b59a918ab0d/go.mod h1:BTD9aIBLytoHpKkcvqgc/8LSsPC8ZeGyb/ZL+HYyYFs=
 github.com/alborzmail/go-imap/v2 v2.0.0-20260928213848-1fb04bfa5d26 h1:fP5cUVkFPLWab8omeK/sWtGirXpXmUL5PuJwyKXAMNg=
 github.com/alborzmail/go-imap/v2 v2.0.0-20260928213848-1fb04bfa5d26/go.mod h1:dhoFe2Q0PwLrMD7oZw8ODuaD0vLYPe5uj2wcOMnvh48=
 github.com/alborzmail/go-itip v0.0.0-20261023171023-8ed1a5b917c4 h1:BhR3S4URJ0UeNqFSZCHDiWTkE8Q3xx+CQxv1u9wbmA0=
@@ -12,8 +12,8 @@ github.com/alborzmail/go-mbox v0.0.0-20260921114627-f2df45e279df h1:KOcM48S3sXU2
 github.com/alborzmail/go-mbox v0.0.0-20260921114627-f2df45e279df/go.mod h1:Yp9IVuuOYLEuMv4yjgDHvhb5mHOcYH6x92Oas3QqEZI=
 github.com/alborzmail/go-msgauth v0.0.0-20260928213517-dae367b5cecf h1:hud+wLir8ciZ1WfbAv1fuvVC0OA2YabKxahNl0J2jAc=
 github.com/alborzmail/go-msgauth v0.0.0-20260928213517-dae367b5cecf/go.mod h1:9vHeiBKZywph9DZEVdXYAFrustFrmPZ+fWdlbnGT4hc=
-github.com/alborzmail/go-recur v0.0.0-20260929133629-dcb73b0bbb94 h1:uPGlV/quYC6ECXVBxpgQGpR0q5KzICWYo05LXvRM0jg=
-github.com/alborzmail/go-recur v0.0.0-20260929133629-dcb73b0bbb94/go.mod h1:ebvBQ1HoUkMOmk93waXUZwZjG5NNp2LF6GAjN9TaYT4=
+github.com/alborzmail/go-recur v0.0.0-20261023173503-77f6455159ba h1:mUf64Dohf6LaGjICA3T8z1Xgie15AS2eRqUqsS0GUOU=
+github.com/alborzmail/go-recur v0.0.0-20261023173503-77f6455159ba/go.mod h1:ebvBQ1HoUkMOmk93waXUZwZjG5NNp2LF6GAjN9TaYT4=
 github.com/alborzmail/go-vcard v0.0.0-20261023171022-e1316413490a h1:AoO0dOyl1x9ES4nCXKnxq2FeyjcMfnWPquLIAAKU5C0=
 github.com/alborzmail/go-vcard v0.0.0-20261023171022-e1316413490a/go.mod h1:HMJKR5wlh/ziNp+sHEDV2ltblO4JD2+IdDOWtGcQBTM=
 github.com/alborzmail/go-webdav v0.0.0-20261023171022-993d577ee870 h1:Z3VaWI7dYaUWTVEQCad9dR4lBi2j0oGBVPyNJwUry7Y=

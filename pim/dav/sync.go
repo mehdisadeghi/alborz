@@ -56,7 +56,10 @@ func refused(err error) bool {
 
 func (w wire) syncCollection(ctx context.Context, client *http.Client, target *url.URL, token string) (delta, error) {
 	d := delta{whole: token == ""}
-	var missing []string
+	// Continuation pages may revisit a name. Only its final operation survives,
+	// including whether its data still needs fetching.
+	updated := map[string]sent{}
+	deleted := map[string]bool{}
 	for {
 		s, err := w.sync(ctx, client, target, token)
 		if err != nil {
@@ -67,16 +70,14 @@ func (w wire) syncCollection(ctx context.Context, client *http.Client, target *u
 		}
 		for _, p := range s.gone {
 			if name := nameIn(p, target.Path); name != "" {
-				d.gone = append(d.gone, name)
+				delete(updated, name)
+				deleted[name] = true
 			}
 		}
 		for _, o := range s.put {
-			switch name := nameIn(o.path, target.Path); {
-			case name == "":
-			case o.data == nil:
-				missing = append(missing, o.path)
-			default:
-				d.put = append(d.put, object{Name: name, ETag: o.etag, Data: o.data})
+			if name := nameIn(o.path, target.Path); name != "" {
+				delete(deleted, name)
+				updated[name] = o
 			}
 		}
 		token = s.token
@@ -85,6 +86,17 @@ func (w wire) syncCollection(ctx context.Context, client *http.Client, target *u
 		}
 	}
 	d.token = token
+	var missing []string
+	for name := range deleted {
+		d.gone = append(d.gone, name)
+	}
+	for name, o := range updated {
+		if o.data == nil {
+			missing = append(missing, o.path)
+		} else {
+			d.put = append(d.put, object{Name: name, ETag: o.etag, Data: o.data})
+		}
+	}
 	fetched, err := w.multiget(ctx, client, target, missing)
 	d.put = append(d.put, fetched...)
 	return d, err

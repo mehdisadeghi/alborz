@@ -163,7 +163,9 @@ func (p *Calendars) FindByUID(ctx context.Context, login *alborz.Login, groups [
 				continue
 			}
 			for _, obj := range objects {
-				return obj.Path
+				if hasUID(obj.Data, "VEVENT", uid) {
+					return obj.Path
+				}
 			}
 		}
 	}
@@ -257,11 +259,26 @@ func objectPathByUID(ctx context.Context, client *caldav.Client, calendarPath, u
 				Name: comp, Props: []caldav.PropFilter{{Name: "UID", TextMatch: &caldav.TextMatch{Text: uid, Collation: caldav.CollationOctet}}},
 			}}},
 		})
-		if err == nil && len(objects) > 0 {
-			return objects[0].Path
+		if err == nil {
+			for _, obj := range objects {
+				if hasUID(obj.Data, comp, uid) {
+					return obj.Path
+				}
+			}
 		}
 	}
 	return ""
+}
+
+func hasUID(cal *ical.Calendar, comp, uid string) bool {
+	if cal != nil {
+		for _, child := range cal.Children {
+			if got, _ := child.Props.Text(ical.PropUID); child.Name == comp && got == uid {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func Export(ctx context.Context, client *caldav.Client, calendarPath string, from, to time.Time) ([]byte, error) {

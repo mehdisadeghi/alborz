@@ -1,11 +1,16 @@
 package calendar
 
 import (
+	"context"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/alborzmail/go-itip"
 	"github.com/emersion/go-ical"
+	"github.com/emersion/go-webdav/caldav"
 )
 
 // RFC 5546 4.2.1, DTEND's stray digit removed.
@@ -39,6 +44,50 @@ func parse(t *testing.T, text string) *ical.Calendar {
 		t.Fatalf("parse: %v", err)
 	}
 	return cal
+}
+
+func TestImportLookupRequiresExactUID(t *testing.T) {
+	for _, exact := range []bool{false, true} {
+		t.Run(fmt.Sprint(exact), func(t *testing.T) {
+			var writes []string
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodPut {
+					if r.URL.Path == "/cal/event-123.ics" {
+						w.WriteHeader(http.StatusForbidden)
+						return
+					}
+					writes = append(writes, r.URL.Path)
+					w.WriteHeader(http.StatusNoContent)
+					return
+				}
+				w.Header().Set("Content-Type", "application/xml")
+				w.WriteHeader(http.StatusMultiStatus)
+				fmt.Fprint(w, `<multistatus xmlns="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">`)
+				for _, uid := range []string{"prefix-event-123", "event-123"} {
+					if uid == "event-123" && !exact {
+						continue
+					}
+					raw := strings.Replace(groupRequest, "calsrv.example.com-873970198738777@example.com", uid, 1)
+					fmt.Fprintf(w, `<response><href>/cal/%s-other.ics</href><propstat><prop><C:calendar-data><![CDATA[%s]]></C:calendar-data></prop><status>HTTP/1.1 200 OK</status></propstat></response>`, uid, raw)
+				}
+				fmt.Fprint(w, `</multistatus>`)
+			}))
+			defer server.Close()
+			client, err := caldav.NewClient(server.Client(), server.URL)
+			if err != nil {
+				t.Fatal(err)
+			}
+			raw := strings.Replace(groupRequest, "calsrv.example.com-873970198738777@example.com", "event-123", 1)
+			n, err := Import(context.Background(), client, "/cal/", []byte(raw))
+			if exact {
+				if err != nil || n != 1 || len(writes) != 1 || writes[0] != "/cal/event-123-other.ics" {
+					t.Fatalf("exact fallback: %v %d %v", writes, n, err)
+				}
+			} else if err == nil || n != 0 || len(writes) != 0 {
+				t.Fatalf("substring fallback overwrote event: %v %d %v", writes, n, err)
+			}
+		})
+	}
 }
 
 func TestSetSchedulingKeepsAnswers(t *testing.T) {

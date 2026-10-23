@@ -14,7 +14,6 @@ import (
 	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2"
-	"github.com/emersion/go-imap/v2/imapclient"
 )
 
 type MessageRenderData struct {
@@ -312,29 +311,4 @@ func listHref(ctx *web.Context, uri string) string {
 		return web.QueryPath(ctx.Path("mail.compose"), q)
 	}
 	return uri
-}
-
-// The URI is re-read from the message, so a page cannot make us post anywhere (RFC 8058).
-func (p *plugin) handleUnsubscribe(ctx *web.Context) error {
-	mboxName, uid, err := MessageRef(ctx)
-	if err != nil {
-		return err
-	}
-	var oneClick string
-	err = ctx.DoIMAP(func(c *imapclient.Client) error {
-		var err error
-		oneClick, err = mail.OneClick(c, mboxName, uid)
-		return err
-	})
-	if err != nil {
-		return err
-	}
-	back := ctx.NextOr(ctx.URL("mail.message", mboxName, uid))
-	if oneClick == "" {
-		return web.NewError(http.StatusBadRequest, "this message offers no one-click unsubscribe")
-	}
-	if err := p.Unsubscribe(ctx.Request().Context(), oneClick); err != nil {
-		return ctx.NotifyRedirect(web.Notice{Kind: web.NoticeFailed, Text: ctx.T("notice.unsubfailed")}, back)
-	}
-	return ctx.NoticeRedirect(ctx.T("notice.unsubscribed"), back)
 }

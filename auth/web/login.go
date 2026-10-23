@@ -41,7 +41,7 @@ func handleLogin(ctx *web.Context) error {
 		return render(http.StatusUnprocessableEntity)
 	}
 
-	if username != "" && password != "" {
+	if ctx.Request().Method == http.MethodPost && username != "" && password != "" {
 		s, err := ctx.Server.SignIn(username, password, ctx.RealIP())
 		if err != nil {
 			// One line per refusal with the client address, for fail2ban.

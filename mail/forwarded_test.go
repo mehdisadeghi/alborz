@@ -8,11 +8,10 @@ import (
 	"github.com/emersion/go-message/textproto"
 )
 
-// A real forward, trimmed; the clause keeps its exact shape for the parser.
+// A local authentication verdict on a forward; the clause keeps its parser shape.
 const forwardedHeader = `Return-Path: <msk1361+caf_=mehdi=mehdix.org@gmail.com>
 Delivered-To: mehdi@mehdix.org
-ARC-Authentication-Results: i=3;
-	mail.mehdix.org;
+Authentication-Results: mail.mehdix.org;
 	dkim=pass header.d=info.ing.de header.s=elaine header.b=Y4hq5Khr;
 	spf=pass (mail.mehdix.org: domain of "msk1361+caf_=mehdi=mehdix.org@gmail.com" designates 209.85.160.180 as permitted sender) smtp.mailfrom="msk1361+caf_=mehdi=mehdix.org@gmail.com";
 	dmarc=pass (policy=reject) header.from=info.ing.de

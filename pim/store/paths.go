@@ -297,7 +297,14 @@ func (s *Store) update(ctx context.Context, p string, kind Kind, change func(*Co
 }
 
 // An invitee's DELETE only stops seeing it; the share stays marked so the owner sees who left.
-func (s *Store) remove(ctx context.Context, p string, kind Kind, ifMatch, ifNoneMatch webdav.ConditionalMatch) error {
+func (s *Store) remove(ctx context.Context, p string, kind Kind, ifMatch webdav.ConditionalMatch) error {
+	return s.removeWithOptions(ctx, p, kind, &webdav.RemoveAllOptions{IfMatch: ifMatch})
+}
+
+func (s *Store) removeWithOptions(ctx context.Context, p string, kind Kind, opts *webdav.RemoveAllOptions) error {
+	if opts == nil {
+		opts = &webdav.RemoveAllOptions{}
+	}
 	at, _, may, err := s.reach(ctx, p, kind)
 	switch {
 	case err != nil:
@@ -309,7 +316,7 @@ func (s *Store) remove(ctx context.Context, p string, kind Kind, ifMatch, ifNone
 	case may < write:
 		return errForbidden
 	}
-	return storeError(s.RemoveObject(at.ref, at.object, conditions(ifMatch, ifNoneMatch), userOf(ctx)))
+	return storeError(s.RemoveObject(at.ref, at.object, conditions(opts.IfMatch, opts.IfNoneMatch), userOf(ctx)))
 }
 
 // go-webdav keeps its error type internal, so its error rides inside with the status beside it.

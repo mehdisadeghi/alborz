@@ -642,8 +642,14 @@ func (p *plugin) populateMessageFromOriginalMessage(ctx *web.Context, inReplyToP
 	}
 
 	ret.MessageID = mail.NewMessageID()
-	ret.InReplyTo = "<" + inReplyTo.Envelope.MessageID + ">"
-	ret.References = strings.TrimSpace(inReplyTo.References + " " + ret.InReplyTo)
+	if id := inReplyTo.Envelope.MessageID; id != "" {
+		ret.InReplyTo = "<" + id + ">"
+	}
+	ret.References = inReplyTo.References
+	if ret.References == "" && len(inReplyTo.Envelope.InReplyTo) == 1 {
+		ret.References = "<" + inReplyTo.Envelope.InReplyTo[0] + ">"
+	}
+	ret.References = strings.TrimSpace(ret.References + " " + ret.InReplyTo)
 	// A mail to an identity is answered by that identity; Cc counts too.
 	ret.From = p.ReplyIdentity(ctx.Login, settings, inReplyTo)
 	replyTo := inReplyTo.Envelope.ReplyTo

@@ -51,7 +51,7 @@ func (b books) UpdateAddressBook(ctx context.Context, p string, update *carddav.
 }
 
 func (b books) DeleteAddressBook(ctx context.Context, p string) error {
-	return b.remove(ctx, p, AddressBook, "", "")
+	return b.remove(ctx, p, AddressBook, "")
 }
 
 func addressObject(p string, o Object, req *carddav.AddressDataRequest) carddav.AddressObject {
@@ -105,13 +105,13 @@ func (b books) PutAddressObject(ctx context.Context, p string, card vcard.Card, 
 }
 
 func (b books) DeleteAddressObject(ctx context.Context, p string) error {
-	return b.remove(ctx, p, AddressBook, "", "")
+	return b.remove(ctx, p, AddressBook, "")
 }
 
 func (b books) DeleteAddressObjectIfMatch(ctx context.Context, p string, ifMatch webdav.ConditionalMatch) error {
-	return b.remove(ctx, p, AddressBook, ifMatch, "")
+	return b.remove(ctx, p, AddressBook, ifMatch)
 }
 
 func (b books) DeleteAddressObjectWithOptions(ctx context.Context, p string, opts *webdav.RemoveAllOptions) error {
-	return b.remove(ctx, p, AddressBook, opts.IfMatch, opts.IfNoneMatch)
+	return b.removeWithOptions(ctx, p, AddressBook, opts)
 }

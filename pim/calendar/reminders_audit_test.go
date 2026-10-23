@@ -161,3 +161,29 @@ func TestAlarmRepeatArithmeticAcrossCalendarRange(t *testing.T) {
 		})
 	}
 }
+
+func TestMaximumRepeatCountHasBoundedLookup(t *testing.T) {
+	start := time.Date(1970, 1, 1, 10, 0, 0, 0, time.UTC)
+	last := start.Add(2147483647 * time.Second)
+	raw := strings.ReplaceAll(Event("alarm", "Reminder"), "20260915", "19700101")
+	raw = strings.Replace(raw, "SUMMARY:Reminder\r\n", "SUMMARY:Reminder\r\nBEGIN:VALARM\r\nACTION:DISPLAY\r\nDESCRIPTION:Maximum count\r\nTRIGGER;VALUE=DATE-TIME:19700101T100000Z\r\nREPEAT:2147483647\r\nDURATION:PT1S\r\nEND:VALARM\r\n", 1)
+	for _, tc := range []struct {
+		name string
+		at   time.Time
+		want int
+	}{
+		{"late due", time.Date(2026, 10, 23, 10, 0, 0, 0, time.UTC), 1},
+		{"final repeat", last, 1},
+		{"exhausted", last.Add(time.Second), 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := remindersFor(t, raw, tc.at.Add(-time.Second), tc.at)
+			if len(got) != tc.want {
+				t.Fatalf("maximum repeat count: %+v, want %d at %s", got, tc.want, tc.at)
+			}
+			if len(got) > 0 && !got[0].At.Equal(tc.at) {
+				t.Errorf("trigger %s, want %s", got[0].At, tc.at)
+			}
+		})
+	}
+}

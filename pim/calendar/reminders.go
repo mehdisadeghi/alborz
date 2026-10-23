@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -90,7 +89,7 @@ func (p *Calendars) Reminders(ctx context.Context, login *alborz.Login, loc *tim
 	return out, errors.Join(errs...)
 }
 
-func repetitions(alarm *ical.Component) (int, time.Duration) {
+func repetitions(alarm *ical.Component) (int64, time.Duration) {
 	repeat := alarm.Props.Get(ical.PropRepeat)
 	if repeat == nil {
 		return 0, 0
@@ -107,7 +106,7 @@ func repetitions(alarm *ical.Component) (int, time.Duration) {
 	if err != nil || d <= 0 {
 		return 0, 0
 	}
-	return int(n), d
+	return n, d
 }
 
 func absoluteTrigger(alarm *ical.Component) bool {
@@ -131,13 +130,13 @@ func alarmWindow(alarm *ical.Component, loc *time.Location, from, to time.Time) 
 // RFC 5545 durations count whole seconds. Check the product before adding in
 // Unix seconds, which cover the entire calendar range without Duration's
 // approximately 292-year limit. The sentinels bound expansion, not valid alarms.
-func repeatTime(base time.Time, n int, interval time.Duration) time.Time {
+func repeatTime(base time.Time, n int64, interval time.Duration) time.Time {
 	if n == 0 || interval == 0 {
 		return base
 	}
 	first := time.Date(0, 1, 1, 0, 0, 0, 0, time.UTC)
 	after := time.Date(10000, 1, 1, 0, 0, 0, 0, time.UTC)
-	step, count := int64(interval/time.Second), int64(n)
+	step, count := int64(interval/time.Second), n
 	if step > 0 && count > (after.Unix()-base.Unix())/step {
 		return after
 	}
@@ -153,7 +152,17 @@ func alarmTimes(alarm *ical.Component, o Occurrence, loc *time.Location, from, t
 		return nil
 	}
 	n, interval := repetitions(alarm)
-	first := sort.Search(n+1, func(i int) bool { return repeatTime(at, i, interval).After(from) })
+	// Keep the search's exclusive bound and loop indices wider than RFC's
+	// maximum INTEGER, including on the supported 32-bit targets.
+	first, end := int64(0), n+1
+	for first < end {
+		mid := first + (end-first)/2
+		if repeatTime(at, mid, interval).After(from) {
+			end = mid
+		} else {
+			first = mid + 1
+		}
+	}
 	var times []time.Time
 	for i := first; i <= n; i++ {
 		due := repeatTime(at, i, interval)

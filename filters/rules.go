@@ -72,14 +72,14 @@ func (r Rule) block() string {
 		test = "allof(false, " + test + ")"
 	}
 	fmt.Fprintf(&b, "if %s {\n", test)
-	if r.Folder != "" {
-		fmt.Fprintf(&b, "    fileinto %s;\n", quote(r.Folder))
-	}
 	if r.MarkRead {
 		b.WriteString("    addflag \"\\\\Seen\";\n")
 	}
 	if r.Star {
 		b.WriteString("    addflag \"\\\\Flagged\";\n")
+	}
+	if r.Folder != "" {
+		fmt.Fprintf(&b, "    fileinto %s;\n", quote(r.Folder))
 	}
 	if r.Forward != "" {
 		fmt.Fprintf(&b, "    redirect :copy %s;\n", quote(r.Forward))
@@ -196,7 +196,23 @@ func readRules(content string) (rules []Rule, ok bool) {
 		}
 		rules = append(rules, r)
 	}
-	return rules, rulesScriptFor(rules) == content
+	canonical := rulesScriptFor(rules)
+	if canonical == content {
+		return rules, true
+	}
+	// Older generated rules filed before setting flags. Keep those editable,
+	// while requiring the same exact round-trip for every other byte.
+	for _, r := range rules {
+		if r.Folder == "" {
+			continue
+		}
+		block := r.block()
+		file := "    fileinto " + quote(r.Folder) + ";\n"
+		legacy := strings.Replace(block, file, "", 1)
+		legacy = strings.Replace(legacy, ") {\n", ") {\n"+file, 1)
+		canonical = strings.Replace(canonical, block, legacy, 1)
+	}
+	return rules, canonical == content
 }
 
 // LoadRules reads the rules script; byHand says it is in a shape the page did not write.

@@ -12,7 +12,7 @@ import (
 	"git.mehdix.org/alborz"
 )
 
-// Nothing marks these scripts as ours; the main script only includes them and the reader's own.
+// Names alone do not establish ownership: generated content must round-trip.
 const (
 	mainScript     = "alborz"
 	RulesScript    = "alborz-rules"
@@ -76,8 +76,28 @@ func ownScriptIn(content string) string {
 	return ""
 }
 
+func checkMainScript(c alborz.SieveClient) error {
+	content, exists, err := scriptIfAny(c, mainScript)
+	if err != nil || !exists {
+		return err
+	}
+	var present []string
+	for _, line := range strings.Split(content, "\n") {
+		if m := includeLine.FindStringSubmatch(line); m != nil && slices.Contains(composed, unquote(m[1])) {
+			present = append(present, unquote(m[1]))
+		}
+	}
+	if content != mainScriptFor(present, ownScriptIn(content)) {
+		return ErrByHand
+	}
+	return nil
+}
+
 // wire removes the main script once nothing composed is left, leaving the account as found.
 func wire(c alborz.SieveClient) error {
+	if err := checkMainScript(c); err != nil {
+		return err
+	}
 	scripts, err := c.ListScripts()
 	if err != nil {
 		return err
@@ -179,6 +199,10 @@ func SaveScript(c alborz.SieveClient, name, content, loaded string) (warnings st
 
 // rewrite fails with ErrChanged if the script differs from loaded; an empty result deletes it.
 func rewrite(c alborz.SieveClient, name, loaded string, change func(current string, exists bool) (string, error)) error {
+	// Validate ownership before putting or deleting any component script.
+	if err := checkMainScript(c); err != nil {
+		return err
+	}
 	current, exists, err := scriptIfAny(c, name)
 	if err != nil {
 		return err

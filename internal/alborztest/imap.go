@@ -42,14 +42,16 @@ type IMAPServer struct {
 }
 
 type imapConfig struct {
-	caps           imap.CapSet
-	failWholeFetch bool
-	trickle        int
-	cut            int64
-	sorting        bool
-	metadata       bool
-	refuseAppend   string
-	hold, until    string
+	caps             imap.CapSet
+	failWholeFetch   bool
+	fetchKeepsUnread bool
+	readOnly         bool
+	trickle          int
+	cut              int64
+	sorting          bool
+	metadata         bool
+	refuseAppend     string
+	hold, until      string
 }
 
 type IMAPOption func(*imapConfig)
@@ -75,6 +77,12 @@ func Without(caps ...imap.Cap) IMAPOption {
 
 // FailWholeFetch refuses to hand over a whole message, as a server might when it went meanwhile.
 func FailWholeFetch() IMAPOption { return func(c *imapConfig) { c.failWholeFetch = true } }
+
+// FetchKeepsUnread simulates a server that returns a body without applying its implicit Seen flag.
+func FetchKeepsUnread() IMAPOption { return func(c *imapConfig) { c.fetchKeepsUnread = true } }
+
+// ReadOnlyMailboxes advertises no permanent flags and refuses STORE, while allowing messages to be read.
+func ReadOnlyMailboxes() IMAPOption { return func(c *imapConfig) { c.readOnly = true } }
 
 // Trickle passes the server's bytes in pieces of at most chunk bytes, each arriving on its own.
 func Trickle(chunk int) IMAPOption { return func(c *imapConfig) { c.trickle = chunk } }
@@ -119,6 +127,12 @@ func IMAP(t *testing.T, opts ...IMAPOption) *IMAPServer {
 	s.srv = imapserver.New(&imapserver.Options{
 		NewSession: func(*imapserver.Conn) (imapserver.Session, *imapserver.GreetingData, error) {
 			sess := changedPasswords{mem.NewSession().(imapserver.SessionIMAP4rev2), s}
+			if c.readOnly {
+				return readOnlyMailboxes{sess}, nil, nil
+			}
+			if c.fetchKeepsUnread {
+				return fetchKeepsUnread{sess}, nil, nil
+			}
 			if c.failWholeFetch {
 				return wholeFetchFails{sess}, nil, nil
 			}
@@ -330,6 +344,41 @@ func (c changedPasswords) Login(username, password string) error {
 }
 
 type wholeFetchFails struct{ imapserver.Session }
+
+type fetchKeepsUnread struct{ imapserver.SessionIMAP4rev2 }
+
+func (s fetchKeepsUnread) Select(mailbox string, options *imap.SelectOptions) (*imap.SelectData, error) {
+	data, err := s.SessionIMAP4rev2.Select(mailbox, options)
+	if data != nil && !slices.Contains(data.PermanentFlags, imap.FlagSeen) {
+		data.PermanentFlags = append(data.PermanentFlags, imap.FlagSeen)
+	}
+	return data, err
+}
+
+type readOnlyMailboxes struct{ imapserver.SessionIMAP4rev2 }
+
+func (s readOnlyMailboxes) Select(mailbox string, options *imap.SelectOptions) (*imap.SelectData, error) {
+	data, err := s.SessionIMAP4rev2.Select(mailbox, &imap.SelectOptions{ReadOnly: true})
+	if data != nil {
+		data.PermanentFlags = nil
+	}
+	return data, err
+}
+
+func (s readOnlyMailboxes) Store(*imapserver.FetchWriter, imap.NumSet, *imap.StoreFlags, *imap.StoreOptions) error {
+	return &imap.Error{Type: imap.StatusResponseTypeNo, Text: "mailbox is read-only"}
+}
+
+func (s readOnlyMailboxes) Fetch(w *imapserver.FetchWriter, set imap.NumSet, options *imap.FetchOptions) error {
+	return (fetchKeepsUnread{s.SessionIMAP4rev2}).Fetch(w, set, options)
+}
+
+func (s fetchKeepsUnread) Fetch(w *imapserver.FetchWriter, set imap.NumSet, options *imap.FetchOptions) error {
+	for _, section := range options.BodySection {
+		section.Peek = true
+	}
+	return s.SessionIMAP4rev2.Fetch(w, set, options)
+}
 
 func (s wholeFetchFails) Fetch(w *imapserver.FetchWriter, numSet imap.NumSet, options *imap.FetchOptions) error {
 	for _, section := range options.BodySection {

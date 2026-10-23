@@ -10,9 +10,13 @@ import (
 	. "git.mehdix.org/alborz/internal/alborztest"
 )
 
-func turnOn(t *testing.T, c *Client, sub url.Values) {
+func turnOn(t *testing.T, c *Client, sub url.Values, account ...string) {
 	t.Helper()
-	resp := c.Post(t, "settings.notifications.create", sub)
+	user := User
+	if len(account) > 0 {
+		user = account[0]
+	}
+	resp := c.Post(t, "settings.notifications.create", sub, url.Values{"account": {user}})
 	if resp.StatusCode != http.StatusFound {
 		t.Fatalf("turning notifications on: %s\n%s", resp.Status, NoticeBar(resp.Text))
 	}
@@ -25,7 +29,61 @@ var deviceRow = regexp.MustCompile(`(?s)<div class="list-item">.*?</form>`)
 
 func devices(t *testing.T, c *Client) []string {
 	t.Helper()
-	return deviceRow.FindAllString(c.Page(t, "settings.notifications"), -1)
+	return accountDevices(t, c, User)
+}
+
+func accountDevices(t *testing.T, c *Client, account string) []string {
+	t.Helper()
+	page := c.Page(t, "settings.notifications")
+	section := regexp.MustCompile(`(?s)<section class="list-items" data-account="` + regexp.QuoteMeta(account) + `">(.*?)</section>`).FindStringSubmatch(page)
+	if section == nil {
+		t.Fatalf("no notification controls for %s", account)
+	}
+	var rows []string
+	for _, row := range deviceRow.FindAllString(section[1], -1) {
+		if strings.Contains(row, `name="device"`) {
+			rows = append(rows, row)
+		}
+	}
+	return rows
+}
+
+// One page controls every account; sharing a browser subscription does not couple their on/off state.
+func TestNotificationsArePerAccount(t *testing.T) {
+	push := PushServer(t)
+	a := Alborz(t)
+	c := a.SignIn(t, User)
+	c.SignIn(t, User2)
+	page := c.Page(t, "settings.notifications")
+	for _, account := range []string{User, User2} {
+		if !strings.Contains(page, `name="account" value="`+account+`"`) {
+			t.Fatalf("the page has no notification form for %s", account)
+		}
+	}
+	sub := push.Subscribe(t)
+	for _, account := range []string{User, User2} {
+		sub.Set("account", account)
+		if resp := c.Post(t, "settings.notifications.create", sub); resp.StatusCode != http.StatusFound {
+			t.Fatalf("turning on for %s: %s", account, resp.Status)
+		}
+	}
+	rows := accountDevices(t, c, User)
+	if len(rows) != 1 || len(accountDevices(t, c, User2)) != 1 {
+		t.Fatal("each account should have this browser's device")
+	}
+	id := regexp.MustCompile(`name="device" value="([^"]+)"`).FindStringSubmatch(rows[0])[1]
+	resp := c.Post(t, "settings.notifications.off", url.Values{"account": {User}, "device": {id}})
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("turning one account off: %s", resp.Status)
+	}
+	if len(accountDevices(t, c, User)) != 0 || len(accountDevices(t, c, User2)) != 1 {
+		t.Fatal("turning one account off changed the other's subscription")
+	}
+	sub.Set("account", "outsider@test.local")
+	resp = c.Post(t, "settings.notifications.create", sub)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("subscribing an account not signed in: %s", resp.Status)
+	}
 }
 
 // Each browser is a row of its own and the one asking is marked; signing a browser out, or turning
@@ -71,6 +129,35 @@ func TestNotificationsTurnOnAndOff(t *testing.T) {
 	}
 }
 
+// Turning this browser off also removes endpoints left behind by a subscription rotation.
+func TestTurningOffCurrentBrowserRemovesAllItsSubscriptions(t *testing.T) {
+	push := PushServer(t)
+	a := Alborz(t)
+	here, there := a.SignIn(t, User), a.SignIn(t, User)
+	// An old endpoint can remain if the browser rotated it without delivering a renewal.
+	turnOn(t, here, push.Subscribe(t))
+	turnOn(t, here, push.Subscribe(t))
+	turnOn(t, there, push.Subscribe(t))
+	var id string
+	for _, row := range devices(t, here) {
+		if Says(t, row, "sessions.current") {
+			id = regexp.MustCompile(`name="device" value="([^"]+)"`).FindStringSubmatch(row)[1]
+			break
+		}
+	}
+	if id == "" {
+		t.Fatal("no current browser to turn off")
+	}
+	resp := here.Post(t, "settings.notifications.off", url.Values{"account": {User}, "device": {id}})
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("turning this browser off: %s", resp.Status)
+	}
+	rows := devices(t, here)
+	if len(rows) != 1 || Says(t, rows[0], "sessions.current") {
+		t.Fatalf("turning off should leave only the other browser: %v", rows)
+	}
+}
+
 // A form without a script carries no subscription, and one that is not a sound subscription is refused;
 // neither is kept.
 func TestNotificationsRefuseWhatIsNotASubscription(t *testing.T) {
@@ -95,11 +182,11 @@ func TestNotificationsRefuseWhatIsNotASubscription(t *testing.T) {
 // The browsers subscribed to the instance's key accept no other, so a restart keeps it.
 func TestPushKeyOutlivesARestart(t *testing.T) {
 	dir := t.TempDir()
-	key := regexp.MustCompile(`data-key="([^"]+)"`)
+	key := regexp.MustCompile(`id="push-settings" data-key="([^"]+)"`)
 	a := Alborz(t, DataDir(dir))
-	before := key.FindStringSubmatch(a.SignIn(t, User).Page(t, "settings.notifications.create"))
+	before := key.FindStringSubmatch(a.SignIn(t, User).Page(t, "settings.notifications"))
 	a.Close()
-	after := key.FindStringSubmatch(Alborz(t, DataDir(dir)).SignIn(t, User).Page(t, "settings.notifications.create"))
+	after := key.FindStringSubmatch(Alborz(t, DataDir(dir)).SignIn(t, User).Page(t, "settings.notifications"))
 	if before == nil || after == nil || before[1] != after[1] {
 		t.Fatalf("the push key changed over a restart: %v, %v", before, after)
 	}
@@ -118,10 +205,10 @@ func TestARenewedSubscriptionReplacesTheOld(t *testing.T) {
 	if resp.StatusCode != http.StatusFound {
 		t.Fatalf("turning on for the second account: %s", resp.Status)
 	}
-	turnOn(t, a.SignIn(t, User2), push.Subscribe(t))
+	turnOn(t, a.SignIn(t, User2), push.Subscribe(t), User2)
 	before := devices(t, here)
 	second := func() []string {
-		return deviceRow.FindAllString(here.Page(t, "settings.notifications", url.Values{"account": {User2}}), -1)
+		return accountDevices(t, here, User2)
 	}
 	beforeSecond := second()
 

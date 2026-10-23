@@ -36,6 +36,8 @@ type Session struct {
 	// remember holds each password sealed under the browser's secret.
 	remember map[string][]byte
 	profile  *alborz.Profile
+	// pendingProfiles holds accounts whose settings the reader has not chosen yet.
+	pendingProfiles map[string]bool
 	// said holds conditions already told once.
 	said            map[string]bool
 	lock            alborz.Lock
@@ -132,6 +134,7 @@ func (s *Session) Accounts() (live []*alborz.Login, lost []string) {
 			continue
 		}
 		lost = append(lost, login.Username())
+		delete(s.pendingProfiles, login.Username())
 	}
 	s.accounts = kept
 	return slices.Clone(s.accounts), lost
@@ -160,6 +163,7 @@ func (s *Session) remove(username string) *alborz.Login {
 	for i, login := range s.accounts {
 		if login.Username() == username {
 			s.accounts = append(s.accounts[:i], s.accounts[i+1:]...)
+			delete(s.pendingProfiles, username)
 			return login
 		}
 	}

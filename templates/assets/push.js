@@ -2,11 +2,11 @@
 
 // The browser subscribes, then the form carries the subscription to the server like any other form.
 {
-	const form = document.getElementById("push-form");
-	const says = document.getElementById("script-failed");
+	const settings = document.getElementById("push-settings");
 	const fail = text => showScriptFailure(text);
 	const toBuffer = text => Uint8Array.from(atob(text.replace(/-/g, "+").replace(/_/g, "/")), c => c.charCodeAt(0));
-	form.addEventListener("submit", async event => {
+	const subscribe = async event => {
+		const form = event.currentTarget;
 		if (form.elements.endpoint.value) {
 			return;
 		}
@@ -14,29 +14,33 @@
 		if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) {
 			// Only iOS Safari has navigator.standalone, and it gives web push only to a Home Screen app.
 			const outsideHomeScreen = "standalone" in navigator && !navigator.standalone && !matchMedia("(display-mode: standalone)").matches;
-			fail(outsideHomeScreen ? form.dataset.homescreen : form.dataset.unsupported);
+			fail(outsideHomeScreen ? settings.dataset.homescreen : settings.dataset.unsupported);
 			return;
 		}
-		if (await Notification.requestPermission() !== "granted") {
-			fail(form.dataset.denied);
-			return;
-		}
-		says.close();
 		let subscription;
 		try {
+			if (await Notification.requestPermission() !== "granted") {
+				fail(settings.dataset.denied);
+				return;
+			}
+			failedNotice().close();
 			const registration = await navigator.serviceWorker.ready;
-			subscription = (await registration.pushManager.subscribe({
+			const sub = await registration.pushManager.getSubscription() || await registration.pushManager.subscribe({
 				userVisibleOnly: true,
-				applicationServerKey: toBuffer(form.dataset.key),
-			})).toJSON();
+				applicationServerKey: toBuffer(settings.dataset.key),
+			});
+			subscription = sub.toJSON();
 		} catch (e) {
-			fail(form.dataset.failed);
+			fail(settings.dataset.failed);
 			return;
 		}
 		form.elements.endpoint.value = subscription.endpoint;
 		form.elements.p256dh.value = subscription.keys.p256dh;
 		form.elements.auth.value = subscription.keys.auth;
 		form.submit();
-	});
+	};
+	for (const form of settings.querySelectorAll(".push-form")) {
+		form.addEventListener("submit", subscribe);
+	}
 }
 // @license-end

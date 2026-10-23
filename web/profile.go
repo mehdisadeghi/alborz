@@ -82,6 +82,7 @@ func (ctx *Context) UpdateProfile(edit func(*alborz.Profile)) error {
 		if kept == nil {
 			kept = &p
 		}
+		ctx.Session().profileAnswered(login.Username())
 	}
 	if kept == nil {
 		return refused
@@ -104,7 +105,17 @@ func (ctx *Context) TakeProfile(login *alborz.Login) error {
 
 // KeepProfile writes the profile in force over the one the account holds.
 func (ctx *Context) KeepProfile(login *alborz.Login) error {
-	return login.Store().Put(ctx.Request().Context(), alborz.ProfileKey, ctx.Profile())
+	if err := login.Store().Put(ctx.Request().Context(), alborz.ProfileKey, ctx.Profile()); err != nil {
+		return err
+	}
+	ctx.Session().profileAnswered(login.Username())
+	return nil
+}
+
+func (s *Session) profileAnswered(account string) {
+	s.mu.Lock()
+	delete(s.pendingProfiles, account)
+	s.mu.Unlock()
 }
 
 func (ctx *Context) putProfile(p alborz.Profile) {
@@ -113,6 +124,25 @@ func (ctx *Context) putProfile(p alborz.Profile) {
 	ctx.setProfileCookies(p.Display)
 	if err := ctx.Server.Sessions.Save(s); err != nil {
 		ctx.Logger().Printf("failed to write the session: %v", err)
+	}
+}
+
+// refreshProfile brings a browser's session up to date before a page renders.
+func (ctx *Context) refreshProfile(login *alborz.Login) {
+	s := ctx.Session()
+	s.mu.Lock()
+	pending := len(s.pendingProfiles) > 0
+	s.mu.Unlock()
+	if pending {
+		return
+	}
+	theirs, err := loadProfile(ctx, login)
+	if err != nil {
+		ctx.Logger().Printf("profile: reading %s's: %v", login.Username(), err)
+		return
+	}
+	if theirs != nil && !reflect.DeepEqual(*theirs, ctx.Profile()) {
+		ctx.putProfile(*theirs)
 	}
 }
 
@@ -155,6 +185,13 @@ func (ctx *Context) joinProfile(login *alborz.Login, first bool) {
 }
 
 func (ctx *Context) askProfile(account string, diff []profileChange) {
+	s := ctx.Session()
+	s.mu.Lock()
+	if s.pendingProfiles == nil {
+		s.pendingProfiles = map[string]bool{}
+	}
+	s.pendingProfiles[account] = true
+	s.mu.Unlock()
 	var plain, marked []string
 	say := ctx.T("profile.field")
 	for _, d := range diff {
@@ -268,6 +305,7 @@ func SettingsRail(ctx *Context) map[string][]RailRow {
 	rows := map[string][]RailRow{"": {
 		{Label: ctx.T("settings.general"), Href: ctx.Path("settings.profile"), Active: path == ctx.Path("settings.profile")},
 		{Label: ctx.T("passkeys.title"), Href: ctx.Path("settings.passkeys"), Active: strings.HasPrefix(path, ctx.Path("settings.passkeys"))},
+		{Label: ctx.T("notifications.title"), Href: ctx.Path("settings.notifications"), Active: path == ctx.Path("settings.notifications")},
 	}}
 	for _, s := range ctx.Server.Status {
 		if s.Page != "" {
@@ -282,7 +320,6 @@ func SettingsRail(ctx *Context) map[string][]RailRow {
 			{Label: ctx.T("settings.signatures"), Href: ctx.Path("mail.signatures") + q, Active: scoped && strings.HasPrefix(path, ctx.Path("mail.signatures"))},
 			{Label: ctx.T("settings.servers"), Href: ctx.Path("settings.servers") + q, Active: scoped && strings.HasPrefix(path, ctx.Path("settings.servers"))},
 			{Label: ctx.T("sessions.title"), Href: ctx.Path("settings.sessions") + q, Active: scoped && path == ctx.Path("settings.sessions")},
-			{Label: ctx.T("notifications.title"), Href: ctx.Path("settings.notifications") + q, Active: scoped && strings.HasPrefix(path, ctx.Path("settings.notifications"))},
 			{Label: ctx.T("settings.password"), Href: ctx.Path("settings.password") + q, Active: scoped && path == ctx.Path("settings.password")},
 			{Label: ctx.T("settings.data"), Href: ctx.Path("settings.data") + q, Active: scoped && path == ctx.Path("settings.data")},
 			{Label: ctx.T("settings.encryption"), Href: ctx.Path("settings.encryption") + q, Active: scoped && path == ctx.Path("settings.encryption")},

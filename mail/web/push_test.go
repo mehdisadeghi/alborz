@@ -84,8 +84,8 @@ func TestAGoneSubscriptionIsDropped(t *testing.T) {
 
 func instanceKey(t *testing.T, c *Client) string {
 	t.Helper()
-	page := c.Page(t, "settings.notifications.create")
-	_, rest, ok := strings.Cut(page, `data-key="`)
+	page := c.Page(t, "settings.notifications")
+	_, rest, ok := strings.Cut(page, `id="push-settings" data-key="`)
 	key, _, _ := strings.Cut(rest, `"`)
 	if !ok || key == "" {
 		t.Fatal("the settings page carries no key")

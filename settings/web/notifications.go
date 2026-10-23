@@ -1,6 +1,8 @@
 package web
 
 import (
+	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -12,9 +14,17 @@ import (
 // NotificationsRenderData renders notifications.html.
 type NotificationsRenderData struct {
 	web.PageData[map[string][]web.RailRow]
-	Devices []NotifiedDevice
+	Accounts []AccountNotifications
+	Key      string
 	// Days and Minutes are how long a login is kept for notifications, remembered and not.
 	Days, Minutes int
+}
+
+// AccountNotifications is one account's state for this browser and its other devices.
+type AccountNotifications struct {
+	Account string
+	Current *NotifiedDevice
+	Other   []NotifiedDevice
 }
 
 // NotifiedDevice is a device as the list shows it.
@@ -25,52 +35,70 @@ type NotifiedDevice struct {
 	Current, Gone bool
 }
 
-// NotificationRenderData renders notification-create.html.
-type NotificationRenderData struct {
-	web.PageData[map[string][]web.RailRow]
-	Key           string
-	Days, Minutes int
-}
-
-func handleNotifications(ctx *web.Context) error {
-	account := ctx.Login.Username()
-	devices, err := ctx.Server.Pushes.Devices(account)
-	if err != nil {
-		return err
-	}
+func notificationData(ctx *web.Context) (*NotificationsRenderData, error) {
 	session := ctx.Session().ID
-	var shown []NotifiedDevice
-	for _, d := range devices {
-		shown = append(shown, NotifiedDevice{ID: ctx.Server.Pushes.ID(d), Device: d.Device, Created: d.Created,
-			Current: d.Session == session, Gone: !ctx.Server.Sessions.Holds(d.Session, account)})
-	}
-	return ctx.Render(http.StatusOK, "settings/notifications", &NotificationsRenderData{
+	data := &NotificationsRenderData{
 		PageData: *web.NewSettingsPageData(ctx, ctx.T("notifications.title")),
-		Devices:  shown,
-		Days:     int(alborz.CredentialCookieLife() / (24 * time.Hour)),
-		Minutes:  int(ctx.Server.Options.LoginIdle / time.Minute),
-	})
-}
-
-// handleNotificationCreate keeps the subscription the page's script made; without a script the form
-// carries none, and is refused.
-func handleNotificationCreate(ctx *web.Context) error {
-	data := &NotificationRenderData{
-		PageData: *web.NewSettingsPageData(ctx, ctx.T("notifications.new")),
 		Key:      ctx.Server.Pushes.Key.Public(),
 		Days:     int(alborz.CredentialCookieLife() / (24 * time.Hour)),
 		Minutes:  int(ctx.Server.Options.LoginIdle / time.Minute),
 	}
-	if ctx.Request().Method != http.MethodPost {
-		return ctx.Render(http.StatusOK, "settings/notification-create", data)
+	for _, login := range ctx.Logins() {
+		account := login.Username()
+		devices, err := ctx.Server.Pushes.Devices(account)
+		if err != nil {
+			return nil, err
+		}
+		row := AccountNotifications{Account: account}
+		for _, d := range devices {
+			shown := NotifiedDevice{ID: ctx.Server.Pushes.ID(d), Device: d.Device, Created: d.Created,
+				Current: d.Session == session, Gone: !ctx.Server.Sessions.Holds(d.Session, account)}
+			if shown.Current {
+				if row.Current == nil {
+					row.Current = &shown
+				}
+			} else {
+				row.Other = append(row.Other, shown)
+			}
+		}
+		data.Accounts = append(data.Accounts, row)
+	}
+	return data, nil
+}
+
+func handleNotifications(ctx *web.Context) error {
+	data, err := notificationData(ctx)
+	if err != nil {
+		return err
+	}
+	return ctx.Render(http.StatusOK, "settings/notifications", data)
+}
+
+// The form names an account explicitly; a browser subscription may be shared by several of them.
+func notificationAccount(ctx *web.Context) (*alborz.Login, error) {
+	account := ctx.FormValue("account")
+	if account == "" && len(ctx.Logins()) == 1 {
+		return ctx.Login, nil
+	}
+	if login := ctx.LoginFor(account); login != nil {
+		return login, nil
+	}
+	return nil, web.NewError(http.StatusBadRequest, errors.New(fmt.Sprintf(ctx.T("account.notsignedin"), account)))
+}
+
+// handleNotificationCreate keeps the shared subscription for the account the reader turned on.
+func handleNotificationCreate(ctx *web.Context) error {
+	data, err := notificationData(ctx)
+	if err != nil {
+		return err
 	}
 	if ctx.FormValue("endpoint") == "" {
-		return web.RenderRefused(ctx, "settings/notification-create", data, ctx.T("notifications.needsscript"))
+		return web.RenderRefused(ctx, "settings/notifications", data, ctx.T("notifications.needsscript"))
 	}
 	sub, err := webpush.Parse(ctx.FormValue("endpoint"), ctx.FormValue("p256dh"), ctx.FormValue("auth"))
 	if err != nil {
 		ctx.Logger().Printf("push subscription refused: %v", err)
-		return web.RenderRefused(ctx, "settings/notification-create", data, ctx.T("notifications.refused"))
+		return web.RenderRefused(ctx, "settings/notifications", data, ctx.T("notifications.refused"))
 	}
 	// The worker posts a subscription the push service replaced, for each account of this browser that had it.
 	if old := ctx.FormValue("old"); old != "" {
@@ -79,9 +107,13 @@ func handleNotificationCreate(ctx *web.Context) error {
 				return err
 			}
 		}
-		return ctx.QuietRedirect(ctx.URL("settings.notifications"))
+		return ctx.QuietRedirect(ctx.Path("settings.notifications"))
 	}
-	err = ctx.Server.Pushes.Put(ctx.Login.Username(), alborz.PushDevice{
+	login, err := notificationAccount(ctx)
+	if err != nil {
+		return err
+	}
+	err = ctx.Server.Pushes.Put(login.Username(), alborz.PushDevice{
 		Endpoint: sub.Endpoint, P256dh: sub.P256dh, Auth: sub.Auth,
 		Session: ctx.Session().ID, Device: ctx.Request().UserAgent(), Lang: ctx.PageLanguage(),
 		Zone: web.UserLocation(ctx).String(), Origin: ctx.Origin(), Created: time.Now().UTC(),
@@ -89,13 +121,35 @@ func handleNotificationCreate(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	return ctx.NoticeRedirect(ctx.T("notice.notificationson"), ctx.URL("settings.notifications"))
+	return ctx.NoticeRedirect(ctx.T("notice.notificationson"), ctx.Path("settings.notifications"))
 }
 
 func handleNotificationOff(ctx *web.Context) error {
-	if err := ctx.Server.Pushes.Remove(ctx.Login.Username(), ctx.FormValue("device")); err != nil {
+	login, err := notificationAccount(ctx)
+	if err != nil {
 		return err
 	}
-	ctx.Server.Recheck(ctx.Login.Username())
-	return ctx.NoticeRedirect(ctx.T("notice.notificationsoff"), ctx.URL("settings.notifications"))
+	account, id := login.Username(), ctx.FormValue("device")
+	devices, err := ctx.Server.Pushes.Devices(account)
+	if err != nil {
+		return err
+	}
+	// A rotated subscription can leave older endpoints for this browser. Turning it off ends all of them.
+	current := false
+	for _, d := range devices {
+		if ctx.Server.Pushes.ID(d) == id && d.Session == ctx.Session().ID {
+			current = true
+			break
+		}
+	}
+	if current {
+		err = ctx.Server.Pushes.SignedOut(account, ctx.Session().ID)
+	} else {
+		err = ctx.Server.Pushes.Remove(account, id)
+	}
+	if err != nil {
+		return err
+	}
+	ctx.Server.Recheck(login.Username())
+	return ctx.NoticeRedirect(ctx.T("notice.notificationsoff"), ctx.Path("settings.notifications"))
 }

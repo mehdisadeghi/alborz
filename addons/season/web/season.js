@@ -191,18 +191,20 @@ const fall = async () => {
 		}
 	};
 	document.addEventListener("visibilitychange", onVisible);
-	// Tilt towards the screen's right, however the phone is turned.
-	window.addEventListener("deviceorientation", (e) => {
-		if (document.hidden || e.gamma === null) {
-			return;
+	// Tilt is useful on handheld screens; desktop Firefox warns merely for registering this listener.
+	if (window.matchMedia("(pointer: coarse)").matches && window.DeviceOrientationEvent) {
+		window.addEventListener("deviceorientation", (e) => {
+			if (document.hidden || e.gamma === null) {
+				return;
+			}
+			const side = { 0: e.gamma, 90: e.beta, 180: -e.gamma, 270: -e.beta }[screen.orientation.angle];
+			tilted = TILT_MOST * Math.max(-1, Math.min(1, side / TILT_FULL));
+		});
+		// iOS lets a page feel the tilt only once a tap has asked. The reader
+		// answered when ticking the season, so this asks again without a prompt.
+		if (typeof DeviceOrientationEvent.requestPermission === "function") {
+			window.addEventListener("pointerup", () => DeviceOrientationEvent.requestPermission(), { once: true, passive: true });
 		}
-		const side = { 0: e.gamma, 90: e.beta, 180: -e.gamma, 270: -e.beta }[screen.orientation.angle];
-		tilted = TILT_MOST * Math.max(-1, Math.min(1, side / TILT_FULL));
-	});
-	// iOS lets a page feel the tilt only once a tap has asked. The reader
-	// answered when ticking the season, so this asks again without a prompt.
-	if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === "function") {
-		window.addEventListener("pointerup", () => DeviceOrientationEvent.requestPermission(), { once: true, passive: true });
 	}
 	// Only listening: a drag still selects, scrolls and swipes as before,
 	// and one the browser takes for a scroll is cancelled and blows nothing.

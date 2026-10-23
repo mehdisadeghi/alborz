@@ -165,6 +165,9 @@ func (ctx *Context) signIn(next HandlerFunc, required bool) error {
 	}
 	ctx.Login = logins[0]
 	ctx.defaultLogin = logins[0]
+	if ctx.Request().Method == http.MethodGet && !unasked(ctx) {
+		ctx.refreshProfile(logins[0])
+	}
 	// An account that timed out while others stayed is said once, on the page.
 	if len(ctx.lostAccounts) > 0 {
 		ctx.Notify(Notice{Kind: NoticeWarning,

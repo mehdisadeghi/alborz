@@ -165,11 +165,9 @@ func joinedHTML(c *imapclient.Client, msg *IMAPMessage, pieces []IMAPPartNode) (
 				&imap.FetchItemBodySection{Peek: true, Part: p.Path, Partial: &imap.SectionPartial{Size: partReadMax}})
 		}
 	}
-	msgs, err := c.Fetch(imap.UIDSetNum(msg.UID), options).Collect()
+	fetched, err := fetchOne(c, msg.UID, options)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch the HTML pieces: %v", err)
-	} else if len(msgs) == 0 {
-		return nil, alborz.NotFound("notfound.message", fmt.Sprint(msg.UID))
+		return nil, err
 	}
 	var joined bytes.Buffer
 	sections := options.BodySection
@@ -178,7 +176,7 @@ func joinedHTML(c *imapclient.Client, msg *IMAPMessage, pieces []IMAPPartNode) (
 			fmt.Fprintf(&joined, `<p><img src="part:%s" alt="%s"></p>`, p.PathString(), html.EscapeString(p.Filename))
 			continue
 		}
-		headerBuf, bodyBuf := msgs[0].FindBodySection(sections[0]), msgs[0].FindBodySection(sections[1])
+		headerBuf, bodyBuf := fetched.FindBodySection(sections[0]), fetched.FindBodySection(sections[1])
 		sections = sections[2:]
 		if headerBuf == nil || bodyBuf == nil {
 			return nil, fmt.Errorf("server didn't return HTML piece %v", p.PathString())
@@ -497,7 +495,7 @@ func (p *Mailboxes) Read(ctx context.Context, r ReadAsk) (*Opened, error) {
 		permanentFlags = held.permanent
 		authResults = readAuthResults(messageRootHeader(msg), trusted)
 		// The peek left it unread on the server; the page is what reads it.
-		if !msg.HasFlag(imap.FlagSeen) {
+		if !msg.HasFlag(imap.FlagSeen) && slices.Contains(permanentFlags, imap.FlagSeen) {
 			p.markHeldSeen(r.Login, r.Mailbox, r.UID, held.validity)
 		}
 	}
@@ -520,9 +518,15 @@ func (p *Mailboxes) Read(ctx context.Context, r ReadAsk) (*Opened, error) {
 				if msg, part, err = fetchMessagePart(c, r.Mailbox, r.UID, partPath, true); err != nil {
 					return err
 				}
-				// The cached listings are marked read rather than fetched again for one flag.
-				p.messageRead(r.Login.Username(), r.Mailbox, r.UID)
 				permanentFlags = c.Mailbox().PermanentFlags
+				if !msg.HasFlag(imap.FlagSeen) && slices.Contains(permanentFlags, imap.FlagSeen) {
+					if err := storeFlags(c, r.Mailbox, imap.UIDSetNum(r.UID), imap.StoreFlagsAdd, []imap.Flag{imap.FlagSeen}); err != nil {
+						return err
+					}
+					p.messageRead(r.Login.Username(), r.Mailbox, r.UID)
+				} else if msg.HasFlag(imap.FlagSeen) {
+					p.messageRead(r.Login.Username(), r.Mailbox, r.UID)
+				}
 			}
 			if !placed {
 				if place, err = p.placeInList(c, r.Login.Username(), r.Settings, r.Mailbox, r.UID, r.List); err != nil {

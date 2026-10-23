@@ -220,7 +220,17 @@ func fetchOne(conn *imapclient.Client, uid imap.UID, options *imap.FetchOptions)
 		return nil, err
 	}
 	if len(msgs) == 0 {
-		return nil, alborz.NotFound("notfound.message", fmt.Sprint(uid))
+		// A different connection can list a new UID before this selected mailbox sees the arrival.
+		if err := conn.Noop().Wait(); err != nil {
+			return nil, err
+		}
+		msgs, err = conn.Fetch(imap.UIDSetNum(uid), options).Collect()
+		if err != nil {
+			return nil, err
+		}
+		if len(msgs) == 0 {
+			return nil, alborz.NotFound("notfound.message", fmt.Sprint(uid))
+		}
 	}
 	return msgs[0], nil
 }
@@ -1596,13 +1606,11 @@ func fetchMessagePart(conn *imapclient.Client, mboxName string, uid imap.UID, pa
 	if err := ensureMailboxSelected(conn, mboxName); err != nil {
 		return nil, nil, err
 	}
-	msgs, err := conn.Fetch(imap.UIDSetNum(uid), partFetchOptions(partPath, false, cut)).Collect()
+	msg, err := fetchOne(conn, uid, partFetchOptions(partPath, false, cut))
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to fetch message: %v", err)
-	} else if len(msgs) == 0 {
-		return nil, nil, alborz.NotFound("notfound.message", fmt.Sprint(uid))
+		return nil, nil, err
 	}
-	return messagePart(msgs[0], mboxName, uid, partPath, cut)
+	return messagePart(msg, mboxName, uid, partPath, cut)
 }
 
 // The message's header comes too, for what a part's does not carry, like

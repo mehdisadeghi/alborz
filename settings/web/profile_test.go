@@ -91,8 +91,10 @@ func TestSigningInAskedAboutAnotherProfile(t *testing.T) {
 			if !Says(t, bar, "settings.perpage") || !strings.Contains(bar, "17") || !strings.Contains(bar, "50") {
 				t.Fatalf("no notice names the differing page size:\n%s", bar)
 			}
-			if got := perPage(t, c); got != "50" {
-				t.Fatalf("the session took %s before the reader answered", got)
+			for range 3 {
+				if got := perPage(t, c); got != "50" {
+					t.Fatalf("the session took %s before the reader answered", got)
+				}
 			}
 
 			var fields url.Values
@@ -119,6 +121,13 @@ func TestSigningInAskedAboutAnotherProfile(t *testing.T) {
 				if got := perPage(t, a.SignIn(t, account)); got != answer.want {
 					t.Errorf("%s holds %s, want %s", account, got, answer.want)
 				}
+			}
+			other := a.SignIn(t, User)
+			if resp := other.Post(t, "settings.profile", url.Values{"messages_per_page": {"23"}}); resp.StatusCode != http.StatusFound {
+				t.Fatalf("saving in another browser: %s", resp.Status)
+			}
+			if got := perPage(t, c); got != "23" {
+				t.Errorf("after answering, another browser's update reads %s, want 23", got)
 			}
 		})
 	}

@@ -144,6 +144,17 @@ func unmarked(sources []Source, req *http.Request) (Source, *http.Request, error
 	out := req.Clone(req.Context())
 	out.URL.Scheme, out.URL.Host, out.Host = src.URL.Scheme, src.URL.Host, ""
 	out.URL.Path, out.URL.RawPath = path, ""
+	if req.Method == "MOVE" || req.Method == "COPY" {
+		dest, err := url.Parse(req.Header.Get("Destination"))
+		if err != nil || dest.Host != req.URL.Host {
+			return Source{}, nil, fmt.Errorf("dav: destination is outside this account's routed servers")
+		}
+		to, target, err := route(sources, dest.Path)
+		if err != nil || to.ID != src.ID || to.URL.Host != src.URL.Host {
+			return Source{}, nil, fmt.Errorf("dav: destination is not on the same DAV source")
+		}
+		out.Header.Set("Destination", (&url.URL{Scheme: to.URL.Scheme, Host: to.URL.Host, Path: target}).String())
+	}
 	// A multiget names its objects in the body by marked paths; the source knows them unmarked.
 	if req.Body != nil {
 		body, err := io.ReadAll(req.Body)

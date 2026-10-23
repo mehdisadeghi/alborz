@@ -41,6 +41,14 @@
 "common.copyto" = "کپی به…"
 "common.copyask" = "کپی به"
 "common.copydo" = "کپی"
+"common.moveto" = "انتقال به…"
+"common.moveask" = "انتقال به"
+"common.movedo" = "انتقال"
+"form.readonlysource" = "این مجموعه فقط خواندنی است. می‌توانید موارد آن را کپی کنید، اما نمی‌توانید آن‌ها را انتقال دهید."
+"form.movewithoutversion" = "سرور نسخه‌ای برای این مورد ارائه نکرد. این مورد انتقال داده نشد."
+"form.moveincomplete" = "مقصد نسخه‌ای ارائه نکرد. مورد اصلی حفظ شد؛ ممکن است یک کپی هم در مقصد باقی مانده باشد."
+"form.moveuncertain" = "سرور انتقال را تأیید نکرد. هر کپی ایجادشده در مقصد حفظ شد. پیش از تلاش دوباره، هر دو مجموعه را بررسی کنید."
+"form.movescheduling" = "این جلسه را نمی‌توان با اطمینان بین این تقویم‌ها انتقال داد. می‌توانید آن را کپی کنید."
 "common.choosesaveto" = "محل ذخیره را انتخاب کنید…"
 "common.chooseaccount" = "حساب را انتخاب کنید…"
 "place.here" = "البرز"
@@ -812,6 +820,7 @@
 "notice.contactcreated" = "مخاطب «%s» ساخته شد."
 "notice.contactknown" = "«%s» از قبل در «%s» هست."
 "notice.copiedto" = "در «%s» کپی شد."
+"notice.objectmovedto" = "به «%s» منتقل شد."
 "notice.calendarcreated" = "تقویم «%s» ساخته شد."
 "notice.tasklistcreated" = "فهرست کار «%s» ساخته شد."
 "notice.bookcreated" = "دفترچهٔ نشانی «%s» ساخته شد."
@@ -1419,3 +1428,11 @@ other = "%d یادداشت حذف شد."
 ["tour.count"]
 one = "%[1]d از %[2]d"
 other = "%[1]d از %[2]d"
+
+["common.copycount"]
+one = "کپی مورد انتخاب‌شده."
+other = "کپی %d مورد انتخاب‌شده."
+
+["notice.itemscopied"]
+one = "یک مورد کپی شد."
+other = "%d مورد کپی شد."

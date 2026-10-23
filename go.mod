@@ -1,6 +1,6 @@
 module git.mehdix.org/alborz
 
-go 1.27.1
+go 1.27.3
 
 require (
 	github.com/BurntSushi/toml v1.6.0
@@ -26,10 +26,10 @@ require (
 	gitlab.com/golang-commonmark/linkify v0.0.0-20200225224916-64bca66f6ad3
 	go.etcd.io/bbolt v1.5.0
 	go.guido-berhoerster.org/managesieve v0.8.1
-	golang.org/x/crypto v0.57.0
+	golang.org/x/crypto v0.58.0
 	golang.org/x/image v0.45.0
-	golang.org/x/net v0.58.0
-	golang.org/x/text v0.42.0
+	golang.org/x/net v0.60.0
+	golang.org/x/text v0.43.0
 	jaytaylor.com/html2text v0.0.0-20230321000545-74c2419ad056
 )
 
@@ -50,7 +50,7 @@ require (
 	github.com/ssor/bom v0.0.0-20170718123548-6386211fdfcf // indirect
 	github.com/tinylib/msgp v1.6.4 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
-	golang.org/x/sys v0.48.0 // indirect
+	golang.org/x/sys v0.49.0 // indirect
 )
 
 // Our fork of go-vcard carries what upstream has not merged: an escaped

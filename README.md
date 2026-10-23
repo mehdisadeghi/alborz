@@ -99,7 +99,10 @@ See `docs/cli.md` for every flag.
 ## Contributing
 
 Run `make test` with the Go version in `go.mod` and Node.js 18 or newer.
-`make test-js` runs the gesture checks without npm dependencies.
+Both `make test` and `make lint` run `make vuln`: govulncheck fails on reachable
+vulnerabilities and reports module advisories, including unused packages.
+It needs network access for the latest checker and vulnerability database.
+`make test-js` runs the browser checks without npm dependencies.
 
 Report issues and send patches at [github.com/mehdisadeghi/alborz].
 

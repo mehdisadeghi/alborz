@@ -24,7 +24,10 @@ func registerRoutes(p *plugin, g *web.Group) {
 	POST("export", "/contacts/export", pimweb.HandleExport(p.Client, "contacts.list",
 		func(ctx *web.Context) string { return ctx.T("nav.contacts") + ".vcf" }, contacts.Join))
 	POST("refresh", "/contacts/refresh", pimweb.HandleRefresh(p.DAV, "contacts.list"))
+	Page("copy", "/contacts/copy", p.copyContacts)
 	GET("contact", "/contacts/{path}", p.contact)
+	Page("contact.copy", "/contacts/{path}/copy", p.transferContact(false))
+	Page("contact.move", "/contacts/{path}/move", p.transferContact(true))
 
 	download("contact.raw", "/contacts/{path}/raw", func(ctx *web.Context) error { return pimweb.Raw(ctx, p.Client) })
 	page := p.collectionPage()

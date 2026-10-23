@@ -69,6 +69,21 @@ type NewCollectionRenderData struct {
 	Next  string
 }
 
+// DestinationRenderData renders the shared calendar/destination form.
+type DestinationRenderData struct {
+	web.PageData[Rail]
+	Section, Home string
+	Title, Lead   string
+	Label, Save   string
+	// Action is where the form posts; empty posts to the page's own address.
+	Action string
+	// Key is the picker's remembered choice.
+	Key    string
+	Groups []dav.Group
+	Paths  []string
+	Next   string
+}
+
 // DestinationRefusal maps the shared missing-DAV-destination condition to the
 // common form refusal while leaving all other errors unchanged.
 func DestinationRefusal(ctx *web.Context, err error, refuse func(string) error) (bool, error) {

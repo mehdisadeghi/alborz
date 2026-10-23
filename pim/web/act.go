@@ -137,6 +137,15 @@ func Drawn(ctx *web.Context, held string) (string, error) {
 
 // Refusal is a refused write in the reader's words; one alborz makes itself says why, any other quotes the server.
 func Refusal(ctx *web.Context, err error) string {
+	if errors.Is(err, dav.ErrMoveUncertain) {
+		return ctx.T("form.moveuncertain")
+	}
+	if errors.Is(err, dav.ErrUnversionedObject) {
+		return ctx.T("form.movewithoutversion")
+	}
+	if errors.Is(err, dav.ErrUnversionedDestination) {
+		return ctx.T("form.moveincomplete")
+	}
 	if errors.Is(err, dav.ErrScaleUnlisted) {
 		return ctx.T("form.repeatscale")
 	}

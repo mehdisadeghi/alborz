@@ -31,6 +31,9 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - name: Check dependency vulnerabilities
+        if: matrix.variant == 'full'
+        run: make vuln
       - name: Vet and test ${{ matrix.variant }}
         env:
           BUILD_TAGS: ${{ matrix.build_tags }}

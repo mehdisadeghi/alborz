@@ -1,11 +1,9 @@
 package web
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
-	"path"
 	"slices"
 	"strconv"
 	"strings"
@@ -22,23 +20,8 @@ import (
 	"github.com/emersion/go-webdav/caldav"
 )
 
-// DestinationRenderData asks where a move or a copy goes; a menu holds actions, so the choice is a page.
-type DestinationRenderData struct {
-	web.PageData[pimweb.Rail]
-	Section, Home string
-	Title, Lead   string
-	Label, Save   string
-	// Action is where the form posts; empty posts to the page's own address.
-	Action string
-	// Key is the picker's remembered choice.
-	Key    string
-	Groups []dav.Group
-	Paths  []string
-	Next   string
-}
-
-func destinationRenderData(ctx *web.Context, rail pimweb.Rail, section, home, title, lead, label, save, key string, groups []dav.Group, next string) *DestinationRenderData {
-	return &DestinationRenderData{
+func destinationRenderData(ctx *web.Context, rail pimweb.Rail, section, home, title, lead, label, save, key string, groups []dav.Group, next string) *pimweb.DestinationRenderData {
+	return &pimweb.DestinationRenderData{
 		PageData: *web.NewPageData(ctx, title, rail), Section: section, Home: home, Title: title,
 		Lead: lead, Label: label, Save: save, Key: key, Groups: groups, Next: next,
 	}
@@ -374,22 +357,11 @@ func (p *plugin) move(ctx *web.Context) error {
 			return web.Notice{Kind: web.NoticeDone, Text: ctx.Tf("notice.tasksmoved", len(done))}
 		},
 		Do: func(ctx *web.Context, ref pim.Ref[*caldav.Client]) error {
-			if path.Dir(ref.Path)+"/" == target.Path {
-				return nil
-			}
 			co, err := calendar.GetObject(ctx.Request().Context(), ref.Client, ref.Path)
 			if err != nil {
 				return fmt.Errorf("failed to get task: %w", err)
 			}
-			made, err := target.Client.PutCalendarObject(ctx.Request().Context(), target.Path+path.Base(ref.Path), co.Data,
-				&caldav.PutCalendarObjectOptions{IfNoneMatch: dav.IfNew})
-			if err != nil {
-				return err
-			}
-			// A list that keeps its task, a read-only share, leaves it where it was rather than in two lists.
-			if err := pimweb.Delete(ctx, ref); err != nil {
-				return errors.Join(err, target.Client.RemoveAll(ctx.Request().Context(), made.Path))
-			}
-			return nil
+			_, err = p.moveObject(ctx, ref, target, co)
+			return err
 		}})
 }

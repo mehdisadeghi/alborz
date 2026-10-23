@@ -80,6 +80,7 @@ func registerRoutes(p *plugin, g *web.Group) {
 	download("month.export", "/calendar/export", p.exportMonth)
 	GET("day", "/calendar/date", p.day)
 	GET("search", "/calendar/search", p.search)
+	Page("events.copy", "/calendar/copy", p.copySelected(eventSection))
 	GET("event", "/calendar/{path}", p.event)
 
 	download("event.raw", "/calendar/{path}/raw", p.rawObject)
@@ -128,7 +129,9 @@ func registerRoutes(p *plugin, g *web.Group) {
 	POST("events.delete", "/calendar/delete", remove(eventSection))
 	POST("event.delete", "/calendar/{path}/delete", remove(eventSection))
 	Page("event.copy", "/calendar/{path}/copy", p.copyTo(eventSection))
+	Page("event.move", "/calendar/{path}/move", p.moveTo(eventSection))
 	GET("tasks", "/tasks", p.tasks)
+	Page("tasks.copy", "/tasks/copy", p.copySelected(taskSection))
 	GET("task", "/tasks/{path}", p.task)
 
 	Page("task.create", "/tasks/create", p.updateTask)
@@ -136,6 +139,7 @@ func registerRoutes(p *plugin, g *web.Group) {
 	POST("task.delete", "/tasks/{path}/delete", remove(taskSection))
 	POST("tasks.delete", "/tasks/delete", remove(taskSection))
 	Page("task.copy", "/tasks/{path}/copy", p.copyTo(taskSection))
+	Page("task.move", "/tasks/{path}/move", p.moveTo(taskSection))
 	POST("tasks.complete", "/tasks/complete", p.complete)
 	GET("tasks.move", "/tasks/move", p.move)
 	POST("tasks.move", "/tasks/move", p.move)
@@ -143,12 +147,14 @@ func registerRoutes(p *plugin, g *web.Group) {
 		func(ctx *web.Context) string { return ctx.T("nav.tasks") + ".ics" }, calendar.Join))
 
 	GET("journal", "/journal", p.journal)
+	Page("journal.copy", "/journal/copy", p.copySelected(journalSection))
 	GET("entry", "/journal/{path}", p.entry)
 	Page("entry.create", "/journal/create", p.updateEntry)
 	Page("entry.edit", "/journal/{path}/edit", p.updateEntry)
 	POST("entry.delete", "/journal/{path}/delete", remove(journalSection))
 	POST("journal.delete", "/journal/delete", remove(journalSection))
 	Page("entry.copy", "/journal/{path}/copy", p.copyTo(journalSection))
+	Page("entry.move", "/journal/{path}/move", p.moveTo(journalSection))
 	POST("journal.export", "/journal/export", pimweb.HandleExport(p.Client, "calendar.journal",
 		func(ctx *web.Context) string { return ctx.T("nav.journal") + ".ics" }, calendar.Join))
 	POST("entry.color", "/journal/{path}/color", p.color(calendar.FirstJournal, journalSection))

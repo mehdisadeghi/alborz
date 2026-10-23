@@ -8,7 +8,9 @@
   {{ template "action-icon" (dict "icon" "trash" "label" ($.T "common.delete") "class" "icon-danger" "form" .SelectForm "formaction" (and .SelectForm (url "calendar.events.delete")) "priority" 11) }}
   <a hx-boost="false" class="icon-button" href="{{url "calendar.month.export"}}{{ with $.GlobalData.URL.RawQuery }}?{{.}}{{ end }}" title="{{$.T "common.download"}}" aria-label="{{$.T "common.download"}}" data-priority="10">{{ template "icon" "download" }}<span class="label">{{$.T "common.download"}}</span></a>
 </span>
-{{ template "refresh-menu" $ }}
+{{ if .SelectForm }}
+{{ template "pim-copy-menu" (dict "g" $ "form" .SelectForm "action" (url "calendar.events.copy") "refresh" true) }}
+{{ else }}{{ template "refresh-menu" $ }}{{ end }}
 {{ template "toolbar-end" }}
     {{ template "filter-menu" (dict "id" "menu-filter" "icon" "list-filter" "title" ($.T "filter.menu") "rows" .FilterRows "disabled" (not .FilterRows) "priority" 25 "class" "filter-overflow") }}
     {{ template "filter-menu" (dict "id" "menu-group" "icon" "group" "title" ($.T "list.groupby") "rows" .GroupRows "disabled" (not .GroupRows) "priority" 30 "class" "group-overflow") }}

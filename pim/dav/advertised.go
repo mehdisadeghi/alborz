@@ -2,10 +2,13 @@ package dav
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/url"
 	"slices"
 	"strings"
+
+	"github.com/emersion/go-webdav"
 )
 
 // Advertised is what a DAV server claims about itself, nothing alborz inferred.
@@ -38,6 +41,9 @@ func Describe(ctx context.Context, client *http.Client, base *url.URL) (Advertis
 		return a, err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode/100 != 2 {
+		return a, webdav.NewHTTPError(resp.StatusCode, errors.New(resp.Status))
+	}
 
 	a.Software = resp.Header.Get("Server")
 	for _, class := range strings.Split(resp.Header.Get("DAV"), ",") {

@@ -41,6 +41,14 @@
 "common.copyto" = "Copy to…"
 "common.copyask" = "Copy to"
 "common.copydo" = "Copy"
+"common.moveto" = "Move to…"
+"common.moveask" = "Move to"
+"common.movedo" = "Move"
+"form.readonlysource" = "This collection is read-only. You can copy items from it, but cannot move them."
+"form.movewithoutversion" = "The server did not provide a version for this item. It was not moved."
+"form.moveincomplete" = "The destination did not provide a version. The original was kept; a copy may also remain in the destination."
+"form.moveuncertain" = "The server did not confirm the move. Any destination copy was kept. Check both collections before trying again."
+"form.movescheduling" = "This meeting cannot be moved safely between these calendars. You can copy it instead."
 "common.choosesaveto" = "Choose where…"
 "common.chooseaccount" = "Choose an account…"
 "place.here" = "Alborz"
@@ -815,6 +823,7 @@
 "notice.contactcreated" = "Contact “%s” created."
 "notice.contactknown" = "“%s” is already in “%s”."
 "notice.copiedto" = "Copied to “%s”."
+"notice.objectmovedto" = "Moved to “%s”."
 "notice.calendarcreated" = "Calendar “%s” created."
 "notice.tasklistcreated" = "Task list “%s” created."
 "notice.bookcreated" = "Address book “%s” created."
@@ -1419,3 +1428,11 @@ other = "%d entries deleted."
 ["tour.count"]
 one = "%[1]d of %[2]d"
 other = "%[1]d of %[2]d"
+
+["common.copycount"]
+one = "Copy the selected item."
+other = "Copy %d selected items."
+
+["notice.itemscopied"]
+one = "One item copied."
+other = "%d items copied."

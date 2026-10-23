@@ -5,7 +5,7 @@ ADDR ?= localhost:1323
 # ARGS = example.org example.com=imaps://mail.example.com example.com=smtps://mail.example.com
 ARGS ?=
 
-.PHONY: build run watch fmt lint test test-js login-key
+.PHONY: build run watch fmt lint vuln test test-js login-key
 
 build:
 	$(GO) build -o alborz ./cmd/alborz
@@ -28,7 +28,7 @@ fmt:
 GOPLS ?= gopls
 GOLANGCI ?= golangci-lint
 REVIVE ?= revive
-lint:
+lint: vuln
 	@test -z "$$(gofmt -l .)" || { gofmt -l .; exit 1; }
 	$(GO) vet ./...
 	@out=$$($(GOPLS) check -severity=hint $$(git ls-files '*.go') 2>&1) && test -z "$$out" || { echo "$$out"; exit 1; }
@@ -36,14 +36,18 @@ lint:
 	$(GOLANGCI) run ./...
 	$(REVIVE) -config revive.toml -set_exit_status -exclude ./local/... ./...
 
+# Report module advisories too; fail on vulnerable symbols reachable by our code.
+vuln:
+	$(GO) run golang.org/x/vuln/cmd/govulncheck@latest -scan=symbol -show=verbose ./...
+
 # Templates, locales, and every page a signed-in reader can open, served
-# by an in-process IMAP server. No network, no rig, no credentials.
-test: test-js
+# by an in-process IMAP server. No rig or credentials.
+test: vuln test-js
 	$(GO) test ./...
 
-# Execute the browser gesture handler against deterministic DOM fixtures; no npm dependencies.
+# Execute browser handlers against deterministic DOM fixtures; no npm dependencies.
 test-js:
-	$(NODE) --test tests/gestures.test.cjs
+	$(NODE) --test tests/*.test.cjs
 
 # Generate a key for -login-key.
 login-key:

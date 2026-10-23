@@ -15,7 +15,7 @@
           {{ template "pim-action-group" (tuple
              (dict "icon" "trash" "label" ($.T "common.delete") "class" "icon-danger" "form" "journal-form" "formaction" (url "calendar.journal.delete") "priority" 11)
              (dict "icon" "download" "label" ($.T "common.download") "form" "journal-form" "formaction" (url "calendar.journal.export") "priority" 10 "download" true)) }}
-          {{ template "refresh-menu" $ }}
+          {{ template "pim-copy-menu" (dict "g" $ "form" "journal-form" "action" (url "calendar.journal.copy") "refresh" true) }}
         {{ template "toolbar-end" }}
             {{ template "pim-list-controls" (dict
                "search" (dict "query" .Query "placeholder" ($.T "journal.searchph") "button" ($.T "mailbox.search") "disabled" (and (not .Entries) (not .Query)))

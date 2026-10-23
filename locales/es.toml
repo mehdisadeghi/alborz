@@ -41,6 +41,14 @@
 "common.copyto" = "Copiar a…"
 "common.copyask" = "Copiar a"
 "common.copydo" = "Copiar"
+"common.moveto" = "Mover a…"
+"common.moveask" = "Mover a"
+"common.movedo" = "Mover"
+"form.readonlysource" = "Esta colección es de solo lectura. Puede copiar sus elementos, pero no moverlos."
+"form.movewithoutversion" = "El servidor no proporcionó una versión de este elemento. No se ha movido."
+"form.moveincomplete" = "El destino no proporcionó una versión. Se conservó el original; puede que también haya una copia en el destino."
+"form.moveuncertain" = "El servidor no confirmó el movimiento. Se conservó cualquier copia creada en el destino. Revise ambas colecciones antes de volver a intentarlo."
+"form.movescheduling" = "Esta reunión no se puede mover de forma segura entre estos calendarios. Puede copiarla en su lugar."
 "common.choosesaveto" = "Elige dónde…"
 "common.chooseaccount" = "Elige una cuenta…"
 "place.here" = "Alborz"
@@ -821,6 +829,7 @@
 "notice.contactcreated" = "Contacto «%s» creado."
 "notice.contactknown" = "«%s» ya está en «%s»."
 "notice.copiedto" = "Copiado en «%s»."
+"notice.objectmovedto" = "Movido a «%s»."
 "notice.calendarcreated" = "Calendario «%s» creado."
 "notice.tasklistcreated" = "Lista de tareas «%s» creada."
 "notice.bookcreated" = "Libreta de direcciones «%s» creada."
@@ -1420,3 +1429,11 @@ other = "%d entradas eliminadas."
 ["tour.count"]
 one = "%[1]d de %[2]d"
 other = "%[1]d de %[2]d"
+
+["common.copycount"]
+one = "Copiar el elemento seleccionado."
+other = "Copiar %d elementos seleccionados."
+
+["notice.itemscopied"]
+one = "Se ha copiado un elemento."
+other = "Se han copiado %d elementos."

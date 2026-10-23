@@ -1,4 +1,4 @@
-{{/* dict: g object id acct list new newlabel edit ext readonly section home field collection path [copy].
+{{/* dict: g object id acct list new newlabel edit ext readonly section home field collection path [copy move].
      An event's, task's or contact's toolbar and crumb; a page adds its own actions through the object-actions block. */}}
 {{ define "object-toolbar" }}
 {{ $g := .g }}
@@ -17,9 +17,14 @@
           </form>
           {{ end }}
         </span>
-        {{ with .copy }}
+        {{ if or .copy (and .move (not .readonly)) }}
         {{ template "more-open" $g }}
+            {{ with .copy }}
             <a class="button-link" href="{{ localhref (from . $g.GlobalData.From) }}">{{$g.T "common.copyto"}}</a>
+            {{ end }}
+            {{ if not .readonly }}{{ with .move }}
+            <a class="button-link" href="{{ localhref (from . $g.GlobalData.From) }}">{{$g.T "common.moveto"}}</a>
+            {{ end }}{{ end }}
         {{ template "more-close" }}
         {{ end }}
         {{ template "toolbar-end" }}

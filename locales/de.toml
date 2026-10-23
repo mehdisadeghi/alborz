@@ -41,6 +41,14 @@
 "common.copyto" = "Kopieren nach …"
 "common.copyask" = "Kopieren nach"
 "common.copydo" = "Kopieren"
+"common.moveto" = "Verschieben nach …"
+"common.moveask" = "Verschieben nach"
+"common.movedo" = "Verschieben"
+"form.readonlysource" = "Diese Sammlung ist schreibgeschützt. Sie können Einträge daraus kopieren, aber nicht verschieben."
+"form.movewithoutversion" = "Der Server hat keine Version für diesen Eintrag geliefert. Er wurde nicht verschoben."
+"form.moveincomplete" = "Das Ziel hat keine Version geliefert. Das Original wurde behalten; möglicherweise liegt im Ziel auch eine Kopie."
+"form.moveuncertain" = "Der Server hat das Verschieben nicht bestätigt. Eine eventuell angelegte Kopie im Ziel wurde behalten. Prüfen Sie beide Sammlungen, bevor Sie es erneut versuchen."
+"form.movescheduling" = "Dieser Termin kann nicht sicher zwischen diesen Kalendern verschoben werden. Sie können ihn stattdessen kopieren."
 "common.choosesaveto" = "Ziel wählen…"
 "common.chooseaccount" = "Konto wählen…"
 "place.here" = "Alborz"
@@ -821,6 +829,7 @@
 "notice.contactcreated" = "Kontakt „%s“ angelegt."
 "notice.contactknown" = "„%s“ ist schon in „%s“."
 "notice.copiedto" = "Nach „%s“ kopiert."
+"notice.objectmovedto" = "Nach „%s“ verschoben."
 "notice.calendarcreated" = "Kalender „%s“ angelegt."
 "notice.tasklistcreated" = "Aufgabenliste „%s“ angelegt."
 "notice.bookcreated" = "Adressbuch „%s“ angelegt."
@@ -1420,3 +1429,11 @@ other = "%d Einträge gelöscht."
 ["tour.count"]
 one = "%[1]d von %[2]d"
 other = "%[1]d von %[2]d"
+
+["common.copycount"]
+one = "Den ausgewählten Eintrag kopieren."
+other = "%d ausgewählte Einträge kopieren."
+
+["notice.itemscopied"]
+one = "Ein Eintrag kopiert."
+other = "%d Einträge kopiert."

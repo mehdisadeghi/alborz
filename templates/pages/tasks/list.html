@@ -17,6 +17,7 @@
              (dict "icon" "trash" "label" ($.T "common.delete") "class" "icon-danger" "form" "tasks-form" "formaction" (url "calendar.tasks.delete") "priority" 11)
              (dict "icon" "download" "label" ($.T "common.download") "form" "tasks-form" "formaction" (url "calendar.tasks.export") "priority" 10 "download" true)) }}
           {{ template "more-open" $ }}
+              {{ template "pim-copy-button" (dict "g" $ "form" "tasks-form" "action" (url "calendar.tasks.copy")) }}
               <button form="tasks-form" formaction="{{url "calendar.tasks.move"}}" formmethod="get">{{$.T "mailbox.moveto"}}</button>
               <button form="refresh-form" title="{{$.T "common.checkserverhint"}}">{{$.T "common.forcerefresh"}}</button>
           {{ template "more-close" }}

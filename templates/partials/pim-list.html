@@ -14,6 +14,19 @@
 {{/* Shared selection actions keep list toolbars structurally identical. */}}
 {{ define "pim-action-group" }}<span class="icon-group">{{ range . }}{{ template "action-icon" . }}{{ end }}</span>{{ end }}
 
+{{/* dict: g form action. Copy opens a destination page with the checked rows. */}}
+{{ define "pim-copy-button" }}
+  <button form="{{.form}}" formaction="{{.action}}" formmethod="get">{{.g.T "common.copyto"}}</button>
+{{ end }}
+
+{{/* dict: g form action [refresh]. Shared More menu for selectable DAV lists. */}}
+{{ define "pim-copy-menu" }}
+  {{ template "more-open" .g }}
+    {{ template "pim-copy-button" . }}
+    {{ if .refresh }}<button form="refresh-form" title="{{.g.T "common.checkserverhint"}}">{{.g.T "common.forcerefresh"}}</button>{{ end }}
+  {{ template "more-close" }}
+{{ end }}
+
 {{/* dict: query noresults empty. Every PIM list explains an empty result the same way. */}}
 {{ define "pim-list-empty" }}<p class="empty-list">{{ if .query }}{{ printf .noresults .query }}{{ else }}{{ .empty }}{{ end }}</p>{{ end }}
 

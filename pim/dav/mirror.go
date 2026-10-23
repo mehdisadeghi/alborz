@@ -365,7 +365,7 @@ func (t tripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	switch req.Method {
 	case "REPORT", http.MethodGet:
 		return t.read(req)
-	case http.MethodPut, http.MethodDelete, "MKCOL", "MKCALENDAR", "PROPPATCH":
+	case http.MethodPut, http.MethodDelete, "MKCOL", "MKCALENDAR", "PROPPATCH", "MOVE":
 		return t.write(req)
 	}
 	return t.next.RoundTrip(req)
@@ -551,6 +551,26 @@ func (t tripper) write(req *http.Request) (*http.Response, error) {
 // (RFC 4791 5.3.4, RFC 6352 6.3.2.3). Without one, or refused, the next read syncs.
 func (m *Mirror) wrote(u string, req *http.Request, body []byte, resp *http.Response) error {
 	p := req.URL.Path
+	if req.Method == "MOVE" {
+		if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusNoContent {
+			return nil
+		}
+		to, err := url.Parse(req.Header.Get("Destination"))
+		if err != nil {
+			return err
+		}
+		m.saving.Lock()
+		defer m.saving.Unlock()
+		for _, coll := range slices.Compact([]string{collectionOf(p), collectionOf(to.Path)}) {
+			m.mu.Lock()
+			m.reader(u).coll(coll).writes++
+			m.mu.Unlock()
+			if err := m.drop(u, coll); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
 	if strings.HasSuffix(p, "/") || req.Method != http.MethodPut && req.Method != http.MethodDelete {
 		if resp.StatusCode >= 300 {
 			return nil

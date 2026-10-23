@@ -1,4 +1,5 @@
 {{ define "object-actions" }}
+          {{ if .g.Collection.Writable }}
           {{ $todo := index .g.Task.Data.Children 0 }}
           {{ $done := eq ($todo.Props.Text "STATUS") "COMPLETED" }}
           {{ $mark := .g.T "tasks.markcomplete" }}{{ if $done }}{{ $mark = .g.T "tasks.markincomplete" }}{{ end }}
@@ -7,6 +8,7 @@
             {{ if $done }}<input type="hidden" name="reopen" value="1">{{ end }}
             <button type="submit" class="icon-button" aria-pressed="{{$done}}" title="{{$mark}}" aria-label="{{$mark}}">{{ template "icon" "check" }}</button>
           </form>
+          {{ end }}
 {{ end }}
 
 {{ define "main-class" }} class="task"{{ end }}
@@ -19,13 +21,14 @@
       {{$status := $todo.Props.Text "STATUS"}}
       {{$due := $todo.Props.Get "DUE"}}
 
-      {{ template "object-toolbar" (dict "g" $ "object" "calendar.task" "id" .Task.Path "acct" $acct "list" .List "new" (url "calendar.task.create") "newlabel" ($.T "tasks.new") "edit" "edit" "ext" ".ics" "readonly" false
+      {{ template "object-toolbar" (dict "g" $ "object" "calendar.task" "id" .Task.Path "acct" $acct "list" .List "new" (url "calendar.task.create") "newlabel" ($.T "tasks.new") "edit" "edit" "ext" ".ics" "readonly" (not .Collection.Writable)
          "copy" (printf "%s%s" (url "calendar.task.copy" .Task.Path) $acct)
+         "move" (printf "%s%s" (url "calendar.task.move" .Task.Path) $acct)
          "section" ($.T "nav.tasks") "home" (url "calendar.tasks") "field" "cal" "collection" .Collection.Name "path" .Collection.Path) }}
 
-      {{ template "next-form" (dict "id" "task-color-form" "next" $.GlobalData.URL.RequestURI) }}
+      {{ if .Collection.Writable }}{{ template "next-form" (dict "id" "task-color-form" "next" $.GlobalData.URL.RequestURI) }}{{ end }}
       <section class="details">
-        {{ template "object-title" (dict "g" $ "title" $summary "class" (and (eq $status "COMPLETED") "completed") "form" "task-color-form" "action" (printf "%s%s" (url "calendar.task.color" .Task.Path) $acct) "current" .Star) }}
+        {{ template "object-title" (dict "g" $ "title" $summary "class" (and (eq $status "COMPLETED") "completed") "form" "task-color-form" "action" (printf "%s%s" (url "calendar.task.color" .Task.Path) $acct) "current" .Star "readonly" (not .Collection.Writable)) }}
         <dl>
           <dt>{{$.T "tasks.status"}}</dt>
           <dd>{{if eq $status "COMPLETED"}}{{$.T "tasks.completed"}}{{else}}{{$.T "tasks.pending"}}{{end}}</dd>
@@ -42,10 +45,10 @@
           <dd>{{ template "user-text" $desc }}</dd>
           {{end}}
         </dl>
-        {{ template "note-box" (dict
+        {{ if .Collection.Writable }}{{ template "note-box" (dict
            "action" (printf "%s%s" (url "calendar.task.note" .Task.Path) $acct)
            "next" .GlobalData.URL.RequestURI
-           "label" ($.T "common.addnote") "add" ($.T "common.add")) }}
+           "label" ($.T "common.addnote") "add" ($.T "common.add")) }}{{ end }}
         {{ template "object-dates" (dict "g" $.Global
            "created" ($todo.Props.DateTime "CREATED" nil)
            "modified" ($todo.Props.DateTime "LAST-MODIFIED" nil)

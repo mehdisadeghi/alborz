@@ -5,7 +5,7 @@ go 1.27.3
 require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/ProtonMail/go-crypto v1.5.0
-	github.com/alborzmail/go-itip v0.0.0-20260929111949-05f20f0ab6b6
+	github.com/alborzmail/go-itip v0.0.0-20261023171023-8ed1a5b917c4
 	github.com/alborzmail/go-recur v0.0.0-20260929133629-dcb73b0bbb94
 	github.com/aymerick/douceur v0.2.0
 	github.com/cention-sany/utf7 v0.0.0-20170124080048-26cad61bd60a
@@ -56,8 +56,9 @@ require (
 // Our fork of go-vcard carries what upstream has not merged: an escaped
 // \; kept through a save in N and ADR (emersion/go-vcard#40), and
 // unescaped in every other text value; REV with an offset, every
-// CATEGORIES line, MEMBER and BDAY.
-replace github.com/emersion/go-vcard => github.com/alborzmail/go-vcard v0.0.0-20260928213329-9000c5176aff
+// CATEGORIES line, MEMBER and BDAY; quoted parameter lists and RFC 6868
+// parameter escaping kept separate from property text escaping.
+replace github.com/emersion/go-vcard => github.com/alborzmail/go-vcard v0.0.0-20261023171022-e1316413490a
 
 // Our fork of go-webdav carries the open upstream pull requests alborz
 // relies on (#147 #174 #179 #180 #181 #182 #194 #208 #209 #211), our
@@ -69,7 +70,7 @@ replace github.com/emersion/go-vcard => github.com/alborzmail/go-vcard v0.0.0-20
 // whose times it cannot read kept; an object a report holds that does not
 // parse handed over unparsed; the calendar scales it expands advertised
 // (RFC 7529 supported-rscale-set), and text matched by its collation.
-replace github.com/emersion/go-webdav => github.com/alborzmail/go-webdav v0.0.0-20260930185152-f4b868747ac6
+replace github.com/emersion/go-webdav => github.com/alborzmail/go-webdav v0.0.0-20261023171022-993d577ee870
 
 // Our fork of go-msgauth carries the authres parser rework upstream has
 // not merged (emersion/go-msgauth#53): quoted values and comments, and

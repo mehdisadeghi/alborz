@@ -191,9 +191,13 @@ func conditions(ifMatch, ifNoneMatch webdav.ConditionalMatch) Unless {
 }
 
 func (b calendars) DeleteCalendarObject(ctx context.Context, p string) error {
-	return b.remove(ctx, p, Calendar, "")
+	return b.remove(ctx, p, Calendar, "", "")
 }
 
 func (b calendars) DeleteCalendarObjectIfMatch(ctx context.Context, p string, ifMatch webdav.ConditionalMatch) error {
-	return b.remove(ctx, p, Calendar, ifMatch)
+	return b.remove(ctx, p, Calendar, ifMatch, "")
+}
+
+func (b calendars) DeleteCalendarObjectWithOptions(ctx context.Context, p string, opts *webdav.RemoveAllOptions) error {
+	return b.remove(ctx, p, Calendar, opts.IfMatch, opts.IfNoneMatch)
 }

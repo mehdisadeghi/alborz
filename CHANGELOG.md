@@ -11,6 +11,11 @@
 - Mail notification previews, mark-read/trash actions and validated message links.
 - Event titles in calendar reminder notifications.
 
+### Changed
+
+- Update the go-vcard, go-itip and go-webdav forks, preserving atomic DAV
+  deletion checks for both ETag preconditions.
+
 ### Fixed
 
 - Hidden DAV collections no longer appear as creation destinations.

@@ -420,11 +420,11 @@ func TestAnUploadPastTheLimitIsRefusedUnread(t *testing.T) {
 	}
 	req.Header.Set("Content-Type", w.FormDataContentType())
 	resp := c.Do(t, req)
-	if resp.StatusCode != http.StatusUnprocessableEntity || !strings.Contains(resp.Text, "larger than 16 MB") {
+	if resp.StatusCode != http.StatusUnprocessableEntity || !strings.Contains(resp.Text, "larger than 16 MiB") {
 		t.Errorf("the upload past the limit answered %s, without the limit on the form", resp.Status)
 	}
 	if n := taken.Load(); n > size/4 {
-		t.Errorf("the server took %d MB of %d before answering", n>>20, size>>20)
+		t.Errorf("the server took %d MiB of %d before answering", n>>20, size>>20)
 	}
 }
 

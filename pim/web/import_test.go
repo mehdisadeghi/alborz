@@ -95,7 +95,7 @@ func TestAnImportTheServerRefusesSetsANotice(t *testing.T) {
 		if resp.StatusCode != http.StatusUnprocessableEntity {
 			t.Fatalf("the file over the limit answered %s, want 422", resp.Status)
 		}
-		if !strings.Contains(resp.Text, "larger than 16 MB") {
+		if !strings.Contains(resp.Text, "larger than 16 MiB") {
 			t.Errorf("the import page does not state the limit")
 		}
 	})
@@ -105,7 +105,7 @@ func TestAnImportTheServerRefusesSetsANotice(t *testing.T) {
 		if resp.StatusCode != http.StatusFound {
 			t.Fatalf("the attachment over the limit answered %s, want a redirect", resp.Status)
 		}
-		if page := c.Follow(t, resp.Header.Get("Location")); !strings.Contains(page, "larger than 16 MB") {
+		if page := c.Follow(t, resp.Header.Get("Location")); !strings.Contains(page, "larger than 16 MiB") {
 			t.Errorf("the page after the attachment over the limit does not state the limit")
 		}
 	})

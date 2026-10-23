@@ -320,8 +320,8 @@
 "pgp.good" = "امضاشده"
 "pgp.bad" = "امضا نادرست"
 "pgp.verified" = "تأییدشده"
-"pgp.claimverified" = "تأییدشده: دامنهٔ %s کلید امضا را منتشر کرده و تحویل را امضا کرده است."
-"pgp.claimdomain" = "با کلیدی امضا شده که دامنهٔ %s منتشر می‌کند. تحویل توسط دامنه امضا نشده است."
+"pgp.claimverified" = "تأییدشده: دامنهٔ %s کلید امضا را منتشر می‌کند و سرور دریافت‌کننده موفقیت اعتبارسنجی دامنه را گزارش کرده است."
+"pgp.claimdomain" = "با کلیدی امضا شده که دامنهٔ %s منتشر می‌کند. اعتبارسنجی موفقی برای دامنه گزارش نشده است."
 "pgp.claimmessage" = "با کلیدی امضا شده که این نامه برای %s همراه داشت. چیز دیگری این کلید را تأیید نمی‌کند."
 "pgp.claimmessageother" = "با کلیدی امضا شده که این نامه برای %s همراه داشت. دامنه کلید دیگری منتشر می‌کند."
 "pgp.reasonunverified" = "امضا با این نامه همخوان نیست."
@@ -329,7 +329,7 @@
 "filters.new" = "فیلتر جدید"
 "filters.import" = "وارد کردن اسکریپت"
 "filters.importfile" = "فایل اسکریپت"
-"filters.importhint" = "یک اسکریپت Sieve. در ویرایشگر با نام فایل باز می‌شود و تنها پس از ذخیره اجرا می‌شود."
+"filters.importhint" = "یک اسکریپت Sieve. در ویرایشگر با نام فایل باز می‌شود. ذخیره کردن اسکریپت را به‌روز می‌کند؛ فعال‌سازی جداگانه است."
 "filters.importgo" = "باز کردن در ویرایشگر"
 "filters.title" = "فیلترها"
 "filters.unreachable" = "سرور فیلترها پاسخ نداد."
@@ -665,7 +665,7 @@
 "data.importhint" = "بایگانی‌ای که از البرز خروجی گرفته شده است. تنظیمات و مجموعه‌هایش جای هم‌نام‌هایشان را در این حساب می‌گیرند؛ چیز دیگری حذف نمی‌شود."
 "data.importgo" = "وارد کردن"
 "data.notarchive" = "این فایل بایگانی البرز نیست."
-"data.toolarge" = "بایگانی بزرگ‌تر از %d مگابایت است."
+"data.toolarge" = "بایگانی بزرگ‌تر از %d MiB است."
 "notice.dataimported" = "بایگانی وارد شد."
 "settings.encryption" = "رمزگذاری"
 "encryption.state" = "وضعیت"
@@ -857,8 +857,8 @@
 "mailbox.answered" = "پاسخ داده شده"
 "mailbox.forwarded" = "بازفرستاده شده"
 "form.perpage" = "شمار نامه‌های هر صفحه باید عددی میان ۱ و %d باشد."
-"form.signaturelong" = "امضا باید %d نویسه یا کمتر باشد."
-"form.namelong" = "نام کامل باید %d نویسه یا کمتر باشد."
+"form.signaturelong" = "امضا باید %d بایت (UTF-8) یا کمتر باشد."
+"form.namelong" = "نام کامل باید %d بایت (UTF-8) یا کمتر باشد."
 "form.firstday" = "نخستین روز هفته را انتخاب کنید."
 "form.recipientinvalid" = "این فهرست نشانی معتبر نیست."
 "mailbox.range" = "%d–%d از %d"
@@ -882,11 +882,11 @@
 "import.notzip" = "فایل zip باز نشد: %s"
 "import.zipentry" = "%s در فایل zip خوانده نشد: %s"
 "import.zipfiles" = "فایل zip بیش از %d فایل دارد."
-"import.ziplarge" = "%s در فایل zip بزرگ‌تر از %d مگابایت است."
-"import.zipsize" = "فایل zip پس از باز شدن بیش از %d مگابایت می‌شود."
+"import.ziplarge" = "%s در فایل zip بزرگ‌تر از %d MiB است."
+"import.zipsize" = "فایل zip پس از باز شدن بیش از %d MiB می‌شود."
 "import.notaddress" = "%s نشانی وب نیست."
 "import.fetchfailed" = "تقویم گرفته نشد: %s"
-"import.toolarge" = "فایل بزرگ‌تر از %d مگابایت است."
+"import.toolarge" = "فایل بزرگ‌تر از %d MiB است."
 "export.empty" = "این مجموعه خالی است."
 "export.leftout" = "%d مورد در خروجی نیامد: %s"
 "import.exportall" = "خروجی همه به‌صورت .zip"
@@ -985,7 +985,7 @@
 "settings.signaturecleardefault" = "بدون پیش‌فرض"
 "settings.signaturename" = "نام"
 "settings.signaturenone" = "بدون امضا"
-"settings.signaturehint" = "نامی برای انتخاب و متنی که زیر خط \"-- \" می‌آید. برای برداشتن یک امضا، نام یا متن آن را خالی بگذارید."
+"settings.signaturehint" = "نامی برای انتخاب و متنی که زیر خط \"-- \" می‌آید."
 "compose.signature" = "امضا"
 "compose.signatureapply" = "اعمال"
 "editor.richtext" = "متن غنی"
@@ -1000,7 +1000,7 @@
 "editor.ltr" = "چپ به راست"
 "editor.clear" = "حذف قالب‌بندی"
 "form.signaturecount" = "حداکثر %d امضا."
-"form.signaturenamelong" = "نام امضا باید %d نویسه یا کمتر باشد."
+"form.signaturenamelong" = "نام امضا باید %d بایت (UTF-8) یا کمتر باشد."
 "settings.signaturesedit" = "ویرایش امضاها"
 "settings.signaturesnone" = "هنوز امضایی نیست"
 "settings.signaturetext" = "امضا"
@@ -1009,7 +1009,7 @@
 "form.signaturetaken" = "امضایی با این نام هست."
 "calendar.week" = "هفتهٔ %s"
 "calendar.reminders" = "یادآورها"
-"calendar.remindersnote" = "در برنامهٔ دیگری تنظیم شده‌اند. البرز آنها را نشان می‌دهد اما نمی‌فرستد."
+"calendar.remindersnote" = "در برنامهٔ دیگری تنظیم شده‌اند. برای دریافت یادآورهای پشتیبانی‌شده در این مرورگر، اعلان‌ها را روشن کنید."
 "mailbox.export" = "خروجی mbox…"
 "message.downloademl" = "دانلود به‌صورت .eml"
 "invite.title" = "دعوت"
@@ -1052,7 +1052,7 @@
 "invite.noinstance" = "رویداد چنین تکراری ندارد."
 "invite.unreadable" = "تقویم این نامه خوانده نشد: %s"
 "indicator.title" = "نشانه‌های هشدار"
-"indicator.twoscanners" = "هدرهای هرزنامه از دو اسکنر، rspamd و SpamAssassin؛ فقط یکی از آن‌ها این سرور است."
+"indicator.twoscanners" = "این نامه هدرهای هرزنامهٔ هر دو اسکنر rspamd و SpamAssassin را دارد؛ منبع آن‌ها تأیید نشده است."
 "indicator.score" = "امتیاز هرزنامه در هدرها: %s."
 "indicator.scorelimit" = "امتیاز هرزنامه در هدرها: %s، هرزنامه از %s."
 "indicator.spfonly" = "احراز فرستنده: SPF %s، DKIM %s، DMARC %s. نه DKIM و نه DMARC برای دامنهٔ نویسنده تأیید شد؛ SPF فقط دامنهٔ پاکت را می‌پوشاند."
@@ -1189,7 +1189,7 @@ one = "%d مورد دیگر"
 other = "%d مورد دیگر"
 
 ["notice.emptied"]
-one = "یک نامه حذف شد."
+one = "%d نامه حذف شد."
 other = "%d نامه حذف شد."
 
 ["folder.movecount"]
@@ -1201,8 +1201,8 @@ one = "%d کار"
 other = "%d کار"
 
 ["notice.accountexpired"]
-one = "%[2]s پس از ۳۰ دقیقه عدم فعالیت از حساب خارج شد."
-other = "%[2]s پس از ۳۰ دقیقه عدم فعالیت از حساب خارج شدند."
+one = "%[2]s از حساب خارج شد. برای ادامه دوباره وارد شوید."
+other = "%[2]s از حساب خارج شدند. برای ادامه دوباره وارد شوید."
 
 ["aside.morefolders"]
 one = "%[1]d پوشهٔ دیگر"
@@ -1222,7 +1222,7 @@ other = "سرورهای %[2]s پاسخ ندادند."
 
 
 ["notice.deleted"]
-one = "یک نامه حذف شد."
+one = "%d نامه حذف شد."
 other = "%d نامه حذف شد."
 
 ["message.forwardcount"]
@@ -1238,23 +1238,23 @@ one = "%d پیوست"
 other = "%d پیوست"
 
 ["import.ics"]
-one = "یک مورد به تقویم افزوده شد."
+one = "%d مورد به تقویم افزوده شد."
 other = "%d مورد به تقویم افزوده شد."
 
 ["import.vcf"]
-one = "یک مخاطب افزوده شد."
+one = "%d مخاطب افزوده شد."
 other = "%d مخاطب افزوده شد."
 
 ["notice.flagged"]
-one = "یک نامه تغییر کرد."
+one = "%d نامه تغییر کرد."
 other = "%d نامه تغییر کرد."
 
 ["notice.tasksopen"]
-one = "یک کار دوباره باز شد."
+one = "%d کار دوباره باز شد."
 other = "%d کار دوباره باز شد."
 
 ["notice.tasksdone"]
-one = "یک کار انجام‌شده علامت خورد."
+one = "%d کار انجام‌شده علامت خورد."
 other = "%d کار انجام‌شده علامت خورد."
 
 ["notice.deleteall"]
@@ -1266,43 +1266,43 @@ one = "%d نامه دارد که برای همیشه حذف می‌شود."
 other = "%d نامه دارد که برای همیشه حذف می‌شود."
 
 ["notice.imported"]
-one = "یک نامه به %[2]s وارد شد."
+one = "%[1]d نامه به %[2]s وارد شد."
 other = "%d نامه به %s وارد شد."
 
 ["notice.importstopped"]
-one = "وارد کردن پس از یک نامه متوقف شد؛ پوشهٔ %[2]s آن را دارد."
+one = "وارد کردن پس از %[1]d نامه متوقف شد؛ نامه‌ها در پوشهٔ %[2]s هستند."
 other = "وارد کردن پس از %d نامه متوقف شد؛ پوشهٔ %s آن‌ها را دارد."
 
 ["folder.exportselectedask"]
-one = "از نامهٔ انتخاب‌شده خروجی گرفته شود؟"
+one = "از %d نامهٔ انتخاب‌شده خروجی گرفته شود؟"
 other = "از %d نامهٔ انتخاب‌شده خروجی گرفته شود؟"
 
 ["notice.importheld"]
-one = "یک مورد از پیش وجود داشت."
+one = "%d مورد از پیش وجود داشت."
 other = "%d مورد از پیش وجود داشت."
 
 ["notice.importrefused"]
-one = "سرور یک مورد را نپذیرفت."
+one = "سرور %d مورد را نپذیرفت."
 other = "سرور %d مورد را نپذیرفت."
 
 ["folder.exportcount"]
-one = "یک نامه دارد."
+one = "%d نامه دارد."
 other = "%d نامه دارد."
 
 ["aside.folderholds"]
-one = "یک نامه، %[2]d نخوانده"
+one = "%[1]d نامه، %[2]d نخوانده"
 other = "%d نامه، %d نخوانده"
 
 ["notice.changed"]
-one = "یک نامه تغییر کرد."
+one = "%d نامه تغییر کرد."
 other = "%d نامه تغییر کردند."
 
 ["notice.movedto"]
-one = "نامه به %[2]s منتقل شد."
+one = "%[1]d نامه به %[2]s منتقل شد."
 other = "%d نامه به %s منتقل شد."
 
 ["select.page"]
-one = "یک نامهٔ این صفحه انتخاب شد."
+one = "%d نامهٔ این صفحه انتخاب شد."
 other = "هر %d نامهٔ این صفحه انتخاب شد."
 
 ["select.everything"]
@@ -1310,7 +1310,7 @@ one = "انتخاب %d نامه"
 other = "انتخاب هر %d نامه"
 
 ["select.whole"]
-one = "یک نامه انتخاب شد."
+one = "%d نامه انتخاب شد."
 other = "هر %d نامه انتخاب شد."
 
 ["notice.loginpaused"]
@@ -1322,19 +1322,19 @@ one = "با %d حساب به اشتراک گذاشته شده"
 other = "با %d حساب به اشتراک گذاشته شده"
 
 ["notice.contactsdeleted"]
-one = "یک مخاطب حذف شد."
+one = "%d مخاطب حذف شد."
 other = "%d مخاطب حذف شد."
 
 ["notice.eventsdeleted"]
-one = "یک رویداد حذف شد."
+one = "%d رویداد حذف شد."
 other = "%d رویداد حذف شد."
 
 ["notice.tasksdeleted"]
-one = "یک کار حذف شد."
+one = "%d کار حذف شد."
 other = "%d کار حذف شد."
 
 ["notice.tasksmoved"]
-one = "یک کار جابه‌جا شد."
+one = "%d کار جابه‌جا شد."
 other = "%d کار جابه‌جا شد."
 
 ["since.second"]
@@ -1378,7 +1378,7 @@ one = "سرور ایمیل تنظیم %[2]s را نگه نداشت."
 other = "سرور ایمیل تنظیمات %[2]s را نگه نداشت."
 
 ["mail.status.unread"]
-one = "یک نامهٔ خوانده‌نشده"
+one = "%d نامهٔ خوانده‌نشده"
 other = "%d نامهٔ خوانده‌نشده"
 
 ["calendar.status.today"]
@@ -1398,7 +1398,7 @@ one = "%[1]d نتیجه در %[2]s"
 other = "همهٔ %[1]d نتیجه در %[2]s"
 
 ["notice.entriesdeleted"]
-one = "یک یادداشت حذف شد."
+one = "%d یادداشت حذف شد."
 other = "%d یادداشت حذف شد."
 
 ["tour.count"]

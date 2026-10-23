@@ -3,7 +3,7 @@
 "weather.status" = "آب‌وهوا"
 "weather.choose" = "انتخاب مکان"
 "weather.nostation" = "ایستگاهی در نزدیکی نیست"
-"weather.celsius" = "%d درجه"
+"weather.celsius" = "%d °C"
 "weather.wind" = "باد %d کیلومتر بر ساعت"
 "weather.precip" = "احتمال بارش %d٪"
 "weather.at" = "پیش‌بینی برای ساعت %s"

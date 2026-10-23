@@ -104,14 +104,21 @@ const page = async (event, ask) => {
 	// A navigation's answer is the page it opens, not the one it leaves.
 	const client = event.resultingClientId || event.clientId;
 	const key = pageKey(event.request);
-	const saved = await savedPage(key);
 	const patience = new AbortController();
-	// A search is as slow as the server's index, and no saved copy of
-	// one is worth more than its answer: it is waited for.
-	const bounded = saved && !new URL(event.request.url).searchParams.has("query");
-	const timer = bounded ? setTimeout(() => patience.abort(), NETWORK_WAIT) : 0;
+	let waiting = true, timer = 0;
+	// Cache storage can be slow on a phone. Start the network immediately; a live
+	// answer never waits for the offline copy. Both promises get handlers at once.
+	const network = Promise.resolve().then(() => ask(patience.signal));
+	const saved = savedPage(key).then(copy => {
+		// A search waits for the server's index, regardless of a saved copy.
+		if (waiting && copy && !new URL(event.request.url).searchParams.has("query")) {
+			timer = setTimeout(() => patience.abort(), NETWORK_WAIT);
+		}
+		return copy;
+	}, () => undefined);
 	try {
-		const answer = await ask(patience.signal);
+		const answer = await network;
+		waiting = false;
 		clearTimeout(timer);
 		tell(client, "");
 		// Not the sign-in page: it is what a purge leaves behind, and
@@ -127,10 +134,12 @@ const page = async (event, ask) => {
 		}
 		return answer;
 	} catch (failure) {
+		waiting = false;
 		clearTimeout(timer);
 		tell(client, patience.signal.aborted ? "slow" : "offline");
-		if (saved) {
-			return saved;
+		const copy = await saved;
+		if (copy) {
+			return copy;
 		}
 		throw failure;
 	}
@@ -139,7 +148,9 @@ const page = async (event, ask) => {
 // A push says only what the server rendered for this browser (ADR 74); a click brings the app to its page.
 self.addEventListener("push", event => {
 	const note = event.data.json();
-	const shown = [self.registration.showNotification(note.title, { body: note.body, tag: note.tag, icon: ICON, data: { url: note.url } })];
+	const actions = note.actions || [];
+	const shown = [self.registration.showNotification(note.title, { body: note.body, tag: note.tag, icon: ICON,
+		actions: actions.map(({ action, title }) => ({ action, title })), data: { url: note.url, actions } })];
 	if (note.badge && self.navigator.setAppBadge) {
 		shown.push(self.navigator.setAppBadge().catch(() => {}));
 	}
@@ -162,16 +173,33 @@ self.addEventListener("pushsubscriptionchange", event => {
 	}));
 });
 
-self.addEventListener("notificationclick", event => {
-	event.notification.close();
-	const url = new URL(event.notification.data.url, self.location.origin).href;
-	event.waitUntil(self.clients.matchAll({ type: "window" }).then(windows => {
+const openNotification = async url => {
+	if (new URL(url, self.location.origin).origin !== self.location.origin) { return; }
+	url = new URL(url, self.location.origin).href;
+	return self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(windows => {
 		const open = windows.find(w => new URL(w.url).origin === self.location.origin);
 		if (!open) {
 			return self.clients.openWindow(url);
 		}
 		return open.focus().then(w => w.navigate(url));
-	}));
+	});
+};
+
+self.addEventListener("notificationclick", event => {
+	event.notification.close();
+	const data = event.notification.data;
+	event.waitUntil((async () => {
+		const action = (data.actions || []).find(action => action.action === event.action);
+		if (action && new URL(action.url, self.location.origin).origin === self.location.origin) {
+			try {
+				const response = await fetch(action.url, { method: "POST", credentials: "same-origin", redirect: "manual",
+					headers: { "Alborz-Notification": "1" }, body: new URLSearchParams({ action: action.action }) });
+				if (response.status === 204) { return; }
+			} catch (_) { /* Opening the message lets the reader retry after a lost connection. */ }
+		}
+		// A locked or signed-out session opens this exact message after authentication.
+		return openNotification(data.url);
+	})());
 });
 
 self.addEventListener("fetch", event => {

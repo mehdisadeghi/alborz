@@ -199,11 +199,16 @@ func (p *plugin) updateEvent(ctx *web.Context) error {
 	}
 
 	if ctx.Request().Method == "POST" {
+		var quickError error
+		if e.creating() && ctx.FormValue("quick") == "event" {
+			quickError = readQuickEvent(ctx)
+		}
 		summary := ctx.FormValue("summary")
 		description := ctx.FormValue("description")
 
 		// Invalid input re-renders the form with an alert, never a status page.
 		reject := func(message string) error {
+			event.Props.SetText(ical.PropSummary, summary)
 			rail, err := p.eventRail(ctx)
 			if err != nil {
 				return err
@@ -230,6 +235,9 @@ func (p *plugin) updateEvent(ctx *web.Context) error {
 		}
 		if err != nil {
 			return err
+		}
+		if quickError != nil {
+			return reject(ctx.T("calendar.quick.invalid"))
 		}
 		creating := e.creating()
 		if event.Props.Get(ical.PropUID) == nil {

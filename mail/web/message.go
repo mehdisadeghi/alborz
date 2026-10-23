@@ -296,6 +296,7 @@ func (d *MessageRenderData) UnsubscribeExternal() bool {
 // unsubscribeHref is where the unsubscribe control sends the reader: the list's page, or compose with mail as its fields.
 func unsubscribeHref(ctx *web.Context, mail url.Values, msg *mail.IMAPMessage) string {
 	if mail != nil {
+		mail.Set("account", ctx.Login.Username())
 		return web.QueryPath(ctx.Path("mail.compose"), mail)
 	}
 	return msg.ListUnsubscribe
@@ -307,6 +308,7 @@ type listLinks struct{ Help, Subscribe, Owner string }
 // A mailto opens this account's compose page, not whatever mail app the machine has.
 func listHref(ctx *web.Context, uri string) string {
 	if q := mail.Mailto(uri); q != nil {
+		q.Set("account", ctx.Login.Username())
 		return web.QueryPath(ctx.Path("mail.compose"), q)
 	}
 	return uri

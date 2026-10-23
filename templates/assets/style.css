@@ -1579,8 +1579,7 @@ main.message .message-header .parts > summary::before,
 .info-explain > summary::before,
 details.info-card > summary::before,
 aside details.folder-branch summary::before,
-aside details.acct-folders > summary::before,
-aside div.acct-folders > a.aside-account::before {
+aside details.acct-folders > summary::before {
   content: "\203A";
   transition: transform 0.1s ease-out;
 }
@@ -1593,8 +1592,7 @@ aside details.acct-folders[open] > summary::before { transform: rotate(90deg); }
 :root:dir(rtl) .info-explain > summary::before,
 :root:dir(rtl) details.info-card > summary::before,
 :root:dir(rtl) aside details.folder-branch summary::before,
-:root:dir(rtl) aside details.acct-folders > summary::before,
-:root:dir(rtl) aside div.acct-folders > a.aside-account::before { transform: rotate(180deg); }
+:root:dir(rtl) aside details.acct-folders > summary::before { transform: rotate(180deg); }
 :root:dir(rtl) main.message .message-header .parts[open] > summary::before,
 :root:dir(rtl) .info-explain[open] > summary::before,
 :root:dir(rtl) details.info-card[open] > summary::before,
@@ -3506,6 +3504,11 @@ aside details.folder-branch details.folder-branch > ul > li {
   text-decoration: line-through;
 }
 
+.task-summary { min-width: 0; width: 100%; }
+.task-summary > a, .task-parent { display: block; }
+.task-parent { color: var(--fg-muted); font-size: 0.85em; }
+.task-row.completed .task-parent a { color: var(--fg-muted); text-decoration: none; }
+
 .task-list-status { gap: var(--space-2); }
 
 /* The star's chevron hangs past its track, so the status starts clear of it. */
@@ -4370,8 +4373,7 @@ aside .filter-row.nested {
   padding-inline-start: calc(var(--space-2) + 1.25rem);
 }
 
-aside details.acct-folders > summary.aside-account,
-aside div.acct-folders > a.aside-account {
+aside details.acct-folders > summary.aside-account {
   cursor: pointer;
   list-style: none;
   padding: 0.4rem var(--space-1) 0.2rem;
@@ -4383,14 +4385,12 @@ aside div.acct-folders > a.aside-account {
 }
 
 aside > details.acct-folders,
-aside > div.acct-folders,
 aside > ul.rail-views,
 aside > ul.rail-views > li.folder-li > details.folder-branch {
   width: 100%;
 }
 
 aside > details.acct-folders > summary.aside-account,
-aside > div.acct-folders > a.aside-account,
 aside > ul.rail-views > li.folder-li > details.folder-branch > summary {
   display: flex;
   width: 100%;
@@ -4408,17 +4408,11 @@ aside a.aside-account:hover {
   text-decoration: underline;
 }
 
-/* An account out of scope links into its collections, so the chevron signals that next level. */
-aside div.acct-folders > a.aside-account {
-  color: var(--fg-muted);
-}
-
 aside details.acct-folders > summary::-webkit-details-marker {
   display: none;
 }
 
-aside details.acct-folders > summary::before,
-aside div.acct-folders > a.aside-account::before {
+aside details.acct-folders > summary::before {
   flex: none;
   width: var(--rail-chevron-track);
   align-self: stretch;
@@ -4430,8 +4424,7 @@ aside div.acct-folders > a.aside-account::before {
 
 /* A touch target is the row; the branch chevron shares its row with a link, so it has its own. */
 @media (hover: none) {
-  aside details.acct-folders > summary.aside-account,
-  aside div.acct-folders > a.aside-account { min-height: 2.75rem; }
+  aside details.acct-folders > summary.aside-account { min-height: 2.75rem; }
 }
 
 aside details.acct-folders li {
@@ -4625,18 +4618,9 @@ html[data-swipe-navigation="on"] :is([data-swipe-nav], [data-swipe-calendar]) { 
   outline-offset: -2px;
 }
 
-/* A sheet along the bottom; what it points at keeps clear of it. */
-@media (width <= 600px) {
-  .tour,
-  .tour-anchored {
-    inset: auto var(--space-2) var(--space-2);
-    width: auto;
-    max-width: none;
-    margin: 0;
-    position-area: none;
-  }
-
-  .tour-target { scroll-margin-block-end: 16rem; }
+/* The desktop tour cannot point at the phone's hidden controls. Hide it before its script loads. */
+@media (width <= 600px), (pointer: coarse) {
+  .tour { display: none; }
 }
 
 /* In the crumb's box: a bar arriving above the rows would move them under the hand. */

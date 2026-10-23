@@ -19,8 +19,11 @@ type TaskRenderData struct {
 	Task calendar.TaskObject
 	// Authors are who added and last changed the object, where another account.
 	// List is the list the page was opened from.
-	Star     string
-	Priority string
+	Star        string
+	Priority    string
+	Parent      *TaskLink
+	Children    []TaskLink
+	ChildCreate string
 }
 
 type UpdateTaskRenderData struct {
@@ -31,6 +34,7 @@ type UpdateTaskRenderData struct {
 	// Priority is the band the select holds; PriorityBands the bands offered.
 	Priority      string
 	PriorityBands []string
+	Parent        *TaskLink
 }
 
 func (p *plugin) task(ctx *web.Context) error {
@@ -50,12 +54,17 @@ func (p *plugin) task(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
+	parent, children, err := taskRelations(ctx, e)
+	if err != nil {
+		return err
+	}
 	return ctx.Render(http.StatusOK, "tasks/task", &TaskRenderData{
 		CalendarObjectRenderData: pimweb.NewObjectRenderData(ctx, summary, rail, e.collection,
 			p.DAV.Authors(task.Path, ctx.Login.Username()), cmp.Or(ctx.From(), web.QueryPath(ctx.Path("calendar.tasks"), web.ReadListState(ctx).Keep(taskListParams...))), calendar.ComponentColor(todo), pimweb.Around(list.Items, path)),
 		Task:     calendar.TaskObject{CalendarObject: task},
 		Star:     calendar.ComponentColor(todo),
 		Priority: calendar.PriorityBand(todo),
+		Parent:   parent, Children: children, ChildCreate: childCreateURL(ctx, e),
 	})
 }
 func (p *plugin) updateTask(ctx *web.Context) error {
@@ -71,6 +80,10 @@ func (p *plugin) updateTask(ctx *web.Context) error {
 		return err
 	}
 	todo := e.component
+	parent, err := p.newSubtask(ctx, e)
+	if err != nil {
+		return err
+	}
 
 	if ctx.Request().Method == "POST" {
 		summary := ctx.FormValue("summary")
@@ -88,6 +101,7 @@ func (p *plugin) updateTask(ctx *web.Context) error {
 		}
 
 		reject := func(message string) error {
+			todo.Props.SetText(ical.PropSummary, summary)
 			rail, err := p.taskRail(ctx)
 			if err != nil {
 				return err
@@ -98,12 +112,16 @@ func (p *plugin) updateTask(ctx *web.Context) error {
 				Due:                            dueDate,
 				Priority:                       band,
 				PriorityBands:                  calendar.PriorityBands,
+				Parent:                         parent,
 			})
 		}
 		if summary == "" {
 			return reject(ctx.T("form.summaryneeded"))
 		}
 
+		if parent != nil && (len(e.groups) == 0 || ctx.FormValue("calendar") != ctx.Login.Username()+"|"+e.collection.Path) {
+			return reject(ctx.T("form.destinationneeded"))
+		}
 		to, err := e.destination(ctx, p, calendar.SupportsTodo)
 		if handled, refusal := pimweb.DestinationRefusal(ctx, err, reject); handled {
 			return refusal
@@ -169,5 +187,6 @@ func (p *plugin) updateTask(ctx *web.Context) error {
 		Due:                            ctx.Dates().Input(at),
 		Priority:                       calendar.PriorityBand(todo),
 		PriorityBands:                  calendar.PriorityBands,
+		Parent:                         parent,
 	})
 }

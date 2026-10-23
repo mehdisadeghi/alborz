@@ -13,7 +13,7 @@ const composeBodySize = web.MaxAttachmentSize + web.MaxFormSize
 
 func (p *plugin) registerRoutes(g *web.Group) {
 	g.GET("home", "/{$}", func(ctx *web.Context) error {
-		return ctx.FoundRedirect(ctx.Path("mail.mailbox", "INBOX"))
+		return ctx.FoundRedirect(ctx.DefaultPath())
 	})
 
 	g.GET("mailbox", "/mailbox/{mbox}", p.handleGetMailbox)
@@ -33,6 +33,8 @@ func (p *plugin) registerRoutes(g *web.Group) {
 	g.Page("mailbox.delete", "/delete-mailbox/{mbox}", p.handleDeleteMailbox)
 
 	g.GET("message", "/message/{mbox}/{uid}", p.handleGetPart)
+	g.POST("message.notification", "/message/{mbox}/{uid}/notification", p.handleNotificationAction)
+	g.GET("message.notification.open", "/message/{mbox}/{uid}/notification", handleNotificationOpen)
 	g.Verbatim("message.raw", "/message/{mbox}/{uid}/raw", handleRaw)
 	g.GET("message.signature", "/message/{mbox}/{uid}/signature", p.handleSignature)
 	g.Download("message.attachments", "/message/{mbox}/{uid}/attachments.zip", handleDownloadAttachments)

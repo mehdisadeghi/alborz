@@ -1523,7 +1523,17 @@ document.addEventListener("htmx:confirm", ev => {
 
 	document.addEventListener("click", ev => {
 		const p = parts();
-		if (!p || !ev.target.closest || ev.target.closest(".search-dialog-view") !== p.chip) {
+		if (!p) {
+			return;
+		}
+		if (p.dialog.open && ev.target === p.dialog) {
+			const box = p.dialog.getBoundingClientRect();
+			if (ev.clientX < box.left || ev.clientX >= box.right || ev.clientY < box.top || ev.clientY >= box.bottom) {
+				p.dialog.close();
+			}
+			return;
+		}
+		if (!ev.target.closest || ev.target.closest(".search-dialog-view") !== p.chip) {
 			return;
 		}
 		choose(p, { value: p.view.value });

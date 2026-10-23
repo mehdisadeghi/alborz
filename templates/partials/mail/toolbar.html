@@ -7,7 +7,7 @@
 {{ $hreset := "?" }}{{ if ne $hplain "" }}{{ $hreset = printf "?%s" (slice $hplain 1) }}{{ end }}
 {{ $asked := or .Query .ListView }}
 {{ $empty := and .Mailbox.IsEmpty (not $asked) }}
-{{ template "toolbar-head" (dict "g" . "selectall" true "newhref" (url "mail.compose") "newlabel" ($.T "aside.compose") "newicon" "compose") }}
+{{ template "toolbar-head" (dict "g" . "selectall" true "newhref" (print (url "mail.compose") $.GlobalData.AccountQuery) "newlabel" ($.T "aside.compose") "newicon" "compose") }}
     {{$common := .CategorizedMailboxes.Common}}
     {{$archive := ""}}{{with $common.Archive}}{{$archive = .Info.Name}}{{end}}
     {{$junk := ""}}{{with $common.Junk}}{{$junk = .Info.Name}}{{end}}

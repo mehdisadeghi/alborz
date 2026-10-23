@@ -3,6 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
     {{- range .GlobalData.ThemeColors}}
     <meta name="theme-color" content="{{.Color}}"{{with .Scheme}} media="(prefers-color-scheme: {{.}})" data-scheme="{{.}}"{{end}}>
     {{- end}}
@@ -23,7 +24,8 @@
     <link rel="stylesheet" href="{{call .GlobalData.Asset "custom.css"}}">
     {{- end}}
     <link rel="stylesheet" href="{{call .GlobalData.Asset "print.css"}}" media="print">
-    <link rel="manifest" href="{{url "core.manifest"}}">
+    <link rel="manifest" href="{{url "core.manifest"}}" crossorigin="use-credentials">
+    <link rel="apple-touch-icon" href="{{call .GlobalData.Asset "icon-192.png"}}">
     <link rel="icon" type="image/png" href="{{call .GlobalData.Asset "favicon-196x196.png"}}" sizes="196x196" />
     <link rel="icon" type="image/png" href="{{call .GlobalData.Asset "favicon-96x96.png"}}" sizes="96x96" />
     <link rel="icon" type="image/png" href="{{call .GlobalData.Asset "favicon-32x32.png"}}" sizes="32x32" />

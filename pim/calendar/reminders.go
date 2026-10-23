@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode"
 
 	"git.mehdix.org/alborz"
 	"github.com/emersion/go-ical"
@@ -20,6 +21,8 @@ type Reminder struct {
 	At, Start time.Time
 	// UID names the event; Path is its object.
 	UID, Path string
+	// Summary is a bounded plain-text notification preview, separate from alarm identity.
+	Summary string
 }
 
 // Reminders are the login's alarms due after from and at or before to, over every event calendar, each
@@ -53,6 +56,8 @@ func (p *Calendars) Reminders(ctx context.Context, login *alborz.Login, loc *tim
 					r := Reminder{At: at, Start: o.Start, UID: o.UID(), Path: o.Path}
 					if ok && at.After(from) && !at.After(to) && !seen[r] {
 						seen[r] = true
+						summary, _ := o.Event.Props.Text(ical.PropSummary)
+						r.Summary = reminderSummary(summary)
 						out = append(out, r)
 					}
 				}
@@ -60,6 +65,36 @@ func (p *Calendars) Reminders(ctx context.Context, login *alborz.Login, loc *tim
 		}
 	}
 	return out, errors.Join(errs...)
+}
+
+// SUMMARY is iCalendar text, never markup. Collapse whitespace and strip controls while
+// copying only enough characters for the notification, even when the source is very large.
+func reminderSummary(text string) string {
+	const limit = 180
+	out := make([]rune, 0, limit)
+	space := false
+	for _, r := range text {
+		if unicode.IsSpace(r) {
+			space = len(out) > 0
+			continue
+		}
+		// Keep joiners used by languages and emoji, while removing bidi controls.
+		if unicode.IsControl(r) || (unicode.Is(unicode.Cf, r) && r != '\u200c' && r != '\u200d') {
+			continue
+		}
+		if space {
+			if len(out) == limit {
+				return string(out[:limit-1]) + "…"
+			}
+			out = append(out, ' ')
+			space = false
+		}
+		if len(out) == limit {
+			return string(out[:limit-1]) + "…"
+		}
+		out = append(out, r)
+	}
+	return string(out)
 }
 
 // due is when alarm fires for the occurrence: a trigger relative to its start or, with RELATED=END, its

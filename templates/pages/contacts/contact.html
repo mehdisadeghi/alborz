@@ -20,7 +20,7 @@
           {{end}}
           {{range .AddressObject.Card.Values "EMAIL"}}
           <dt>{{$.T "contacts.email"}}</dt>
-          <dd><a href="{{ localhref (printf "/compose?to=%s" (. | qv)) }}">{{ template "ltr" . }}</a></dd>
+          <dd><a href="{{ localhref (printf "%s?to=%s%s" (url "mail.compose") (. | qv) (account "&" $.GlobalData.URLAccount)) }}">{{ template "ltr" . }}</a></dd>
           {{end}}
           {{range .AddressObject.Card.Values "TEL"}}
           <dt>{{$.T "contacts.phone"}}</dt>

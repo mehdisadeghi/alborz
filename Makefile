@@ -7,6 +7,24 @@ ARGS ?=
 
 .PHONY: build run watch fmt lint vuln test test-js login-key
 
+# Keep agent/developer test outputs and temporary fixtures inside the checkout.
+PACKAGES ?= ./...
+TESTDIR ?= .
+TESTFLAGS ?=
+.PHONY: test-local vet-local security-local local-dirs
+test-local vet-local security-local: export GOCACHE = $(CURDIR)/.local/go-build
+test-local vet-local security-local: export GOTMPDIR = $(CURDIR)/.local/go-tmp
+test-local vet-local security-local: export TMPDIR = $(CURDIR)/.local/tmp
+local-dirs:
+	mkdir -p .local/go-build .local/go-tmp .local/tmp
+test-local vet-local security-local: local-dirs
+test-local:
+	$(GO) -C $(TESTDIR) test $(TESTFLAGS) $(PACKAGES)
+vet-local:
+	$(GO) vet $(PACKAGES)
+security-local:
+	$(GO) run golang.org/x/vuln/cmd/govulncheck@latest -scan=symbol -show=verbose ./...
+
 build:
 	$(GO) build -o alborz ./cmd/alborz
 

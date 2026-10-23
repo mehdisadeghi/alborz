@@ -58,6 +58,7 @@ func Mount(s *web.Server, options Options) error {
 	}
 	filtersweb.Mount(app.Group("/filters", "filters"))
 	web.StatusRoutes(app)
+	web.TourRoutes(app)
 	web.SearchRoutes(app)
 	for _, register := range addonRegistrations {
 		if err := register(app, options); err != nil {

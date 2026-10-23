@@ -30,6 +30,10 @@
       <section class="details">
         {{ template "object-title" (dict "g" $ "title" $summary "class" (and (eq $status "COMPLETED") "completed") "form" "task-color-form" "action" (printf "%s%s" (url "calendar.task.color" .Task.Path) $acct) "current" .Star "readonly" (not .Collection.Writable)) }}
         <dl>
+          {{ with .Parent }}
+          <dt>{{$.T "tasks.subtask.parent"}}</dt>
+          <dd><a href="{{.Href}}" dir="auto">{{.Summary}}</a></dd>
+          {{ end }}
           <dt>{{$.T "tasks.status"}}</dt>
           <dd>{{if eq $status "COMPLETED"}}{{$.T "tasks.completed"}}{{else}}{{$.T "tasks.pending"}}{{end}}</dd>
           {{ with .Priority }}
@@ -45,6 +49,16 @@
           <dd>{{ template "user-text" $desc }}</dd>
           {{end}}
         </dl>
+        <section class="subtasks">
+          <h2>{{$.T "tasks.subtask.children"}}</h2>
+          {{ if .Children }}
+          <ul>
+            {{ range .Children }}<li{{ if .Completed }} class="completed"{{ end }}><a href="{{.Href}}" dir="auto">{{.Summary}}</a> · {{if .Completed}}{{$.T "tasks.completed"}}{{else}}{{$.T "tasks.pending"}}{{end}}</li>{{ end }}
+          </ul>
+          <p class="hint">{{$.T "tasks.subtask.independent"}}</p>
+          {{ end }}
+          {{ if .Collection.Writable }}<a href="{{.ChildCreate}}" class="button-link">{{$.T "tasks.subtask.add"}}</a>{{ end }}
+        </section>
         {{ if .Collection.Writable }}{{ template "note-box" (dict
            "action" (printf "%s%s" (url "calendar.task.note" .Task.Path) $acct)
            "next" .GlobalData.URL.RequestURI

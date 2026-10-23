@@ -105,8 +105,3 @@ body:has(> .scene) {
 @media print {
   .scene { display: none; }
 }
-
-:root:has(> canvas.season) .page-wrap {
-  position: relative;
-  z-index: 2;
-}

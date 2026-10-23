@@ -52,7 +52,6 @@ func TestALockedSessionReachesOnlyTheWayBackIn(t *testing.T) {
 	if len(routes) < 100 {
 		t.Fatalf("only %d routes mounted; the check would pass on too few", len(routes))
 	}
-	c := a.Client()
 	named := map[string]bool{}
 	for _, r := range routes {
 		named[r.Name] = true
@@ -66,11 +65,28 @@ func TestALockedSessionReachesOnlyTheWayBackIn(t *testing.T) {
 				t.Fatal(err)
 			}
 			req.AddCookie(session)
-			resp := c.Do(t, req)
+			// Every probe is a fresh client with the same cookie: opening a new tab cannot bypass the lock.
+			resp := a.Client().Do(t, req)
 			to, _ := resp.Location()
 			locked := resp.StatusCode == http.StatusSeeOther && to != nil && to.Path == a.Path("auth.unlock")
 			if locked == lockOpen[r.Name] {
 				t.Errorf("%s %s (%q): %d to %v, locked=%v", method, path, r.Name, resp.StatusCode, to, locked)
+			}
+			if r.Name == "mail.message" && method == http.MethodGet {
+				req.Header.Set("Alborz-Unasked", "1")
+				background := a.Client().Do(t, req)
+				if background.StatusCode != http.StatusNoContent || background.Text != "" {
+					t.Errorf("locked background read returned %d with %d bytes", background.StatusCode, len(background.Text))
+				}
+				req.Header.Del("Alborz-Unasked")
+				req.Header.Set("HX-Request", "true")
+				fragment := a.Client().Do(t, req)
+				if !strings.HasPrefix(fragment.Header.Get("HX-Redirect"), a.Path("auth.unlock")) || fragment.Text != "" {
+					t.Errorf("locked fragment exposed data or failed to leave for unlock: %d", fragment.StatusCode)
+				}
+				if fragment.Header.Get("Cache-Control") != "no-store" {
+					t.Error("a passkey-protected response could be saved offline")
+				}
 			}
 		}
 	}

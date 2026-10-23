@@ -124,6 +124,12 @@ func handleProfile(ctx *web.Context) error {
 		return render(http.StatusUnprocessableEntity, ctx.T("form.swipeaction"), shown)
 	}
 	reading := &p.Reading
+	if v, ok := given("start_page"); ok {
+		if !slices.Contains([]string{"", "mail", "calendar", "contacts", "tasks", "journal"}, v) {
+			return render(http.StatusUnprocessableEntity, ctx.T("form.startpage"), shown)
+		}
+		reading.StartPage = v
+	}
 	if v, ok := given("messages_per_page"); ok {
 		reading.MessagesPerPage, err = locale.ReadInt(v)
 		if err != nil || reading.MessagesPerPage <= 0 || reading.MessagesPerPage > web.MaxMessagesPerPage {
@@ -153,6 +159,12 @@ func handleProfile(ctx *web.Context) error {
 		p.Writing.ReplyBelowQuote = v == "below"
 	}
 	p.Writing.NoDirectionPart = ctx.FormValue("direction_part") == ""
+	if _, ok := sent["pool_signatures"]; ok || sent["writing_preferences"] != nil {
+		p.Writing.PoolSignatures = ctx.FormValue("pool_signatures") != ""
+	}
+	if _, ok := sent["include_attribution"]; ok || sent["writing_preferences"] != nil {
+		p.Writing.NoAttribution = ctx.FormValue("include_attribution") == ""
+	}
 	if v, ok := given("theme"); ok {
 		p.Display.Theme = ""
 		if slices.ContainsFunc(ctx.Themes(), func(t web.Theme) bool { return t.Name == v }) {

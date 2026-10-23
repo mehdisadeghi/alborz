@@ -33,8 +33,9 @@ type ComposeRenderData struct {
 	// Identities offered in the From dropdown, one entry per account.
 	Identities []AccountIdentities
 	// Signatures the account holds, and the one under the message now.
-	Signatures []mail.Signature
-	Signature  string
+	Signatures     []SignatureChoice
+	Signature      string
+	PoolSignatures bool
 	// Suggestions are addresses the recipient fields offer.
 	Suggestions []string
 	// Reply opens the text at its end, below the quote.
@@ -49,14 +50,14 @@ type AccountIdentities struct {
 	Addresses []string
 }
 
-func (p *plugin) composeRenderData(ctx *web.Context, base *IMAPBaseRenderData, msg *mail.OutgoingMessage, options *mail.ComposeOptions, settings *mail.Settings, signature string) *ComposeRenderData {
+func (p *plugin) composeRenderData(ctx *web.Context, base *IMAPBaseRenderData, msg *mail.OutgoingMessage, options *mail.ComposeOptions, signature string) *ComposeRenderData {
 	return &ComposeRenderData{
 		IMAPBaseRenderData: *base,
 		Message:            msg,
 		Attached:           attachedList(msg),
 		Identities:         composeIdentities(ctx, msg.From),
-		Signatures:         settings.Signatures,
 		Signature:          signature,
+		PoolSignatures:     ctx.Profile().Writing.PoolSignatures,
 		Suggestions:        suggestions(ctx),
 		Reply:              options.InReplyTo != nil,
 		LocalImage:         p.images.String(),
@@ -65,7 +66,16 @@ func (p *plugin) composeRenderData(ctx *web.Context, base *IMAPBaseRenderData, m
 
 func (p *plugin) renderCompose(ctx *web.Context, status int, base *IMAPBaseRenderData, msg *mail.OutgoingMessage, options *mail.ComposeOptions, settings *mail.Settings, signature, refusal string) error {
 	base.WithTitle(ctx.T("aside.compose")).Refused(refusal)
-	return ctx.Render(status, "mail/compose", p.composeRenderData(ctx, base, msg, options, settings, signature))
+	data := p.composeRenderData(ctx, base, msg, options, signature)
+	var err error
+	data.Signatures, err = composeSignatures(ctx, settings)
+	if err != nil {
+		return err
+	}
+	if ctx.Request().Method == http.MethodGet && signature != "" && ctx.Profile().Writing.PoolSignatures {
+		data.Signature = signatureValue(ctx.Login.Username(), signature)
+	}
+	return ctx.Render(status, "mail/compose", data)
 }
 
 // The address written as is offered even when unlisted, so the dropdown can select it.
@@ -170,6 +180,9 @@ func attachedRef(p mail.MessagePath) string {
 
 // The sender is the From account; the draft and the answered message stay on the request's account.
 func (p *plugin) submitCompose(ctx *web.Context, sender *alborz.Login, msg *mail.OutgoingMessage, options *mail.ComposeOptions) error {
+	if !ctx.Profile().Writing.NoAttribution {
+		msg = attributed(msg)
+	}
 	sent, sentUID, to, err := p.Submit(ctx.Request().Context(), ctx.Login, sender, msg, options)
 	if errors.Is(err, mail.ErrSendUncertain) {
 		ctx.Logger().Printf("send outcome uncertain: %v", err)
@@ -379,12 +392,18 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *mail.OutgoingMessage, opti
 		// A signature change keeps the same uploads and message as a refused send.
 		if _, ok := formParams["signature_apply"]; ok {
 			chosen := ctx.FormValue("signature")
-			sig, _ := settings.SignatureNamed(chosen)
+			sig, err := chosenSignature(ctx, settings, chosen)
+			if errors.Is(err, errSignatureUnavailable) {
+				return render(http.StatusUnprocessableEntity, "", ctx.T("mail.signatureunavailable"))
+			}
+			if err != nil {
+				return err
+			}
 			msg.Text = mail.WithSignature(msg.Text, sig.Text)
 			if msg.HTML != "" {
 				msg.HTML = mail.WithSignatureHTML(msg.HTML, sig.Text)
 			}
-			return render(http.StatusOK, sig.Name, "")
+			return render(http.StatusOK, chosen, "")
 		}
 
 		// A draft may be addressed later; a message with nowhere to go is not sent.
@@ -404,8 +423,7 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *mail.OutgoingMessage, opti
 		})
 	}
 
-	ibase.WithTitle(ctx.T("aside.compose"))
-	return ctx.Render(http.StatusOK, "mail/compose", p.composeRenderData(ctx, ibase, msg, options, settings, options.Signature))
+	return p.renderCompose(ctx, http.StatusOK, ibase, msg, options, settings, options.Signature, "")
 }
 
 // suggestions are what the features offer, each entry once, sorted.
@@ -432,6 +450,9 @@ func (p *plugin) handleComposeNew(ctx *web.Context) error {
 		q := mail.Mailto(uri)
 		if q == nil {
 			return web.NewError(http.StatusBadRequest, ctx.T("compose.notmailto"))
+		}
+		if ctx.URLAccount() != "" {
+			q.Set("account", ctx.URLAccount())
 		}
 		return ctx.FoundRedirect(web.QueryPath(ctx.Path("mail.compose"), q))
 	}

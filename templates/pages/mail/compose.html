@@ -134,7 +134,7 @@
           <select name="signature" id="signature">
             <option value="">{{$.T "settings.signaturenone"}}</option>
             {{ range .Signatures }}
-            <option value="{{.Name}}"{{ if eq .Name $.Signature }} selected{{ end }}>{{.Name}}</option>
+            <option value="{{.Value}}"{{ if eq .Value $.Signature }} selected{{ end }}>{{.Name}}{{ if $.PoolSignatures }} · {{.Account}}{{ end }}</option>
             {{ end }}
           </select>
           <button type="submit" name="signature_apply" value="1" formnovalidate

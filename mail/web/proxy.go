@@ -6,7 +6,6 @@ import (
 	"mime"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
 
@@ -42,17 +41,9 @@ func handleProxy(ctx *web.Context) error {
 	}
 	defer resp.Body.Close()
 
-	mediaType, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
-	if err != nil || !strings.HasPrefix(mediaType, "image/") {
-		return web.NewError(http.StatusBadRequest, "invalid resource type")
-	}
-
-	size, err := strconv.Atoi(resp.Header.Get("Content-Length"))
-	if err == nil {
-		if size > proxyMaxSize {
-			return web.NewError(http.StatusBadRequest, "invalid resource length")
-		}
-		ctx.Response().Header().Set("Content-Length", strconv.Itoa(size))
+	body, mediaType, err := proxyImageBody(resp)
+	if err != nil {
+		return err
 	}
 
 	ctx.Response().Header().Set("Cache-Control", proxyCacheControl)
@@ -60,6 +51,30 @@ func handleProxy(ctx *web.Context) error {
 	ctx.Response().Header().Set("X-Content-Type-Options", "nosniff")
 	ctx.Response().Header().Set("Content-Disposition", "inline")
 
-	lr := io.LimitedReader{R: resp.Body, N: int64(proxyMaxSize)}
-	return ctx.Stream(http.StatusOK, mediaType, &lr)
+	return ctx.Blob(http.StatusOK, mediaType, body)
+}
+
+// Buffer the bounded response before committing: truncated images must not be cached as successes.
+func proxyImageBody(resp *http.Response) ([]byte, string, error) {
+	if resp.StatusCode != http.StatusOK {
+		return nil, "", web.NewError(http.StatusBadGateway, "image server refused the request")
+	}
+	if resp.ContentLength > int64(proxyMaxSize) {
+		return nil, "", web.NewError(http.StatusBadRequest, "invalid resource length")
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, int64(proxyMaxSize)+1))
+	if err != nil {
+		return nil, "", err
+	}
+	if len(body) > proxyMaxSize {
+		return nil, "", web.NewError(http.StatusBadRequest, "invalid resource length")
+	}
+	mediaType, _, _ := mime.ParseMediaType(resp.Header.Get("Content-Type"))
+	if mediaType == "" || mediaType == "application/octet-stream" {
+		mediaType = http.DetectContentType(body)
+	}
+	if !strings.HasPrefix(mediaType, "image/") {
+		return nil, "", web.NewError(http.StatusBadRequest, "invalid resource type")
+	}
+	return body, mediaType, nil
 }

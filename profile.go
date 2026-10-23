@@ -24,6 +24,8 @@ type Place struct {
 }
 
 type Reading struct {
+	// StartPage is the section opened at the root URL; empty keeps mail.
+	StartPage       string
 	MessagesPerPage int
 	Timezone        string
 	// FirstDayOfWeek counts as ISO 8601 does, 1 for Monday to 7 for Sunday; 0 was never chosen.
@@ -35,6 +37,9 @@ type Reading struct {
 }
 
 type Writing struct {
+	PoolSignatures bool
+	// NoAttribution is negative so existing profiles include the application footer.
+	NoAttribution   bool
 	ReplyBelowQuote bool
 	// NoDirectionPart is negative so the zero value keeps the part.
 	NoDirectionPart bool

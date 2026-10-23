@@ -1,6 +1,7 @@
 package web
 
 import (
+	"net/http"
 	"net/url"
 	"slices"
 	"strings"
@@ -55,6 +56,7 @@ type TourShown struct {
 type Tour struct {
 	Stops []TourShown
 	At    int
+	Seen  bool
 }
 
 // tour is the tour a request names, nil for none; page is the request's URL without it.
@@ -63,7 +65,7 @@ func (ctx *Context) tour(page *url.URL, scope string) *Tour {
 	if at < 0 {
 		return nil
 	}
-	t := &Tour{At: at, Stops: make([]TourShown, len(tourStops))}
+	t := &Tour{At: at, Seen: ctx.Profile().Toured, Stops: make([]TourShown, len(tourStops))}
 	for i, stop := range tourStops {
 		t.Stops[i] = TourShown{TourStop: stop, Href: ctx.tourHref(stop, page, scope), Number: i + 1}
 	}
@@ -111,7 +113,7 @@ func withoutTour(u *url.URL) *url.URL {
 	return &out
 }
 
-// OfferTour is where a sign-in lands: path, with the tour open at its first stop for a reader it never opened for (ADR 76).
+// OfferTour offers the first stop until a desktop browser acknowledges displaying it.
 func (ctx *Context) OfferTour(path string) (string, error) {
 	if ctx.Profile().Toured {
 		return path, nil
@@ -120,9 +122,17 @@ func (ctx *Context) OfferTour(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if err := ctx.UpdateProfile(func(p *alborz.Profile) { p.Toured = true }); err != nil {
-		ctx.Logger().Printf("tour: no account kept the offer: %v", err)
-		return path, nil
-	}
 	return TourStart(withoutTour(u)), nil
+}
+
+// TourRoutes belongs to the authenticated, unlocked, same-origin group.
+func TourRoutes(g *Group) {
+	g.Group("", "core").POST("tour.seen", "/tour/seen", func(ctx *Context) error {
+		if !ctx.Profile().Toured {
+			if err := ctx.UpdateProfile(func(p *alborz.Profile) { p.Toured = true }); err != nil {
+				return err
+			}
+		}
+		return ctx.NoContent(http.StatusNoContent)
+	})
 }

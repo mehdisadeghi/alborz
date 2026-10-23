@@ -1,7 +1,9 @@
 package web
 
 import (
+	"context"
 	"fmt"
+	"net/url"
 	"regexp"
 
 	"git.mehdix.org/alborz"
@@ -30,13 +32,35 @@ func Mount(g *web.Group) error {
 		return err
 	}
 	p.images, p.composed = images, mail.ComposedPolicy(images)
-	inbox, err := s.Path("mail.mailbox", "INBOX")
-	if err != nil {
-		return err
-	}
 	p.NewMail = func(account string, validity uint32, newest imap.UID) {
+		devices, err := s.Pushes.Devices(account)
+		if err != nil {
+			s.Logger().Printf("notification devices: %v", err)
+			return
+		}
+		if len(devices) == 0 {
+			return
+		}
 		item := fmt.Sprintf("mail %s %d %d", account, validity, newest)
-		s.Push(account, web.PushNote{Key: "push.mail", Item: item, Path: inbox, Replaces: true, Badge: true})
+		path, _ := s.Path("mail.message.notification.open", "INBOX", newest)
+		path = web.QueryPath(path, url.Values{"validity": {fmt.Sprint(validity)}})
+		action, _ := s.Path("mail.message.notification", "INBOX", newest)
+		action = web.QueryPath(action, url.Values{"validity": {fmt.Sprint(validity)}})
+		note := web.PushNote{Key: "push.mail", Item: item, Path: path, Replaces: true, Badge: true,
+			Actions: []web.PushAction{{Action: "read", Key: "mailbox.markread", Path: action}, {Action: "delete", Key: "mailbox.delete", Path: action}}}
+		for _, login := range s.Logins() {
+			if login.Username() != account {
+				continue
+			}
+			preview, err := mail.NotificationPreview(context.Background(), login, newest, validity)
+			if err != nil {
+				s.Logger().Printf("notification preview: %v", err)
+			} else {
+				note.Preview = preview
+			}
+			break
+		}
+		s.Push(account, note)
 	}
 	// A restored account skips the login handler, so it is followed here too.
 	s.OnAccountReady = append(s.OnAccountReady, p.watchAccount, p.warmAccount)

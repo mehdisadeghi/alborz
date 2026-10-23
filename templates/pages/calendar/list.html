@@ -14,6 +14,8 @@
 
       {{ template "pim-list-head" (dict "crumb" (dict "g" $ "section" ($.T "nav.calendar") "home" (url "calendar.month") "field" "cal" "items" .Collections "keep" $keep "collection" "" "path" "") "filters" (dict "filters" .Filters "remove" ($.T "filter.remove"))) }}
 
+      {{ template "event-quick-add" . }}
+
       {{ $grouped := eq .Group "day" }}
       <section class="events">
         {{$base := .}}

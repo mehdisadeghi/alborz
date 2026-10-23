@@ -19,7 +19,7 @@
 		}
 		let subscription;
 		try {
-			if (await Notification.requestPermission() !== "granted") {
+			if (Notification.permission !== "granted" && await Notification.requestPermission() !== "granted") {
 				fail(settings.dataset.denied);
 				return;
 			}

@@ -12,8 +12,11 @@ import (
 // A sign-in goes on to the page that asked for it, and never off the site.
 func TestSignInStaysOnTheSite(t *testing.T) {
 	a := Alborz(t)
-	// The first sign-in also opens the tour (ADR 76), which is not what this is about.
-	a.SignIn(t, User)
+	// A desktop acknowledges its first tour separately from the sign-in (ADR 76).
+	c := a.SignIn(t, User)
+	if resp := c.Post(t, "core.tour.seen", nil); resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("acknowledging the tour answered %s", resp.Status)
+	}
 	inbox := a.Path("mail.mailbox", "INBOX")
 	for next, want := range map[string]string{
 		a.Path("settings.profile"): a.Path("settings.profile"),

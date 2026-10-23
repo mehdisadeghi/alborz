@@ -526,6 +526,17 @@ func markupOf(doc string) map[string]bool {
 // message; images may come only from under the paths own.
 func unsafeMarkup(doc string, own ...string) []string {
 	var found []string
+	cssUnsafe := func(css string) bool {
+		urls := regexp.MustCompile(`url\("([^"\n]*)"\)`)
+		css = urls.ReplaceAllStringFunc(css, func(value string) string {
+			u := strings.TrimSuffix(strings.TrimPrefix(value, `url("`), `")`)
+			if slices.ContainsFunc(own, func(p string) bool { return strings.HasPrefix(u, p) }) {
+				return ""
+			}
+			return value
+		})
+		return cssFetch.MatchString(strings.ReplaceAll(css, "url(about:blank)", ""))
+	}
 	z := nethtml.NewTokenizer(strings.NewReader(doc))
 	for {
 		tt := z.Next()
@@ -540,7 +551,7 @@ func unsafeMarkup(doc string, own ...string) []string {
 			found = append(found, "<"+tok.Data+">")
 		}
 		if tok.Data == "style" && tt == nethtml.StartTagToken && z.Next() == nethtml.TextToken {
-			if css := strings.ReplaceAll(string(z.Text()), "url(about:blank)", ""); cssFetch.MatchString(css) {
+			if css := string(z.Text()); cssUnsafe(css) {
 				found = append(found, "style sheet "+css)
 			}
 		}
@@ -559,7 +570,7 @@ func unsafeMarkup(doc string, own ...string) []string {
 					found = append(found, tok.Data+"@"+a.Key+"="+a.Val)
 				}
 			case a.Key == "style":
-				if css := strings.ReplaceAll(a.Val, "url(about:blank)", ""); cssFetch.MatchString(css) {
+				if css := a.Val; cssUnsafe(css) {
 					found = append(found, tok.Data+"@style="+a.Val)
 				}
 			}

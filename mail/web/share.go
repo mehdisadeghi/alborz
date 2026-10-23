@@ -29,6 +29,9 @@ func handleShare(ctx *web.Context) error {
 	defer form.Close()
 
 	q := url.Values{"subject": {form.Value.Get("title")}}
+	if ctx.URLAccount() != "" {
+		q.Set("account", ctx.URLAccount())
+	}
 	var body []string
 	for _, part := range []string{form.Value.Get("text"), form.Value.Get("url")} {
 		if part = strings.TrimSpace(part); part != "" {

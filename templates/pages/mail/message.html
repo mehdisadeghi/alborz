@@ -249,7 +249,7 @@
                 <dl>
                   {{ with .Message.ListPost }}
                   <dt>{{$.T "list.post"}}</dt>
-                  <dd><a href="{{ localhref (printf "%s?to=%s" (url "mail.compose") (. | qv)) }}">{{ template "ltr" . }}</a></dd>
+                  <dd><a href="{{ localhref (printf "%s?to=%s%s" (url "mail.compose") (. | qv) (account "&" $.GlobalData.URLAccount)) }}">{{ template "ltr" . }}</a></dd>
                   {{ end }}
                   {{ template "list-link" (dict "g" $ "label" "list.help" "url" .List.Help) }}
                   {{ template "list-link" (dict "g" $ "label" "list.subscribe" "url" .List.Subscribe) }}

@@ -1,0 +1,17 @@
+{{ define "event-quick-add" }}
+{{ with .Quick }}
+<form method="post" action="{{url "calendar.event.create"}}" class="quick-add" hx-boost="false" id="quick-add">
+  {{ template "next-field" (printf "%s#quick-add" $.GlobalData.URL.RequestURI) }}
+  <input type="hidden" name="quick" value="event">
+  <input type="text" name="summary" required dir="auto" placeholder="{{$.T "calendar.quick.placeholder"}}" aria-label="{{$.T "calendar.eventname"}}" aria-describedby="event-quick-hint">
+  {{ if .Only }}
+  <input type="hidden" name="calendar" value="{{.Account}}|{{.Path}}">
+  <span class="hint">{{$.T "common.saveto"}}: <bdi>{{.Name}}</bdi>{{if $.GlobalData.Unified}} · {{template "ltr" ($.GlobalData.AccountLabel .Account)}}{{end}}</span>
+  {{ else }}
+  {{ template "collection-picker" (dict "label" ($.T "common.saveto") "name" "calendar" "key" "quickevent" "groups" .Lists "account" .Account "path" .Path "multi" (gt (len .Lists) 1) "quiet" true) }}
+  {{ end }}
+  <button>{{$.T "common.add"}}</button>
+</form>
+<p class="hint" id="event-quick-hint">{{printf ($.T "calendar.quick.hint") $.QuickTimezone}}</p>
+{{ end }}
+{{ end }}

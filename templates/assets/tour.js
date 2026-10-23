@@ -5,6 +5,8 @@
 	const still = matchMedia("(prefers-reduced-motion: reduce)");
 	const anchored = CSS.supports("position-area", "block-end");
 	const param = "tour";
+	const desktop = () => !matchMedia("(width <= 600px), (pointer: coarse)").matches;
+	const acknowledged = new WeakSet();
 	let lit = null;
 
 	const typing = el => el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName);
@@ -132,6 +134,14 @@
 	// A boosted page brings the tour at its stop and takes the focus; a swap into main may replace what it points at.
 	const start = elt => {
 		const tour = dialog();
+		if (tour && !desktop()) {
+			// Keep the server's first-tour preference for a browser that can use the controls.
+			tour.hidden = true;
+			tour.removeAttribute("open");
+			unlight();
+			address("");
+			return;
+		}
 		if (!tour || !tour.open) {
 			unlight();
 		} else if (elt.contains(tour)) {
@@ -139,12 +149,25 @@
 		} else if (!lit || !lit.isConnected) {
 			show(tour, shown(tour), false);
 		}
+		if (tour?.open && tour.dataset.seen && !acknowledged.has(tour)) {
+			acknowledged.add(tour);
+			fetch(tour.dataset.seen, {method: "POST", headers: {"Alborz-Unasked": "1"}, redirect: "error"})
+				.then(answer => {
+					if (!answer.ok) {
+						throw new Error(`tour acknowledgement: ${answer.status}`);
+					}
+				}).catch(error => console.warn(error));
+		}
 	};
 	document.addEventListener("htmx:load", ev => start(ev.detail.elt));
 	addEventListener("resize", () => {
 		const tour = dialog();
 		if (tour && tour.open) {
-			place(tour, lit);
+			if (desktop()) {
+				place(tour, lit);
+			} else {
+				start(document.body);
+			}
 		}
 	});
 	start(document.body);

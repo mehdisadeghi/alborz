@@ -23,7 +23,7 @@
             <div class="contact-list-email list-cell" role="cell">
               {{$email := .Card.PreferredValue "EMAIL"}}
               {{if $email}}
-                <a href="{{ localhref (printf "/compose?to=%s" ($email | qv)) }}">{{ template "ltr" $email }}</a>
+                <a href="{{ localhref (printf "%s?to=%s%s" (url "mail.compose") ($email | qv) (account "&" $.GlobalData.URLAccount)) }}">{{ template "ltr" $email }}</a>
               {{end}}
             </div>
             <div class="contact-list-phone list-cell" role="cell">

@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	. "git.mehdix.org/alborz/internal/alborztest"
 	"git.mehdix.org/alborz/web"
+	"github.com/emersion/go-imap/v2"
 )
 
 // arrive delivers mail until a push reaches endpoint: the watcher takes its count when it starts to
@@ -30,7 +32,65 @@ func arrive(t *testing.T, a *App, push *PushService, endpoint string) Push {
 	return Push{}
 }
 
-// New mail reaches every browser still signed in, content-free and signed by the instance's key; a
+func TestNotificationActionsRequireOriginAndActOnTheExactMessage(t *testing.T) {
+	push := PushServer(t)
+	a := Alborz(t, Guarded(push.Client().Transport))
+	c := a.SignIn(t, User)
+	note := arrive(t, a, push, push.TurnOn(t, c))
+	u, err := url.Parse(note.URL)
+	if err != nil || len(note.Actions) != 2 {
+		t.Fatalf("invalid notification: %+v", note)
+	}
+	uid := strings.TrimSuffix(strings.TrimPrefix(u.Path, "/message/INBOX/"), "/notification")
+	post := func(path, action, origin string, header bool) *Response {
+		req, err := http.NewRequest(http.MethodPost, a.URL+path, strings.NewReader(url.Values{"action": {action}}.Encode()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		if header {
+			req.Header.Set("Alborz-Notification", "1")
+		}
+		if origin != "" {
+			req.Header.Set("Origin", origin)
+		}
+		return c.Do(t, req)
+	}
+	read := note.Actions[0].URL
+	if resp := post(read, "read", "", false); resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("missing header: %s", resp.Status)
+	}
+	if resp := post(read, "read", "https://other.example", true); resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("cross origin: %s", resp.Status)
+	}
+	stale, _ := url.Parse(read)
+	q := stale.Query()
+	q.Set("validity", "4294967295")
+	stale.RawQuery = q.Encode()
+	if resp := post(stale.String(), "read", a.URL, true); resp.StatusCode != http.StatusConflict {
+		t.Fatalf("stale UIDVALIDITY: %s", resp.Status)
+	}
+	if unseen := MessageUIDs(c.Page(t, "mail.mailbox", "INBOX", url.Values{"view": {"unread"}})); !slices.Contains(unseen, uid) {
+		t.Fatalf("notification preview marked the mail read: %v", unseen)
+	}
+	if resp := post(read, "read", a.URL, true); resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("mark read: %s", resp.Status)
+	}
+	if unseen := MessageUIDs(c.Page(t, "mail.mailbox", "INBOX", url.Values{"view": {"unread"}})); slices.Contains(unseen, uid) {
+		t.Fatalf("mark read left %s unread", uid)
+	}
+	if resp := post(note.Actions[1].URL, "delete", a.URL, true); resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("delete: %s %s", resp.Status, resp.Text)
+	}
+	if inbox := MessageUIDs(c.Page(t, "mail.mailbox", "INBOX")); slices.Contains(inbox, uid) {
+		t.Fatalf("delete left %s in INBOX", uid)
+	}
+	if trash := c.Page(t, "mail.mailbox", "Trash"); !strings.Contains(trash, "Hi") {
+		t.Fatal("delete did not move the message to Trash")
+	}
+}
+
+// New mail reaches every browser still signed in, with a bounded preview and signed by the instance's key; a
 // browser signed out gets nothing.
 func TestNewMailPushesEachSignedInBrowser(t *testing.T) {
 	push := PushServer(t)
@@ -41,14 +101,15 @@ func TestNewMailPushesEachSignedInBrowser(t *testing.T) {
 	gone.Post(t, "auth.logout", nil)
 
 	got := arrive(t, a, push, endpoint)
-	if got.Title != T(t, "push.mail") || got.Body != User {
+	if got.Title != T(t, "push.mail") || got.Body != User+"\nHi\nHello" {
 		t.Fatalf("the push says %q / %q", got.Title, got.Body)
 	}
-	if strings.Contains(got.Title+got.Body, "Hi") || strings.Contains(got.Title+got.Body, "eve@") {
-		t.Fatalf("the push carries the message: %+v", got)
+	link, _ := url.Parse(got.URL)
+	if !strings.HasPrefix(link.Path, "/message/INBOX/") || !strings.HasSuffix(link.Path, "/notification") || link.Query().Get("account") != User || link.Query().Get("validity") == "" {
+		t.Fatalf("a click opens %q, want the exact message in its account", got.URL)
 	}
-	if want := a.Path("mail.mailbox", "INBOX") + web.AccountQuery(User); got.URL != want {
-		t.Fatalf("a click opens %q, want the account's inbox", got.URL)
+	if len(got.Actions) != 2 || got.Actions[0].Action != "read" || got.Actions[1].Action != "delete" {
+		t.Fatalf("missing useful actions: %+v", got.Actions)
 	}
 	if got.Header.Get("Topic") == "" || strings.Contains(got.Header.Get("Topic"), "test") {
 		t.Fatalf("the topic is %q: it should be set and name no account", got.Header.Get("Topic"))
@@ -62,6 +123,65 @@ func TestNewMailPushesEachSignedInBrowser(t *testing.T) {
 			t.Fatalf("a signed-out browser got %+v", p)
 		}
 	}
+}
+
+func TestNotificationOpenRefusesAReusedUIDAfterMailboxReset(t *testing.T) {
+	a := Alborz(t)
+	c := a.SignIn(t, User)
+	upstream := a.IMAP.Dial(t)
+	const mailbox = "NotificationReset"
+	if err := upstream.Create(mailbox, nil).Wait(); err != nil {
+		t.Fatal(err)
+	}
+	uid := a.IMAP.Append(t, mailbox, "Subject: Original\r\n\r\nOriginal body\r\n")
+	selected, err := upstream.Select(mailbox, nil).Wait()
+	if err != nil {
+		t.Fatal(err)
+	}
+	query := url.Values{"account": {User}, "validity": {fmt.Sprint(selected.UIDValidity)}}
+	link := a.Path("mail.message.notification.open", mailbox, uid, query)
+	if resp := c.Get(t, "mail.message.notification.open", mailbox, uid, query); resp.Header.Get("Location") != a.Path("mail.message", mailbox, uid, url.Values{"account": {User}}) {
+		t.Fatalf("valid notification did not resolve to its message: %s %q", resp.Status, resp.Header.Get("Location"))
+	}
+	// Checking the link alone must not mark a message read before its validated redirect is followed.
+	if rows := MessageUIDs(c.Page(t, "mail.mailbox", mailbox, url.Values{"view": {"unread"}})); !slices.Contains(rows, fmt.Sprint(uid)) {
+		t.Fatal("validation marked original mail read")
+	}
+	if _, err := upstream.Select("INBOX", nil).Wait(); err != nil {
+		t.Fatal(err)
+	}
+	if err := upstream.Delete(mailbox).Wait(); err != nil {
+		t.Fatal(err)
+	}
+	if err := upstream.Create(mailbox, nil).Wait(); err != nil {
+		t.Fatal(err)
+	}
+	replacement := a.IMAP.Append(t, mailbox, "Subject: Replacement\r\n\r\nUnrelated body\r\n")
+	current, err := upstream.Select(mailbox, nil).Wait()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if replacement != uid || current.UIDValidity == selected.UIDValidity {
+		t.Fatalf("fixture did not reset UID namespace: old=%d/%d new=%d/%d", selected.UIDValidity, uid, current.UIDValidity, replacement)
+	}
+	assertUnread := func() {
+		t.Helper()
+		msgs, err := upstream.Fetch(imap.UIDSetNum(replacement), &imap.FetchOptions{Flags: true}).Collect()
+		if err != nil || len(msgs) != 1 || slices.Contains(msgs[0].Flags, imap.FlagSeen) {
+			t.Fatalf("stale notification read replacement: %v, %v", msgs, err)
+		}
+	}
+	c.Follow(t, link)
+	assertUnread()
+	req, _ := http.NewRequest(http.MethodPost, a.URL+link, strings.NewReader("action=read"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Alborz-Notification", "1")
+	if resp := c.Do(t, req); resp.StatusCode != http.StatusConflict {
+		t.Fatalf("stale action: %s", resp.Status)
+	}
+	// This is the worker's fallback after the 409; it must remain safe too.
+	c.Follow(t, link)
+	assertUnread()
 }
 
 // A subscription the push service says is gone is dropped, not tried for ever.

@@ -67,7 +67,7 @@ func handleLogin(ctx *web.Context) error {
 
 // Being signed in is what the next page shows, wherever it is.
 func loginRedirect(ctx *web.Context) error {
-	to := ctx.Path("mail.mailbox", "INBOX")
+	to := ctx.DefaultPath()
 	if next := ctx.NextOr(""); next != "" && next != ctx.Path("auth.login") {
 		to = next
 	}

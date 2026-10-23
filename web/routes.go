@@ -15,9 +15,18 @@ import (
 func PublicRoutes(g *Group) {
 	g = g.Group("", "core")
 	s := g.s
-	// Generated so the name under the icon is BrandName, and a launcher paints the base light scheme before any stylesheet.
+	// The launcher uses the public theme cookie; a document supplies its resolved scheme after CSS loads.
 	g.GET("manifest", "/manifest.webmanifest", func(ctx *Context) error {
 		worker := ctx.Path("core.worker")
+		theme := s.base
+		if name, ok := ctx.cookieValue(themeCookieName, s.hasTheme); ok {
+			for _, candidate := range s.themes {
+				if candidate.Name == name {
+					theme = candidate
+					break
+				}
+			}
+		}
 		icon := func(name, purpose string) map[string]string {
 			out := map[string]string{"src": s.AssetURL(name), "sizes": "512x512", "type": "image/png"}
 			if strings.HasSuffix(name, "192.png") {
@@ -34,11 +43,11 @@ func PublicRoutes(g *Group) {
 			"short_name": alborz.BrandName,
 			"start_url":  ctx.Path("mail.home"),
 			"scope":      strings.TrimSuffix(worker, path.Base(worker)),
-			"display":    "minimal-ui",
-			// No theme_color: a manifest has one for both schemes, so Android would paint the light
-			// one in dark mode until a page's own theme-color applies; without it, it takes its
-			// default for the system's scheme.
-			"background_color": s.base.Colors[0].Color,
+			"display":    "standalone",
+			// A manifest has one colour: pinned themes are exact; adaptive themes use their light
+			// fallback until the document's computed theme-color takes over.
+			"theme_color":      theme.Colors[0].Color,
+			"background_color": theme.Colors[0].Color,
 			"icons": []map[string]string{
 				icon("icon-192.png", ""),
 				icon("icon-512.png", ""),

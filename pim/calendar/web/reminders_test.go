@@ -16,7 +16,7 @@ func alarmed(uid, rule, action string, start time.Time) string {
 		"\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
 }
 
-// A display alarm of today's occurrence of a daily series is pushed once, naming only its time, though
+// A display alarm of today's occurrence of a daily series is pushed once, naming its time and summary, though
 // two logins of the account find it; an e-mail alarm is not alborz's to fire.
 func TestEventReminderPushesItsOccurrence(t *testing.T) {
 	push := PushServer(t)
@@ -32,11 +32,8 @@ func TestEventReminderPushesItsOccurrence(t *testing.T) {
 
 	want := T(t, "push.event", start.UTC().Format("15:04"))
 	got := push.Await(t, endpoint, want)
-	if got.Title != want || got.Body != User {
-		t.Fatalf("the push says %q / %q, want %q / %q", got.Title, got.Body, want, User)
-	}
-	if strings.Contains(got.Title+got.Body, "Budget") {
-		t.Fatalf("the push carries the event's title: %+v", got)
+	if got.Title != want || got.Body != User+"\nBudget review" {
+		t.Fatalf("the push says %q / %q, want %q / %q", got.Title, got.Body, want, User+"\nBudget review")
 	}
 	if page := c.Follow(t, got.URL); !strings.Contains(page, "Budget review") {
 		t.Fatalf("a click on the push opens %q, which is not the event", got.URL)

@@ -2,7 +2,7 @@
 {{ define "tour" }}
 {{ with .GlobalData.Tour }}
 {{ $g := $ }}{{ $n := len .Stops }}{{ $at := .At }}
-<dialog open id="tour" class="tour" aria-label="{{$g.T "tour.name"}}">
+<dialog open id="tour" class="tour"{{if not .Seen}} data-seen="{{url "core.tour.seen"}}"{{end}} aria-label="{{$g.T "tour.name"}}">
   {{ range $i, $stop := .Stops }}
   <section class="tour-step" data-stop="{{.Name}}"{{ with .Target }} data-target="{{.}}"{{ end }} aria-labelledby="tour-{{.Name}}"{{ if ne $i $at }} hidden{{ end }}>
     <p class="tour-count">{{ $g.GlobalData.Tf "tour.count" .Number $n }}</p>

@@ -5,6 +5,23 @@
       {{/* A whole page: these are attributes of the root, which a swap keeps. */}}
       <form method="post" hx-boost="false">
         {{ template "shown-field" .Shown }}
+        <div class="action-group">
+          <label for="start_page">{{$.T "settings.startpage"}}</label>
+          <select name="start_page" id="start_page">
+            <option value="mail"{{if or (eq .Reading.StartPage "") (eq .Reading.StartPage "mail")}} selected{{end}}>{{$.T "nav.email"}}</option>
+            <option value="calendar"{{if eq .Reading.StartPage "calendar"}} selected{{end}}>{{$.T "nav.calendar"}}</option>
+            <option value="contacts"{{if eq .Reading.StartPage "contacts"}} selected{{end}}>{{$.T "nav.contacts"}}</option>
+            <option value="tasks"{{if eq .Reading.StartPage "tasks"}} selected{{end}}>{{$.T "nav.tasks"}}</option>
+            <option value="journal"{{if eq .Reading.StartPage "journal"}} selected{{end}}>{{$.T "nav.journal"}}</option>
+          </select>
+        </div>
+        <input type="hidden" name="writing_preferences" value="1">
+        <div class="action-group">
+          <label class="checkbox"><input type="checkbox" name="include_attribution" value="1"{{if not .Writing.NoAttribution}} checked{{end}}>{{$.T "settings.attribution"}}</label>
+          {{ template "hint" (dict "text" ($.T "settings.attributionhint")) }}
+          <label class="checkbox"><input type="checkbox" name="pool_signatures" value="1"{{if .Writing.PoolSignatures}} checked{{end}}>{{$.T "settings.poolsignatures"}}</label>
+          {{ template "hint" (dict "text" ($.T "settings.poolsignatureshint")) }}
+        </div>
         <fieldset class="action-group choices">
           <legend>{{$.T "gestures.title"}}</legend>
           <label class="checkbox">

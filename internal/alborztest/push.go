@@ -33,10 +33,11 @@ type pushBrowser struct {
 // Push is a message as the browser read it.
 type Push struct {
 	Endpoint string
-	Title    string `json:"title"`
-	Body     string `json:"body"`
-	Tag      string `json:"tag"`
-	URL      string `json:"url"`
+	Title    string                                `json:"title"`
+	Body     string                                `json:"body"`
+	Tag      string                                `json:"tag"`
+	URL      string                                `json:"url"`
+	Actions  []struct{ Action, Title, URL string } `json:"actions"`
 	Header   http.Header
 	// Key is the VAPID public key that signed it.
 	Key string

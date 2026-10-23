@@ -249,6 +249,13 @@ func (ctx *Context) profileDiff(theirs, ours alborz.Profile) []profileChange {
 		return g.Num(cmp.Or(max(p.Reading.MessagesPerPage, 0), alborz.DefaultMessagesPerPage))
 	})
 	add("settings.timezone", func(p alborz.Profile) string { return or(p.Reading.Timezone, "settings.tzauto") })
+	add("settings.startpage", func(p alborz.Profile) string {
+		key := map[string]string{"calendar": "nav.calendar", "contacts": "nav.contacts", "tasks": "nav.tasks", "journal": "nav.journal"}[p.Reading.StartPage]
+		if key == "" {
+			key = "nav.email"
+		}
+		return g.T(key)
+	})
 	add("settings.firstday", func(p alborz.Profile) string {
 		return g.WeekdayName(p.Reading.WeekStart())
 	})
@@ -262,6 +269,8 @@ func (ctx *Context) profileDiff(theirs, ours alborz.Profile) []profileChange {
 		return g.T("settings.replytop")
 	})
 	add("settings.directionpart", func(p alborz.Profile) string { return onOff(!p.Writing.NoDirectionPart) })
+	add("settings.attribution", func(p alborz.Profile) string { return onOff(!p.Writing.NoAttribution) })
+	add("settings.poolsignatures", func(p alborz.Profile) string { return onOff(p.Writing.PoolSignatures) })
 	add("settings.theme", func(p alborz.Profile) string {
 		if p.Display.Theme == "" {
 			return g.T("settings.themedefault")

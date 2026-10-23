@@ -15,6 +15,8 @@
 
       {{ template "section-crumb" (dict "g" $ "section" ($.T "nav.calendar") "home" (url "calendar.month") "field" "cal" "items" .Collections "keep" $keep "collection" "" "path" "") }}
 
+      {{ template "event-quick-add" . }}
+
       {{ range .DayAnnotations }}
       <div hidden hx-get="{{ localhref .URL }}" hx-trigger="load, every 3600s" hx-swap="none" hx-headers='{"Alborz-Unasked":"1"}'></div>
       {{ end }}

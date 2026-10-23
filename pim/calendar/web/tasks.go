@@ -51,7 +51,8 @@ type TaskRow struct {
 	// Star is the colour the task is marked in, or empty.
 	Star string
 	// Href is the task's page with the list carried along.
-	Href string
+	Href   string
+	Parent *TaskLink
 }
 
 var taskListParams = []string{"account", "cal", "query", "view", "sort", "dir", "page", "ipp"}
@@ -74,13 +75,17 @@ type quickList struct {
 }
 
 func quickListOf(ctx *web.Context, calendars []dav.Collection) *quickList {
+	return quickDestination(ctx, calendars, calendar.SupportsTodo)
+}
+
+func quickDestination(ctx *web.Context, calendars []dav.Collection, supports func([]string) bool) *quickList {
 	scope := ctx.URLAccount()
 	var quick *quickList
 	var lists []dav.Group
 	indexes := make(map[string]int)
 	shown := 0
 	for _, cal := range calendars {
-		if !cal.Visible || !cal.Writable || !calendar.SupportsTodo(cal.Components) || (scope != "" && cal.Account != scope) {
+		if !cal.Visible || !cal.Writable || !supports(cal.Components) || (scope != "" && cal.Account != scope) {
 			continue
 		}
 		// The list in force, else the first shown.
@@ -143,12 +148,14 @@ func (p *plugin) shownTasks(ctx *web.Context, only map[string]bool, view string,
 	if view == viewCompleted || view == viewAll || view == viewHigh {
 		star = ""
 	}
-	return shownCalendarRows(p, ctx, only, q, star, calendar.SupportsTodo, calendar.TaskVisibility, calendar.TaskQuery,
+	rows, collections, unread, err := shownCalendarRows(p, ctx, only, q, star, calendar.SupportsTodo, calendar.TaskVisibility, calendar.TaskQuery,
 		calendar.FirstTodo, func(todo *ical.Component, starred func(string) bool, q search.Query) bool {
 			return taskShown(todo, view, starred, q)
 		}, func(obj *caldav.CalendarObject, collection dav.Collection) TaskRow {
 			return taskRow(ctx, obj, collection, web.UserLocation(ctx), params)
 		})
+	taskParents(rows)
+	return rows, collections, unread, err
 }
 
 func taskTie(row TaskRow) string {
@@ -237,6 +244,10 @@ func (p *plugin) complete(ctx *web.Context) error {
 			view := web.KeepURLParams(next, "view").Get("view")
 			if view != viewAll && done != (view == viewCompleted) {
 				ctx.Notify(words(ctx, []pim.Ref[*caldav.Client]{ref}, next))
+				return ctx.Redraw(next)
+			}
+			if calendar.ParentUID(calendar.FirstTodo(marked.Data)) != "" {
+				ctx.Quiet()
 				return ctx.Redraw(next)
 			}
 			// The same button undoes it, so a marked task answers with its row and no notice.

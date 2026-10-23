@@ -15,10 +15,9 @@ import (
 	"golang.org/x/net/html"
 )
 
-// TODO: the url( and expression( patterns ignore CSS quoting.
 var (
-	cssURLRegexp  = regexp.MustCompile(`url\([^)]*\)`)
-	cssExprRegexp = regexp.MustCompile(`expression\([^)]*\)`)
+	cssURLRegexp  = regexp.MustCompile(`(?i)url\(\s*(?:"[^"\\]*"|'[^'\\]*'|[^"'()\\]*)\s*\)`)
+	cssExprRegexp = regexp.MustCompile(`(?i)expression\s*\(`)
 )
 
 var allowedStyles = map[string]bool{
@@ -125,6 +124,9 @@ func (san *sanitizer) sanitizeImageURL(src string) string {
 	if err != nil {
 		return "about:blank"
 	}
+	if u.Scheme == "" && u.Host != "" {
+		u.Scheme = "https"
+	}
 
 	switch strings.ToLower(u.Scheme) {
 	// Like a Content-ID, a part path reaches only this message's images.
@@ -151,18 +153,24 @@ func (san *sanitizer) sanitizeImageURL(src string) string {
 			return "about:blank"
 		}
 
-		part := san.msg.PartByID(u.Opaque)
+		id, err := url.PathUnescape(u.Opaque)
+		if err != nil {
+			return "about:blank"
+		}
+		part := san.msg.PartByID(id)
 		if part == nil || !strings.HasPrefix(part.MIMEType, "image/") {
 			return "about:blank"
 		}
 
 		return san.raw + partQuery(*part, san.account)
-	case "https":
+	case "http", "https":
 		san.hasRemoteResources = true
 
 		if !san.allowRemoteResources {
 			return "about:blank"
 		}
+		// Older senders still write HTTP URLs; retain the proxy's HTTPS-only transport.
+		u.Scheme = "https"
 
 		proxyURL := url.URL{Path: san.proxy}
 		proxyQuery := make(url.Values)
@@ -180,12 +188,30 @@ func (san *sanitizer) sanitizeCSSDecls(decls []*css.Declaration) []*css.Declarat
 		if !allowedStyles[decl.Property] {
 			continue
 		}
-		if cssExprRegexp.FindStringIndex(decl.Value) != nil {
+		if cssExprRegexp.MatchString(decl.Value) || strings.ContainsAny(decl.Value, "\\") || strings.Contains(decl.Value, "/*") {
+			continue
+		}
+		// These functions also accept bare strings as URLs, outside url() resolution.
+		lower := strings.ToLower(decl.Value)
+		if strings.Contains(lower, "image-set(") || strings.Contains(lower, "image(") {
 			continue
 		}
 
-		// TODO: more robust CSS declaration parsing
-		decl.Value = cssURLRegexp.ReplaceAllString(decl.Value, "url(about:blank)")
+		// Reject URL syntax we cannot parse; quoted URLs can contain parentheses.
+		if strings.Contains(strings.ToLower(cssURLRegexp.ReplaceAllString(decl.Value, "")), "url(") {
+			continue
+		}
+		decl.Value = cssURLRegexp.ReplaceAllStringFunc(decl.Value, func(value string) string {
+			src := strings.TrimSpace(value[4 : len(value)-1])
+			if len(src) >= 2 && (src[0] == '\'' || src[0] == '"') {
+				src = src[1 : len(src)-1]
+			}
+			image := san.sanitizeImageURL(src)
+			if image == "about:blank" {
+				return "url(about:blank)"
+			}
+			return "url(" + strconv.Quote(image) + ")"
+		})
 
 		sanitized = append(sanitized, decl)
 	}
@@ -329,7 +355,7 @@ func incomingPolicy() *bluemonday.Policy {
 	// bluemonday drops an element left without attributes unless it is on its own list, which lacks big.
 	p.AllowNoAttrs().OnElements("big")
 
-	// A style sheet runs no script and allowedStyles has already emptied its url()s; bluemonday
+	// A style sheet runs no script and allowedStyles has already rewritten its url()s; bluemonday
 	// lets the element through only with AllowUnsafe.
 	p.AllowUnsafe(true)
 	p.AllowElementsContent("style")

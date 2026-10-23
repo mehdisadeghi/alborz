@@ -4,6 +4,7 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"net/http"
 	"net/url"
@@ -96,8 +97,13 @@ func TestDownloadsSentAsTheyAre(t *testing.T) {
 func TestManifestScopesTheApp(t *testing.T) {
 	a := Alborz(t)
 	c := a.SignIn(t, User)
+	manifestLink := regexp.MustCompile(`<link rel="manifest"[^>]*>`).FindString(c.Page(t, "settings.profile"))
+	if !strings.Contains(manifestLink, `crossorigin="use-credentials"`) {
+		t.Errorf("manifest link does not send the selected theme cookie: %s", manifestLink)
+	}
 	var manifest struct {
 		StartURL    string `json:"start_url"`
+		Display     string
 		Scope       string
 		ShareTarget struct {
 			Action, Method, Enctype string
@@ -109,6 +115,9 @@ func TestManifestScopesTheApp(t *testing.T) {
 	}
 	if manifest.StartURL != a.Path("mail.home") {
 		t.Errorf("the manifest starts at %q, not the home page", manifest.StartURL)
+	}
+	if manifest.Display != "standalone" {
+		t.Errorf("the installed app display is %q, want standalone", manifest.Display)
 	}
 	if worker := a.Path("core.worker"); !strings.HasSuffix(manifest.Scope, "/") || !strings.HasPrefix(worker, manifest.Scope) || strings.Contains(worker[len(manifest.Scope):], "/") {
 		t.Errorf("the manifest's scope %q is not the directory of the worker at %q", manifest.Scope, worker)
@@ -123,6 +132,49 @@ func TestManifestScopesTheApp(t *testing.T) {
 	}
 	if len(manifest.Handlers) != 2 {
 		t.Errorf("%d protocol handlers, want mailto and webcal", len(manifest.Handlers))
+	}
+}
+
+func TestManifestUsesPublicThemeCookie(t *testing.T) {
+	a := Alborz(t)
+	c := a.Client()
+	u, err := url.Parse(a.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct{ theme, color string }{{"sublime", "#272822"}, {"invalid", "#fff"}} {
+		c.HTTP.Jar.SetCookies(u, []*http.Cookie{{Name: "alborz_theme", Value: tc.theme, Path: "/"}})
+		resp := c.Get(t, "core.manifest")
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("signed-out manifest answered %s", resp.Status)
+		}
+		var manifest map[string]any
+		if err := json.Unmarshal([]byte(resp.Text), &manifest); err != nil {
+			t.Fatal(err)
+		}
+		if got := manifest["theme_color"]; got != tc.color {
+			t.Errorf("theme cookie %q: manifest color %v, want %s", tc.theme, got, tc.color)
+		}
+	}
+}
+
+func TestShellCachesLayoutScripts(t *testing.T) {
+	a := Alborz(t)
+	c := a.Client()
+	page := c.Page(t, "auth.login")
+	worker := c.Get(t, "core.worker").Text
+	shell := regexp.MustCompile(`const SHELL = (\[[^;]+\]);`).FindStringSubmatch(worker)
+	if shell == nil {
+		t.Fatal("worker does not declare its shell assets")
+	}
+	var urls []string
+	if err := json.Unmarshal([]byte(shell[1]), &urls); err != nil {
+		t.Fatal(err)
+	}
+	for _, script := range regexp.MustCompile(`<script(?: defer)? src="([^"]+)"`).FindAllStringSubmatch(page, -1) {
+		if !slices.Contains(urls, html.UnescapeString(script[1])) {
+			t.Errorf("layout script %s is missing from the offline shell", script[1])
+		}
 	}
 }
 
@@ -156,11 +208,11 @@ func TestThemeColorFollowsTheTheme(t *testing.T) {
 	if err := json.Unmarshal([]byte(c.Get(t, "core.manifest").Text), &manifest); err != nil {
 		t.Fatal(err)
 	}
-	if manifest["background_color"] != "#fff" {
-		t.Errorf("the manifest's background is %v, not the default theme's light top bar", manifest["background_color"])
+	if manifest["background_color"] != "#272822" {
+		t.Errorf("the manifest's background is %v, not the selected sublime theme", manifest["background_color"])
 	}
-	if color, ok := manifest["theme_color"]; ok {
-		t.Errorf("the manifest paints the status bar %v in both schemes", color)
+	if color := manifest["theme_color"]; color != "#272822" {
+		t.Errorf("the manifest's theme colour is %v, want selected sublime theme", color)
 	}
 }
 

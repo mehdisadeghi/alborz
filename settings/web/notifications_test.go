@@ -34,18 +34,90 @@ func devices(t *testing.T, c *Client) []string {
 
 func accountDevices(t *testing.T, c *Client, account string) []string {
 	t.Helper()
-	page := c.Page(t, "settings.notifications")
-	section := regexp.MustCompile(`(?s)<section class="list-items" data-account="` + regexp.QuoteMeta(account) + `">(.*?)</section>`).FindStringSubmatch(page)
-	if section == nil {
-		t.Fatalf("no notification controls for %s", account)
-	}
+	section := notificationSection(t, c.Page(t, "settings.notifications"), account)
 	var rows []string
-	for _, row := range deviceRow.FindAllString(section[1], -1) {
+	for _, row := range deviceRow.FindAllString(section, -1) {
 		if strings.Contains(row, `name="device"`) {
 			rows = append(rows, row)
 		}
 	}
 	return rows
+}
+
+func notificationSection(t *testing.T, page, account string) string {
+	t.Helper()
+	section := regexp.MustCompile(`(?s)<section class="list-items" data-account="` + regexp.QuoteMeta(account) + `">(.*?)</section>`).FindStringSubmatch(page)
+	if section == nil {
+		t.Fatalf("no notification controls for %s", account)
+	}
+	return section[1]
+}
+
+func TestNotificationAccountsUseCompactCurrentRows(t *testing.T) {
+	push := PushServer(t)
+	c := Alborz(t).SignIn(t, User)
+	turnOn(t, c, push.Subscribe(t))
+	page := c.Page(t, "settings.notifications")
+	rows := deviceRow.FindAllString(notificationSection(t, page, User), -1)
+	if len(rows) != 1 || !strings.Contains(rows[0], "<strong>") || !strings.Contains(rows[0], User) {
+		t.Fatal("the current notification row does not name its account")
+	}
+	if !Says(t, rows[0], "notifications.enabled") || !Says(t, rows[0], "notifications.since", Any) {
+		t.Fatalf("the current row lacks its enabled state or subscription date:\n%s", rows[0])
+	}
+	if !regexp.MustCompile(`id="push-settings" data-key="[^"]+"`).MatchString(page) {
+		t.Fatal("notification settings lost the shared browser key anchor")
+	}
+}
+
+func TestOtherNotificationBrowserOffKeepsCurrentAndOtherAccount(t *testing.T) {
+	push := PushServer(t)
+	a := Alborz(t)
+	here, there := a.SignIn(t, User), a.SignIn(t, User)
+	here.SignIn(t, User2)
+	there.SignIn(t, User2)
+	current, remote := push.Subscribe(t), push.Subscribe(t)
+	for _, account := range []string{User, User2} {
+		turnOn(t, here, current, account)
+		turnOn(t, there, remote, account)
+	}
+	section := notificationSection(t, here.Page(t, "settings.notifications"), User)
+	details := regexp.MustCompile(`(?s)<details([^>]*)>(.*?)</details>`).FindStringSubmatch(section)
+	if details == nil || strings.Contains(details[1], "open") || !Says(t, details[2], "notifications.otherbrowsers") {
+		t.Fatal("other browsers are not in a collapsed disclosure")
+	}
+	rows := deviceRow.FindAllString(details[2], -1)
+	if len(rows) != 1 {
+		t.Fatalf("other-browser disclosure has %d remote controls, want 1", len(rows))
+	}
+	fields := url.Values{}
+	for _, field := range regexp.MustCompile(`name="(account|device)" value="([^"]+)"`).FindAllStringSubmatch(rows[0], -1) {
+		fields.Set(field[1], field[2])
+	}
+	if fields.Get("account") != User || fields.Get("device") == "" {
+		t.Fatalf("remote-browser off form lost its account or device: %v", fields)
+	}
+	if resp := here.Post(t, "settings.notifications.off", fields); resp.StatusCode != http.StatusFound {
+		t.Fatalf("turning the remote browser off: %s", resp.Status)
+	}
+	if rows := accountDevices(t, here, User); len(rows) != 1 || !Says(t, rows[0], "notifications.enabled") {
+		t.Fatalf("turning the remote browser off changed this browser: %v", rows)
+	}
+	if rows := accountDevices(t, there, User); len(rows) != 1 || Says(t, rows[0], "notifications.enabled") {
+		t.Fatalf("the remote browser is still enabled for the selected account: %v", rows)
+	}
+	for _, c := range []*Client{here, there} {
+		rows := accountDevices(t, c, User2)
+		marked := 0
+		for _, row := range rows {
+			if Says(t, row, "notifications.enabled") {
+				marked++
+			}
+		}
+		if len(rows) != 2 || marked != 1 {
+			t.Fatalf("turning one account's remote browser off changed the other account: %v", rows)
+		}
+	}
 }
 
 // One page controls every account; sharing a browser subscription does not couple their on/off state.
@@ -101,7 +173,7 @@ func TestNotificationsTurnOnAndOff(t *testing.T) {
 	}
 	marked := 0
 	for _, row := range rows {
-		if Says(t, row, "sessions.current") {
+		if Says(t, row, "notifications.enabled") {
 			marked++
 		}
 	}
@@ -113,7 +185,7 @@ func TestNotificationsTurnOnAndOff(t *testing.T) {
 		t.Fatalf("signing out: %s", resp.Status)
 	}
 	rows = devices(t, here)
-	if len(rows) != 1 || !Says(t, rows[0], "sessions.current") {
+	if len(rows) != 1 || !Says(t, rows[0], "notifications.enabled") {
 		t.Fatalf("after the other browser signed out, the rows are %v; its device should be gone", rows)
 	}
 	id := regexp.MustCompile(`name="device" value="([^"]+)"`).FindStringSubmatch(rows[0])[1]
@@ -140,7 +212,7 @@ func TestTurningOffCurrentBrowserRemovesAllItsSubscriptions(t *testing.T) {
 	turnOn(t, there, push.Subscribe(t))
 	var id string
 	for _, row := range devices(t, here) {
-		if Says(t, row, "sessions.current") {
+		if Says(t, row, "notifications.enabled") {
 			id = regexp.MustCompile(`name="device" value="([^"]+)"`).FindStringSubmatch(row)[1]
 			break
 		}
@@ -153,7 +225,7 @@ func TestTurningOffCurrentBrowserRemovesAllItsSubscriptions(t *testing.T) {
 		t.Fatalf("turning this browser off: %s", resp.Status)
 	}
 	rows := devices(t, here)
-	if len(rows) != 1 || Says(t, rows[0], "sessions.current") {
+	if len(rows) != 1 || Says(t, rows[0], "notifications.enabled") {
 		t.Fatalf("turning off should leave only the other browser: %v", rows)
 	}
 }
@@ -221,7 +293,7 @@ func TestARenewedSubscriptionReplacesTheOld(t *testing.T) {
 	if len(before) != 1 || len(after) != 1 || after[0] == before[0] {
 		t.Fatalf("before %d rows, after %d; the row should be replaced, not added:\n%v\n%v", len(before), len(after), before, after)
 	}
-	if !Says(t, after[0], "sessions.current") {
+	if !Says(t, after[0], "notifications.enabled") {
 		t.Fatalf("the renewed row is not this browser's: %s", after[0])
 	}
 	afterSecond := second()

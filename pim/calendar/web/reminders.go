@@ -35,7 +35,7 @@ func (p *plugin) remind(srv *web.Server) func(context.Context, time.Time) {
 					continue
 				}
 				item := fmt.Sprintf("event %s %s %s", r.UID, r.Start.UTC().Format(time.RFC3339), r.At.UTC().Format(time.RFC3339))
-				srv.Push(account, web.PushNote{Key: "push.event", Item: item, At: r.Start, Path: path, Urgent: true})
+				srv.Push(account, web.PushNote{Key: "push.event", Item: item, At: r.Start, Path: path, Preview: r.Summary, Urgent: true})
 			}
 		}
 	}

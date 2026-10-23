@@ -85,7 +85,7 @@ canvas.className = "season";
 canvas.setAttribute("aria-hidden", "true");
 // The colour is the theme's faintest text, so a kind that paints in it
 // gets grey in a light scheme and pale in a dark one.
-canvas.style.cssText = "position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; color: var(--fg-faint)";
+canvas.style.cssText = "position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 4; color: var(--fg-faint)";
 const reading = () => {
 	canvas.hidden = document.querySelector("main.message") !== null;
 };

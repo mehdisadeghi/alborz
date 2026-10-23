@@ -6,6 +6,11 @@
         {{ template "object-form-head" (dict "g" $ "editing" .Object "collection" .Collection "groups" .Groups "section" ($.T "nav.tasks") "home" (url "calendar.tasks") "field" "cal"
            "title" (or (and .Object ($.T "tasks.edittitle")) ($.T "tasks.createtitle")) "name" "calendar" "key" "task") }}
 
+        {{ with .Parent }}
+        <input type="hidden" name="parent" value="{{.Path}}">
+        <p>{{$.T "tasks.subtask.parent"}}: <a href="{{.Href}}" dir="auto">{{.Summary}}</a></p>
+        {{ end }}
+
         {{$summary := ""}}
         {{$desc := ""}}
         {{if .Todo}}

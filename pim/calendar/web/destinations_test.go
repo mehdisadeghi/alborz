@@ -18,7 +18,9 @@ func TestHiddenCollectionsStayOutOfCreatePickers(t *testing.T) {
 	} {
 		t.Run(tc.list, func(t *testing.T) {
 			holds := "both"
-			if tc.list == "calendar.journal" { holds = "journal" }
+			if tc.list == "calendar.journal" {
+				holds = "journal"
+			}
 			hidden := Here + c.CreateCalendar(t, "Hidden"+strings.ReplaceAll(tc.list, ".", ""), holds)
 			c.CreateCalendar(t, "Visible"+strings.ReplaceAll(tc.list, ".", ""), holds)
 			if resp := c.Post(t, tc.list, url.Values{"shown": {hidden}}); resp.StatusCode != http.StatusFound {

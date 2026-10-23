@@ -30,10 +30,16 @@ type PushNote struct {
 	At   time.Time
 	// Path is the page a click opens, in the account.
 	Path string
+	// Preview is bounded plain text. Locked browsers never receive it.
+	Preview string
+	Actions []PushAction
 	// Replaces an undelivered push of the same key; Urgent asks the push service to wake the device;
 	// Badge sets the app's badge.
 	Replaces, Urgent, Badge bool
 }
+
+// PushAction is a same-origin POST offered by a notification; Key is its translated label.
+type PushAction struct{ Action, Key, Path string }
 
 // keepLogin holds a login past its idle limit while a device of the browser holding it is to be notified.
 func (s *Server) keepLogin(l *alborz.Login) bool {
@@ -86,8 +92,14 @@ func (s *Server) pushTo(client *http.Client, account string, d alborz.PushDevice
 		}
 		title = locale.Tf(d.Lang, n.Key, dates.Reader{Lang: d.Lang, Loc: loc}.Clock(n.At))
 	}
-	payload, err := json.Marshal(map[string]any{"title": title, "body": account, "tag": n.Key + " " + account,
-		"url": n.Path + AccountQuery(account), "badge": n.Badge})
+	body := pushBody(s.Sessions.get(d.Session), account, n.Preview, time.Now())
+	actions := make([]map[string]string, 0, len(n.Actions))
+	for _, action := range n.Actions {
+		actions = append(actions, map[string]string{"action": action.Action, "title": locale.T(d.Lang, action.Key),
+			"url": AccountURL(action.Path, account)})
+	}
+	payload, err := json.Marshal(map[string]any{"title": title, "body": body, "tag": n.Key + " " + account,
+		"url": AccountURL(n.Path, account), "badge": n.Badge, "actions": actions})
 	if err != nil {
 		panic(err)
 	}
@@ -114,4 +126,11 @@ func (s *Server) pushTo(client *http.Client, account string, d alborz.PushDevice
 	case status/100 != 2:
 		s.Logger().Printf("push %s: the push service answered %d", account, status)
 	}
+}
+
+func pushBody(session *Session, account, preview string, now time.Time) string {
+	if session != nil && !session.Locked(now) && preview != "" {
+		return account + "\n" + preview
+	}
+	return account
 }

@@ -13,6 +13,11 @@ import (
 	"git.mehdix.org/alborz/web"
 )
 
+// DayAnnotation loads a feature's content into the month grid's day labels.
+type DayAnnotation struct {
+	Name, URL string
+}
+
 type CalendarRenderData struct {
 	CalendarPageRenderData
 	Now time.Time
@@ -22,6 +27,7 @@ type CalendarRenderData struct {
 	Span               string
 	ThisMonth          bool
 	Dates              []time.Time
+	DayAnnotations     []DayAnnotation
 	Events             []calendar.Object
 	Page               string
 	PrevPage, NextPage string
@@ -92,7 +98,7 @@ func (p *plugin) month(ctx *web.Context) error {
 	if mv.view != "" {
 		selectForm = "events-form"
 	}
-	return ctx.Render(http.StatusOK, template, &CalendarRenderData{
+	data := &CalendarRenderData{
 		CalendarPageRenderData: calendarPageData(ctx, ctx.T("nav.calendar")+": "+ctx.Dates().MonthYear(mv.start), mv.calendars, pimweb.NewCollectionLabels(p.DAV, ctx.Login.Username(), collection, href), mv.view, "", calendarFilters(ctx), agendaRows(ctx, mv), selectForm, invitations, monthQuery(ctx, mv), mv.start),
 		Now:                    mv.now,
 		Since:                  mv.since,
@@ -122,7 +128,13 @@ func (p *plugin) month(ctx *web.Context) error {
 		Sub: func(a, b int) int {
 			return a - b
 		},
-	})
+	}
+	if mv.view == "" {
+		if err := web.Extended(ctx, data); err != nil {
+			return err
+		}
+	}
+	return ctx.Render(http.StatusOK, template, data)
 }
 
 func (p *plugin) monthView(ctx *web.Context) (monthView, error) {

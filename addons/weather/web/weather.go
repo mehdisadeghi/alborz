@@ -16,7 +16,7 @@ import (
 	"git.mehdix.org/alborz/web"
 )
 
-//go:embed pages
+//go:embed pages partials assets
 var pages embed.FS
 
 // kmh is km/h in one m/s, the unit DWD gives wind in.
@@ -28,11 +28,13 @@ const celsius = 273.15
 // Mount offers the weather at the start of the bar and the page that sets the place.
 func Mount(g *web.Group, w *weather.Service) {
 	g.GET("place", "/weather", func(ctx *web.Context) error { return handlePlace(ctx, w) })
+	g.GET("calendar", "/weather/calendar", func(ctx *web.Context) error { return handleCalendar(ctx, w) })
 	g.POST("place", "/weather", handleChoose)
 	s := g.Server()
 	if err := s.RegisterAddonBundle("weather", pages); err != nil {
 		panic(err)
 	}
+	extendCalendar(s)
 	s.Status = append(s.Status, web.Segment{Name: "weather", Page: "weather.place", Show: func(ctx *web.Context) (web.Shown, error) {
 		return show(ctx, w), nil
 	}})

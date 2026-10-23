@@ -15,6 +15,10 @@
 
       {{ template "section-crumb" (dict "g" $ "section" ($.T "nav.calendar") "home" (url "calendar.month") "field" "cal" "items" .Collections "keep" $keep "collection" "" "path" "") }}
 
+      {{ range .DayAnnotations }}
+      <div hidden hx-get="{{ localhref .URL }}" hx-trigger="load, every 3600s" hx-swap="none" hx-headers='{"Alborz-Unasked":"1"}'></div>
+      {{ end }}
+
       <section class="dates" data-swipe-calendar>
         {{range .Weekdays}}
         <h2 class="weekday">{{.}}</h2>
@@ -33,6 +37,7 @@
             <span class="day-label">{{ with $base.CalendarDayLabel . }}{{ with .Before }}<span class="label-long">{{ . }}</span>{{ end }}<span class="day-num">{{ .Day }}</span>{{ with .After }}<span class="label-long">{{ . }}</span>{{ end }}{{ end }}</span>
             {{ if eq (mod $i 7) 0 }}{{ with $base.SecondaryWeek $day }}<span class="weeknum-secondary">{{.}}</span>{{ end }}{{ end }}
             {{ with $base.SecondaryDay . }}<span class="day-secondary">{{.}}</span>{{ end }}
+            {{ if $base.DayAnnotations }}<span class="day-annotations">{{ range $base.DayAnnotations }}<span id="calendar-day-{{ .Name }}-{{ $day.Format "2006-01-02" }}" class="day-annotation"></span>{{ end }}</span>{{ end }}
           </h3>
           <div class="events">
             {{$events := (call $base.EventsForDate .)}}

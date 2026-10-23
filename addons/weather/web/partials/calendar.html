@@ -1,0 +1,1 @@
+{{ define "weather-calendar" }}{{ range .Days }}<span id="calendar-day-weather-{{ .Date }}" hx-swap-oob="innerHTML">{{ if .Glyph }}<a class="weather-day" href="{{ localhref .Href }}" title="{{ .Title }}" aria-label="{{ .Title }}" tabindex="-1"><span aria-hidden="true">{{ .Glyph }}</span></a>{{ end }}</span>{{ end }}{{ end }}

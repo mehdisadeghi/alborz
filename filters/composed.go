@@ -81,10 +81,16 @@ func checkMainScript(c alborz.SieveClient) error {
 	if err != nil || !exists {
 		return err
 	}
-	var present []string
+	included := map[string]bool{}
 	for _, line := range strings.Split(content, "\n") {
-		if m := includeLine.FindStringSubmatch(line); m != nil && slices.Contains(composed, unquote(m[1])) {
-			present = append(present, unquote(m[1]))
+		if m := includeLine.FindStringSubmatch(line); m != nil {
+			included[unquote(m[1])] = true
+		}
+	}
+	var present []string
+	for _, name := range composed {
+		if included[name] {
+			present = append(present, name)
 		}
 	}
 	if content != mainScriptFor(present, ownScriptIn(content)) {

@@ -82,6 +82,36 @@ func TestComposedRulesRestoreOriginalActiveScript(t *testing.T) {
 	}
 }
 
+func TestComposedRulesPreserveCustomizedIncludeOrder(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		includes []string
+	}{
+		{"reordered", []string{ForwardScript, RulesScript}},
+		{"duplicated", []string{RulesScript, RulesScript, ForwardScript}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := &scriptStore{scripts: map[string]string{
+				mainScript:    mainScriptFor(tc.includes, "custom"),
+				RulesScript:   rulesScriptFor([]Rule{{Name: "rule", MarkRead: true}}),
+				ForwardScript: "keep;\n",
+				"custom":      "keep;\n",
+			}, active: mainScript}
+			before := maps.Clone(s.scripts)
+			err := ChangeRules(s, Fingerprint(s.scripts[RulesScript]), func(rules []Rule) []Rule {
+				rules[0].Star = true
+				return rules
+			})
+			if !errors.Is(err, ErrByHand) {
+				t.Errorf("got %v, want ErrByHand", err)
+			}
+			if s.writes != 0 || !maps.Equal(before, s.scripts) || s.active != mainScript {
+				t.Errorf("custom include order mutated: writes=%d scripts=%v active=%q", s.writes, s.scripts, s.active)
+			}
+		})
+	}
+}
+
 func TestRuleFlagsPrecedeFileinto(t *testing.T) {
 	r := Rule{Name: "file", Folder: "Archive", MarkRead: true, Star: true}
 	block := r.block()

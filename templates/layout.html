@@ -1,5 +1,5 @@
 {{ define "layout" }}<!DOCTYPE html>
-<html lang="{{.GlobalData.Lang}}" dir="{{.GlobalData.Dir}}"{{if .GlobalData.AlignByScript}} data-align="script"{{end}}{{with .GlobalData.TextSize}} data-text="{{.}}"{{end}}>
+<html lang="{{.GlobalData.Lang}}" dir="{{.GlobalData.Dir}}"{{if .GlobalData.AlignByScript}} data-align="script"{{end}}{{with .GlobalData.TextSize}} data-text="{{.}}"{{end}}{{if and .GlobalData.LoggedIn .GlobalData.LockSeconds}} data-session-concealed{{end}}>
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -9,7 +9,13 @@
     {{- end}}
     <title>{{.GlobalData.PageTitle}}</title>
     <meta name="alborz-shell" content="{{.GlobalData.Shell}}">
-    {{ with .GlobalData.LockSeconds }}<meta name="alborz-lock" content="{{.}}" data-unlock="{{url "auth.unlock"}}" data-alive="{{url "auth.alive"}}">{{ end }}
+    {{ with .GlobalData.SessionID }}
+    <meta name="alborz-session" content="{{.}}" data-after="{{$.GlobalData.LockSeconds}}" data-private="{{$.GlobalData.LoggedIn}}"
+          data-lock="{{url "auth.lock"}}" data-state="{{url "auth.unlock.state"}}" data-unlock="{{url "auth.unlock"}}" data-alive="{{url "auth.alive"}}" data-setup="{{url "settings.passkeys.create"}}"
+          data-title="{{$.T "lock.title"}}" data-checking="{{$.T "lock.checking"}}" data-failed="{{$.T "lock.verifyfailed"}}">
+    {{/* Before paint: a restored private page is concealed until the server confirms this session. */}}
+    <script src="{{call $.GlobalData.Asset "session-lock.js"}}"></script>
+    {{ end }}
     {{/* Not deferred: it sets the scheme before the first paint. */}}
     <script src="{{call .GlobalData.Asset "scheme.js"}}"></script>
     <link rel="stylesheet" href="{{call .GlobalData.Asset "style.css"}}">
@@ -47,6 +53,18 @@
     {{- end }}
   </head>
   <body hx-boost="true" data-events="{{url "core.events"}}" data-worker="{{url "core.worker"}}">
+    {{ if .GlobalData.SessionID }}
+    <section id="session-lock-screen" role="status" aria-live="polite" aria-labelledby="session-lock-title">
+      <h1 id="session-lock-title">{{$.T "lock.title"}}</h1>
+      <p id="session-lock-status">{{$.T "lock.checking"}}</p>
+      <noscript><p>{{$.T "passkeys.needsscript"}}</p></noscript>
+      <button type="button" id="session-lock-retry">{{$.T "lock.retry"}}</button>
+      <form method="post" action="{{url "auth.unlock.leave"}}" class="action-group" hx-boost="false">
+        <button type="submit" class="button-link button-quiet">{{$.T "lock.leave"}}</button>
+        {{ template "hint" (dict "text" ($.T "lock.leavehint")) }}
+      </form>
+    </section>
+    {{ end }}
     <a class="skip-link visually-hidden" href="#main">{{$.T "a11y.skip"}}</a>
     {{template "icons" .}}
     {{ block "page-background" . }}{{ end }}

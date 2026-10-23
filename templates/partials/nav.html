@@ -129,7 +129,7 @@
     <button type="button" class="keys-open" commandfor="keys-help" command="show-modal">{{$g.T "keys.title"}}</button>
     <a href="{{ localhref $g.GlobalData.TourStart }}">{{$g.T "tour.take"}}</a>
     {{ if $g.GlobalData.LockSeconds }}
-    <form method="post" action="{{url "auth.lock"}}" hx-boost="false">
+    <form method="post" action="{{url "auth.lock"}}" data-session-lock hx-boost="false">
       <button type="submit">{{$g.T "lock.now"}}</button>
     </form>
     {{ end }}

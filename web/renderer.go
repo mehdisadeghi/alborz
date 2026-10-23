@@ -48,6 +48,8 @@ type GlobalRenderData struct {
 	Shell string
 	// LockSeconds is the idle time before the session locks, zero without a passkey.
 	LockSeconds int
+	// SessionID scopes cross-tab lock signals; it is an identifier, never the cookie's secret.
+	SessionID string
 	// Swipes is the resolved row gesture mapping, carried by every main render and swap.
 	Swipes string
 	// Revision names the running binary.
@@ -275,6 +277,7 @@ func NewBaseRenderData(ctx *Context) *BaseRenderData {
 	global.Version, global.Revision = alborz.Build()
 	_, global.Shell = ctx.Server.shell()
 	if s := ctx.lookupSession(); s != nil {
+		global.SessionID = s.ID
 		if lock := s.Lock(); len(lock.Passkeys) > 0 {
 			global.LockSeconds = int(lock.Wait() / time.Second)
 		}

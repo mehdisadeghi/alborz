@@ -34,7 +34,7 @@ anything a server cannot store.
 - Gmail-style keyboard shortcuts
 - Responsive PWA with light and dark themes
 - Offline reading of visited pages
-- Passkey (WebAuthn) lock
+- Optional passkey (WebAuthn) lock; requires JavaScript
 - Session list with remote sign-out
 - RTL; English, German, Persian and Spanish
 - Solar Hijri calendar alongside Gregorian

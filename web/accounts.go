@@ -136,7 +136,8 @@ func localPath(raw string) string {
 	}
 	// Browsers read a backslash as a slash, so "/\\host" leaves the site like "//host".
 	u, err := url.Parse(raw)
-	if err != nil || u.Host != "" || !strings.HasPrefix(u.Path, "/") ||
+	if err != nil || u.Scheme != "" || u.Host != "" || !strings.HasPrefix(u.Path, "/") ||
+		strings.HasPrefix(u.Path, "//") ||
 		strings.ContainsRune(raw, '\\') {
 		return ""
 	}

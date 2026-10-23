@@ -738,7 +738,7 @@ for (const event of ["htmx:historyRestore", "htmx:historyCacheMissLoadError"]) {
 
 // Mail arriving renews the rail; what the page asks for by itself says so, or it would hold the lock off for ever.
 const rail = document.querySelector("aside");
-if (rail && window.EventSource) {
+if ((rail || window.AlborzLock?.privatePage) && window.EventSource) {
 	let due = null;
 	let live = null;
 
@@ -768,17 +768,18 @@ if (rail && window.EventSource) {
 	};
 
 	const offer = here => {
-		const bar = notices.live.show(rail.dataset.liveArrived || "");
+		const currentRail = document.querySelector("aside");
+		const bar = notices.live.show(currentRail?.dataset.liveArrived || "");
 		bar.querySelector("progress").hidden = true;
 		const button = document.createElement("button");
 		button.className = "button-link notice-action";
-		button.textContent = rail.dataset.liveShow || "";
+		button.textContent = currentRail?.dataset.liveShow || "";
 		button.addEventListener("click", () => renew(listing() || here));
 		bar.append(button);
 	};
 
 	// A lock taken in another tab.
-	const locked = () => location.reload();
+	const locked = () => window.AlborzLock ? window.AlborzLock.locked() : location.reload();
 	// A stream the server closed for good; the lock's script knows how to ask.
 	const failed = () => {
 		if (live.readyState === EventSource.CLOSED) {
@@ -910,6 +911,7 @@ const setBusy = form => {
 };
 const clearBusy = form => {
 	delete form.dataset.busy;
+	delete form.dataset.redirecting;
 	form.removeAttribute("aria-busy");
 	for (const button of submitButtons(form)) {
 		if (button.dataset.busy) {
@@ -940,10 +942,15 @@ document.addEventListener("htmx:beforeRequest", ev => {
 		setBusy(form);
 	}
 });
+const leavesDocument = ev => Boolean(ev.detail?.xhr?.getResponseHeader("HX-Redirect"));
 document.addEventListener("htmx:afterRequest", ev => {
 	const form = ev.detail.elt;
 	if (form.tagName === "FORM") {
-		clearBusy(form);
+		if (leavesDocument(ev)) {
+			form.dataset.redirecting = "1";
+		} else {
+			clearBusy(form);
+		}
 	}
 });
 window.addEventListener("pageshow", ev => {
@@ -951,13 +958,19 @@ window.addEventListener("pageshow", ev => {
 		return;
 	}
 	for (const form of document.querySelectorAll("form[data-busy]")) {
-		delete form.dataset.busy;
-		form.removeAttribute("aria-busy");
+		clearBusy(form);
 	}
 	for (const button of document.querySelectorAll("[data-busy]")) {
 		button.disabled = false;
 		delete button.dataset.busy;
 	}
+	clearTimeout(progressTimer);
+	progressTimer = null;
+	inFlight = 0;
+	const progress = progressBar();
+	progress.hidden = true;
+	progress.classList.remove("progress-running");
+	progress.classList.remove("progress-done");
 });
 
 // Nothing appears for a quick answer: a flash on every click is noise.
@@ -1020,51 +1033,11 @@ for (const event of ["htmx:afterRequest", "htmx:sendError", "htmx:timeout", "htm
 		}
 		inFlight = Math.max(0, inFlight - 1);
 		const target = ev.detail && ev.detail.target;
-		if (target && target.removeAttribute) {
+		if (target && target.removeAttribute && !leavesDocument(ev)) {
 			target.removeAttribute("aria-busy");
 		}
-		if (inFlight === 0) {
+		if (inFlight === 0 && !leavesDocument(ev)) {
 			endProgress();
-		}
-	});
-}
-
-// The page leaves with the lock, so what is on screen does not outstay it.
-const lock = document.querySelector('meta[name="alborz-lock"]');
-const lockAfter = Number((lock || {}).content);
-if (lockAfter > 0 && location.pathname !== lock.dataset.unlock) {
-	// Writing a long message asks the server nothing, so it is told the reader is here.
-	const tellEvery = 60;
-	let timer, told = Date.now();
-	const leave = () => location.assign(lock.dataset.unlock + "?next=" + encodeURIComponent(location.pathname + location.search));
-	// The lock may have been taken in another tab; fetch follows its redirect silently.
-	const tell = () => fetch(lock.dataset.alive, {method: "POST"}).then(answer => {
-		if (answer.redirected && new URL(answer.url).pathname === lock.dataset.unlock) {
-			leave();
-		}
-	}).catch(() => {});
-	const arm = () => {
-		if (Date.now() - told > tellEvery * 1000) {
-			told = Date.now();
-			tell();
-		}
-		clearTimeout(timer);
-		timer = setTimeout(leave, lockAfter * 1000);
-	};
-	document.addEventListener("alborz:streamclosed", tell);
-	for (const event of ["pointerdown", "keydown"]) {
-		document.addEventListener(event, arm, {passive: true});
-	}
-	document.addEventListener("htmx:afterRequest", ev => {
-		if (!ev.detail.requestConfig.headers[unasked]) {
-			arm();
-		}
-	});
-	arm();
-	// A page from the history cache never asked the server whether it locked since.
-	window.addEventListener("pageshow", event => {
-		if (event.persisted) {
-			location.reload();
 		}
 	});
 }

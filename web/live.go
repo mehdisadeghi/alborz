@@ -50,18 +50,28 @@ func handleEvents(ctx *Context) error {
 			if !ok {
 				return nil
 			}
-			if !mine(change.Account) {
-				continue
-			}
-			// A newline in either value would end the frame.
-			_, err := fmt.Fprintf(res, "event: mailbox\ndata: %s %s\n\n",
-				oneLine(change.Account), oneLine(change.Mailbox))
-			if err != nil {
+			if stop := writeLiveChange(res, s, change, mine); stop {
 				return nil
 			}
-			res.Flush()
 		}
 	}
+}
+
+// The select and account lookup can outlive an unlocked state. Recheck after both,
+// immediately before serializing anything that names an account or mailbox.
+func writeLiveChange(res *Response, session *Session, change alborz.Change, mine func(string) bool) bool {
+	owned := mine(change.Account)
+	if session.Locked(time.Now()) {
+		fmt.Fprint(res, "event: locked\ndata:\n\n")
+		res.Flush()
+		return true
+	}
+	if !owned {
+		return false
+	}
+	_, err := fmt.Fprintf(res, "event: mailbox\ndata: %s %s\n\n", oneLine(change.Account), oneLine(change.Mailbox))
+	res.Flush()
+	return err != nil
 }
 
 func oneLine(s string) string {

@@ -82,6 +82,62 @@ func TestGetLoginCannotAddAnAccount(t *testing.T) {
 	}
 }
 
+func TestRefusedLoginKeepsTheRememberChoice(t *testing.T) {
+	a := Alborz(t)
+	c := a.Client()
+	for _, remember := range []string{"on", ""} {
+		resp := c.Post(t, "auth.login", url.Values{"username": {User}, "password": {"wrong"}, "remember-me": {remember}})
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Fatal(resp.Status)
+		}
+		checked := strings.Contains(resp.Text, `id="remember-me" checked`)
+		if checked != (remember == "on") {
+			t.Errorf("remember=%q: checkbox checked=%v after refusal", remember, checked)
+		}
+	}
+}
+
+func TestRememberedLoginSurvivesRestart(t *testing.T) {
+	for _, remember := range []bool{true, false} {
+		name := "remembered"
+		if !remember {
+			name = "not remembered"
+		}
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			a := Alborz(t, DataDir(dir))
+			c := a.Client()
+			form := url.Values{"username": {User}, "password": {Password}}
+			if remember {
+				form.Set("remember-me", "on")
+			}
+			if resp := c.Post(t, "auth.login", form); resp.StatusCode != http.StatusFound {
+				t.Fatal(resp.Status)
+			}
+			if resp := c.Get(t, "settings.profile"); resp.StatusCode != http.StatusOK {
+				t.Fatalf("before restart: %s", resp.Status)
+			}
+			a.Close()
+
+			// The rig keeps its login key; retain the data directory, upstream and browser cookies too.
+			restarted := Alborz(t, DataDir(dir), WithIMAP(a.IMAP))
+			resumed := restarted.Client()
+			resumed.HTTP.Jar = c.HTTP.Jar
+			resp := resumed.Get(t, "settings.profile")
+			if remember {
+				if resp.StatusCode != http.StatusOK || len(restarted.Server.Logins()) != 1 {
+					t.Fatalf("remembered login did not resume: %s, %d logins", resp.Status, len(restarted.Server.Logins()))
+				}
+			} else if resp.StatusCode != http.StatusFound ||
+				!strings.HasPrefix(resp.Header.Get("Location"), restarted.Path("auth.login")) ||
+				len(restarted.Server.Logins()) != 0 {
+				t.Fatalf("nonremembered login resumed: %s to %q, %d logins", resp.Status,
+					resp.Header.Get("Location"), len(restarted.Server.Logins()))
+			}
+		})
+	}
+}
+
 func TestRemovingLastRememberedAccountDeletesPersistedCredentials(t *testing.T) {
 	dir := t.TempDir()
 	a := Alborz(t, DataDir(dir))

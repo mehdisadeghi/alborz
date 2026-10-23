@@ -69,6 +69,8 @@
 			if (!done.ok) {
 				throw new Error(done.statusText);
 			}
+			if (create) { window.AlborzLock?.registered(); }
+			else { window.AlborzLock?.unlocked(); }
 			location.assign(source.dataset.next);
 		} catch (err) {
 			fail(source.dataset.failed);

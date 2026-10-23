@@ -17,7 +17,8 @@ var lockOpen = map[string]bool{
 	"core.manifest": true, "core.worker": true, "core.asset": true,
 	"auth.login": true, "auth.unlock": true, "auth.unlock.begin": true,
 	"auth.unlock.finish": true, "auth.unlock.leave": true,
-	"dav.caldav": true, "dav.carddav": true, "dav.published": true, "dav.collections": true,
+	"auth.unlock.state": true,
+	"dav.caldav":        true, "dav.carddav": true, "dav.published": true, "dav.collections": true,
 }
 
 var wildcard = regexp.MustCompile(`\{[^}]*\}`)

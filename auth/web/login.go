@@ -21,12 +21,14 @@ func handleLogin(ctx *web.Context) error {
 	renderData := struct {
 		web.BaseRenderData
 		RememberDays int
+		Remember     bool
 		Add          bool
 		Username     string
 	}{
 		BaseRenderData: *web.NewBaseRenderData(ctx).WithTitle(ctx.T(title)),
 		Username:       username,
 		RememberDays:   int(alborz.CredentialCookieLife().Hours() / 24),
+		Remember:       remember == "on",
 		Add:            add,
 	}
 	render := func(status int) error { return ctx.Render(status, "login", &renderData) }
@@ -75,6 +77,11 @@ func loginRedirect(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
+	// A boosted body swap keeps the public head, which has no session guard.
+	if ctx.Partial() {
+		ctx.Quiet()
+		return ctx.Relocate(to)
+	}
 	return ctx.QuietRedirect(to)
 }
 
@@ -89,8 +96,12 @@ func handleLogout(ctx *web.Context) error {
 	}
 	ctx.Server.ForgetAccount(username)
 	ctx.Quiet()
+	to := ctx.Path("auth.login")
 	if ctx.LogoutAccount(username) != nil {
-		return ctx.FoundRedirect(ctx.Path("mail.mailbox", "INBOX"))
+		to = ctx.Path("mail.mailbox", "INBOX")
 	}
-	return ctx.FoundRedirect(ctx.Path("auth.login"))
+	if ctx.Partial() {
+		return ctx.Relocate(to)
+	}
+	return ctx.FoundRedirect(to)
 }

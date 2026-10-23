@@ -496,6 +496,15 @@ header nav .header-brand {
 
 .rail-brand { display: none; }
 
+#session-lock-screen { display: none; }
+html[data-session-concealed] body > :not(#session-lock-screen) { display: none !important; }
+html[data-session-concealed] #session-lock-screen {
+  display: block;
+  max-width: 32rem;
+  margin: 15vh auto;
+  padding: var(--space-6);
+  text-align: center;
+}
 header nav > a,
 header nav > div > a {
   color: var(--fg);
@@ -1151,6 +1160,8 @@ main.login button {
   padding-block: 0.6rem;
   font-weight: bold;
 }
+
+body:has(main.login form[data-redirecting]) #notices > .notice-failed:not([id]) { display: none; }
 
 main.login .colophon {
   margin-top: 1rem;

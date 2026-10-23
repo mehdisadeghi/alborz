@@ -4,6 +4,9 @@
 
 ### Added
 
+- An account-menu lock action that preserves signed-in accounts and coordinates
+  concealment across open tabs, including restored and disconnected pages,
+  counting user scrolling and input within HTML email as activity.
 - A preferred start page, optional pooled signatures and an optional Alborz
   attribution appended independently of signatures.
 - Calendar quick-add with localized date expressions, and standard VTODO
@@ -20,6 +23,10 @@
 
 ### Fixed
 
+- Keep sign-in feedback active until the destination loads and preserve the
+  Remember me choice after a refused login.
+- Authentication transitions refresh session metadata, and locked tabs conceal
+  private content before navigation or network verification completes.
 - Hidden DAV collections no longer appear as creation destinations.
 - Compose preserves the selected account across entry points.
 - Inline and remote mail image handling, including CSS background images.
@@ -28,5 +35,6 @@
 
 ### Security
 
+- Reject malformed off-site return paths during authentication and unlocking.
 - Added regression coverage for session locking across tabs and routes, and
   bounded notification previews and stale mailbox notification links.

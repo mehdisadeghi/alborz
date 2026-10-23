@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -33,6 +34,15 @@ func (p *Calendars) Reminders(ctx context.Context, login *alborz.Login, loc *tim
 	seen := map[Reminder]bool{}
 	var out []Reminder
 	var errs []error
+	add := func(alarm *ical.Component, o Occurrence) {
+		for _, at := range alarmTimes(alarm, o, loc, from, to) {
+			r := Reminder{At: at, Start: o.Start, UID: o.UID(), Path: o.Path}
+			if !seen[r] {
+				seen[r] = true
+				out = append(out, r)
+			}
+		}
+	}
 	for _, cal := range calendars {
 		if !SupportsEvent(cal.Components) {
 			continue
@@ -49,7 +59,18 @@ func (p *Calendars) Reminders(ctx context.Context, login *alborz.Login, loc *tim
 			}
 			for _, event := range obj.Data.Events() {
 				for _, alarm := range event.Children {
-					start, end, ok := alarmWindow(alarm, event, loc, from, to)
+					if absoluteTrigger(alarm) {
+						// Absolute triggers belong to the definition, independently of
+						// recurrence exclusions or replacements. Anchor their identity
+						// to that definition, never to an expanded occurrence.
+						start, err := event.DateTimeStart(loc)
+						status, _ := event.Props.Text(ical.PropStatus)
+						if err == nil && !strings.EqualFold(status, "CANCELLED") {
+							add(alarm, Occurrence{Object: obj, Event: &event, Start: start})
+						}
+						continue
+					}
+					start, end, ok := alarmWindow(alarm, loc, from, to)
 					if !ok {
 						continue
 					}
@@ -57,12 +78,8 @@ func (p *Calendars) Reminders(ctx context.Context, login *alborz.Login, loc *tim
 					errs = append(errs, err)
 					for _, o := range occurrences {
 						for _, alarm := range o.Event.Children {
-							for _, at := range alarmTimes(alarm, o, loc, from, to) {
-								r := Reminder{At: at, Start: o.Start, UID: o.UID(), Path: o.Path}
-								if !seen[r] {
-									seen[r] = true
-									out = append(out, r)
-								}
+							if !absoluteTrigger(alarm) {
+								add(alarm, o)
 							}
 						}
 					}
@@ -78,7 +95,7 @@ func repetitions(alarm *ical.Component) (int, time.Duration) {
 	if repeat == nil {
 		return 0, 0
 	}
-	n, err := strconv.Atoi(repeat.Value)
+	n, err := strconv.ParseInt(repeat.Value, 10, 32)
 	if err != nil || n <= 0 {
 		return 0, 0
 	}
@@ -90,29 +107,44 @@ func repetitions(alarm *ical.Component) (int, time.Duration) {
 	if err != nil || d <= 0 {
 		return 0, 0
 	}
-	return n, d
+	return int(n), d
 }
 
-func alarmWindow(alarm *ical.Component, event ical.Event, loc *time.Location, from, to time.Time) (time.Time, time.Time, bool) {
+func absoluteTrigger(alarm *ical.Component) bool {
+	trigger := alarm.Props.Get(ical.PropTrigger)
+	return trigger != nil && trigger.ValueType() == ical.ValueDateTime
+}
+
+func alarmWindow(alarm *ical.Component, loc *time.Location, from, to time.Time) (time.Time, time.Time, bool) {
 	if _, ok := due(alarm, Occurrence{}, loc); !ok {
 		return time.Time{}, time.Time{}, false
 	}
 	trigger := alarm.Props.Get(ical.PropTrigger)
-	if trigger.ValueType() == ical.ValueDateTime {
-		start, err := event.DateTimeStart(loc)
-		return start, start.Add(time.Nanosecond), err == nil
-	}
 	offset, _ := trigger.Duration()
 	n, interval := repetitions(alarm)
 	// Between includes events overlapping the window, so RELATED=END also
 	// finds occurrences starting before it, regardless of event duration.
-	start := from.Add(-offset)
-	if interval > 0 && int64(n) > int64((1<<63-1)/interval) {
-		start = time.Time{}
-	} else {
-		start = start.Add(-time.Duration(n) * interval)
-	}
+	start := repeatTime(from.Add(-offset), n, -interval)
 	return start, to.Add(-offset).Add(time.Nanosecond), true
+}
+
+// RFC 5545 durations count whole seconds. Check the product before adding in
+// Unix seconds, which cover the entire calendar range without Duration's
+// approximately 292-year limit. The sentinels bound expansion, not valid alarms.
+func repeatTime(base time.Time, n int, interval time.Duration) time.Time {
+	if n == 0 || interval == 0 {
+		return base
+	}
+	first := time.Date(0, 1, 1, 0, 0, 0, 0, time.UTC)
+	after := time.Date(10000, 1, 1, 0, 0, 0, 0, time.UTC)
+	step, count := int64(interval/time.Second), int64(n)
+	if step > 0 && count > (after.Unix()-base.Unix())/step {
+		return after
+	}
+	if step < 0 && count > (base.Unix()-first.Unix())/-step {
+		return first
+	}
+	return time.Unix(base.Unix()+count*step, int64(base.Nanosecond())).In(base.Location())
 }
 
 func alarmTimes(alarm *ical.Component, o Occurrence, loc *time.Location, from, to time.Time) []time.Time {
@@ -121,13 +153,10 @@ func alarmTimes(alarm *ical.Component, o Occurrence, loc *time.Location, from, t
 		return nil
 	}
 	n, interval := repetitions(alarm)
-	first := 0
-	if interval > 0 && !at.After(from) {
-		first = int(from.Sub(at)/interval) + 1
-	}
+	first := sort.Search(n+1, func(i int) bool { return repeatTime(at, i, interval).After(from) })
 	var times []time.Time
 	for i := first; i <= n; i++ {
-		due := at.Add(time.Duration(i) * interval)
+		due := repeatTime(at, i, interval)
 		if due.After(to) {
 			break
 		}

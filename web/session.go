@@ -222,10 +222,10 @@ func (ss *Sessions) record(id string) (*alborz.SessionRecord, bool) {
 	return ss.records.Load(id)
 }
 
-// Save writes a remembered session; others are never written.
+// Save writes remembered credentials, or removes a record once none remain.
 func (ss *Sessions) Save(s *Session) error {
 	if !s.remembered() {
-		return nil
+		return ss.records.Delete(s.ID)
 	}
 	return ss.records.Save(s.record())
 }

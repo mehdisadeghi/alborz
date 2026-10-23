@@ -19,6 +19,7 @@ import (
 	"github.com/alborzmail/go-itip"
 	"github.com/emersion/go-ical"
 	"github.com/emersion/go-imap/v2"
+	"github.com/emersion/go-webdav"
 	"github.com/emersion/go-webdav/caldav"
 )
 
@@ -230,11 +231,14 @@ func (p *plugin) applyInvitation(ctx *web.Context) error {
 	}
 
 	if stored != nil {
+		if stored.ETag == "" || strings.HasPrefix(stored.ETag, "W/") {
+			return ctx.NotifyRedirect(pimweb.Refused(ctx, webdav.NewHTTPError(http.StatusPreconditionFailed, dav.ErrUnversionedObject)), back)
+		}
 		if out == nil {
-			err = c.RemoveAll(ctx.Request().Context(), stored.Path)
+			err = dav.RemoveObject(ctx.Request().Context(), p.DAV.HTTPClient(ctx.Request().Context(), ctx.Login), stored.Path, stored.ETag)
 		} else {
 			calendar.EnsureTimezones(out, time.Now())
-			_, err = c.PutCalendarObject(ctx.Request().Context(), stored.Path, out, nil)
+			_, err = c.PutCalendarObject(ctx.Request().Context(), stored.Path, out, &caldav.PutCalendarObjectOptions{IfMatch: dav.IfUnchanged(stored.ETag)})
 		}
 		if err != nil {
 			return ctx.NotifyRedirect(pimweb.Refused(ctx, err), back)
@@ -261,7 +265,7 @@ func (p *plugin) applyInvitation(ctx *web.Context) error {
 	}
 	calendar.EnsureTimezones(out, time.Now())
 	co, err := client.PutCalendarObject(ctx.Request().Context(),
-		path.Join(calendarPath, dav.SafeObjectName(name)+".ics"), out, nil)
+		path.Join(calendarPath, dav.SafeObjectName(name)+".ics"), out, &caldav.PutCalendarObjectOptions{IfNoneMatch: dav.IfNew})
 	if err != nil {
 		return ctx.NotifyRedirect(pimweb.Refused(ctx, err), back)
 	}

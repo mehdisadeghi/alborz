@@ -540,7 +540,7 @@ func (s *Store) Object(ref Ref, name string) (*Object, error) {
 // ErrPrecondition is a write whose If-Match or If-None-Match did not hold.
 var ErrPrecondition = errors.New("collections: precondition failed")
 
-// ErrUIDConflict is a second object with a UID the collection already holds.
+// ErrUIDConflict is a duplicate UID or a change to an existing resource's UID.
 var ErrUIDConflict = errors.New("collections: UID already in the collection")
 
 // Unless says why a write is off, given the held ETag or empty; nil does not care.
@@ -568,6 +568,9 @@ func (s *Store) PutObject(ref Ref, name, uid string, data []byte, unless Unless,
 				return err
 			}
 		}
+		if old != nil && old.UID != uid {
+			return ErrUIDConflict
+		}
 		if uid != "" {
 			if holder := tx.Get(s.uidKey(ref, uid)); holder != nil && string(holder) != name {
 				// An index entry is believed only where its object agrees.
@@ -580,11 +583,6 @@ func (s *Store) PutObject(ref Ref, name, uid string, data []byte, unless Unless,
 				}
 			}
 			if err := tx.Put(s.uidKey(ref, uid), []byte(name)); err != nil {
-				return err
-			}
-		}
-		if old != nil && old.UID != "" && old.UID != uid {
-			if err := tx.Delete(s.uidKey(ref, old.UID)); err != nil {
 				return err
 			}
 		}

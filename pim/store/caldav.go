@@ -179,11 +179,14 @@ func conditions(ifMatch, ifNoneMatch webdav.ConditionalMatch) Unless {
 		if err != nil {
 			return httpError(http.StatusBadRequest, err)
 		}
+		if must && !matched {
+			return ErrPrecondition
+		}
 		mustNot, clashed, err := ifNoneMatch.MatchETagWeak(held)
 		if err != nil {
 			return httpError(http.StatusBadRequest, err)
 		}
-		if must && !matched || mustNot && clashed {
+		if mustNot && clashed {
 			return ErrPrecondition
 		}
 		return nil
@@ -196,4 +199,8 @@ func (b calendars) DeleteCalendarObject(ctx context.Context, p string) error {
 
 func (b calendars) DeleteCalendarObjectIfMatch(ctx context.Context, p string, ifMatch webdav.ConditionalMatch) error {
 	return b.remove(ctx, p, Calendar, ifMatch)
+}
+
+func (b calendars) DeleteCalendarObjectWithOptions(ctx context.Context, p string, opts *webdav.RemoveAllOptions) error {
+	return b.removeWithOptions(ctx, p, Calendar, opts)
 }

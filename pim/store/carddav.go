@@ -111,3 +111,7 @@ func (b books) DeleteAddressObject(ctx context.Context, p string) error {
 func (b books) DeleteAddressObjectIfMatch(ctx context.Context, p string, ifMatch webdav.ConditionalMatch) error {
 	return b.remove(ctx, p, AddressBook, ifMatch)
 }
+
+func (b books) DeleteAddressObjectWithOptions(ctx context.Context, p string, opts *webdav.RemoveAllOptions) error {
+	return b.removeWithOptions(ctx, p, AddressBook, opts)
+}

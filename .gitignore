@@ -2,3 +2,4 @@
 /alborz-linux
 *.mbox
 /GNUmakefile
+/.local/

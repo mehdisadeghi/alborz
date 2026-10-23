@@ -1,7 +1,7 @@
 {{/* dict: G Row Next Select. */}}
 {{ define "entry-row" }}
 {{ $g := .G }}{{ $next := .Next }}{{ $select := .Select }}{{ with $row := .Row }}
-<div class="journal-row list-row" role="row">
+<div class="journal-row list-row" role="row" data-swipe-kind="journal">
   {{ with $select }}
   {{ template "row-select-cell" (dict "class" "journal-list-checkbox" "form" . "ref" (printf "%s|%s" $row.Account $row.Path) "label" ($g.T "a11y.selectentry") "summary" $row.Summary) }}
   {{ end }}

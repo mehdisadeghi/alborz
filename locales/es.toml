@@ -976,6 +976,18 @@
 "form.shareuntil" = "El último día no es una fecha."
 "tasks.newlist" = "Nueva lista de tareas"
 "tasks.movelist" = "Mover a la lista"
+"gestures.title" = "Gestos táctiles"
+"gestures.rows" = "Deslizar filas"
+"gestures.navigation" = "Deslizar entre páginas y fechas del calendario"
+"gestures.localhint" = "Estos dos interruptores solo se aplican a este navegador. Las acciones de las filas se guardan en tus cuentas."
+"gestures.left" = "Deslizar a la izquierda"
+"gestures.right" = "Deslizar a la derecha"
+"gestures.default" = "Predeterminado: %s"
+"gestures.none" = "Ninguna acción"
+"gestures.reset" = "Restablecer acciones de filas"
+"gestures.hint" = "Para eliminar un elemento del calendario o un contacto hace falta otro toque. Deslizar nunca elimina el correo definitivamente."
+"form.swipeaction" = "Elige una acción de deslizamiento compatible para cada sección."
+
 # Plural forms last: a TOML table claims every key that follows it.
 "settings.signatures" = "Firmas"
 "settings.signaturenew" = "Nueva firma"

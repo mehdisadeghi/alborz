@@ -37,7 +37,20 @@ type ProfileRenderData struct {
 	// LockMinutes is how long this browser waits before it locks; zero without a passkey.
 	LockMinutes int
 	// Shown is the profile the form was drawn from, which a save compares the form against.
-	Shown string
+	Shown    string
+	Gestures []GestureSetting
+}
+
+// GestureSetting offers the two physical swipe directions for one section.
+type GestureSetting struct {
+	Name, Label string
+	Left, Right []GestureOption
+}
+
+// GestureOption is one supported action or the section's default.
+type GestureOption struct {
+	Value, Label string
+	Selected     bool
 }
 
 func handleLanguage(ctx *web.Context) error {
@@ -67,6 +80,7 @@ func handleProfile(ctx *web.Context) error {
 			MaxPerPage:    web.MaxMessagesPerPage,
 			LockMinutes:   lockMinutes(ctx.Session().Lock()),
 			Shown:         string(shown),
+			Gestures:      gestureSettings(ctx, p.Gestures),
 		})
 	}
 	shown := ctx.Profile()
@@ -98,6 +112,17 @@ func handleProfile(ctx *web.Context) error {
 		}
 	}
 	p := drawn
+	for _, field := range gestureFields(&p.Gestures) {
+		if v, ok := given("swipe_" + field.name + "_left"); ok {
+			field.pair.Left = v
+		}
+		if v, ok := given("swipe_" + field.name + "_right"); ok {
+			field.pair.Right = v
+		}
+	}
+	if !p.Gestures.Valid() {
+		return render(http.StatusUnprocessableEntity, ctx.T("form.swipeaction"), shown)
+	}
 	reading := &p.Reading
 	if v, ok := given("messages_per_page"); ok {
 		reading.MessagesPerPage, err = locale.ReadInt(v)
@@ -164,6 +189,37 @@ func handleProfile(ctx *web.Context) error {
 		}
 	}
 	return ctx.NoticeRedirect(ctx.T("notice.settingssaved"), ctx.Path("settings.profile"))
+}
+
+type gestureField struct {
+	name, label string
+	pair        *alborz.SwipeActions
+}
+
+func gestureFields(g *alborz.Gestures) []gestureField {
+	return []gestureField{
+		{"mail", "nav.email", &g.Mail}, {"tasks", "nav.tasks", &g.Tasks},
+		{"contacts", "nav.contacts", &g.Contacts}, {"journal", "nav.journal", &g.Journal},
+		{"events", "events.search", &g.Events},
+	}
+}
+
+func gestureSettings(ctx *web.Context, g alborz.Gestures) []GestureSetting {
+	defaults := (alborz.Gestures{}).Resolved()
+	defaultFields := gestureFields(&defaults)
+	var settings []GestureSetting
+	for i, field := range gestureFields(&g) {
+		options := func(value, fallback string) []GestureOption {
+			out := []GestureOption{{Label: fmt.Sprintf(ctx.T("gestures.default"), ctx.T(web.SwipeActionKey(fallback))), Selected: value == ""}}
+			for _, action := range alborz.GestureActions(field.name) {
+				out = append(out, GestureOption{Value: action, Label: ctx.T(web.SwipeActionKey(action)), Selected: value == action})
+			}
+			return out
+		}
+		settings = append(settings, GestureSetting{Name: field.name, Label: ctx.T(field.label),
+			Left: options(field.pair.Left, defaultFields[i].pair.Left), Right: options(field.pair.Right, defaultFields[i].pair.Right)})
+	}
+	return settings
 }
 
 func handleProfileTake(ctx *web.Context) error {

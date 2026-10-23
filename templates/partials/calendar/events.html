@@ -11,7 +11,7 @@
 
 {{/* dict: href when summary color owner timeLabel eventLabel calendarLabel. */}}
 {{ define "event-row" }}
-<div class="event-row list-row" role="row">
+<div class="event-row list-row" role="row"{{ if or .form .staraction }} data-swipe-kind="events"{{ end }}>
   {{ with .form }}
   {{ template "row-select-cell" (dict "class" "event-select" "form" . "ref" $.ref "label" $.selectLabel "summary" $.summary) }}
   {{ end }}

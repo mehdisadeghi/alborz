@@ -2,7 +2,7 @@
 {{ define "contact-rows" }}
           {{range $row := .AddressObjects}}
           {{$book := call $.CollectionFor .Account .Path}}
-          <div class="contact-row list-row" role="row">
+          <div class="contact-row list-row" role="row" data-swipe-kind="contacts">
             {{ with $.SelectForm }}
             {{ template "row-select-cell" (dict "class" "contact-list-checkbox" "form" . "ref" (printf "%s|%s" $row.Account $row.Path) "label" ($.T "a11y.selectcontact") "summary" $row.DisplayName) }}
             {{ end }}

@@ -17,6 +17,7 @@ type CalendarDateRenderData struct {
 	CalendarPageRenderData
 	Events             []calendar.Occurrence
 	PrevPage, NextPage string
+	Scope              string
 }
 
 type dayView struct {
@@ -44,6 +45,7 @@ func (p *plugin) day(ctx *web.Context) error {
 		Events:   dv.events,
 		PrevPage: dv.start.AddDate(0, 0, -1).Format(datePageLayout),
 		NextPage: dv.start.AddDate(0, 0, 1).Format(datePageLayout),
+		Scope:    web.Query(web.ReadListState(ctx).Keep("account", "cal")),
 	})
 }
 

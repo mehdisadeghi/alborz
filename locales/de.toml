@@ -976,6 +976,18 @@
 "form.shareuntil" = "Der letzte Tag ist kein Datum."
 "tasks.newlist" = "Neue Aufgabenliste"
 "tasks.movelist" = "In Liste verschieben"
+"gestures.title" = "Touch-Gesten"
+"gestures.rows" = "Wischgesten für Zeilen"
+"gestures.navigation" = "Zwischen Seiten und Kalenderdaten wischen"
+"gestures.localhint" = "Diese beiden Schalter gelten nur für diesen Browser. Die Aktionen für Zeilen werden mit Ihren Konten gespeichert."
+"gestures.left" = "Nach links wischen"
+"gestures.right" = "Nach rechts wischen"
+"gestures.default" = "Standard: %s"
+"gestures.none" = "Keine Aktion"
+"gestures.reset" = "Zeilenaktionen zurücksetzen"
+"gestures.hint" = "Das Löschen eines Kalendereintrags oder Kontakts erfordert ein weiteres Antippen. Eine Wischgeste löscht E-Mails nie endgültig."
+"form.swipeaction" = "Wählen Sie für jeden Bereich eine unterstützte Wischaktion."
+
 # Plural forms last: a TOML table claims every key that follows it.
 "settings.signatures" = "Signaturen"
 "settings.signaturenew" = "Neue Signatur"

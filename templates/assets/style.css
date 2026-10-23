@@ -4487,12 +4487,10 @@ aside ul.merged-roles {
   color: var(--fg-faint);
 }
 
-/* Sideways is the swipe's; up and down stays the page's. */
-.message-row { touch-action: pan-y; }
+/* Gestures keep vertical scrolling and pinch zoom available. */
+html[data-swipe-navigation="on"] :is([data-swipe-nav], [data-swipe-calendar]) { touch-action: pan-y pinch-zoom; }
 
-.message-grid { position: relative; }
-
-.message-row.swiping {
+.list-row.swiping {
   position: relative;
   z-index: 1;
   background-color: var(--bg);
@@ -4509,21 +4507,32 @@ aside ul.merged-roles {
   font-weight: 600;
   color: var(--fg-muted);
   background: var(--bg-inset);
+  direction: ltr;
+  pointer-events: none;
 }
 
-.swipe-away { justify-content: flex-end; }
+.swipe-left { justify-content: flex-end; }
 
-.swipe-toward { justify-content: flex-start; }
+.swipe-right { justify-content: flex-start; }
 
 /* Grey until letting go would act. */
-.swipe-away.armed {
+.swipe-hint[data-action="delete"].armed {
   color: var(--alert-fg);
   background: var(--alert-bg);
 }
 
-.swipe-toward.armed {
+.swipe-hint.armed:not([data-action="delete"]) {
   color: var(--warn-fg);
   background: var(--warn-bg);
+}
+
+.swipe-confirm { pointer-events: auto; }
+[data-swipe-step].swipe-target { background: var(--bg-inset); }
+[data-swipe-step].swipe-armed { outline: 2px solid currentColor; outline-offset: -2px; }
+
+@media (width <= 600px) {
+  html[data-row-swipes="on"] .list-grid { position: relative; overflow-x: clip; }
+  html[data-row-swipes="on"] .list-row[data-swipe-kind] { touch-action: pan-y pinch-zoom; }
 }
 
 .keys-help,

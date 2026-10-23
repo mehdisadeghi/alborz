@@ -1,6 +1,7 @@
 package web
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"html/template"
@@ -47,6 +48,8 @@ type GlobalRenderData struct {
 	Shell string
 	// LockSeconds is the idle time before the session locks, zero without a passkey.
 	LockSeconds int
+	// Swipes is the resolved row gesture mapping, carried by every main render and swap.
+	Swipes string
 	// Revision names the running binary.
 	Revision string
 	// Brand is the product's name as a person reads it.
@@ -289,6 +292,8 @@ func NewBaseRenderData(ctx *Context) *BaseRenderData {
 	global.TextSize = ctx.TextSize()
 	global.Unified = ctx.Unified
 	global.AlignByScript = ctx.alignByScript()
+	swipes, _ := json.Marshal(ctx.Profile().Gestures.Resolved()) // Fixed string fields cannot fail to encode.
+	global.Swipes = string(swipes)
 	global.CustomCSS = len(ctx.Server.loaded.Load().custom) > 0
 	theme := ctx.theme()
 	global.SchemePinned = theme.Scheme != ""

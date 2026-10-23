@@ -12,7 +12,7 @@
 {{ template "toolbar-end" }}
     {{ template "filter-menu" (dict "id" "menu-filter" "icon" "list-filter" "title" ($.T "filter.menu") "rows" .FilterRows "disabled" (not .FilterRows) "priority" 25 "class" "filter-overflow") }}
     {{ template "filter-menu" (dict "id" "menu-group" "icon" "group" "title" ($.T "list.groupby") "rows" .GroupRows "disabled" (not .GroupRows) "priority" 30 "class" "group-overflow") }}
-    <div class="actions-pagination" data-priority="31" data-yield="split">
+    <div class="actions-pagination" data-swipe-nav data-priority="31" data-yield="split">
       {{ template "pager-link" (dict "step" (dict "href" (printf "?month=%s%s" .PrevPage $suffix) "title" ($.GlobalData.MonthName .PrevTime) "name" ($.T "calendar.prevmonth")) "icon" "prev" "go" "p") }}
       {{if not .ThisMonth}}
       {{/* localhref, or html/template escapes the whole query as one value. */}}

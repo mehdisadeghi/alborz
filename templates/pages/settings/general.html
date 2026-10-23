@@ -5,6 +5,27 @@
       {{/* A whole page: these are attributes of the root, which a swap keeps. */}}
       <form method="post" hx-boost="false">
         {{ template "shown-field" .Shown }}
+        <fieldset class="action-group choices">
+          <legend>{{$.T "gestures.title"}}</legend>
+          <label class="checkbox">
+            <input type="checkbox" data-gesture-toggle="rows" checked>
+            {{$.T "gestures.rows"}}
+          </label>
+          <label class="checkbox">
+            <input type="checkbox" data-gesture-toggle="navigation" checked>
+            {{$.T "gestures.navigation"}}
+          </label>
+          {{ template "hint" (dict "text" ($.T "gestures.localhint")) }}
+          {{ range .Gestures }}
+          <fieldset class="action-group">
+            <legend>{{.Label}}</legend>
+            {{ template "gesture-select" (dict "name" (printf "swipe_%s_left" .Name) "label" ($.T "gestures.left") "options" .Left) }}
+            {{ template "gesture-select" (dict "name" (printf "swipe_%s_right" .Name) "label" ($.T "gestures.right") "options" .Right) }}
+          </fieldset>
+          {{ end }}
+          <button type="button" data-gesture-reset>{{$.T "gestures.reset"}}</button>
+          {{ template "hint" (dict "text" ($.T "gestures.hint")) }}
+        </fieldset>
         <div class="action-group">
           <label for="messages_per_page">{{$.T "settings.perpage"}}</label>
           <input
@@ -147,4 +168,11 @@
           <p class="hint" id="register-mailto-refused" hidden>{{$.T "settings.mailtorefused"}}</p>
         </div>
       </form>
+{{ end }}
+
+{{ define "gesture-select" }}
+          <label for="{{.name}}">{{.label}}</label>
+          <select name="{{.name}}" id="{{.name}}">
+            {{ range .options }}<option value="{{.Value}}"{{if .Selected}} selected{{end}}>{{.Label}}</option>{{ end }}
+          </select>
 {{ end }}

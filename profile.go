@@ -7,9 +7,10 @@ import (
 
 // Profile is the person's own choices, kept on every account signed in (ADR 52).
 type Profile struct {
-	Reading Reading
-	Writing Writing
-	Display Display
+	Reading  Reading
+	Writing  Writing
+	Display  Display
+	Gestures Gestures
 	// Toured is set once a sign-in has opened the tour; it opens by itself only once (ADR 76).
 	Toured bool
 	// Place is where the reader said they are; an empty Name is none (ADR 79).

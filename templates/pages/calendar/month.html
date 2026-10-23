@@ -15,7 +15,7 @@
 
       {{ template "section-crumb" (dict "g" $ "section" ($.T "nav.calendar") "home" (url "calendar.month") "field" "cal" "items" .Collections "keep" $keep "collection" "" "path" "") }}
 
-      <section class="dates">
+      <section class="dates" data-swipe-calendar>
         {{range .Weekdays}}
         <h2 class="weekday">{{.}}</h2>
         {{end}}
@@ -26,7 +26,8 @@
           {{if not ($base.SameMonth $base.Time .)}}extra{{end}}
           {{if eq (.Format "2006-01-02") ($base.Now.Format "2006-01-02")}}active{{end}}
           ">
-          <a href="{{url "calendar.day"}}?date={{.Format "2006-01-02"}}{{ account "&" $base.GlobalData.URLAccount }}" class="date-link" aria-label="{{ $base.GlobalData.LongDate . }}"></a>
+          {{ $scope := "" }}{{ with $base.Scope }}{{ $scope = printf "&%s" . }}{{ end }}
+          <a href="{{localhref (printf "%s?date=%s%s" (url "calendar.day") (.Format "2006-01-02") $scope)}}" class="date-link" aria-label="{{ $base.GlobalData.LongDate . }}"></a>
           <h3>
             {{ if eq (mod $i 7) 0 }}<span class="weeknum" title="{{$base.WeekTitle $day}}">{{$base.WeekNumber $day}}</span>{{ end }}
             <span class="day-label">{{ with $base.CalendarDayLabel . }}{{ with .Before }}<span class="label-long">{{ . }}</span>{{ end }}<span class="day-num">{{ .Day }}</span>{{ with .After }}<span class="label-long">{{ . }}</span>{{ end }}{{ end }}</span>

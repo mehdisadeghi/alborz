@@ -976,6 +976,18 @@
 "form.shareuntil" = "آخرین روز یک تاریخ نیست."
 "tasks.newlist" = "فهرست کار جدید"
 "tasks.movelist" = "انتقال به فهرست"
+"gestures.title" = "حرکت‌های لمسی"
+"gestures.rows" = "کشیدن ردیف‌ها"
+"gestures.navigation" = "جابه‌جایی میان صفحه‌ها و تاریخ‌های تقویم با کشیدن"
+"gestures.localhint" = "این دو گزینه فقط برای این مرورگر هستند. کنش‌های ردیف‌ها با حساب‌هایتان ذخیره می‌شوند."
+"gestures.left" = "کشیدن به چپ"
+"gestures.right" = "کشیدن به راست"
+"gestures.default" = "پیش‌فرض: %s"
+"gestures.none" = "بدون اقدام"
+"gestures.reset" = "بازنشانی کنش‌های ردیف‌ها"
+"gestures.hint" = "حذف یک مورد تقویم یا مخاطب نیاز به لمس دیگری دارد. کشیدن هرگز نامه‌ها را برای همیشه حذف نمی‌کند."
+"form.swipeaction" = "برای هر بخش یک کنش کشیدن پشتیبانی‌شده انتخاب کنید."
+
 # Plural forms last: a TOML table claims every key that follows it.
 "settings.signatures" = "امضاها"
 "settings.signaturenew" = "امضای جدید"

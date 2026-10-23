@@ -1,7 +1,7 @@
 {{/* dict: G Row Next Select. */}}
 {{ define "task-row" }}
 {{ $g := .G }}{{ $next := .Next }}{{ $select := .Select }}{{ with $row := .Row }}
-<div class="task-row list-row{{if .Completed}} completed{{end}}" role="row">
+<div class="task-row list-row{{if .Completed}} completed{{end}}" role="row" data-swipe-kind="tasks">
   {{ with $select }}
   {{ template "row-select-cell" (dict "class" "task-list-checkbox" "form" . "ref" (printf "%s|%s" $row.Task.Account $row.Task.Path) "label" ($g.T "a11y.selecttask") "summary" $row.Summary) }}
   {{ end }}
@@ -14,7 +14,7 @@
       <input type="hidden" name="next" value="{{$next}}">
       {{ with $select }}<input type="hidden" name="select" value="{{.}}">{{ end }}
       {{ if .Completed }}<input type="hidden" name="reopen" value="1">{{ end }}
-      <button type="submit" class="checkbox-button{{if .Completed}} checked{{end}}{{with .Priority}} prio-{{.}}{{end}}" aria-label="{{$mark}}" title="{{$mark}}">
+      <button type="submit" class="checkbox-button{{if .Completed}} checked{{end}}{{with .Priority}} prio-{{.}}{{end}}" data-swipe-action="complete" aria-label="{{$mark}}" title="{{$mark}}">
         {{if .Completed}}&#10003;{{end}}
       </button>
     </form>

@@ -98,6 +98,9 @@ See `docs/cli.md` for every flag.
 
 ## Contributing
 
+Run `make test` with the Go version in `go.mod` and Node.js 18 or newer.
+`make test-js` runs the gesture checks without npm dependencies.
+
 Report issues and send patches at [github.com/mehdisadeghi/alborz].
 
 ## Acknowledgements

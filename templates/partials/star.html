@@ -33,7 +33,7 @@
 </div>
 {{ else if .toggle }}
 <div class="overflow flag-menu flag-split{{ with .class }} {{.}}{{ end }}" data-current="{{.current}}"{{ with .priority }} data-priority="{{.}}"{{ end }}>
-  <button class="flag-button button-link{{ with .current }} flag-{{.}}{{ end }}"
+  <button class="flag-button button-link{{ with .current }} flag-{{.}}{{ end }}"{{ if .row }} data-swipe-action="star"{{ end }}
           {{ with .form }}form="{{.}}"{{ end }}{{ with .action }} formaction="{{.}}"{{ end }}
           name="color" value="{{ if .current }}{{ else }}yellow{{ end }}"
           title="{{ if .current }}{{.clear}}{{ else }}{{.title}}{{ end }}"

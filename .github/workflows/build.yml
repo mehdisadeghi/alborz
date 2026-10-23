@@ -37,6 +37,8 @@ jobs:
         run: |
           go vet -tags "$BUILD_TAGS" ./...
           go test -tags "$BUILD_TAGS" ./...
+      - name: Test browser gestures
+        run: make test-js
 
   build:
     needs: test

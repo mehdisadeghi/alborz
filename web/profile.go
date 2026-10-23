@@ -282,7 +282,45 @@ func (ctx *Context) profileDiff(theirs, ours alborz.Profile) []profileChange {
 	add("settings.language", func(p alborz.Profile) string {
 		return or(locale.Name(p.Display.Language), "settings.langauto")
 	})
+	a, b := theirs.Gestures.Resolved(), ours.Gestures.Resolved()
+	for _, section := range []struct {
+		label        string
+		theirs, ours alborz.SwipeActions
+	}{
+		{"nav.email", a.Mail, b.Mail}, {"nav.tasks", a.Tasks, b.Tasks},
+		{"nav.contacts", a.Contacts, b.Contacts}, {"nav.journal", a.Journal, b.Journal},
+		{"events.search", a.Events, b.Events},
+	} {
+		for _, direction := range []struct{ label, theirs, ours string }{
+			{"gestures.left", section.theirs.Left, section.ours.Left},
+			{"gestures.right", section.theirs.Right, section.ours.Right},
+		} {
+			if direction.theirs != direction.ours {
+				out = append(out, profileChange{
+					g.T("gestures.title") + " · " + g.T(section.label) + " · " + g.T(direction.label),
+					g.T(SwipeActionKey(direction.theirs)), g.T(SwipeActionKey(direction.ours)),
+				})
+			}
+		}
+	}
 	return out
+}
+
+// SwipeActionKey is the label shared by gesture settings and profile-choice notices.
+func SwipeActionKey(action string) string {
+	switch action {
+	case "delete":
+		return "common.delete"
+	case "archive":
+		return "mailbox.archive"
+	case "junk":
+		return "mailbox.spam"
+	case "complete":
+		return "tasks.markcomplete"
+	case "star":
+		return "keys.star"
+	}
+	return "gestures.none"
 }
 
 func selectedLabels[T any](g GlobalRenderData, offered []T, selected []string, name func(T) string, suffix string) string {

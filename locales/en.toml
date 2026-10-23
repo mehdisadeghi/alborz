@@ -976,6 +976,18 @@
 "form.shareuntil" = "That last day is not a date."
 "tasks.newlist" = "New task list"
 "tasks.movelist" = "Move to list"
+"gestures.title" = "Touch gestures"
+"gestures.rows" = "Swipe rows"
+"gestures.navigation" = "Swipe between pages and calendar dates"
+"gestures.localhint" = "These two switches apply only to this browser. Row actions are saved with your accounts."
+"gestures.left" = "Swipe left"
+"gestures.right" = "Swipe right"
+"gestures.default" = "Default: %s"
+"gestures.none" = "No action"
+"gestures.reset" = "Reset row actions"
+"gestures.hint" = "Deleting a calendar item or contact requires another tap. A swipe never permanently deletes mail."
+"form.swipeaction" = "Choose a supported swipe action for each section."
+
 # Plural forms last: a TOML table claims every key that follows it.
 "settings.signatures" = "Signatures"
 "settings.signaturenew" = "New signature"

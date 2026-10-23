@@ -1,10 +1,11 @@
 GO ?= go
+NODE ?= node
 ADDR ?= localhost:1323
 # Served mail domains, bare for SRV discovery or with explicit upstreams:
 # ARGS = example.org example.com=imaps://mail.example.com example.com=smtps://mail.example.com
 ARGS ?=
 
-.PHONY: build run watch fmt lint test login-key
+.PHONY: build run watch fmt lint test test-js login-key
 
 build:
 	$(GO) build -o alborz ./cmd/alborz
@@ -37,8 +38,12 @@ lint:
 
 # Templates, locales, and every page a signed-in reader can open, served
 # by an in-process IMAP server. No network, no rig, no credentials.
-test:
+test: test-js
 	$(GO) test ./...
+
+# Execute the browser gesture handler against deterministic DOM fixtures; no npm dependencies.
+test-js:
+	$(NODE) --test tests/gestures.test.cjs
 
 # Generate a key for -login-key.
 login-key:

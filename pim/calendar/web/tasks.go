@@ -80,7 +80,7 @@ func quickListOf(ctx *web.Context, calendars []dav.Collection) *quickList {
 	indexes := make(map[string]int)
 	shown := 0
 	for _, cal := range calendars {
-		if !cal.Writable || !calendar.SupportsTodo(cal.Components) || (scope != "" && cal.Account != scope) {
+		if !cal.Visible || !cal.Writable || !calendar.SupportsTodo(cal.Components) || (scope != "" && cal.Account != scope) {
 			continue
 		}
 		// The list in force, else the first shown.

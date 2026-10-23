@@ -284,7 +284,17 @@ func (p *plugin) writableGroups(ctx *web.Context, supports func([]string) bool) 
 	if err != nil {
 		return nil, err
 	}
-	return pim.WritableGroups(accounts, func(cal dav.Collection) bool { return cal.Writable && supports(cal.Components) }), nil
+	chosen := calendar.EventVisibility
+	if supports([]string{"VTODO"}) {
+		chosen = calendar.TaskVisibility
+	} else if supports([]string{"VJOURNAL"}) {
+		chosen = calendar.JournalVisibility
+	}
+	collections, _, err := calendar.Visible(ctx.Request().Context(), accounts, "", nil, supports, chosen)
+	if err != nil {
+		return nil, err
+	}
+	return pimweb.VisibleDestinations(collections), nil
 }
 
 func (p *plugin) destination(ctx *web.Context, value string, supports func([]string) bool) (pim.Ref[*caldav.Client], error) {

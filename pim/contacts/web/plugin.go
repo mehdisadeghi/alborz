@@ -106,7 +106,11 @@ func (p *plugin) writableBookGroups(ctx *web.Context) ([]dav.Group, error) {
 	if err != nil {
 		return nil, err
 	}
-	return pim.WritableGroups(accounts, func(ab dav.Collection) bool { return ab.Writable }), nil
+	collections, _, err := contacts.Visible(ctx.Request().Context(), accounts, "", nil)
+	if err != nil {
+		return nil, err
+	}
+	return pimweb.VisibleDestinations(collections), nil
 }
 
 func bookAbilities(found dav.Advertised) []web.Ability {

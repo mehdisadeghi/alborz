@@ -50,20 +50,24 @@ In addition to the protocols above:
 
 | RFC | Scope |
 |---|---|
-| 5546, 6047 | iTIP and iMIP meeting requests: display, reply, file and send |
-| 3156, Autocrypt, WKD | PGP/MIME signature verification; key discovery |
-| 8601 | Authentication-Results from a trusted server only |
-| 8058, 2369, 2919 | One-click unsubscribe, list headers |
-| 2177, 2971, 5464, 5256, 6154, 4551 | IDLE, ID, METADATA, SORT and THREAD, special-use folders, CONDSTORE |
+| 5546, 6047 | VEVENT REQUEST, REPLY, CANCEL and PUBLISH over iTIP/iMIP; claimed actor is not authenticated |
+| 3156, Autocrypt, WKD | PGP/MIME verification only; Autocrypt header extraction and WKD key lookup |
+| 8601 | Authentication-Results from the exact configured authserv-id; no ARC verification |
+| 2369, 2919 | List headers and ordinary unsubscribe links; one-click POST disabled pending verified DKIM coverage |
+| 2177, 2971, 5464, 5256, 6154, 4551 | IDLE, ID, METADATA, SORT/THREAD, special-use folders; HIGHESTMODSEQ cache freshness |
 | 4315, 5819, 6851 | UIDPLUS, LIST-STATUS, MOVE |
 | 5228, 5804, 5230, 6609, 5260 | Sieve and ManageSieve: rules, forwarding and vacation replies |
-| 5545, 7986, 7529 | iCalendar: VTIMEZONE generation, recurrence, alarms, journal entries, COLOR, RSCALE |
+| 5545, 7986, 7529 | iCalendar recurrence, DISPLAY/AUDIO alarms, journals, COLOR; Gregorian/Persian RSCALE |
 | 4791, 6352, 6764 | CalDAV and CardDAV server, `.well-known` discovery |
-| 4918, 7232 | WebDAV dead properties, conditional requests |
-| 6578 | WebDAV sync: remote calendars and address books kept in step |
+| 4918, 7232 | WebDAV dead properties and object ETag conditions |
+| 6578 | Remote calendar/address-book sync client; own server does not implement sync REPORT |
 | 3676, 5322 | format=flowed, References, Reply-To, signature delimiter |
 | 6350, 6186 | vCard, SRV service discovery |
-| WebAuthn | Passkeys |
+| WebAuthn | Passkey lock/unlock for an existing session |
+
+These are scoped implementations, not complete RFC certification. See the
+[RFC audit](docs/audits/2026-10-23-rfc-audit.md) for evidence, limitations and
+required dependency updates for the audited repairs.
 
 ## Install
 

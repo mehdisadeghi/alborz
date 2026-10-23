@@ -49,21 +49,15 @@ func readAuthResults(h textproto.Header, trusted string) *AuthResults {
 	if trusted == "" {
 		return nil
 	}
-	for _, key := range []string{"Authentication-Results", "ARC-Authentication-Results"} {
-		fields := h.FieldsByKey(key)
-		for fields.Next() {
-			id, results, ok := parseAuthResults(key, fields.Value())
-			if !ok || !sameServerFamily(id, trusted) {
-				continue
-			}
-			return results
+	fields := h.FieldsByKey("Authentication-Results")
+	for fields.Next() {
+		id, results, ok := parseAuthResults("Authentication-Results", fields.Value())
+		if !ok || id != trusted {
+			continue
 		}
+		return results
 	}
 	return nil
-}
-
-func sameServerFamily(id, trusted string) bool {
-	return id == trusted || serverFamily(id) == serverFamily(trusted)
 }
 
 func parseAuthResults(key, value string) (string, *AuthResults, bool) {

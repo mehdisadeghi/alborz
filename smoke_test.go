@@ -108,8 +108,8 @@ func TestPagesAnswer(t *testing.T) {
 	}
 }
 
-// Both read the message only to decide; opening it is what marks it read.
-func TestUnsubscribeAndAddToCalendarLeaveTheMessageUnread(t *testing.T) {
+// Reading the invitation only to file it must not mark the message read.
+func TestAddToCalendarLeavesTheMessageUnread(t *testing.T) {
 	a := Alborz(t)
 	c := a.SignIn(t, User)
 	ic := a.IMAP.Dial(t)
@@ -141,7 +141,6 @@ func TestUnsubscribeAndAddToCalendarLeaveTheMessageUnread(t *testing.T) {
 		{"Planning", "calendar.frommessage", func(uid imap.UID) []any {
 			return []any{url.Values{"mbox": {"INBOX"}, "uid": {fmt.Sprint(uid)}}}
 		}},
-		{"Ideas for the redesign", "mail.message.unsubscribe", func(uid imap.UID) []any { return []any{"INBOX", uid} }},
 	} {
 		uid := uidOf(action.subject)
 		c.Post(t, action.route, nil, action.args(uid)...)

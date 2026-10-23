@@ -94,9 +94,9 @@ func (mbox *MailboxInfo) IsInternal() bool {
 
 // Counts ride on LIST-STATUS where offered, so the sidebar needs no STATUS for those.
 func startListMailboxes(conn *imapclient.Client) *imapclient.ListCommand {
-	var options *imap.ListOptions
+	options := &imap.ListOptions{ReturnSpecialUse: conn.Caps().Has(imap.CapSpecialUse)}
 	if conn.Caps().Has(imap.CapListStatus) {
-		options = &imap.ListOptions{ReturnStatus: listingStatusOptions(conn)}
+		options.ReturnStatus = listingStatusOptions(conn)
 	}
 	return conn.List("", "*", options)
 }
@@ -247,9 +247,7 @@ type IMAPMessage struct {
 	ListPost string
 	// ListUnsubscribe is where the reader leaves the list: a page, or a mailto naming someone.
 	ListUnsubscribe string
-	// OneClick is the RFC 8058 endpoint, posted from the server.
-	OneClick   string
-	rootHeader textproto.Header
+	rootHeader      textproto.Header
 	// References is the thread chain; ENVELOPE does not carry it.
 	References string
 	// Author wrote a message whose From the list Via replaced; nil otherwise.
@@ -281,12 +279,33 @@ func (msg *IMAPMessage) Date() time.Time {
 }
 
 func firstListURI(value string, wanted ...string) string {
-	for _, field := range strings.Split(value, ",") {
-		field = strings.TrimSpace(field)
-		if !strings.HasPrefix(field, "<") || !strings.HasSuffix(field, ">") {
+	comment, start := 0, -1
+	for i := 0; i < len(value); i++ {
+		if comment > 0 {
+			switch value[i] {
+			case '\\':
+				i++
+			case '(':
+				comment++
+			case ')':
+				comment--
+			}
 			continue
 		}
-		uri := field[1 : len(field)-1]
+		if start < 0 {
+			switch value[i] {
+			case '(':
+				comment++
+			case '<':
+				start = i + 1
+			}
+			continue
+		}
+		if value[i] != '>' {
+			continue
+		}
+		uri := strings.Join(strings.Fields(value[start:i]), "")
+		start = -1
 		if len(wanted) == 0 {
 			return uri
 		}
@@ -491,12 +510,9 @@ func (msg *IMAPMessage) setListHeaders(h textproto.Header) {
 		msg.ListPost = strings.TrimPrefix(post, "mailto:")
 	}
 	msg.ListID = listID(h)
-	// Plain http is not offered: the POST is made from here and must not be impersonated.
+	// RFC 8058 requires a verified DKIM signature covering both list headers.
+	// We cannot establish that coverage, so retain the ordinary visit link only.
 	msg.ListUnsubscribe = firstListURI(decodedField(h, "List-Unsubscribe"), "https")
-	// Without List-Unsubscribe-Post an https URI is a page to visit (RFC 8058).
-	if strings.Contains(strings.ToLower(decodedField(h, "List-Unsubscribe-Post")), "one-click") {
-		msg.OneClick = msg.ListUnsubscribe
-	}
 	if uri := firstListURI(decodedField(h, "List-Unsubscribe"), "mailto"); msg.ListUnsubscribe == "" && Mailto(uri) != nil {
 		msg.ListUnsubscribe = uri
 	}

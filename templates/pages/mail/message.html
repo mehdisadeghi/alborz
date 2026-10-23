@@ -112,14 +112,9 @@
                 <a class="button-link" href="{{localhref (printf "%s%s" (url "mail.message.reply" $.Message.Mailbox $.Message.UID) $partallq)}}">{{$.T "message.replyall"}}</a>
                 {{ end }}
                 <a class="button-link" href="{{localhref (printf "%s?uids=%v%s" (url "mail.messages.forward" .Mailbox.Name) .Message.UID $aamp)}}">{{$.T "message.forwardattached"}}</a>
-                {{ if .Message.OneClick }}
-                <form method="post" action="{{url "mail.message.unsubscribe" .Message.Mailbox .Message.UID}}{{$aq}}">
-                  <input type="hidden" name="next" value="{{$here}}">
-                  <button>{{$.T "message.unsubscribe"}}</button>
-                </form>
-                {{ else }}{{ with .Unsubscribe }}
+                {{ with .Unsubscribe }}
                 <a class="button-link" href="{{.}}"{{ if $.UnsubscribeExternal }} rel="nofollow noopener noreferrer" target="_blank"{{ end }}>{{$.T "message.unsubscribe"}}</a>
-                {{ end }}{{ end }}
+                {{ end }}
                 {{ if and (ne .Mailbox.Name "INBOX") (ne .Mailbox.Name $sent) (ne .Mailbox.Name $drafts) (ne .Mailbox.Name $junk) }}
                 {{ template "msg-move-form" (dict "mbox" .Mailbox.Name "aq" $aq "uid" .Message.UID "to" "INBOX" "label" ($.T "message.movetoinbox")) }}
                 {{ end }}

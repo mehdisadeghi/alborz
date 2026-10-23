@@ -424,6 +424,9 @@ func TestListCardOnlyWhenItHasRows(t *testing.T) {
 			}
 		case strings.Contains(page, "Our terms changed"):
 			seen["bulk"] = true
+			if !strings.Contains(page, `href="https://shop.example/u"`) || strings.Contains(page, "/unsubscribe") {
+				t.Error("unsubscribe must offer the list's ordinary link, not a POST")
+			}
 			if card {
 				t.Errorf("a bulk sender with nothing but an unsubscribe got an empty card")
 			}

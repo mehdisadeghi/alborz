@@ -9,12 +9,10 @@ import (
 	"html"
 	"io"
 	"mime"
-	"net/http"
 	"net/url"
 	"path"
 	"slices"
 	"strings"
-	"time"
 
 	"git.mehdix.org/alborz"
 	"github.com/alborzmail/go-itip/imip"
@@ -345,50 +343,6 @@ func CalendarPart(ctx context.Context, login *alborz.Login, msg *IMAPMessage, mb
 	}
 	return cal, part.PathString(), nil
 }
-
-// OneClick is where a message's list takes a one-click unsubscribe (RFC 8058); empty where it offers none.
-func OneClick(c *imapclient.Client, mboxName string, uid imap.UID) (string, error) {
-	if err := ensureMailboxSelected(c, mboxName); err != nil {
-		return "", err
-	}
-	header := &imap.FetchItemBodySection{Peek: true, Specifier: imap.PartSpecifierHeader,
-		HeaderFields: []string{"List-Unsubscribe", "List-Unsubscribe-Post"}}
-	buf, err := fetchOne(c, uid, &imap.FetchOptions{
-		BodySection: []*imap.FetchItemBodySection{header},
-	})
-	if err != nil {
-		return "", err
-	}
-	h, err := readHeaderBytes(buf.FindBodySection(header))
-	if err != nil {
-		return "", err
-	}
-	msg := &IMAPMessage{Mailbox: mboxName}
-	msg.setListHeaders(h)
-	return msg.OneClick, nil
-}
-
-// Unsubscribe posts the one-click Unsubscribe to the list's address.
-func (p *Mailboxes) Unsubscribe(ctx context.Context, uri string) error {
-	body := strings.NewReader("List-Unsubscribe=One-Click")
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, uri, body)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp, err := p.server.Outgoing.Remote(unsubscribeTimeout).Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= 300 {
-		p.server.Logger().Printf("unsubscribe %s answered %s", uri, resp.Status)
-		return fmt.Errorf("unsubscribe %s answered %s", uri, resp.Status)
-	}
-	return nil
-}
-
-const unsubscribeTimeout = 15 * time.Second
 
 func sentFolder(mailboxes []MailboxInfo) string {
 	for i := range mailboxes {

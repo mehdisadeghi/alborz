@@ -69,6 +69,33 @@ var (
 	composeText  = regexp.MustCompile(`(?s)<textarea name="text"[^>]*>(.*?)</textarea>`)
 )
 
+func TestReplyAncestryWithoutMessageID(t *testing.T) {
+	a := Alborz(t)
+	c := a.SignIn(t, User)
+	for _, tc := range []struct{ name, headers, reply, refs string }{
+		{"none", "", "", ""},
+		{"single parent", "In-Reply-To: <ancestor@example.org>\r\n", "", "<ancestor@example.org>"},
+		{"multiple parents", "In-Reply-To: <one@example.org> <two@example.org>\r\n", "", ""},
+		{"references", "References: <old@example.org>\r\nIn-Reply-To: <ignored@example.org>\r\nMessage-ID: <parent@example.org>\r\n", "<parent@example.org>", "<old@example.org> <parent@example.org>"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			uid := a.IMAP.Append(t, "INBOX", "From: sender@example.org\r\nTo: "+User+"\r\nSubject: ancestry\r\n"+tc.headers+"Content-Type: text/plain\r\n\r\nHello\r\n")
+			page := c.Page(t, "mail.message.reply", "INBOX", fmt.Sprint(uid))
+			for field, want := range map[string]string{"in_reply_to": tc.reply, "references": tc.refs} {
+				re := regexp.MustCompile(`name="` + field + `"[^>]*value="([^"]*)"`)
+				match := re.FindStringSubmatch(page)
+				got := ""
+				if len(match) > 1 {
+					got = html.UnescapeString(match[1])
+				}
+				if got != want {
+					t.Errorf("%s=%q, want %q", field, got, want)
+				}
+			}
+		})
+	}
+}
+
 // It asserts the bytes sent to the SMTP server, the only place the answer is visible.
 func TestSendHTMLFollowsWhatWasWritten(t *testing.T) {
 	smtp := SMTP(t)

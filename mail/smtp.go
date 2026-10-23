@@ -87,7 +87,7 @@ func Unflow(text string, delSp bool) string {
 		content := strings.TrimLeft(line, ">")
 		n := len(line) - len(content)
 		content = strings.TrimPrefix(content, " ")
-		joins := soft && n == depth
+		joins := soft && n == depth && content != "-- "
 		soft, depth = content != "-- " && strings.HasSuffix(content, " "), n
 		if soft && delSp {
 			content = strings.TrimSuffix(content, " ")
@@ -573,7 +573,7 @@ func sendMessage(c *smtp.Client, msg *OutgoingMessage, body io.ReadSeeker, dataS
 	}
 
 	if err := c.Mail(addr.Address, nil); err != nil {
-		return fmt.Errorf("MAIL FROM failed: %v", err)
+		return fmt.Errorf("MAIL FROM failed: %w", err)
 	}
 
 	for _, to := range append(msg.To, append(msg.Bcc, msg.Cc...)...) {
@@ -583,7 +583,7 @@ func sendMessage(c *smtp.Client, msg *OutgoingMessage, body io.ReadSeeker, dataS
 		}
 
 		if err := c.Rcpt(addr.Address, nil); err != nil {
-			return fmt.Errorf("RCPT TO failed: %v (%s)", err, addr.Address)
+			return fmt.Errorf("RCPT TO failed: %w (%s)", err, addr.Address)
 		}
 	}
 
@@ -592,17 +592,21 @@ func sendMessage(c *smtp.Client, msg *OutgoingMessage, body io.ReadSeeker, dataS
 	}
 	w, err := c.Data()
 	if err != nil {
-		return fmt.Errorf("DATA failed: %v", err)
+		return fmt.Errorf("DATA failed: %w", err)
 	}
 	*dataStarted = true
 	defer w.Close()
 
 	if _, err := io.Copy(w, body); err != nil {
-		return fmt.Errorf("failed to write outgoing message: %v", err)
+		return fmt.Errorf("failed to write outgoing message: %w", err)
 	}
 
 	if err := w.Close(); err != nil {
-		return fmt.Errorf("failed to close SMTP data writer: %v", err)
+		var rejected *smtp.SMTPError
+		if errors.As(err, &rejected) && rejected.Code >= 400 && rejected.Code < 600 {
+			*dataStarted = false
+		}
+		return fmt.Errorf("failed to close SMTP data writer: %w", err)
 	}
 
 	return nil

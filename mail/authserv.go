@@ -152,8 +152,5 @@ func serverFamily(id string) string {
 
 // TrustedAuthServ is the id whose verdicts are believed for this account.
 func (p *Mailboxes) TrustedAuthServ(login *alborz.Login, settings *Settings) string {
-	if settings.TrustedAuthServ != "" {
-		return settings.TrustedAuthServ
-	}
-	return p.SuggestAuthServ(login)
+	return settings.TrustedAuthServ
 }

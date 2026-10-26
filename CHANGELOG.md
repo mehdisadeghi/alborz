@@ -25,6 +25,8 @@
 
 ### Fixed
 
+- Show merged calendar, contact, task and journal account labels below their
+  associated names, using the mail list's compact styling.
 - Keep sign-in feedback active until the destination loads and preserve the
   Remember me choice after a refused login.
 - Replace list refinements, neighbouring objects and editor transitions in

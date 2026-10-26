@@ -22,7 +22,7 @@
     {{ if .color }}<span class="color-dot" style="background:{{.color}}"></span>{{ end }}
     {{ if .href }}<a href="{{.href}}" dir="auto"{{ with .addedby }} title="{{.}}"{{ end }}>{{.summary}}</a>{{ else }}<span dir="auto">{{.summary}}</span>{{ end }}
   </div>
-  <div class="event-owner list-cell" role="cell" data-label="{{.calendarLabel}}">{{ with .ownerhref }}<a href="{{.}}">{{$.owner}}</a>{{ else }}{{.owner}}{{ end }}{{ template "collection-mark" (dict "g" .g "c" .collection) }}{{ with .account }}<span class="row-account" title="{{$.accountTitle}}">{{ template "ltr" . }}</span>{{ end }}</div>
+  <div class="event-owner list-cell" role="cell" data-label="{{.calendarLabel}}">{{ with .ownerhref }}<a href="{{.}}">{{$.owner}}</a>{{ else }}{{.owner}}{{ end }}{{ template "collection-mark" (dict "g" .g "c" .collection) }}{{ with .account }}<span class="row-meta"><span class="row-account" title="{{$.accountTitle}}">{{ template "ltr" . }}</span></span>{{ end }}</div>
 </div>
 {{ end }}
 

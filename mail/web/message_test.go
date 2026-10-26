@@ -296,6 +296,16 @@ func TestEverySenderShapeOfAFileIsListed(t *testing.T) {
 		if !strings.Contains(page, s.body) || strings.Contains(page, "These are notes.") {
 			t.Errorf("%s: the body is not the message's text", s.name)
 		}
+		if s.open == "2.3" {
+			c.Post(t, "settings.profile", url.Values{"prefer_html": {"1"}})
+			preferred := c.Page(t, "mail.message", "Shapes", uid)
+			for _, want := range s.shows {
+				if !strings.Contains(preferred, want) {
+					t.Errorf("%s: preferred HTML does not show %q", s.name, want)
+				}
+			}
+			c.Post(t, "settings.profile", url.Values{"prefer_html": {""}})
+		}
 		raw := c.Get(t, "mail.message.attachments", "Shapes", uid).Text
 		archive, err := zip.NewReader(strings.NewReader(raw), int64(len(raw)))
 		if err != nil {

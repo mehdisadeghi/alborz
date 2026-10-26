@@ -569,30 +569,47 @@ func (msg *IMAPMessage) textParts() (plain, html *IMAPPartNode) {
 	}
 
 	files := fileParts(msg.BodyStructure)
-	isTextPlain := false
-	msg.BodyStructure.Walk(func(path []int, part imap.BodyStructure) bool {
-		singlePart, ok := part.(*imap.BodyStructureSinglePart)
-		if !ok {
-			return true
-		}
-
-		if !strings.EqualFold(singlePart.Type, "text") || files[fmt.Sprint(path)] {
-			return true
-		}
-
-		switch strings.ToLower(singlePart.Subtype) {
-		case "plain":
-			isTextPlain = true
-			plain = newIMAPPartNode(msg, path, singlePart)
-		case "html":
-			node := newIMAPPartNode(msg, path, singlePart)
-			html = node
-			if !isTextPlain {
-				plain = node
+	var selectBody func(imap.BodyStructure, []int) (*IMAPPartNode, *IMAPPartNode)
+	selectBody = func(part imap.BodyStructure, path []int) (plain, html *IMAPPartNode) {
+		switch part := part.(type) {
+		case *imap.BodyStructureSinglePart:
+			if !strings.EqualFold(part.Type, "text") || files[fmt.Sprint(path)] {
+				return nil, nil
+			}
+			switch strings.ToLower(part.Subtype) {
+			case "plain":
+				return newIMAPPartNode(msg, path, part), nil
+			case "html":
+				return nil, newIMAPPartNode(msg, path, part)
+			}
+		case *imap.BodyStructureMultiPart:
+			for i, child := range part.Children {
+				childPlain, childHTML := selectBody(child, append(slices.Clone(path), i+1))
+				if !strings.EqualFold(part.Subtype, "alternative") {
+					// Later mixed parts may be mailing-list footers, not alternatives.
+					if childPlain != nil || childHTML != nil {
+						return childPlain, childHTML
+					}
+					continue
+				}
+				if childPlain != nil {
+					plain = childPlain
+				}
+				if childHTML != nil {
+					html = childHTML
+				}
 			}
 		}
-		return true
-	})
+		return plain, html
+	}
+	var path []int
+	if _, single := msg.BodyStructure.(*imap.BodyStructureSinglePart); single {
+		path = []int{1}
+	}
+	plain, html = selectBody(msg.BodyStructure, path)
+	if plain == nil {
+		plain = html
+	}
 
 	return plain, html
 }

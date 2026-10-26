@@ -25,6 +25,7 @@
 
 - Keep sign-in feedback active until the destination loads and preserve the
   Remember me choice after a refused login.
+- Preserve the main mail body when a mailing list appends a separate footer.
 - Authentication transitions refresh session metadata, and locked tabs conceal
   private content before navigation or network verification completes.
 - Hidden DAV collections no longer appear as creation destinations.

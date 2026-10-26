@@ -25,6 +25,8 @@
 
 - Keep sign-in feedback active until the destination loads and preserve the
   Remember me choice after a refused login.
+- Replace list refinements, neighbouring objects and editor transitions in
+  browser history so Back returns to the list without replaying those views.
 - Interpret natural quick-event phrases, preview their date/time, and preserve
   unclear drafts and destinations inline with compact help.
 - Keep recipient suggestions within the compose page and hide the empty drag-and-drop box on phones.

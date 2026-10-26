@@ -25,6 +25,7 @@
 
 - Keep sign-in feedback active until the destination loads and preserve the
   Remember me choice after a refused login.
+- Keep recipient suggestions within the compose page and hide the empty drag-and-drop box on phones.
 - Preserve the main mail body when a mailing list appends a separate footer.
 - Authentication transitions refresh session metadata, and locked tabs conceal
   private content before navigation or network verification completes.

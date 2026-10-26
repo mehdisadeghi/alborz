@@ -1314,6 +1314,35 @@ main.create-update .headers input {
   grid-column-end: 3;
 }
 
+main.create-update .headers > .recipient-field { grid-column: 2; min-width: 0; }
+.recipient-field { display: block; position: relative; min-width: 0; }
+.recipient-field > input { width: 100%; box-sizing: border-box; }
+.recipient-suggestions {
+  position: absolute;
+  inset-inline: 0;
+  top: 100%;
+  z-index: 10;
+  max-height: min(15rem, 35dvh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 0.25rem 0.75rem rgb(0 0 0 / 0.15);
+}
+.recipient-suggestions > [role="option"] {
+  padding: 0.65rem;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.recipient-suggestions > [aria-selected="true"] { background: var(--bg-inset); }
+
+@media (width <= 600px), (pointer: coarse) {
+  main.create-update #attachment-list .help { display: none; }
+  main.create-update #attachment-list:not(:has(.upload, .attach-chip, input)) { display: none; }
+}
+
 main.create-update #attachment-list {
   grid-column-start: 3;
   grid-row-start: 1;

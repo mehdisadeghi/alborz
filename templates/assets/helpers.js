@@ -222,32 +222,6 @@ const enhance = () => {
 		caret.setSelectionRange(at, at);
 	}
 
-	// A datalist matches the whole value, so each option carries what is typed before the candidate.
-	const recipients = document.querySelectorAll('input[list="emails"]');
-	const suggestions = document.getElementById("emails");
-	if (suggestions && recipients.length) {
-		const all = [...suggestions.options].map(o => o.value);
-		for (const field of recipients) {
-			if (!once(field, "recipients")) {
-				continue;
-			}
-			field.addEventListener("input", () => {
-				const cut = field.value.lastIndexOf(",");
-				if (cut < 0) {
-					if (suggestions.options.length && suggestions.options[0].value !== all[0]) {
-						suggestions.replaceChildren(...all.map(v => new Option(v, v)));
-					}
-					return;
-				}
-				const prefix = field.value.slice(0, cut + 1) + " ";
-				suggestions.replaceChildren(...all.map(v => {
-					const option = new Option(v, prefix + v);
-					option.label = v;
-					return option;
-				}));
-			});
-		}
-	}
 
 	const handler_group = document.getElementById("handler-group");
 	if (handler_group && navigator.registerProtocolHandler && once(handler_group, "handlers")) {
@@ -465,14 +439,6 @@ document.addEventListener("htmx:load", enhance);
 document.addEventListener("htmx:beforeCleanupElement", ev => {
 	if (ev.target.classList && ev.target.classList.contains("htmx-request")) {
 		htmx.trigger(ev.target, "htmx:abort");
-	}
-});
-
-// A datalist's popup open when htmx swaps its field away would outlive it; any other focus htmx brings back by id.
-document.addEventListener("htmx:beforeSwap", ev => {
-	const focused = document.activeElement;
-	if (focused && focused.list && ev.detail.target.contains(focused)) {
-		focused.blur();
 	}
 });
 

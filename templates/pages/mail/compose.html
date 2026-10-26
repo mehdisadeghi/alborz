@@ -32,7 +32,7 @@
             name="to"
             id="to"
             value="{{$to}}"
-            list="emails"
+            data-recipient autocomplete="off"
             required
             {{ if not $to }} autofocus{{ end }}
           />
@@ -43,7 +43,7 @@
             name="cc"
             id="cc"
             value="{{ join .Message.Cc ", " }}"
-            list="emails"
+            data-recipient autocomplete="off"
           />
           <label for="bcc">{{$.T "compose.bcc"}}</label>
           <input
@@ -51,7 +51,7 @@
             name="bcc"
             id="bcc"
             value="{{ join .Message.Bcc ", " }}"
-            list="emails"
+            data-recipient autocomplete="off"
           />
 
           <details class="compose-more"{{ if .Message.ReplyTo }} open{{ end }}>
@@ -62,7 +62,7 @@
               id="reply_to"
               aria-label="{{$.T "compose.replyto"}}"
               value="{{ join .Message.ReplyTo ", " }}"
-              list="emails"
+              data-recipient autocomplete="off"
             />
             {{ template "hint" (dict "text" ($.T "help.replyto")) }}
           </details>
@@ -152,6 +152,7 @@
 
 {{ define "scripts" }}
 <script src="{{call .GlobalData.Asset "compose.js"}}"></script>
+<script src="{{call .GlobalData.Asset "recipients.js"}}"></script>
 <script src="{{call .GlobalData.Asset "squire.js"}}"></script>
 <script src="{{call .GlobalData.Asset "editor.js"}}"></script>
 {{ end }}

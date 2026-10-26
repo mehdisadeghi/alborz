@@ -200,7 +200,9 @@ func (p *plugin) updateEvent(ctx *web.Context) error {
 
 	if ctx.Request().Method == "POST" {
 		var quickError error
-		if e.creating() && ctx.FormValue("quick") == "event" {
+		quick := e.creating() && ctx.FormValue("quick") == "event"
+		quickInput := ctx.FormValue("summary")
+		if quick {
 			quickError = readQuickEvent(ctx)
 		}
 		summary := ctx.FormValue("summary")
@@ -208,6 +210,9 @@ func (p *plugin) updateEvent(ctx *web.Context) error {
 
 		// Invalid input re-renders the form with an alert, never a status page.
 		reject := func(message string) error {
+			if quick {
+				return p.rejectQuickEvent(ctx, quickInput, message)
+			}
 			event.Props.SetText(ical.PropSummary, summary)
 			rail, err := p.eventRail(ctx)
 			if err != nil {
@@ -336,6 +341,16 @@ func (p *plugin) updateEvent(ctx *web.Context) error {
 		return pimweb.Saved(ctx, creating, ctx.T("notice.eventcreated"), summary, ctx.Path("calendar.event", e.object.Path), ctx.Path("calendar.month"), to.Account)
 	}
 
+	if e.creating() && ctx.QueryParam("summary") != "" {
+		event.Props.SetText(ical.PropSummary, ctx.QueryParam("summary"))
+		for _, group := range e.groups {
+			for i := range group.Collections {
+				if group.Account+"|"+group.Collections[i].Path == ctx.QueryParam("calendar") {
+					e.collection = &group.Collections[i]
+				}
+			}
+		}
+	}
 	summary, _ := event.Props.Text("SUMMARY")
 
 	rail, err := p.eventRail(ctx)

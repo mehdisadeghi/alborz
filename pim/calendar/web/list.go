@@ -19,10 +19,11 @@ import (
 // CalendarPageRenderData is the shared frame for the month and day pages.
 type CalendarPageRenderData struct {
 	pimweb.ListRenderData
-	ListQuery     string
-	Time          time.Time
-	Quick         *quickList
-	QuickTimezone string
+	ListQuery                           string
+	Time                                time.Time
+	Quick                               *quickList
+	QuickTimezone                       string
+	QuickInput, QuickError, QuickEditor string
 }
 
 // CalendarObjectRenderData is the shared frame for event, task, and journal object pages.
@@ -66,8 +67,22 @@ func calendarListParts[T any](ctx *web.Context, p *plugin, list CalendarList[T],
 func calendarPageData(ctx *web.Context, title string, collections []dav.Collection, labels pimweb.CollectionLabels, view, query string, filters []web.Filter, rows []web.FilterRow, form string, invitations *pimweb.RailInvitations, listQuery string, when time.Time) CalendarPageRenderData {
 	list := pimweb.NewListRenderData(ctx, title, collections, view, query, pimweb.Sorting{}, web.Pager{}, filters, rows, form, invitations)
 	list.CollectionLabels = labels
-	return CalendarPageRenderData{ListRenderData: list, ListQuery: listQuery, Time: when,
+	d := CalendarPageRenderData{ListRenderData: list, ListQuery: listQuery, Time: when,
 		Quick: quickDestination(ctx, collections, calendar.SupportsEvent), QuickTimezone: web.UserLocation(ctx).String()}
+	if failure, ok := ctx.Request().Context().Value(quickFailureKey{}).(quickFailure); ok {
+		d.QuickInput, d.QuickError = failure.Input, failure.Message
+		d.QuickEditor = web.QueryPath(ctx.Path("calendar.event.create"), url.Values{"summary": {failure.Input}, "calendar": {failure.Destination}, "next": {ctx.Request().URL.RequestURI()}})
+		if d.Quick != nil {
+			for _, group := range d.Quick.Lists {
+				for _, col := range group.Collections {
+					if group.Account+"|"+col.Path == failure.Destination {
+						d.Quick.Account, d.Quick.Path, d.Quick.Name = group.Account, col.Path, col.Name
+					}
+				}
+			}
+		}
+	}
+	return d
 }
 
 func calendarList[T any](ctx *web.Context, path string, params []string, valid func(string) bool,

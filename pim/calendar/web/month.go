@@ -134,7 +134,7 @@ func (p *plugin) month(ctx *web.Context) error {
 			return err
 		}
 	}
-	return ctx.Render(http.StatusOK, template, data)
+	return ctx.Render(quickPageStatus(ctx), template, data)
 }
 
 func (p *plugin) monthView(ctx *web.Context) (monthView, error) {

@@ -39,7 +39,7 @@ func (p *plugin) day(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	return ctx.Render(http.StatusOK, "calendar/day", &CalendarDateRenderData{
+	return ctx.Render(quickPageStatus(ctx), "calendar/day", &CalendarDateRenderData{
 		CalendarPageRenderData: calendarPageData(ctx, ctx.T("nav.calendar")+": "+ctx.Dates().Long(dv.start), dv.calendars, pimweb.NewCollectionLabels(p.DAV, ctx.Login.Username(), collection, href), "", "", nil, nil, "", invitations, dayQuery(ctx, dv.start), dv.start),
 		// Named even when the URL omits it, so an opened event knows its list.
 		Events:   dv.events,

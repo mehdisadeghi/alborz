@@ -80,6 +80,7 @@ func registerRoutes(p *plugin, g *web.Group) {
 	download("month.export", "/calendar/export", p.exportMonth)
 	GET("day", "/calendar/date", p.day)
 	GET("search", "/calendar/search", p.search)
+	GET("quick.preview", "/calendar/quick-preview", p.quickPreview)
 	Page("events.copy", "/calendar/copy", p.copySelected(eventSection))
 	GET("event", "/calendar/{path}", p.event)
 

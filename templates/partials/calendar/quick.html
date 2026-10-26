@@ -1,9 +1,11 @@
 {{ define "event-quick-add" }}
 {{ with .Quick }}
-<form method="post" action="{{url "calendar.event.create"}}" class="quick-add" hx-boost="false" id="quick-add">
+<div class="calendar-quick">
+<form method="post" action="{{url "calendar.event.create"}}{{account "?" $.GlobalData.URLAccount}}" class="quick-add" hx-boost="true" hx-replace-url="true" id="quick-add">
   {{ template "next-field" (printf "%s#quick-add" $.GlobalData.URL.RequestURI) }}
   <input type="hidden" name="quick" value="event">
-  <input type="text" name="summary" required dir="auto" placeholder="{{$.T "calendar.quick.placeholder"}}" aria-label="{{$.T "calendar.eventname"}}" aria-describedby="event-quick-hint">
+  <input type="text" name="summary" value="{{$.QuickInput}}" required dir="auto" placeholder="{{$.T "calendar.quick.placeholder"}}" aria-label="{{$.T "calendar.eventname"}}" aria-describedby="event-quick-preview{{if $.QuickError}} event-quick-error{{end}}"
+    hx-get="{{url "calendar.quick.preview"}}{{account "?" $.GlobalData.URLAccount}}" hx-trigger="input changed delay:400ms" hx-target="#event-quick-preview" hx-sync="this:replace" hx-push-url="false" hx-replace-url="false">
   {{ if .Only }}
   <input type="hidden" name="calendar" value="{{.Account}}|{{.Path}}">
   <span class="hint">{{$.T "common.saveto"}}: <bdi>{{.Name}}</bdi>{{if $.GlobalData.Unified}} · {{template "ltr" ($.GlobalData.AccountLabel .Account)}}{{end}}</span>
@@ -11,7 +13,15 @@
   {{ template "collection-picker" (dict "label" ($.T "common.saveto") "name" "calendar" "key" "quickevent" "groups" .Lists "account" .Account "path" .Path "multi" (gt (len .Lists) 1) "quiet" true) }}
   {{ end }}
   <button>{{$.T "common.add"}}</button>
+  <details class="quick-help">
+    <summary>{{$.T "list.help"}}</summary>
+    <p class="hint" id="event-quick-hint">{{printf ($.T "calendar.quick.hint") $.QuickTimezone}}</p>
+  </details>
 </form>
-<p class="hint" id="event-quick-hint">{{printf ($.T "calendar.quick.hint") $.QuickTimezone}}</p>
+{{with $.QuickError}}<p class="hint" id="event-quick-error" role="alert">{{.}} <a href="{{localhref $.QuickEditor}}">{{$.T "calendar.quick.editor"}}</a></p>{{end}}
+<div class="hint" id="event-quick-preview" role="status" aria-live="polite"></div>
+</div>
 {{ end }}
 {{ end }}
+
+{{define "event-quick-preview"}}{{.When}}{{with .Summary}} · <bdi>{{.}}</bdi>{{end}}{{end}}

@@ -12,7 +12,7 @@
     {{ with .GlobalData.SessionID }}
     <meta name="alborz-session" content="{{.}}" data-after="{{$.GlobalData.LockSeconds}}" data-private="{{$.GlobalData.LoggedIn}}"
           data-lock="{{url "auth.lock"}}" data-state="{{url "auth.unlock.state"}}" data-unlock="{{url "auth.unlock"}}" data-alive="{{url "auth.alive"}}" data-setup="{{url "settings.passkeys.create"}}"
-          data-title="{{$.T "lock.title"}}" data-checking="{{$.T "lock.checking"}}" data-failed="{{$.T "lock.verifyfailed"}}">
+          data-title="{{$.T "lock.title"}}" data-checking="{{$.T "lock.checking"}}" data-failed="{{$.T "lock.verifyfailed"}}" data-loadfailed="{{$.T "notice.pageloadfailed"}}">
     {{/* Before paint: a restored private page is concealed until the server confirms this session. */}}
     <script src="{{call $.GlobalData.Asset "session-lock.js"}}"></script>
     {{ end }}

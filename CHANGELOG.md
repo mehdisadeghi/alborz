@@ -16,6 +16,8 @@
 
 ### Changed
 
+- Prompt for a passkey when the unlock page becomes visible, with manual retry
+  after cancellation; name new passkeys automatically from the browser and system.
 - Group general settings by purpose and collapse detailed touch-gesture mappings.
 - Use compact header lock and theme controls while retaining larger touch targets.
 - Keep remembered browser and PWA sign-ins for 60 days of inactivity, renewing
@@ -27,6 +29,10 @@
 
 ### Fixed
 
+- Recover failed history navigation on protected pages with a clear error and
+  a working Retry action instead of leaving content hidden indefinitely.
+- Open the unlock screen as a full page during in-page and history navigation,
+  preventing stale lock state and repeated unlock redirects.
 - Validate passkeys against the configured public URL behind reverse proxies,
   and include origin mismatches in server diagnostics.
 - Show merged calendar, contact, task and journal account labels below their

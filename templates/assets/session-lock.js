@@ -11,6 +11,12 @@
 	let after = Number(data.after) * 1000;
 	let protectedPage = after > 0 || read(enabledKey) === "1" || !!read(lockKey);
 	let generation = 0, timer, told = Date.now(), pendingLock = false;
+	let historyRequest = null, historyFailed = false;
+	const cancelHistory = () => {
+		const request = historyRequest;
+		historyRequest = null;
+		request?.abort?.();
+	};
 	let title = document.title, message = data.checking;
 	let channel;
 	try { if (typeof BroadcastChannel !== "undefined") { channel = new BroadcastChannel("alborz-session:" + id); } } catch (_) {}
@@ -31,6 +37,8 @@
 		if (privatePage) { location.assign(data.unlock + "?next=" + encodeURIComponent(location.pathname + location.search)); }
 	};
 	const confirmedLock = (announce = true) => {
+		cancelHistory();
+		historyFailed = false;
 		generation++;
 		protectedPage = true;
 		pendingLock = false;
@@ -52,6 +60,8 @@
 	};
 	const verify = async () => {
 		if (!privatePage) { return; }
+		// A successful lock check cannot validate stale content at a failed history URL.
+		if (historyRequest || historyFailed) { conceal(historyFailed ? data.loadfailed : data.checking); return; }
 		const ticket = ++generation, marker = read(lockKey);
 		conceal();
 		try {
@@ -81,6 +91,8 @@
 		}
 	};
 	const manualLock = async () => {
+		cancelHistory();
+		historyFailed = false;
 		generation++;
 		pendingLock = true;
 		conceal();
@@ -121,9 +133,14 @@
 	if (privatePage && protectedPage) { conceal(); }
 	document.addEventListener("DOMContentLoaded", () => {
 		paint();
-		const retry = document.getElementById("session-lock-retry");
-		if (retry) { retry.onclick = () => pendingLock ? manualLock() : verify(); }
 		if (privatePage && protectedPage) { verify(); }
+	});
+	document.addEventListener("click", event => {
+		if (!event.target.closest?.("#session-lock-retry")) { return; }
+		event.preventDefault();
+		if (historyRequest || historyFailed) { location.reload(); }
+		else if (pendingLock) { manualLock(); }
+		else { verify(); }
 	});
 	document.addEventListener("submit", event => {
 		if (event.target.matches?.("form[data-session-lock]")) { event.preventDefault(); manualLock(); }
@@ -131,6 +148,53 @@
 	const hide = () => { if (privatePage && protectedPage) { generation++; clearTimeout(timer); conceal(); } };
 	window.addEventListener("pagehide", hide);
 	window.addEventListener("pageshow", event => { if (event.persisted && protectedPage) { verify(); } });
+	let historyRedirect = false;
+	const historyFailure = xhr => {
+		if (!xhr || xhr !== historyRequest) { return; }
+		historyRequest = null;
+		historyFailed = true;
+		generation++;
+		clearTimeout(timer);
+		conceal(data.loadfailed);
+	};
+	document.addEventListener("htmx:historyCacheMiss", event => {
+		if (!privatePage || !protectedPage) { return; }
+		// A Back from an open, visible page stays shown; the server's answer enforces a lock.
+		const trusted = canAct();
+		cancelHistory();
+		historyRedirect = false;
+		historyFailed = false;
+		historyRequest = event.detail?.xhr || {};
+		if (!trusted) { hide(); }
+		const xhr = historyRequest;
+		xhr.timeout = 20000;
+		// The bundled history loader does not report network failures or aborts.
+		for (const type of ["error", "timeout", "abort"]) {
+			xhr.addEventListener?.(type, () => historyFailure(xhr), {once: true});
+		}
+	});
+	document.addEventListener("htmx:historyCacheMissLoadError", event => historyFailure(event.detail?.xhr));
+	for (const type of ["htmx:historyCacheHit", "htmx:beforeHistoryUpdate"]) {
+		document.addEventListener(type, () => { cancelHistory(); historyFailed = false; });
+	}
+	document.addEventListener("htmx:historyRestore", () => {
+		const concealed = document.documentElement.hasAttribute("data-session-concealed");
+		historyRequest = null;
+		historyFailed = false;
+		if (!historyRedirect && privatePage && protectedPage && concealed) { verify(); }
+	});
+	// htmx's history loader does not process HX-Redirect. Keep its swap detached
+	// while the unlock page loads with its own session guard and document head.
+	document.addEventListener("htmx:historyCacheMissLoad", event => {
+		const target = event.detail?.xhr?.getResponseHeader("HX-Redirect");
+		if (!target) { return; }
+		historyRedirect = true;
+		generation++;
+		clearTimeout(timer);
+		conceal(data.title);
+		event.detail.historyElt = document.createElement("body");
+		location.assign(target);
+	});
 	document.addEventListener("visibilitychange", () => {
 		if (document.visibilityState === "hidden") { hide(); }
 		else if (privatePage && protectedPage) { verify(); }

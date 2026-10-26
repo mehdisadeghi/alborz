@@ -1,8 +1,8 @@
 package web
 
 import (
+	"fmt"
 	"net/http"
-	"strings"
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/web"
@@ -35,7 +35,17 @@ func registerPasskeyRoutes(g *web.Group) {
 		return web.PasskeyBegin(ctx, ctx.BeginPasskey)
 	})
 	g.POST("passkeys.finish", "/settings/passkeys/finish", func(ctx *web.Context) error {
-		if err := ctx.FinishPasskey(strings.TrimSpace(ctx.QueryParam("name"))); err != nil {
+		device := web.DeviceName(ctx.Request().UserAgent())
+		name := ctx.T("passkeys.unnamed")
+		switch {
+		case device.Browser != "" && device.System != "":
+			name = fmt.Sprintf(ctx.T("sessions.device"), device.Browser, device.System)
+		case device.Browser != "":
+			name = device.Browser
+		case device.System != "":
+			name = device.System
+		}
+		if err := ctx.FinishPasskey(name); err != nil {
 			return web.PasskeyFailure(ctx, http.StatusUnprocessableEntity, "passkey refused", ctx.T("passkeys.addrefused"), err)
 		}
 		ctx.PutNotice(ctx.T("notice.passkeyadded"))

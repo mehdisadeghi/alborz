@@ -7,7 +7,6 @@
         {{ template "settings-crumb" (dict "g" $ "collection" ($.T "passkeys.title") "path" (url "settings.passkeys")) }}
         <h1>{{$.T "passkeys.new"}}</h1>
 
-        {{ template "field" (dict "label" ($.T "passkeys.name") "name" "name" "dir" "auto" "autofocus" true "hint" ($.T "passkeys.namehint")) }}
         <p class="hint">{{$.T "passkeys.nosaved"}}</p>
 
         {{ template "form-actions" (dict "save" ($.T "passkeys.add") "cancel" (url "settings.passkeys") "cancelLabel" ($.T "common.cancel")) }}

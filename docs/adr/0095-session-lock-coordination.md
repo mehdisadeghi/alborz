@@ -26,6 +26,16 @@ Status: accepted.
 - Successful authentication transitions replace the whole document, including
   its session-scoped head metadata. First passkey registration also informs tabs
   that were opened before protection was enabled.
+- Locked in-page and history navigation also replace the whole document. Keep
+  history content concealed until verified, and direct history redirects away
+  from the live document so an unlock page cannot inherit a private page's guard.
+- Prompt once when a new unlock document is ready and visible. Cancellation or
+  a browser requiring user activation leaves manual retry available; visibility
+  changes caused by native dialogs must not trigger another prompt. Reload
+  history-restored passkey pages to revalidate the session and discard ceremonies.
+- Registration requires an explicit action but no typed name. Label credentials
+  with the creation browser and system, without treating that label as proof of
+  where a synced or external credential is stored.
 
 ## Verification
 
@@ -33,8 +43,17 @@ HTTP tests check a manual lock from an unlocked session, independent clients
 sharing its cookie, account preservation, unasked state probes and stream races.
 Browser-handler tests cover storage fallback, restored pages, stale responses,
 cancelled assertions and repeated locks after a lost unlock response.
+Passkey handler tests cover automatic prompts, hidden documents, cancellation,
+competing clicks and history restoration.
 
 A real browser with a virtual WebAuthn authenticator additionally verifies a
 pre-registration compose tab with SSE and BroadcastChannel disabled, concealment
 before stalled unlock navigation, new tabs, Back/history, cancellation and a
 successful unlock without signing in again or changing the session cookie.
+
+## Follow-up
+
+The server currently stores one pending WebAuthn ceremony per session. Concurrent
+ceremonies in separate tabs can invalidate each other and require retry; the
+per-page pending guard does not coordinate separate windows. Supporting these
+requires matching and consuming individual challenges, with bounded expiry.

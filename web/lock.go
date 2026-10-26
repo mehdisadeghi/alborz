@@ -106,7 +106,7 @@ func redirectToUnlock(ctx *Context) error {
 		to += "?next=" + QueryValue(ctx.Request().URL.RequestURI())
 	}
 	// Unlocking takes the window; followed by htmx, it would land inside the piece asked for.
-	if ctx.Fragment() {
+	if ctx.Request().Header.Get("HX-Request") == "true" || ctx.Request().Header.Get("HX-History-Restore-Request") == "true" {
 		return ctx.Relocate(to)
 	}
 	return ctx.Redirect(http.StatusSeeOther, to)

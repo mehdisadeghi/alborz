@@ -100,3 +100,36 @@ func TestLiveChangeDoesNotExposeAFrameWhenLockWinsTheWake(t *testing.T) {
 		t.Fatalf("stream leaked after locking: %q (stop=%v)", out.Body.String(), stop)
 	}
 }
+
+func TestLockedNavigationReplacesTheWholeDocument(t *testing.T) {
+	for _, mode := range []string{"native", "boosted", "fragment", "history"} {
+		t.Run(mode, func(t *testing.T) {
+			s, _ := newSession()
+			s.addPasskey(alborz.Passkey{Name: "key"})
+			s.LockNow()
+			server := &Server{routes: routes{names: map[string]string{"auth.unlock": "/unlock"}}}
+			req := httptest.NewRequest(http.MethodGet, "/settings/general?account=one", nil)
+			if mode != "native" {
+				req.Header.Set("HX-Request", "true")
+			}
+			if mode == "boosted" {
+				req.Header.Set("HX-Boosted", "true")
+			}
+			if mode == "history" {
+				req.Header.Set("HX-History-Restore-Request", "true")
+			}
+			out := httptest.NewRecorder()
+			ctx := &Context{Server: server, request: req, session: s, response: &Response{ResponseWriter: out}}
+			if err := Lock(func(*Context) error { t.Fatal("locked route ran"); return nil })(ctx); err != nil {
+				t.Fatal(err)
+			}
+			status, header := http.StatusSeeOther, "Location"
+			if mode != "native" {
+				status, header = http.StatusOK, "HX-Redirect"
+			}
+			if out.Code != status || out.Header().Get(header) != "/unlock?next=/settings/general?account%3Done" {
+				t.Fatalf("locked %s navigation: %d, %s=%q", mode, out.Code, header, out.Header().Get(header))
+			}
+		})
+	}
+}

@@ -44,13 +44,18 @@
 		body: body ? JSON.stringify(body) : null,
 	});
 
-	const ceremony = async (source, create, name) => {
+	let pending = false;
+	const ceremony = async (source, create, automatic = false) => {
+		if (pending) { return; }
 		const says = document.getElementById("script-failed");
 		const fail = text => showScriptFailure(text);
 		if (!window.PublicKeyCredential) {
-			fail(source.dataset.unsupported);
+			if (!automatic) { fail(source.dataset.unsupported); }
 			return;
 		}
+		pending = true;
+		const button = create ? source.querySelector('button[type="submit"]') : source;
+		if (button) { button.disabled = true; }
 		says.close();
 		try {
 			const begun = await post(source.dataset.begin);
@@ -61,11 +66,7 @@
 			const credential = create
 				? await navigator.credentials.create(options)
 				: await navigator.credentials.get(options);
-			let finish = source.dataset.finish;
-			if (name) {
-				finish += "?name=" + encodeURIComponent(name);
-			}
-			const done = await post(finish, encode(credential));
+			const done = await post(source.dataset.finish, encode(credential));
 			if (!done.ok) {
 				throw new Error(done.statusText);
 			}
@@ -73,21 +74,47 @@
 			else { window.AlborzLock?.unlocked(); }
 			location.assign(source.dataset.next);
 		} catch (err) {
-			fail(source.dataset.failed);
+			pending = false;
+			if (button) { button.disabled = false; }
+			// Cancellation or a browser requiring a tap leaves the unlock button available.
+			if (!automatic || err.name !== "NotAllowedError") { fail(source.dataset.failed); }
 		}
 	};
 
 	const unlock = document.getElementById("passkey-unlock");
 	if (unlock) {
-		unlock.addEventListener("click", () => ceremony(unlock, false));
+		let attempted = false;
+		unlock.addEventListener("click", () => {
+			attempted = true;
+			return ceremony(unlock, false);
+		});
+		const automatic = () => {
+			if (attempted || document.visibilityState !== "visible") { return; }
+			attempted = true;
+			ceremony(unlock, false, true);
+		};
+		// Once per document: native passkey dialogs can themselves hide and reveal it.
+		// Wait for the deferred helpers before showing any failure notice.
+		const ready = () => {
+			automatic();
+			document.addEventListener("visibilitychange", automatic);
+		};
+		if (document.readyState === "loading") {
+			document.addEventListener("DOMContentLoaded", ready, {once: true});
+		} else { ready(); }
 	}
 	const form = document.getElementById("passkey-form");
 	if (form) {
 		form.addEventListener("submit", event => {
 			event.preventDefault();
-			ceremony(form, true, form.elements.name.value.trim());
+			return ceremony(form, true);
 		});
 	}
+	// A history snapshot can retain a completed ceremony and disabled controls.
+	// Reload so the server checks the current session before offering another one.
+	window.addEventListener("pageshow", event => {
+		if (event.persisted) { location.reload(); }
+	});
 }
 
 // @license-end

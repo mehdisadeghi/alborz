@@ -20,11 +20,11 @@ function fixture(shared = hub(), options = {}) {
 	const nodes = {'session-lock-status': {textContent: ''}, 'session-lock-retry': {}};
 	const meta = {content: options.session || 'public-session-id', dataset: {after: options.after === undefined ? '600' : options.after,
 		private: 'true', lock: '/lock', state: '/unlock/state', unlock: '/unlock', alive: '/alive', setup: '/settings/passkeys/new',
-		title: 'Locked', checking: 'Checking', failed: 'Cannot verify. Retry.', retry: 'Retry'}};
+		title: 'Locked', checking: 'Checking', failed: 'Cannot verify. Retry.', loadfailed: 'The page could not be loaded. Retry.', retry: 'Retry'}};
 	const document = events({documentElement: root, title: 'Private subject', visibilityState: 'visible',
-		querySelector: () => meta, getElementById: id => nodes[id]});
+		querySelector: () => meta, getElementById: id => nodes[id], createElement: tag => ({tagName: tag.toUpperCase()})});
 	const window = events({});
-	const location = {pathname: options.unlock ? '/unlock' : '/compose', search: '', assign(url) { this.assigned = url; }};
+	const location = {pathname: options.unlock ? '/unlock' : '/compose', search: '', assign(url) { this.assigned = url; }, reload() { this.reloaded = true; }};
 	const timers = new Map(); let nextTimer = 0;
 	let now = 100000;
 	class Clock extends Date { static now() { return now; } }
@@ -51,6 +51,7 @@ function fixture(shared = hub(), options = {}) {
 		setTimeout(fn) { const id = ++nextTimer; timers.set(id, fn); return id; }, clearTimeout: id => timers.delete(id)}, {filename: 'session-lock.js'});
 	const f = {window, document, location, nodes, calls, shared, options, timers, hidden: () => root.hasAttribute('data-session-concealed')};
 	f.advance = milliseconds => { now += milliseconds; };
+	f.retry = () => document.fire('click', {target: {closest: () => nodes['session-lock-retry']}, preventDefault() {}});
 	document.fire('DOMContentLoaded');
 	return f;
 }
@@ -209,4 +210,88 @@ test('email reloads bind the current document without accepting removed or forei
 	f.document.fire('load', {target: foreign});
 	foreign.contentDocument.fire('wheel', {isTrusted: true});
 	assert.equal(f.calls.filter(call => call.url === '/alive').length, 1);
+});
+
+test('locked history restores navigate the whole window without swapping private content', async () => {
+	const f = fixture(); await settle();
+	const previous = {privateContent: true};
+	const detail = {historyElt: previous, xhr: {getResponseHeader: name => name === 'HX-Redirect' ? '/unlock?next=/calendar' : null}};
+	f.document.fire('htmx:historyCacheMissLoad', {detail});
+	assert.equal(f.hidden(), true);
+	assert.equal(f.location.assigned, '/unlock?next=/calendar');
+	assert.notEqual(detail.historyElt, previous);
+	assert.equal(detail.historyElt.tagName, 'BODY');
+});
+
+test('in-document Back from an open page stays shown; the server answer enforces a lock', async () => {
+	const f = fixture(); await settle();
+	f.document.fire('htmx:historyCacheMiss');
+	assert.equal(f.hidden(), false);
+	f.document.fire('htmx:historyRestore'); await settle();
+	assert.equal(f.hidden(), false);
+});
+
+test('in-document Back from a concealed page stays concealed until the restored session is verified', async () => {
+	const f = fixture(); await settle();
+	f.document.visibilityState = 'hidden'; f.document.fire('visibilitychange');
+	f.document.visibilityState = 'visible';
+	f.document.fire('htmx:historyCacheMiss');
+	assert.equal(f.hidden(), true);
+	let resolve;
+	f.options.state = () => new Promise(done => { resolve = done; });
+	f.document.fire('htmx:historyRestore');
+	assert.equal(f.hidden(), true);
+	resolve({ok: true, json: async () => ({session: 'public-session-id', protected: true, locked: false, after: 600})});
+	await settle();
+	assert.equal(f.hidden(), false);
+});
+
+for (const failure of ['http', 'error', 'timeout', 'abort']) {
+	test(`failed history ${failure} offers a reload without revealing stale content`, async () => {
+		const f = fixture(); await settle();
+		const xhr = events();
+		f.document.fire('htmx:historyCacheMiss', {detail: {xhr}});
+		assert.equal(xhr.timeout, 20000, 'history requests must not hang indefinitely');
+		f.nodes['session-lock-retry'] = {};
+		if (failure === 'http') f.document.fire('htmx:historyCacheMissLoadError', {detail: {xhr}});
+		else xhr.fire(failure);
+		assert.equal(f.hidden(), true);
+		assert.equal(f.nodes['session-lock-status'].textContent, 'The page could not be loaded. Retry.');
+		await f.window.AlborzLock.verify();
+		assert.equal(f.hidden(), true, 'a lock check cannot reveal the previous page at the new URL');
+		f.retry();
+		assert.equal(f.location.reloaded, true);
+	});
+}
+
+test('a superseded history abort cannot interrupt the next successful restore', async () => {
+	const f = fixture(); await settle();
+	const old = events(), current = events();
+	old.abort = () => { old.aborted = true; old.fire('abort'); };
+	f.document.fire('htmx:historyCacheMiss', {detail: {xhr: old}});
+	f.document.fire('htmx:historyCacheMiss', {detail: {xhr: current}});
+	assert.equal(old.aborted, true, 'cancel uncached old loads before they can swap stale HTML at the new URL');
+	old.fire('abort');
+	assert.equal(f.nodes['session-lock-status'].textContent, 'Checking');
+	f.document.fire('htmx:historyRestore'); await settle();
+	assert.equal(f.hidden(), false);
+	current.fire('error');
+	assert.equal(f.hidden(), false, 'completed requests cannot conceal the restored page');
+});
+
+test('Retry can reload a pending history navigation', async () => {
+	const f = fixture(); await settle();
+	f.document.fire('htmx:historyCacheMiss', {detail: {xhr: events()}});
+	f.retry();
+	assert.equal(f.location.reloaded, true);
+});
+
+test('history failures do not conceal a session without a passkey', async () => {
+	const f = fixture(hub(), {state: async () => ({ok: true, json: async () => ({session: 'public-session-id', protected: false, locked: false, after: 0})})});
+	await settle();
+	const xhr = events();
+	f.document.fire('htmx:historyCacheMiss', {detail: {xhr}});
+	f.document.fire('htmx:historyCacheMissLoadError', {detail: {xhr}});
+	xhr.fire('error');
+	assert.equal(f.hidden(), false);
 });

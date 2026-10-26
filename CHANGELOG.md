@@ -25,6 +25,8 @@
 
 ### Fixed
 
+- Validate passkeys against the configured public URL behind reverse proxies,
+  and include origin mismatches in server diagnostics.
 - Show merged calendar, contact, task and journal account labels below their
   associated names, using the mail list's compact styling.
 - Keep sign-in feedback active until the destination loads and preserve the

@@ -57,8 +57,8 @@ front of alborz, whose `X-Forwarded-For` names the reader and
 Secure cookies (default: unset, the connection's own address and scheme)
 
 **-public-url**: where readers reach alborz, such as
-`https://mail.example.org`, used for links in mail and addresses shown to other
-clients; scheme and host only. Can also be given as `LBRZ_PUBLIC_URL`
+`https://mail.example.org`, used for links in mail, addresses shown to other
+clients and passkey origin validation; scheme and host only. Can also be given as `LBRZ_PUBLIC_URL`
 (default: unset, each request's own)
 
 **-login-key**: required key sealing what alborz keeps: remembered

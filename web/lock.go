@@ -3,9 +3,10 @@ package web
 import (
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"net/http"
-	"strings"
+	"net/url"
 	"time"
 
 	"git.mehdix.org/alborz"
@@ -131,15 +132,15 @@ func (u passkeyUser) WebAuthnCredentials() []webauthn.Credential {
 
 func (ctx *Context) passkeys() (*webauthn.WebAuthn, passkeyUser, error) {
 	s := ctx.Session()
-	host := ctx.Request().Host
-	id := host
-	if h, _, ok := strings.Cut(host, ":"); ok {
-		id = h
+	origin := ctx.Origin()
+	u, err := url.Parse(origin)
+	if err != nil {
+		return nil, passkeyUser{}, err
 	}
 	w, err := webauthn.New(&webauthn.Config{
 		RPDisplayName: alborz.BrandName,
-		RPID:          id,
-		RPOrigins:     []string{ctx.Scheme() + "://" + host},
+		RPID:          u.Hostname(),
+		RPOrigins:     []string{origin},
 	})
 	name := alborz.BrandName
 	if accounts := ctx.Accounts(); len(accounts) > 0 {
@@ -162,7 +163,13 @@ func PasskeyBegin[T any](ctx *Context, begin func() (*T, error)) error {
 
 // PasskeyFailure writes the common JSON response for a failed WebAuthn ceremony.
 func PasskeyFailure(ctx *Context, status int, label, text string, err error) error {
-	ctx.Logger().Printf("%s: %v", label, err)
+	var failure *protocol.Error
+	if errors.As(err, &failure) && failure.Details == "Error validating origin" {
+		// Other WebAuthn diagnostics can contain challenges; log only the origin mismatch.
+		ctx.Logger().Printf("%s: %v (%q)", label, err, failure.DevInfo)
+	} else {
+		ctx.Logger().Printf("%s: %v", label, err)
+	}
 	return ctx.JSONError(status, text)
 }
 

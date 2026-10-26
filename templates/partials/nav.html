@@ -52,7 +52,16 @@
     <div>
       {{ template "nav-menus" (dict "g" $ "page" $page) }}
     </div>
-    {{ template "scheme-toggle" $ }}
+    {{ if or .GlobalData.LockSeconds (not .GlobalData.SchemePinned) }}
+    <div class="nav-utilities">
+      {{ if .GlobalData.LockSeconds }}
+      <form method="post" action="{{url "auth.lock"}}" class="nav-session-lock" data-session-lock hx-boost="false">
+        <button type="submit" class="icon-button" title="{{$.T "lock.now"}}" aria-label="{{$.T "lock.now"}}">{{ template "icon" "lock" }}</button>
+      </form>
+      {{ end }}
+      {{ template "scheme-toggle" $ }}
+    </div>
+    {{ end }}
     {{ end }}
   </nav>
   {{ if .GlobalData.LoggedIn }}{{ template "flag-colors-menu" (dict "id" "row-colors" "row" true "colors" (flagcolors $) "clear" ($.T "mailbox.flagnone")) }}{{ end }}

@@ -16,6 +16,8 @@
 
 ### Changed
 
+- Group general settings by purpose and collapse detailed touch-gesture mappings.
+- Use compact header lock and theme controls while retaining larger touch targets.
 - Keep remembered browser and PWA sign-ins for 60 days of inactivity, renewing
   on authenticated use while preserving expiry across server restarts.
 - Update the go-ical and go-recur forks for calendar-day recurrence spans and

@@ -557,20 +557,40 @@ header nav .accounts-button .label {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+header nav .nav-utilities,
+header nav .nav-session-lock,
 header nav .scheme-toggle {
-  margin-inline-start: auto;
   display: flex;
   align-items: center;
+  flex-shrink: 0;
+}
+header nav .nav-utilities {
+  margin-inline-start: 0;
+  gap: 0;
+}
+header nav .nav-utilities .icon-button {
+  width: 1.75rem;
+  height: 1.75rem;
+  min-width: 1.75rem;
+  min-height: 1.75rem;
+}
+header nav .nav-utilities .icon {
+  width: 1rem;
+  height: 1rem;
+}
+@media (pointer: coarse) {
+  header nav .nav-utilities .icon-button {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+  }
 }
 
 /* With no script the root names no scheme, and none shows. */
 :root:not([data-theme="system"]) .scheme-toggle [data-scheme="system"],
 :root:not([data-theme="light"]) .scheme-toggle [data-scheme="light"],
 :root:not([data-theme="dark"]) .scheme-toggle [data-scheme="dark"] { display: none; }
-
-/* The group is no longer the last child, so the push moves to whichever comes first. */
-header nav > div { margin-inline-start: auto; }
-header nav > div ~ .scheme-toggle { margin-inline-start: var(--space-1); }
 
 header nav .accounts-button {
   display: inline-flex;
@@ -3851,6 +3871,54 @@ main.settings button:not(.button-primary) {
   background-color: var(--bg);
 }
 
+.settings-profile > .settings-section {
+  min-inline-size: 0;
+  margin: 0;
+  padding: var(--space-4) 0;
+  border: 0;
+  border-block-start: 1px solid var(--border-light);
+}
+.settings-profile > section.settings-section:first-of-type {
+  border-block-start: 0;
+  padding-block-start: 0;
+}
+.settings-section > h2,
+.settings-section > legend,
+.settings-section > summary {
+  margin: 0 0 var(--space-4);
+  padding: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--fg);
+}
+.settings-section:not([open]) > summary { margin-block-end: 0; }
+.settings-section > .action-group:last-child { margin-block-end: 0; }
+.settings-section-body { padding-block-start: var(--space-2); }
+.gesture-setting {
+  min-inline-size: 0;
+  border: 0;
+  padding: 0;
+  margin: 0 0 var(--space-4);
+}
+.gesture-setting legend {
+  padding: 0;
+  margin-block-end: var(--space-2);
+  font-weight: 600;
+}
+.gesture-directions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+.gesture-directions .action-group { min-width: 0; margin: 0; }
+.gesture-directions select { max-width: 100%; width: 100%; }
+.settings-buttons { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.settings-save { padding-block-start: var(--space-4); border-block-start: 1px solid var(--border-light); }
+
+@media (width <= 360px) {
+  .gesture-directions { grid-template-columns: minmax(0, 1fr); }
+}
+
 main.settings button:not(.button-primary):not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover {
   background-color: var(--bg-active);
 }
@@ -4840,7 +4908,7 @@ h1.no-word .title-short {
 
   header nav > div { float: none; display: none; }
   /* The trailing group is out of the row here, so the button pushes itself. */
-  header nav > div ~ .scheme-toggle { margin-inline-start: auto; }
+  header nav .nav-utilities { margin-inline-start: auto; }
   header nav .header-brand { display: none; }
 
   aside .nav-menus-mobile {

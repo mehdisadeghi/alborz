@@ -4,8 +4,9 @@ Status: accepted.
 
 ## Decision
 
-- An account-menu action locks the current browser session without ending its
-  accounts or replacing its cookie. Passkeys are configured in Settings.
+- Compact header and account-menu actions lock the current browser session
+  without ending its accounts or replacing its cookie. The header action appears
+  only after a passkey is configured in Settings.
 - Keep authorization on the server: protected routes and streams check the
   session lock. A minimal, uncached state probe reports only the public session
   identifier and lock flags. Background probes do not extend the idle period.

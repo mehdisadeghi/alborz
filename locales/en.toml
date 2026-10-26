@@ -138,7 +138,8 @@
 "login.add" = "Add account"
 "login.username" = "Username"
 "login.password" = "Password"
-"login.remember" = "Remember me for %d days"
+"login.remember" = "Keep me signed in on this device"
+"login.rememberhelp" = "Signs out after %d days without use. Use only on a device you trust."
 "login.signin" = "Sign in"
 "mailbox.starred" = "Starred"
 "mailbox.unread" = "Unread"
@@ -1435,8 +1436,8 @@ one = "%[2]s"
 other = "Next at %[2]s"
 
 ["notifications.keptfor"]
-one = "This lasts up to %d day after this browser was last used if it signed in with \"Remember me\", and %d minutes otherwise. A restart of the server also ends it until this browser is used again."
-other = "This lasts up to %d days after this browser was last used if it signed in with \"Remember me\", and %d minutes otherwise. A restart of the server also ends it until this browser is used again."
+one = "With \"Keep me signed in on this device\", notifications continue for up to %d day without use, or %d minutes otherwise. Background checks do not extend this period. After a server restart, reopen the app to resume notifications."
+other = "With \"Keep me signed in on this device\", notifications continue for up to %d days without use, or %d minutes otherwise. Background checks do not extend this period. After a server restart, reopen the app to resume notifications."
 
 ["search.all"]
 one = "%[1]d result in %[2]s"

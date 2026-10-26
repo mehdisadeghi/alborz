@@ -27,6 +27,7 @@ type Context struct {
 	quiet         bool
 	session       *Session
 	sessionSecret string
+	activity      bool // Set by Activity; streams and background requests leave it false.
 	Login         *alborz.Login
 	defaultLogin  *alborz.Login // the first listed account, for a page that needs one and was given none
 

@@ -38,6 +38,23 @@ test('push carries a preview and browser-supported action buttons', async () => 
 	assert.equal(f.calls.shown[0].options.data.url, f.note.url);
 });
 
+test('automatic subscription replacement does not count as user activity', async () => {
+	const f = fixture(); let work;
+	f.listeners.pushsubscriptionchange({
+		oldSubscription: {endpoint: 'https://push.example/old'},
+		newSubscription: {toJSON: () => ({endpoint: 'https://push.example/new', keys: {p256dh: 'public', auth: 'auth'}})},
+		waitUntil(promise) { work = promise; },
+	});
+	await work;
+	assert.equal(f.calls.fetch.length, 1);
+	const {url, options} = f.calls.fetch[0];
+	assert.equal(url, '/subscribe');
+	assert.equal(options.body.get('old'), 'https://push.example/old');
+	assert.equal(options.body.get('endpoint'), 'https://push.example/new');
+	assert.equal(options.credentials, 'same-origin');
+	assert.equal(options.headers?.['Alborz-Unasked'], '1');
+});
+
 test('click navigates an existing tab to the exact notification message', async () => {
 	const f = fixture(); await f.click();
 	assert.deepEqual(f.calls.navigated, ['https://mail.example' + f.note.url]);

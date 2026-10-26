@@ -135,7 +135,8 @@
 "login.add" = "Añadir cuenta"
 "login.username" = "Usuario"
 "login.password" = "Contraseña"
-"login.remember" = "Recordarme %d días"
+"login.remember" = "Mantener la sesión iniciada en este dispositivo"
+"login.rememberhelp" = "La sesión se cierra tras %d días sin uso. Úsalo solo en un dispositivo de confianza."
 "login.signin" = "Entrar"
 "mailbox.starred" = "Destacados"
 "mailbox.unread" = "No leídos"
@@ -1436,8 +1437,8 @@ one = "%[2]s"
 other = "Siguiente a las %[2]s"
 
 ["notifications.keptfor"]
-one = "Dura hasta %d día después del último uso de este navegador si inició sesión con «Recordarme», y %d minutos si no. Un reinicio del servidor también lo termina hasta que se vuelva a usar este navegador."
-other = "Dura hasta %d días después del último uso de este navegador si inició sesión con «Recordarme», y %d minutos si no. Un reinicio del servidor también lo termina hasta que se vuelva a usar este navegador."
+one = "Con «Mantener la sesión iniciada en este dispositivo», las notificaciones continúan hasta %d día sin uso, o %d minutos en caso contrario. Las comprobaciones en segundo plano no prolongan este periodo. Tras reiniciar el servidor, vuelve a abrir la aplicación para reanudar las notificaciones."
+other = "Con «Mantener la sesión iniciada en este dispositivo», las notificaciones continúan hasta %d días sin uso, o %d minutos en caso contrario. Las comprobaciones en segundo plano no prolongan este periodo. Tras reiniciar el servidor, vuelve a abrir la aplicación para reanudar las notificaciones."
 
 ["search.all"]
 one = "%[1]d resultado en %[2]s"

@@ -183,17 +183,13 @@ func (ctx *Context) LogoutAccount(username string) *alborz.Login {
 }
 
 // SetLoginToken keeps the account's password sealed under the browser's secret.
-func (ctx *Context) SetLoginToken(username, password string) {
-	s := ctx.Session()
+func (ctx *Context) SetLoginToken(username, password string) error {
+	ctx.Session()
 	sealed, err := ctx.seal(password)
 	if err != nil {
-		ctx.Logger().Printf("failed to keep %q signed in: %v", username, err)
-		return
+		return fmt.Errorf("keeping %q signed in: %w", username, err)
 	}
-	s.Remember(username, sealed)
-	if err := ctx.Server.Sessions.Save(s); err != nil {
-		ctx.Logger().Printf("failed to write the session: %v", err)
-	}
+	return ctx.saveRemembered(time.Now(), username, sealed)
 }
 
 func (ctx *Context) forgetLoginToken(username string) {
@@ -203,10 +199,10 @@ func (ctx *Context) forgetLoginToken(username string) {
 	}
 	s.forget(username)
 	var err error
-	if s.remembered() {
-		err = ctx.Server.Sessions.Save(s)
-	} else {
+	if live, _ := s.Accounts(); len(live) == 0 && !s.remembered() {
 		err = ctx.Server.Sessions.delete(s.ID)
+	} else {
+		err = ctx.Server.Sessions.Save(s)
 	}
 	if err != nil {
 		ctx.Logger().Printf("failed to write the session: %v", err)
@@ -254,15 +250,18 @@ func (ctx *Context) RestoreRememberedAccounts() bool {
 	if session == nil {
 		return false
 	}
-	type credential struct{ address, password string }
+	type credential struct {
+		address, password string
+		sealed            []byte
+	}
 	var want []credential
 	session.mu.Lock()
 	for address, sealed := range session.remember {
-		password, ok := ctx.unseal(sealed)
+		password, ok := ctx.openRemembered(sealed, session.expires, time.Now())
 		if !ok {
 			continue
 		}
-		want = append(want, credential{address, password})
+		want = append(want, credential{address, password, slices.Clone(sealed)})
 	}
 	session.mu.Unlock()
 
@@ -293,7 +292,9 @@ func (ctx *Context) RestoreRememberedAccounts() bool {
 		}
 		// A refused password is not retried: each retry is a failed login a server may ban.
 		if errors.As(err, new(alborz.AuthError)) {
-			session.forget(want[i].address)
+			if !session.forgetRefused(want[i].address, want[i].sealed) {
+				continue
+			}
 			forgot = true
 		}
 		why, _ := ctx.SignInRefusal(err)
@@ -307,13 +308,7 @@ func (ctx *Context) RestoreRememberedAccounts() bool {
 			`<bdi>`+template.HTMLEscapeString(why)+`</bdi>`))
 	}
 	if forgot {
-		var err error
-		if session.remembered() {
-			err = ctx.Server.Sessions.Save(session)
-		} else {
-			err = ctx.Server.Sessions.records.Delete(session.ID)
-		}
-		if err != nil {
+		if err := ctx.Server.Sessions.Save(session); err != nil {
 			ctx.Logger().Printf("failed to write the session: %v", err)
 		}
 	}
@@ -325,25 +320,29 @@ func (ctx *Context) RestoreRememberedAccounts() bool {
 		})
 	}
 
-	restored := false
-	for _, s := range logins {
+	for i, s := range logins {
 		if s == nil {
 			continue
 		}
-		session.add(s)
+		if !session.restored(s, want[i].sealed) {
+			s.Close()
+			continue
+		}
 		ctx.accountsLoaded = false
 		ctx.Login = s
 		ctx.defaultLogin = s
 		for _, ready := range ctx.Server.OnAccountReady {
 			ready(ctx, s)
 		}
-		restored = true
 	}
-	if restored {
-		live, _ := session.Accounts()
-		ctx.Login, ctx.defaultLogin = live[0], live[0]
+	// A concurrent restore may have won; its live accounts serve this request too.
+	live, _ := session.Accounts()
+	if len(live) == 0 {
+		return false
 	}
-	return restored
+	ctx.accountsLoaded = false
+	ctx.Login, ctx.defaultLogin = live[0], live[0]
+	return true
 }
 
 // Scoped serves h per account: settings are per account, so a unified GET redirects to name its account.

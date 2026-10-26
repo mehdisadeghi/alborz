@@ -87,7 +87,20 @@ const unaskedHeader = "Alborz-Unasked"
 
 // unasked reports a request the page made by itself. Sent to sign in, it would draw the sign-in page
 // where its answer goes; it gets nothing, and the reader's next click meets the sign-in instead.
-func unasked(ctx *Context) bool { return ctx.Request().Header.Get(unaskedHeader) != "" }
+func unasked(ctx *Context) bool {
+	return ctx.Request().Header.Get(unaskedHeader) != ""
+}
+
+func automaticSessionCheck(ctx *Context) bool {
+	// These endpoints are automatic even when a client omits its hint.
+	for _, name := range []string{"auth.unlock.state", "core.status", "core.events"} {
+		if pattern := ctx.Server.routes.names[name]; pattern != "" &&
+			(ctx.Request().Pattern == "GET "+pattern || ctx.Request().URL.Path == pattern) {
+			return true
+		}
+	}
+	return false
+}
 
 // Activity counts the request as the reader acting, which keeps the session from locking.
 func Activity(next HandlerFunc) HandlerFunc {
@@ -103,6 +116,7 @@ func Activity(next HandlerFunc) HandlerFunc {
 		now := time.Now()
 		// A request the page made by itself is not the reader acting, or an open tab would never lock.
 		if !session.Locked(now) && !unasked(ctx) {
+			ctx.activity = !automaticSessionCheck(ctx)
 			session.act(now)
 			if session.note(ctx.Request().UserAgent(), alborz.RequestAddress(ctx.RealIP())) {
 				if err := ctx.Server.Sessions.Save(session); err != nil {
@@ -184,6 +198,11 @@ func (ctx *Context) signIn(next HandlerFunc, required bool) error {
 		ctx.urlAccount = acct
 	} else if len(logins) > 1 {
 		ctx.Unified = true
+	}
+	if ctx.activity {
+		if err := ctx.renewRemembered(time.Now()); err != nil {
+			return err
+		}
 	}
 	return next(ctx)
 }

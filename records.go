@@ -137,12 +137,12 @@ func (r *records) Each(f func(*SessionRecord)) error {
 	})
 }
 
-// Sweep drops the sessions not seen since before.
-func (r *records) Sweep(before time.Time) error {
+// Sweep drops sessions whose remembered sign-in has expired.
+func (r *records) Sweep(now time.Time) error {
 	return r.db.Update(func(tx kv.Tx) error {
 		return kv.DeleteUnder(tx, sessionsOwner+"/", func(_ string, sealed []byte) bool {
 			var rec SessionRecord
-			return r.read(sealed, &rec) && rec.Seen.Before(before)
+			return r.read(sealed, &rec) && !now.Before(rec.Expires)
 		})
 	})
 }
@@ -275,6 +275,7 @@ type SessionRecord struct {
 	ID       string
 	Created  time.Time
 	Seen     time.Time
+	Expires  time.Time `json:",omitempty"`
 	Proof    []byte
 	Accounts []RememberedAccount
 	Profile  *Profile
@@ -294,6 +295,6 @@ type SessionRecords interface {
 	Load(id string) (*SessionRecord, bool)
 	Save(rec *SessionRecord) error
 	Delete(id string) error
-	Sweep(before time.Time) error
+	Sweep(now time.Time) error
 	Each(func(*SessionRecord)) error
 }

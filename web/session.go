@@ -1,13 +1,14 @@
 package web
 
 import (
+	"bytes"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/binary"
 	"errors"
 	"fmt"
+	"net/http"
 	"slices"
 	"strings"
 	"sync"
@@ -27,6 +28,8 @@ type Session struct {
 
 	mu          sync.Mutex
 	seen        time.Time
+	expires     time.Time
+	ended       bool
 	notice      *Notice
 	attachments map[string]*File
 	// accounts is every account this browser has signed into, in display order.
@@ -62,13 +65,6 @@ func (s *Session) setProfile(p alborz.Profile) {
 	s.mu.Unlock()
 }
 
-func (s *Session) life() time.Duration {
-	if s.remembered() {
-		return alborz.CredentialCookieLife()
-	}
-	return sessionDuration
-}
-
 func (s *Session) remembered() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -95,8 +91,12 @@ func (s *Session) forget(address string) {
 func (s *Session) record() *alborz.SessionRecord {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.recordLocked()
+}
+
+func (s *Session) recordLocked() *alborz.SessionRecord {
 	rec := &alborz.SessionRecord{ID: s.ID, Created: s.created, Seen: s.seen, Proof: s.proof,
-		Profile: s.profile, Lock: s.lock, Device: s.device, Address: s.address}
+		Expires: s.expires, Profile: s.profile, Lock: s.lock, Device: s.device, Address: s.address}
 	for address, sealed := range s.remember {
 		rec.Accounts = append(rec.Accounts, alborz.RememberedAccount{Address: address, Sealed: sealed})
 	}
@@ -111,7 +111,8 @@ func sessionFromRecord(rec *alborz.SessionRecord) *Session {
 		ID:          rec.ID,
 		created:     rec.Created,
 		proof:       rec.Proof,
-		seen:        time.Now(),
+		seen:        rec.Seen,
+		expires:     rec.Expires,
 		attachments: map[string]*File{},
 		remember:    map[string][]byte{},
 	}
@@ -144,6 +145,10 @@ func (s *Session) Accounts() (live []*alborz.Login, lost []string) {
 func (s *Session) add(login *alborz.Login) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.addLocked(login)
+}
+
+func (s *Session) addLocked(login *alborz.Login) {
 	for i, other := range s.accounts {
 		if other.Username() == login.Username() {
 			other.Close()
@@ -156,10 +161,38 @@ func (s *Session) add(login *alborz.Login) {
 	byName(s.accounts)
 }
 
-// remove takes an account out of the session and closes it.
+// restored commits only the credential that was read before upstream authentication began.
+func (s *Session) restored(login *alborz.Login, sealed []byte) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.ended || !time.Now().Before(s.expires) ||
+		!bytes.Equal(s.remember[login.Username()], sealed) {
+		return false
+	}
+	if slices.ContainsFunc(s.accounts, func(other *alborz.Login) bool {
+		return other.Username() == login.Username() && other.Alive()
+	}) {
+		return false
+	}
+	s.addLocked(login)
+	return true
+}
+
+func (s *Session) forgetRefused(account string, sealed []byte) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.ended || !bytes.Equal(s.remember[account], sealed) {
+		return false
+	}
+	delete(s.remember, account)
+	return true
+}
+
+// remove revokes the account and its remembered credential together; the caller closes its login.
 func (s *Session) remove(username string) *alborz.Login {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	delete(s.remember, username)
 	for i, login := range s.accounts {
 		if login.Username() == username {
 			s.accounts = append(s.accounts[:i], s.accounts[i+1:]...)
@@ -193,7 +226,7 @@ func (ss *Sessions) get(id string) *Session {
 	if s == nil {
 		return nil
 	}
-	if time.Since(s.lastSeen()) > s.life() {
+	if s.expired(time.Now()) {
 		delete(ss.live, id)
 		return nil
 	}
@@ -208,9 +241,9 @@ func (ss *Sessions) put(s *Session) {
 
 func (ss *Sessions) delete(id string) error {
 	ss.mu.Lock()
+	defer ss.mu.Unlock()
 	s := ss.live[id]
 	delete(ss.live, id)
-	ss.mu.Unlock()
 	if s != nil {
 		s.close()
 	}
@@ -219,15 +252,33 @@ func (ss *Sessions) delete(id string) error {
 
 // record returns the remembered session of that id.
 func (ss *Sessions) record(id string) (*alborz.SessionRecord, bool) {
-	return ss.records.Load(id)
+	rec, ok := ss.records.Load(id)
+	return rec, ok && time.Now().Before(rec.Expires)
+}
+
+func (s *Session) expired(now time.Time) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.ended {
+		return true
+	}
+	if len(s.remember) == 0 {
+		return now.Sub(s.seen) > sessionDuration
+	}
+	return !now.Before(s.expires)
 }
 
 // Save writes remembered credentials, or removes a record once none remain.
 func (ss *Sessions) Save(s *Session) error {
-	if !s.remembered() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.ended {
+		return nil
+	}
+	if len(s.remember) == 0 {
 		return ss.records.Delete(s.ID)
 	}
-	return ss.records.Save(s.record())
+	return ss.records.Save(s.recordLocked())
 }
 
 // sessionDuration matches the login's so nothing changes hands while signed in.
@@ -341,6 +392,7 @@ func (s *Session) popAttachment(id string) *File {
 func (s *Session) close() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.ended = true
 	for _, a := range s.attachments {
 		a.Close()
 	}
@@ -370,11 +422,32 @@ func (ctx *Context) lookupSession() *Session {
 		return nil
 	}
 	id, secret, _ := strings.Cut(value, ".")
-	s := ctx.Server.Sessions.get(id)
-	stored := s == nil
-	if stored {
-		rec, found := ctx.Server.Sessions.record(id)
-		if !found {
+	s := ctx.Server.Sessions.lookup(id, secret)
+	if s == nil {
+		return nil
+	}
+	if !s.remembered() {
+		s.touch()
+	}
+	ctx.session, ctx.sessionSecret = s, secret
+	return s
+}
+
+// lookup serializes restoring a record with revocation so an in-flight restore cannot put it back.
+func (ss *Sessions) lookup(id, secret string) *Session {
+	ss.mu.Lock()
+	defer ss.mu.Unlock()
+	s := ss.live[id]
+	if s != nil && s.expired(time.Now()) {
+		delete(ss.live, id)
+		s = nil
+	}
+	if s == nil {
+		if ss.records == nil {
+			return nil
+		}
+		rec, ok := ss.record(id)
+		if !ok {
 			return nil
 		}
 		s = sessionFromRecord(rec)
@@ -382,11 +455,7 @@ func (ctx *Context) lookupSession() *Session {
 	if !s.opens(secret) {
 		return nil
 	}
-	if stored {
-		ctx.Server.Sessions.put(s)
-	}
-	s.touch()
-	ctx.session, ctx.sessionSecret = s, secret
+	ss.live[id] = s
 	return s
 }
 
@@ -409,28 +478,85 @@ func (s *Session) opens(secret string) bool {
 // stolen store decrypts nothing.
 func sessionKey(secret string) *seal.Key { return seal.NewKey(sha256.Sum256([]byte(secret))) }
 
-// seal keeps the password with when it was sealed, so it opens for a cookie's life and no longer.
+// seal keeps the password under the browser's session secret.
 func (ctx *Context) seal(password string) ([]byte, error) {
 	if ctx.sessionSecret == "" {
 		return nil, fmt.Errorf("alborz: this session carries no secret")
 	}
-	plain := binary.BigEndian.AppendUint64(nil, uint64(time.Now().Unix()))
-	return sessionKey(ctx.sessionSecret).Seal(append(plain, password...)), nil
+	return sessionKey(ctx.sessionSecret).Seal([]byte(password)), nil
 }
 
-func (ctx *Context) unseal(sealed []byte) (string, bool) {
-	if ctx.sessionSecret == "" {
+func (ctx *Context) openRemembered(sealed []byte, expires, now time.Time) (password string, ok bool) {
+	if ctx.sessionSecret == "" || !now.Before(expires) {
 		return "", false
 	}
 	raw, err := sessionKey(ctx.sessionSecret).Open(sealed)
-	if err != nil || len(raw) < 8 {
-		return "", false
+	return string(raw), err == nil
+}
+
+// renewRemembered follows authenticated user activity, before the response is written.
+// Save first: a failed write must not promise a longer cookie than the stored session.
+func (ctx *Context) renewRemembered(now time.Time) error {
+	return ctx.saveRemembered(now, "", nil)
+}
+
+func (ctx *Context) saveRemembered(now time.Time, account string, added []byte) error {
+	s := ctx.session
+	if s == nil {
+		return nil
 	}
-	at := time.Unix(int64(binary.BigEndian.Uint64(raw)), 0)
-	if time.Since(at) > alborz.CredentialCookieLife() {
-		return "", false
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.ended {
+		if account != "" {
+			return NewError(http.StatusUnauthorized, "session ended while signing in")
+		}
+		return nil
 	}
-	return string(raw[8:]), true
+	if len(s.remember) == 0 && account == "" {
+		return nil
+	}
+	rec := s.recordLocked()
+	valid := now.Before(rec.Expires)
+	if !valid && account == "" {
+		return NewError(http.StatusUnauthorized, "remembered sign-in expired")
+	}
+	kept := make(map[string][]byte, len(s.remember))
+	want := make(map[string][]byte, len(s.remember)+1)
+	if valid {
+		for account, sealed := range s.remember {
+			want[account] = sealed
+		}
+	}
+	if account != "" {
+		want[account] = added
+	}
+	rec.Accounts = nil
+	rec.Seen, rec.Expires = now, now.Add(alborz.CredentialCookieLife())
+	for account, sealed := range want {
+		_, ok := ctx.openRemembered(sealed, rec.Expires, now)
+		if !ok {
+			continue
+		}
+		kept[account] = sealed
+		rec.Accounts = append(rec.Accounts, alborz.RememberedAccount{Address: account, Sealed: sealed})
+	}
+	if len(kept) == 0 {
+		if err := ctx.Server.Sessions.records.Delete(s.ID); err != nil {
+			return err
+		}
+		s.remember = kept
+		return nil
+	}
+	slices.SortFunc(rec.Accounts, func(a, b alborz.RememberedAccount) int { return strings.Compare(a.Address, b.Address) })
+	if err := ctx.Server.Sessions.records.Save(rec); err != nil {
+		return fmt.Errorf("renewing remembered sign-in: %w", err)
+	}
+	s.remember, s.seen, s.expires = kept, rec.Seen, rec.Expires
+	cookie := ctx.cookie(sessionCookieName, s.ID+"."+ctx.sessionSecret, alborz.CredentialCookieLife())
+	cookie.Expires = rec.Expires.UTC()
+	ctx.SetCookie(cookie)
+	return nil
 }
 
 // Quiet says this action needs no notice. Said explicitly, so a forgotten

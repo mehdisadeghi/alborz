@@ -83,6 +83,9 @@ app is `:latest` or a version such as `:0.18.0`; the build without add-ons is
 
 The login key is required. Without the volume, alborz's data stays
 inside the container and goes with it.
+Keep the same volume and login key across deployments to preserve remembered
+sign-ins. “Keep me signed in on this device” expires after 60 days without user
+activity; regular use renews it in both the browser and installed app.
 
 ## Usage
 

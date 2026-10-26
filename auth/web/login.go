@@ -58,7 +58,9 @@ func handleLogin(ctx *web.Context) error {
 		ctx.AddAccount(s)
 
 		if remember == "on" {
-			ctx.SetLoginToken(username, password)
+			if err := ctx.SetLoginToken(username, password); err != nil {
+				return err
+			}
 		}
 
 		return loginRedirect(ctx)

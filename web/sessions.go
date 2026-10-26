@@ -1,6 +1,7 @@
 package web
 
 import (
+	"errors"
 	"slices"
 	"strings"
 	"time"
@@ -52,7 +53,7 @@ func (ss *Sessions) SignedIn(account, current string) ([]Signed, error) {
 	ss.mu.Lock()
 	for id, s := range ss.live {
 		// Expired sessions are only dropped when their browser returns.
-		if time.Since(s.lastSeen()) > s.life() {
+		if s.expired(time.Now()) {
 			continue
 		}
 		if s.holds(account) {
@@ -62,7 +63,7 @@ func (ss *Sessions) SignedIn(account, current string) ([]Signed, error) {
 	}
 	ss.mu.Unlock()
 	err := ss.records.Each(func(rec *alborz.SessionRecord) {
-		if seen[rec.ID] || !slices.ContainsFunc(rec.Accounts, func(a alborz.RememberedAccount) bool { return a.Address == account }) {
+		if seen[rec.ID] || !time.Now().Before(rec.Expires) || !slices.ContainsFunc(rec.Accounts, func(a alborz.RememberedAccount) bool { return a.Address == account }) {
 			return
 		}
 		out = append(out, Signed{ID: rec.ID, Device: rec.Device, Address: rec.Address, Created: rec.Created, Seen: rec.Seen})
@@ -84,7 +85,7 @@ func (ss *Sessions) Holds(id, account string) bool {
 	}
 	rec, ok := ss.records.Load(id)
 	// A record outlives its cookie until the next start sweeps it.
-	return ok && time.Since(rec.Seen) <= alborz.CredentialCookieLife() &&
+	return ok && time.Now().Before(rec.Expires) &&
 		slices.ContainsFunc(rec.Accounts, func(a alborz.RememberedAccount) bool { return a.Address == account })
 }
 
@@ -107,17 +108,17 @@ func (ss *Sessions) SignOut(id, account string) error {
 	}
 	ss.mu.Lock()
 	s := ss.live[id]
-	ss.mu.Unlock()
 	if s != nil {
+		ss.mu.Unlock()
 		if s := s.remove(account); s != nil {
 			s.Close()
 		}
-		s.forget(account)
 		if live, _ := s.Accounts(); len(live) == 0 && !s.remembered() {
 			return ss.delete(id)
 		}
 		return ss.Save(s)
 	}
+	defer ss.mu.Unlock()
 	rec, ok := ss.records.Load(id)
 	if !ok {
 		return nil
@@ -164,20 +165,21 @@ func (ctx *Context) PasswordChanged(login *alborz.Login, password string) error 
 	_, remembered := s.remember[account]
 	s.mu.Unlock()
 	ctx.AddAccount(login)
+	var rememberErr error
 	if remembered {
-		ctx.SetLoginToken(account, password)
+		rememberErr = ctx.SetLoginToken(account, password)
 	}
 	signed, err := ctx.Server.Sessions.SignedIn(account, s.ID)
 	if err != nil {
-		return err
+		return errors.Join(rememberErr, err)
 	}
 	for _, other := range signed {
 		if other.Current {
 			continue
 		}
 		if err := ctx.Server.Sessions.SignOut(other.ID, account); err != nil {
-			return err
+			rememberErr = errors.Join(rememberErr, err)
 		}
 	}
-	return nil
+	return rememberErr
 }

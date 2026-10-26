@@ -42,6 +42,7 @@ func TestASessionLocksOnlyWithAPasskeyAndOnlyAfterTimeAway(t *testing.T) {
 
 func TestCookieSharingTabsStayLockedWithoutLosingRememberedAccounts(t *testing.T) {
 	s, secret := newSession()
+	s.expires = time.Now().Add(time.Hour)
 	s.addPasskey(alborz.Passkey{Name: "key"})
 	s.Remember("one@example.org", []byte("sealed-one"))
 	s.Remember("two@example.org", []byte("sealed-two"))

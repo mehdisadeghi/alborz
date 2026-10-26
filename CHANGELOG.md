@@ -16,6 +16,8 @@
 
 ### Changed
 
+- Keep remembered browser and PWA sign-ins for 60 days of inactivity, renewing
+  on authenticated use while preserving expiry across server restarts.
 - Update the go-ical and go-recur forks for calendar-day recurrence spans and
   all-day shifts across daylight-saving transitions.
 - Update the go-vcard, go-itip and go-webdav forks, preserving atomic DAV

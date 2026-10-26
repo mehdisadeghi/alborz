@@ -169,7 +169,8 @@ self.addEventListener("pushsubscriptionchange", event => {
 	event.waitUntil(renewed.then(sub => {
 		const json = sub.toJSON();
 		const form = new URLSearchParams({ old: old.endpoint, endpoint: json.endpoint, p256dh: json.keys.p256dh, auth: json.keys.auth });
-		return fetch(RENEW, { method: "POST", body: form, credentials: "same-origin", redirect: "manual" });
+		return fetch(RENEW, { method: "POST", body: form, credentials: "same-origin", redirect: "manual",
+			headers: { "Alborz-Unasked": "1" } });
 	}));
 });
 

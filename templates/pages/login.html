@@ -19,9 +19,10 @@
 
       <div class="action-group">
         <label for="remember-me" class="checkbox">
-          <input type="checkbox" name="remember-me" id="remember-me"{{if .Remember}} checked{{end}} />
-          {{ printf ($.T "login.remember") .RememberDays }}
+          <input type="checkbox" name="remember-me" id="remember-me"{{if .Remember}} checked{{end}} aria-describedby="remember-help" />
+          {{$.T "login.remember"}}
         </label>
+        <p class="hint" id="remember-help">{{printf ($.T "login.rememberhelp") .RememberDays}}</p>
       </div>
 
       <div class="action-group">

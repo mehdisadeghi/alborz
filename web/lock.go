@@ -237,6 +237,9 @@ func (ctx *Context) FinishUnlock() error {
 	now := time.Now()
 	s.usedPasskey(*credential, now)
 	s.unlock(now)
+	if err := ctx.renewRemembered(now); err != nil {
+		return err
+	}
 	return ctx.Server.Sessions.Save(s)
 }
 

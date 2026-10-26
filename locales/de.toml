@@ -135,7 +135,8 @@
 "login.add" = "Konto hinzufügen"
 "login.username" = "Benutzername"
 "login.password" = "Passwort"
-"login.remember" = "%d Tage angemeldet bleiben"
+"login.remember" = "Auf diesem Gerät angemeldet bleiben"
+"login.rememberhelp" = "Abmeldung nach %d Tagen ohne Nutzung. Nur auf einem vertrauenswürdigen Gerät verwenden."
 "login.signin" = "Anmelden"
 "mailbox.starred" = "Markiert"
 "mailbox.unread" = "Ungelesen"
@@ -1436,8 +1437,8 @@ one = "%[2]s"
 other = "Nächster um %[2]s"
 
 ["notifications.keptfor"]
-one = "Das gilt bis zu %d Tag nach der letzten Nutzung dieses Browsers, wenn er mit „Angemeldet bleiben“ angemeldet wurde, sonst %d Minuten. Ein Neustart des Servers beendet es ebenfalls, bis dieser Browser wieder genutzt wird."
-other = "Das gilt bis zu %d Tage nach der letzten Nutzung dieses Browsers, wenn er mit „Angemeldet bleiben“ angemeldet wurde, sonst %d Minuten. Ein Neustart des Servers beendet es ebenfalls, bis dieser Browser wieder genutzt wird."
+one = "Mit „Auf diesem Gerät angemeldet bleiben“ laufen Benachrichtigungen bis zu %d Tag ohne Nutzung weiter, sonst %d Minuten. Hintergrundprüfungen verlängern diesen Zeitraum nicht. Nach einem Serverneustart die App erneut öffnen, um Benachrichtigungen fortzusetzen."
+other = "Mit „Auf diesem Gerät angemeldet bleiben“ laufen Benachrichtigungen bis zu %d Tage ohne Nutzung weiter, sonst %d Minuten. Hintergrundprüfungen verlängern diesen Zeitraum nicht. Nach einem Serverneustart die App erneut öffnen, um Benachrichtigungen fortzusetzen."
 
 ["search.all"]
 one = "%[1]d Treffer in %[2]s"

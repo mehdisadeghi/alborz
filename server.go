@@ -47,7 +47,7 @@ var Build = sync.OnceValues(func() (full, short string) {
 const storeFile = AppName + ".db"
 
 const (
-	credentialCookieLife = 30 * 24 * time.Hour
+	credentialCookieLife = 60 * 24 * time.Hour
 	// reminderTick makes a reminder late by at most a minute, the finest step a calendar offers one in.
 	reminderTick = time.Minute
 )
@@ -181,7 +181,7 @@ func New(log *log.Logger, options Options) (*Server, error) {
 		return nil, err
 	}
 	s.SessionRecords = openSessionRecords(s.data, sessionsKey)
-	if err := s.SessionRecords.Sweep(time.Now().Add(-credentialCookieLife)); err != nil {
+	if err := s.SessionRecords.Sweep(time.Now()); err != nil {
 		return nil, err
 	}
 	if s.Keys, err = keyring.New(s.data, s.LoginKey); err != nil {

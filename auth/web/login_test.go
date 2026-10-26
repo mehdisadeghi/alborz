@@ -9,6 +9,28 @@ import (
 	. "git.mehdix.org/alborz/internal/alborztest"
 )
 
+func TestRememberedSignInExplainsInactivity(t *testing.T) {
+	a := Alborz(t)
+	for _, tc := range []struct{ language, label, help string }{
+		{"en", "Keep me signed in on this device", "Signs out after 60 days without use. Use only on a device you trust."},
+		{"de", "Auf diesem Gerät angemeldet bleiben", "Abmeldung nach 60 Tagen ohne Nutzung. Nur auf einem vertrauenswürdigen Gerät verwenden."},
+		{"es", "Mantener la sesión iniciada en este dispositivo", "La sesión se cierra tras 60 días sin uso. Úsalo solo en un dispositivo de confianza."},
+		{"fa", "در این دستگاه وارد بمانم", "پس از 60 روز بدون استفاده، از حساب خارج می‌شوید. فقط در دستگاهی که به آن اعتماد دارید استفاده کنید."},
+	} {
+		t.Run(tc.language, func(t *testing.T) {
+			resp := a.Client().Get(t, "auth.login", url.Values{"lang": {tc.language}})
+			if resp.StatusCode != http.StatusOK {
+				t.Fatal(resp.Status)
+			}
+			for _, want := range []string{tc.label, tc.help, `aria-describedby="remember-help"`, `id="remember-help"`} {
+				if !strings.Contains(resp.Text, want) {
+					t.Errorf("login page is missing %q", want)
+				}
+			}
+		})
+	}
+}
+
 // A sign-in goes on to the page that asked for it, and never off the site.
 func TestSignInStaysOnTheSite(t *testing.T) {
 	a := Alborz(t)

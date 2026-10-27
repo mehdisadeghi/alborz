@@ -25,7 +25,7 @@
 
 {{/* dict: save [cancel cancelLabel]. */}}
 {{ define "form-actions" }}
-<div class="actions">
+<div class="form-actions">
   <button type="submit" class="button-primary">{{.save}}</button>
   {{ if .cancel }}<a class="button-link button-quiet" href="{{.cancel}}">{{.cancelLabel}}</a>{{ end }}
 </div>
@@ -37,7 +37,7 @@
   {{ template "mail-crumb" .g }}
   <h1>{{.title}}</h1>
   <div class="alert" role="alert">{{.message}}</div>
-  <div class="actions">
+  <div class="form-actions">
     <button type="submit" class="button-danger">{{.submit}}</button>
     <a class="button-link button-quiet" href="{{.cancel}}">{{.g.T "common.cancel"}}</a>
   </div>

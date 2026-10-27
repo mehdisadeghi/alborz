@@ -95,10 +95,9 @@
             {{ end }}
             </a>
             {{ end }}
-            {{ if $.Spanning }}<span class="row-meta row-meta-above"><a class="row-account row-folder" dir="auto" title="{{.Mailbox}}" href="{{ localhref (printf "%s?query=%s%s" (url "mail.mailbox" .Mailbox) ($.FolderQuery | qv) (account "&" .Account)) }}">{{.Mailbox}}</a></span>{{ end }}
-            {{ if $.GlobalData.Unified }}<span class="row-meta"><span class="row-account" title="{{.Account}}">{{ template "ltr" ($.GlobalData.AccountLabel .Account) }}</span></span>{{ end }}
           </div>
           <div class="message-list-subject list-primary {{$classes}}{{ if .Attachments }} has-attach{{ end }}" role="cell">
+            <div class="record-label">
             {{ $open := "" }}{{ if not $.Merged }}{{ $open = .PreferredPart $.PreferHTML }}{{ end }}
             <a dir="{{.Envelope.Subject | subjectdir}}"{{with $.GlobalData.MessageLang .Envelope.Subject}} lang="{{.}}"{{end}} href="{{ template "message-link" (dict "g" $ "row" . "merged" $.Merged "open" $open) }}">
               {{/* No bdi: dir=auto skips isolates, so it would find no strong
@@ -109,6 +108,13 @@
                 {{$.T "mailbox.nosubject"}}
               {{end}}
             </a>
+            {{ if or $.GlobalData.Unified $.Spanning }}
+            <span class="row-meta">
+              {{ if $.GlobalData.Unified }}{{ template "account-label" (dict "label" ($.GlobalData.AccountLabel .Account) "account" .Account) }}{{ end }}
+              {{ if $.Spanning }}<a class="row-folder" dir="auto" title="{{.Mailbox}}" href="{{ localhref (printf "%s?query=%s%s" (url "mail.mailbox" .Mailbox) ($.FolderQuery | qv) (account "&" .Account)) }}">{{.Mailbox}}</a>{{ end }}
+            </span>
+            {{ end }}
+            </div>
             {{ with .Attachments }}
             <span class="attach-line">
               {{ range $i, $a := . }}{{ if lt $i 3 }}

@@ -18,7 +18,7 @@
         <h2>{{$.T "encryption.recovery"}}</h2>
         <p class="recovery-key" dir="ltr"><code>{{.}}</code></p>
         {{ template "hint" (dict "text" ($.T "encryption.recoveryhint")) }}
-        <div class="actions">
+        <div class="form-actions">
           <a class="button-link button-primary" href="{{$.RecoveryFile}}" download="{{printf "alborz-recovery-%s.txt" $.GlobalData.Username}}">{{$.T "encryption.download"}}</a>
         </div>
       </section>

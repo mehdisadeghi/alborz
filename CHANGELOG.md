@@ -16,6 +16,8 @@
 
 ### Changed
 
+- Use one account-label pattern beneath record titles across mail, DAV and
+  settings/filter cards, with compact mobile rows and consistent form actions.
 - Prompt for a passkey when the unlock page becomes visible, with manual retry
   after cancellation; name new passkeys automatically from the browser and system.
 - Group general settings by purpose and collapse detailed touch-gesture mappings.
@@ -31,6 +33,12 @@
 
 - Recover failed history navigation on protected pages with a clear error and
   a working Retry action instead of leaving content hidden indefinitely.
+- Keep mail search, starred and color-view sidebars on full-page and history navigation.
+- Preserve notification excerpts after long HTML headers and fall back to HTML
+  when a message's plain-text alternative is empty.
+- Print complete HTML message bodies, including signatures, without clipping
+  them to their screen-sized frames or letting message styles cover the headers.
+- Wrap ordinary words intact in plain-text mail while containing long addresses and URLs.
 - Open the unlock screen as a full page during in-page and history navigation,
   preventing stale lock state and repeated unlock redirects.
 - Validate passkeys against the configured public URL behind reverse proxies,

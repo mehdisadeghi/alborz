@@ -1617,7 +1617,8 @@ main.message iframe {
 main.message pre,
 main.event pre {
   white-space: pre-wrap;
-  word-break: break-all;
+  word-break: normal;
+  overflow-wrap: anywhere;
 }
 
 main.message .message-header .parts {
@@ -1791,23 +1792,17 @@ main.event .details th {
   margin-inline-start: 1rem;
 }
 
-main.create-update .actions {
+.form-actions {
   display: flex;
-  flex-direction: row;
+  flex-wrap: wrap;
   align-items: center;
-  background: transparent;
-  padding-inline-start: 0;
-  margin-top: 1rem;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
 }
 
-main.create-update .actions button,
-main.create-update .actions .button-link {
-  padding: 0.4rem 1rem 0.35rem;
-  font-weight: bold;
-}
-
-main.create-update .actions > *:not(:last-child) {
-  margin-inline-end: 1rem;
+.form-actions > * {
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .actions h3 {
@@ -2449,9 +2444,9 @@ main table tfoot {
   overflow: hidden;
 }
 
-.attach-chip {
+.attach-line > .attach-chip {
   flex: 0 1 auto;
-  min-width: 5rem;
+  min-width: 0;
   max-width: 8rem;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2690,7 +2685,6 @@ main > .info-explain {
 }
 
 .info-explain dt, .info-card dt { color: var(--fg-faint); }
-.card-only { display: none; }
 
 .info-card {
   margin-top: var(--space-5);
@@ -3251,36 +3245,55 @@ main.calendar .actions {
   white-space: nowrap;
 }
 
-/* Metadata stays out of the flow: the name keeps its centre and the row
-   its height. Half an em off the centre clears the primary line. */
-:is(.message-list-sender, .list-cell):has(> .row-meta) { position: relative; }
-
-:is(.message-list-sender, .list-cell) > .row-meta {
-  position: absolute;
-  inset-inline: var(--space-2);
-  top: calc(50% + 0.5em);
+/* Names and their account stay together at every viewport width. */
+.record-label {
   display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  max-width: 100%;
+  line-height: 1.25;
 }
-.list-cell > .row-meta.card-only { display: none; }
-.message-list-sender > .row-meta-above { top: auto; bottom: calc(50% + 0.5em); }
 
-.row-meta .row-account {
+.record-label > a,
+.record-label > a.list-summary,
+.record-label > span[dir] {
+  display: block;
+  flex: none;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row-meta {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+  max-width: 100%;
+  color: var(--fg-muted);
+  font-size: var(--text-xs);
+  line-height: 1.25;
+  font-weight: 400;
+}
+
+.row-account,
+.row-meta .row-folder {
   flex: 0 1 auto;
   min-width: 0;
   margin: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: var(--text-xs);
-  line-height: 1.25;
-  font-weight: 400;
+  color: inherit;
 }
 
-/* Both classes, to outrank the rule that lets the cell's links grow. */
-.message-list-sender a.row-account.row-folder {
+.row-meta .row-folder {
   text-decoration: none;
 }
-.message-list-sender a.row-account.row-folder:hover { text-decoration: underline; }
+.row-meta .row-folder:hover { text-decoration: underline; }
 
 .message-list-sender > a {
   flex: 0 1 auto;
@@ -3866,11 +3879,6 @@ main.settings > .info-card {
   box-shadow: var(--shadow-raised);
 }
 
-/* Not the primary Save, which this rule would repaint in the page background. */
-main.settings button:not(.button-primary) {
-  background-color: var(--bg);
-}
-
 .settings-profile > .settings-section {
   min-inline-size: 0;
   margin: 0;
@@ -3919,10 +3927,6 @@ main.settings button:not(.button-primary) {
   .gesture-directions { grid-template-columns: minmax(0, 1fr); }
 }
 
-main.settings button:not(.button-primary):not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover {
-  background-color: var(--bg-active);
-}
-
 input[type="submit"],
 .button,
 button,
@@ -3945,10 +3949,26 @@ button,
 }
 
 /* A link has no button's centring, so its label would sit at the top of the box. */
-.button {
+.button,
+.button-quiet,
+.form-actions > .button-link {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+/* Text actions in forms share a touch target; editor and toolbar icons keep their own. */
+@media (pointer: coarse) {
+  main.settings form button,
+  main.login :is(button, .button, .button-link),
+  .list-item > form > button,
+  .invitation-actions > button,
+  .note-box > button,
+  .quick-add > button,
+  .form-actions > :is(button, .button, .button-link) {
+    min-height: 2.75rem;
+    min-width: 2.75rem;
+  }
 }
 
 .button:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover,
@@ -4593,22 +4613,6 @@ aside ul.merged-roles {
   margin-bottom: 0.3rem;
 }
 
-.row-account {
-  color: var(--fg-muted);
-  font-size: 0.85em;
-  margin-inline-end: 0.35rem;
-}
-
-/* The separator is the element's own mark: bidi puts a literal dash between runs wherever it likes. */
-.info-card .row-account::before,
-.list-item .row-account::before,
-.alert .row-account::before {
-  /* A middle dot, not a dash: the two facts are of the same rank. */
-  content: "\00B7";
-  margin-inline: 0.4rem;
-  color: var(--fg-faint);
-}
-
 /* Gestures keep vertical scrolling and pinch zoom available. */
 html[data-swipe-navigation="on"] :is([data-swipe-nav], [data-swipe-calendar]) { touch-action: pan-y pinch-zoom; }
 
@@ -5223,25 +5227,16 @@ h1.no-word .title-short {
   .contact-row > .contact-list-changed,
   .contact-row > .contact-list-book { display: none; }
 
-  .contact-row > .contact-list-name > .row-meta.card-only { display: flex; }
+  /* Keep names aligned when any contact has a photo; otherwise give them the space. */
+  .contact-grid:not(:has(.contact-list-photo img)) .contact-row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "check name star"
+      "check phone star"
+      "check email star";
+  }
+  .contact-grid:not(:has(.contact-list-photo img)) .contact-list-photo { display: none; }
 
-  .contact-row > .contact-list-name {
-    flex-direction: row;
-    align-items: baseline !important;
-    justify-content: space-between;
-    gap: var(--space-2);
-  }
-
-  /* Reserve a metadata line without wrapping the collection's dot, name and mark. */
-  .list-cell:has(> .row-meta) {
-    padding-block-end: calc(var(--text-xs) * 1.25 + 0.1rem);
-  }
-  .list-cell > .row-meta {
-    inset-inline: 0;
-    top: auto;
-    bottom: 0.1rem;
-    justify-content: inherit;
-  }
   :is(.task-list-calendar, .journal-list-calendar) > a {
     min-width: 0;
     overflow: hidden;
@@ -5260,16 +5255,6 @@ h1.no-word .title-short {
   .message-list-checkbox { grid-area: check; align-self: stretch; }
   .message-list-sender { grid-area: sender; }
   .message-list-sender a { color: inherit; }
-
-  /* No room under the name on a card: the account rides its line, the folder stays off. */
-  .message-list-sender > .row-meta { display: contents; }
-  .message-list-sender .row-account {
-    flex: 0 4 auto;
-    min-width: 3ch;
-    max-width: 45%;
-    margin-inline: 0.4rem 0;
-  }
-  .message-list-sender .row-folder { display: none; }
 
   /* No pointer shows the chevron here; a slot for it would push the star in. */
   .message-list-flags .row-star .flag-split .flag-more.icon-button { position: absolute; }

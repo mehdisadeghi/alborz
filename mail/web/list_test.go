@@ -13,6 +13,7 @@ import (
 
 	. "git.mehdix.org/alborz/internal/alborztest"
 	"github.com/emersion/go-imap/v2"
+	nethtml "golang.org/x/net/html"
 )
 
 // The login must still work after answering the bad query.
@@ -478,7 +479,6 @@ func TestAMergedListIsWalkedInItsOwnOrder(t *testing.T) {
 	if len(all) != 6 {
 		t.Fatalf("the merged inbox lists %v, want both accounts' six messages", all)
 	}
-	subject := regexp.MustCompile(`class="message-list-subject[^"]*" role="cell">\s*<a [^>]*href="([^"]+)"`)
 	step := func(page, key string) string {
 		m := regexp.MustCompile(`<a [^>]*href="([^"]+)"[^>]*data-key="` + key + `"`).FindStringSubmatch(page)
 		if m == nil {
@@ -499,11 +499,11 @@ func TestAMergedListIsWalkedInItsOwnOrder(t *testing.T) {
 		list     url.Values
 		row, pos int
 	}{{url.Values{"ipp": {"2"}, "page": {"1"}}, 1, 3}, {url.Values{"ipp": {"100"}}, 4, 4}} {
-		links := subject.FindAllStringSubmatch(c.Page(t, "mail.mailbox", "INBOX", at.list), -1)
+		links := subjectLinks(t, c.Page(t, "mail.mailbox", "INBOX", at.list))
 		if len(links) <= at.row {
 			t.Fatalf("%v lists %d rows", at.list, len(links))
 		}
-		msg := c.Follow(t, html.UnescapeString(links[at.row][1]))
+		msg := c.Follow(t, links[at.row])
 		if prev, next := step(msg, "k"), step(msg, "j"); prev != all[at.pos-1] || next != all[at.pos+1] {
 			t.Errorf("%v: row %d steps to %q and %q, want %q and %q", at.list, at.row, prev, next, all[at.pos-1], all[at.pos+1])
 		}
@@ -598,14 +598,12 @@ func TestAConversationListThreadsOnceAndItsMessagesWalkIt(t *testing.T) {
 	for page := range 3 {
 		body := c.Page(t, "mail.mailbox", "INBOX", url.Values{"sort": {"thread"}, "ipp": {"1"}, "page": {fmt.Sprint(page)}})
 		order = append(order, rowUIDs(body)...)
-		for _, m := range regexp.MustCompile(`class="message-list-subject[^"]*" role="cell">\s*<a [^>]*href="([^"]+)"`).FindAllStringSubmatch(body, -1) {
-			links = append(links, m[1])
-		}
+		links = append(links, subjectLinks(t, body)...)
 	}
 	if len(order) != 5 || len(links) != 5 || slices.IsSortedFunc(order, func(a, b string) int { return strings.Compare(b, a) }) {
 		t.Fatalf("three pages of one conversation each list %v, want the five seeded messages out of the folder's order", order)
 	}
-	msg := c.Follow(t, html.UnescapeString(links[2]))
+	msg := c.Follow(t, links[2])
 	if prev, next := neighbourUID(t, msg, "k"), neighbourUID(t, msg, "j"); prev != order[1] || next != order[3] {
 		t.Errorf("the third message steps to %q and %q, want %q and %q", prev, next, order[1], order[3])
 	}
@@ -669,6 +667,50 @@ func TestASortedListSortsOncePerChange(t *testing.T) {
 	}
 }
 
+// Read the first link within each subject cell, independent of its layout wrappers.
+func subjectLinks(t *testing.T, page string) []string {
+	t.Helper()
+	doc, err := nethtml.Parse(strings.NewReader(page))
+	if err != nil {
+		t.Fatal(err)
+	}
+	attr := func(n *nethtml.Node, key string) string {
+		for _, a := range n.Attr {
+			if a.Key == key {
+				return a.Val
+			}
+		}
+		return ""
+	}
+	var firstLink func(*nethtml.Node) string
+	firstLink = func(n *nethtml.Node) string {
+		if n.Type == nethtml.ElementNode && n.Data == "a" {
+			return attr(n, "href")
+		}
+		for ch := n.FirstChild; ch != nil; ch = ch.NextSibling {
+			if link := firstLink(ch); link != "" {
+				return link
+			}
+		}
+		return ""
+	}
+	var links []string
+	var walk func(*nethtml.Node)
+	walk = func(n *nethtml.Node) {
+		if attr(n, "role") == "cell" && slices.Contains(strings.Fields(attr(n, "class")), "message-list-subject") {
+			if link := firstLink(n); link != "" {
+				links = append(links, link)
+			}
+			return
+		}
+		for ch := n.FirstChild; ch != nil; ch = ch.NextSibling {
+			walk(ch)
+		}
+	}
+	walk(doc)
+	return links
+}
+
 // A message opened from the third page walks to the rows either side of it in
 // that order, taken from the order the pages were cut from.
 func TestNeighboursOnTheThirdPageOfASortedList(t *testing.T) {
@@ -680,11 +722,11 @@ func TestNeighboursOnTheThirdPageOfASortedList(t *testing.T) {
 		t.Fatalf("the sorted inbox lists %v, want the five seeded messages", order)
 	}
 	page := c.Page(t, "mail.mailbox", "INBOX", sorted, url.Values{"ipp": {"1"}, "page": {"2"}})
-	link := regexp.MustCompile(`class="message-list-subject[^"]*" role="cell">\s*<a [^>]*href="([^"]+)"`).FindStringSubmatch(page)
-	if link == nil {
+	links := subjectLinks(t, page)
+	if len(links) == 0 {
 		t.Fatal("the third page has no row to open")
 	}
-	msg := c.Follow(t, html.UnescapeString(link[1]))
+	msg := c.Follow(t, links[0])
 	if prev, next := neighbourUID(t, msg, "k"), neighbourUID(t, msg, "j"); prev != order[1] || next != order[3] {
 		t.Errorf("the third message steps to %q and %q, want %q and %q", prev, next, order[1], order[3])
 	}

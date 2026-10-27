@@ -1,0 +1,5 @@
+{{/* dict: label account. Keep the full identity available when the domain is enough. */}}
+{{ define "account-label" }}<span class="row-account" title="{{.account}}">{{ template "ltr" .label }}</span>{{ end }}
+
+{{/* dict: g account. A single-account view needs no repeated account label. */}}
+{{ define "record-account" }}{{ if and .account .g.GlobalData.Unified }}<span class="row-meta">{{ template "account-label" (dict "label" (.g.GlobalData.AccountLabel .account) "account" .account) }}</span>{{ end }}{{ end }}

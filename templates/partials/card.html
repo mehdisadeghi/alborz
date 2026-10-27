@@ -1,12 +1,12 @@
 {{ define "info-card" }}
 {{ if .collapsed }}
 <details class="info-card info-card-fold">
-  <summary>{{.title}}{{ with .account }}<span class="row-account">{{ template "ltr" . }}</span>{{ end }}</summary>
+  <summary><span class="record-label">{{.title}}{{ with .account }}<span class="row-meta">{{ template "account-label" (dict "label" . "account" (or $.accountTitle .)) }}</span>{{ end }}</span></summary>
   {{ template "info-card-body" . }}
 </details>
 {{ else }}
 <section class="info-card">
-  <h2>{{.title}}{{ with .account }}<span class="row-account">{{ template "ltr" . }}</span>{{ end }}</h2>
+  <h2 class="record-label">{{.title}}{{ with .account }}<span class="row-meta">{{ template "account-label" (dict "label" . "account" (or $.accountTitle .)) }}</span>{{ end }}</h2>
   {{ template "info-card-body" . }}
 </section>
 {{ end }}

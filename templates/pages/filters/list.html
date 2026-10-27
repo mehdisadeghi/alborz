@@ -11,9 +11,10 @@
 
       {{ range .Groups }}
       {{ $label := $.GlobalData.AccountLabel .Account }}
+      {{ $account := .Account }}
       {{ with .Unreachable }}
       <div class="alert" role="alert">
-        <strong>{{$.T "filters.unreachable"}}</strong>{{ if $.GlobalData.Unified }}<span class="row-account">{{ template "ltr" $label }}</span>{{ end }}
+        <div class="record-label"><strong>{{$.T "filters.unreachable"}}</strong>{{ if $.GlobalData.Unified }}<span class="row-meta">{{ template "account-label" (dict "label" $label "account" $account) }}</span>{{ end }}</div>
         <p class="code">{{.}}</p>
       </div>
       {{ end }}
@@ -22,10 +23,12 @@
       <section class="list-items">
         {{ range .Rows }}
         {{ $gq := account "?" .Account }}
-        {{ $label := $.GlobalData.AccountLabel .Account }}
         <div class="list-item">
           <div class="list-content">
-            <a href="{{ localhref (from (printf "%s%s" (url "filters.filter" .Name) $gq) $.GlobalData.URL.RequestURI) }}" class="list-summary">{{.Name}}{{ if $.GlobalData.Unified }}<span class="row-account">{{ template "ltr" $label }}</span>{{ end }}</a>
+            <div class="record-label">
+              <a href="{{ localhref (from (printf "%s%s" (url "filters.filter" .Name) $gq) $.GlobalData.URL.RequestURI) }}" class="list-summary">{{.Name}}</a>
+              {{ template "record-account" (dict "g" $ "account" .Account) }}
+            </div>
             {{ if .Active }}
             <span class="list-meta">{{$.T "filters.active"}}</span>
             {{ end }}
@@ -50,6 +53,7 @@
       {{ template "info-card" (dict "title" ($.T "filters.serverinfo")
          "collapsed" true
          "account" (and $.GlobalData.Unified ($.GlobalData.AccountLabel .Account))
+         "accountTitle" .Account
          "rows" (tuple
            (dict "label" ($.T "settings.serversieve") "value" .Server)
            (dict "label" ($.T "filters.software") "value" .Software))

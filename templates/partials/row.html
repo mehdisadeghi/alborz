@@ -22,11 +22,14 @@
   </div>
 {{ end }}
 
-{{/* dict: g class label href summary addedby. */}}
+{{/* dict: g class label href summary addedby account. */}}
 {{ define "row-summary" }}
   {{ $g := .g }}
   <div class="{{.class}} list-primary list-cell" role="cell" data-label="{{.label}}">
+    <div class="record-label">
     <a href="{{.href}}" dir="auto"{{ with .addedby }} title="{{ printf ($g.T "share.addedby") . }}"{{ end }}>{{.summary}}</a>
+    {{ template "record-account" (dict "g" $g "account" .account) }}
+    </div>
   </div>
 {{ end }}
 
@@ -34,7 +37,7 @@
 {{ define "row-collection" }}
   {{ $g := .g }}{{ $cq := printf "%v" (account "?" (or .account $g.GlobalData.URLAccount)) }}
   <div class="{{.cell}} list-cell" role="cell" data-label="{{.label}}">
-    {{if .coll.Color}}<span class="color-dot" style="background:{{.coll.Color}}"></span>{{end}}<a href="{{.list}}{{$cq}}{{qsep $cq}}cal={{.coll.Path | qv}}">{{.coll.Name}}</a>{{ template "collection-mark" (dict "g" $g "c" .coll) }}{{if $g.GlobalData.Unified}}<span class="row-meta"><span class="row-account" title="{{.account}}">{{ template "ltr" ($g.GlobalData.AccountLabel .account) }}</span></span>{{end}}
+    {{if .coll.Color}}<span class="color-dot" style="background:{{.coll.Color}}"></span>{{end}}<a href="{{.list}}{{$cq}}{{qsep $cq}}cal={{.coll.Path | qv}}">{{.coll.Name}}</a>{{ template "collection-mark" (dict "g" $g "c" .coll) }}
   </div>
 {{ end }}
 

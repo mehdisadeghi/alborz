@@ -20,7 +20,7 @@ import (
 // ErrNotificationStale means the notification predates the current mailbox's UID namespace.
 var ErrNotificationStale = errors.New("notification mailbox changed")
 
-// NotificationPreview reads only the displayed text part, without marking the message read.
+// NotificationPreview reads a bounded excerpt without marking the message read.
 // Attachments, encrypted parts, remote images and links are never opened for a notification.
 func NotificationPreview(ctx context.Context, login *alborz.Login, uid imap.UID, validity uint32) (string, error) {
 	var preview string
@@ -34,6 +34,7 @@ func NotificationPreview(ctx context.Context, login *alborz.Login, uid imap.UID,
 
 const (
 	notificationBodyMax   = 16 << 10
+	notificationHTMLMax   = 64 << 10
 	notificationHeaderMax = 4 << 10
 )
 
@@ -61,8 +62,40 @@ func notificationPreview(c *imapclient.Client, uid imap.UID, validity uint32) (s
 	if part == nil {
 		return preview, nil
 	}
-	section := &imap.FetchItemBodySection{Peek: true, Part: part.Path, Partial: &imap.SectionPartial{Size: notificationBodyMax}}
-	fetched, err := fetchOne(c, uid, &imap.FetchOptions{UID: true, BodySection: []*imap.FetchItemBodySection{section}})
+	text, err := notificationPartText(c, msg, part)
+	if err != nil {
+		return "", err
+	}
+	// Some multipart/alternative messages include an empty plain-text part.
+	// Only try the primary HTML alternative, never an attached text file.
+	if fallback := msg.HTMLPart(); text == "" && fallback != nil && !slices.Equal(fallback.Path, part.Path) {
+		text, err = notificationPartText(c, msg, fallback)
+		if err != nil {
+			return "", err
+		}
+	}
+	if text != "" {
+		if preview != "" {
+			preview += "\n"
+		}
+		preview += text
+	}
+	return preview, nil
+}
+
+func notificationPartText(c *imapclient.Client, msg *IMAPMessage, part *IMAPPartNode) (string, error) {
+	text, err := notificationPartWindow(c, msg, part, notificationBodyMax)
+	// A long <head> can fill the first window. Offsets are in encoded bytes, so
+	// re-read one larger window from the start rather than seeking past </head>.
+	if err == nil && text == "" && part.MIMEType == "text/html" && part.octets > notificationBodyMax {
+		text, err = notificationPartWindow(c, msg, part, notificationHTMLMax)
+	}
+	return text, err
+}
+
+func notificationPartWindow(c *imapclient.Client, msg *IMAPMessage, part *IMAPPartNode, size int64) (string, error) {
+	section := &imap.FetchItemBodySection{Peek: true, Part: part.Path, Partial: &imap.SectionPartial{Size: size}}
+	fetched, err := fetchOne(c, msg.UID, &imap.FetchOptions{UID: true, BodySection: []*imap.FetchItemBodySection{section}})
 	if err != nil {
 		return "", err
 	}
@@ -76,11 +109,13 @@ func notificationPreview(c *imapclient.Client, uid imap.UID, validity uint32) (s
 		return true
 	})
 	raw := fetched.FindBodySection(section)
-	entity, err := readPart(header.Header, raw, part, part.octets > notificationBodyMax)
+	entity, err := readPart(header.Header, raw, part, int64(part.octets) > size)
 	if err != nil {
 		return "", err
 	}
-	body, err := io.ReadAll(io.LimitReader(entity.Body, 8192))
+	// The fetched part is already bounded. Cutting its decoded HTML again can
+	// discard the body after a long stylesheet, leaving a subject-only preview.
+	body, err := io.ReadAll(entity.Body)
 	if err != nil {
 		return "", err
 	}
@@ -88,13 +123,7 @@ func notificationPreview(c *imapclient.Client, uid imap.UID, validity uint32) (s
 	if part.MIMEType == "text/html" {
 		text = notificationHTML(text)
 	}
-	if text = notificationText(text, 180); text != "" {
-		if preview != "" {
-			preview += "\n"
-		}
-		preview += text
-	}
-	return preview, nil
+	return notificationText(text, 180), nil
 }
 
 func selectNotification(c *imapclient.Client, mailbox string, validity uint32) error {

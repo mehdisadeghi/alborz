@@ -28,6 +28,23 @@ func TestNotificationTextIsBoundedAndPlain(t *testing.T) {
 }
 
 func TestNotificationPreviewFetchesOnlyABoundedHTMLPart(t *testing.T) {
+	for _, tc := range []struct {
+		name, prefix string
+		emptyPlain   bool
+	}{
+		{"short head", "", false},
+		{"long head", `<style>` + strings.Repeat(" ", 9000) + `</style>`, false},
+		{"head beyond the first window", `<style>` + strings.Repeat(" ", 20000) + `</style>`, false},
+		{"empty plain alternative", "", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			testNotificationHTMLPreview(t, tc.prefix, tc.emptyPlain)
+		})
+	}
+}
+
+func testNotificationHTMLPreview(t *testing.T, prefix string, emptyPlain bool) {
+	t.Helper()
 	client, server := net.Pipe()
 	defer server.Close()
 	client.SetDeadline(time.Now().Add(5 * time.Second))
@@ -64,15 +81,34 @@ func TestNotificationPreviewFetchesOnlyABoundedHTMLPart(t *testing.T) {
 		}
 		// The declared part is huge; the preview must ask the wire for only 16 KiB.
 		header := "Subject: Subject\r\n\r\n"
-		fmt.Fprintf(server, "* 1 FETCH (UID 1 BODYSTRUCTURE (\"TEXT\" \"HTML\" (\"CHARSET\" \"UTF-8\") NIL NIL \"7BIT\" 10000000 10 NIL NIL NIL NIL) BODY[HEADER.FIELDS (SUBJECT)]<0> {%d}\r\n%s)\r\n%s OK Fetched\r\n", len(header), header, tag)
-		tag, err = read("BODY.PEEK[1]<0.16384>")
-		if err != nil {
-			done <- err
-			return
+		structure := `("TEXT" "HTML" ("CHARSET" "UTF-8") NIL NIL "7BIT" 10000000 10 NIL NIL NIL NIL)`
+		path := "1"
+		if emptyPlain {
+			structure = `(("TEXT" "PLAIN" ("CHARSET" "UTF-8") NIL NIL "7BIT" 4 1 NIL NIL NIL NIL) ` + structure + ` "ALTERNATIVE")`
+			path = "2"
 		}
-		body := `<head><title>Hidden</title></head><p>Hello &amp; welcome</p><img src="https://tracker.invalid/x">` + strings.Repeat(" ", notificationBodyMax)
-		body = body[:notificationBodyMax]
-		fmt.Fprintf(server, "* 1 FETCH (UID 1 BODY[1]<0> {%d}\r\n%s)\r\n%s OK Fetched\r\n", len(body), body, tag)
+		fmt.Fprintf(server, "* 1 FETCH (UID 1 BODYSTRUCTURE %s BODY[HEADER.FIELDS (SUBJECT)]<0> {%d}\r\n%s)\r\n%s OK Fetched\r\n", structure, len(header), header, tag)
+		if emptyPlain {
+			tag, err = read("BODY.PEEK[1]<0.16384>")
+			if err != nil {
+				done <- err
+				return
+			}
+			fmt.Fprintf(server, "* 1 FETCH (UID 1 BODY[1]<0> {4}\r\n \t\r\n)\r\n%s OK Fetched\r\n", tag)
+		}
+		body := `<head><title>Hidden</title>` + prefix + `</head><p>Hello &amp; welcome</p><img src="https://tracker.invalid/x">` + strings.Repeat(" ", notificationHTMLMax)
+		windows := []int{notificationBodyMax}
+		if len(prefix) > notificationBodyMax {
+			windows = append(windows, notificationHTMLMax)
+		}
+		for _, size := range windows {
+			tag, err = read(fmt.Sprintf("BODY.PEEK[%s]<0.%d>", path, size))
+			if err != nil {
+				done <- err
+				return
+			}
+			fmt.Fprintf(server, "* 1 FETCH (UID 1 BODY[%s]<0> {%d}\r\n%s)\r\n%s OK Fetched\r\n", path, size, body[:size], tag)
+		}
 		done <- nil
 	}()
 	c := imapclient.New(client, nil)
@@ -81,10 +117,10 @@ func TestNotificationPreviewFetchesOnlyABoundedHTMLPart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := <-done; err != nil {
-		t.Fatal(err)
-	}
 	if preview != "Subject\nHello & welcome" {
 		t.Fatalf("HTML-only preview: %q", preview)
+	}
+	if err := <-done; err != nil {
+		t.Fatal(err)
 	}
 }

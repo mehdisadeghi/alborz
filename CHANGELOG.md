@@ -7,6 +7,8 @@
 - Choose full account addresses or stable color strips in multi-account lists;
   hiding addresses compacts the rows. Touch and keyboard reveal each strip's
   full address. Single-account records show neither.
+- Windows and macOS desktop launchers with native menus, per-user local instances,
+  browser-based first-run setup, and portable/per-user installation packages.
 - A header lock action that preserves signed-in accounts and coordinates
   concealment across open tabs, including restored and disconnected pages,
   counting user scrolling and input within HTML email as activity.

@@ -101,8 +101,61 @@ jobs:
             ${{ matrix.variant }}-linux-*
           if-no-files-found: error
 
+  desktop-macos:
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    env:
+      DESKTOP_VERSION: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v0.1.0' }}
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Build app and disk image
+        run: make -f Makefile desktop-macos-dmg DESKTOP_ARCH=${{ matrix.arch }} DESKTOP_VERSION="${DESKTOP_VERSION#v}"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: alborz-macos-${{ matrix.arch }}
+          path: |
+            dist/*.zip
+            dist/*.sha256
+            dist/*.dmg
+          if-no-files-found: error
+
+  desktop-windows:
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    env:
+      DESKTOP_VERSION: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'v0.1.0' }}
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Install packaging tools
+        run: choco install make innosetup --no-progress -y
+      - name: Build portable app and installer
+        shell: bash
+        run: make -f Makefile desktop-windows-installer DESKTOP_ARCH=${{ matrix.arch }} DESKTOP_VERSION="${DESKTOP_VERSION#v}" PYTHON=python ISCC="C:/Program Files (x86)/Inno Setup 6/ISCC.exe"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: alborz-windows-${{ matrix.arch }}
+          path: |
+            dist/*.zip
+            dist/*.sha256
+            dist/*-setup.exe
+          if-no-files-found: error
+
   release:
-    needs: build
+    needs: [build, desktop-macos, desktop-windows]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
@@ -111,7 +164,10 @@ jobs:
           merge-multiple: true
       - uses: softprops/action-gh-release@v3
         with:
-          files: alborz*-linux-*
+          files: |
+            alborz*-linux-*
+            alborz-*-macos-*
+            alborz-*-windows-*
           fail_on_unmatched_files: true
           # The commits since the previous tag are the release notes;
           # writing them by hand duplicates what the history already says.

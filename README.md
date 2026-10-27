@@ -102,7 +102,7 @@ Start without upstream arguments to configure a new instance in the browser:
 Configuration defaults to `alborz/config.toml` inside the OS user configuration
 directory (`$XDG_CONFIG_HOME`, or `~/.config`, on Linux). Use `-config` or
 `LBRZ_CONFIG` to choose a file; `none` disables file loading. See the complete
-[example configuration](cmd/alborz/config.example.toml) for keys and environment names.
+[example configuration](internal/config/config.example.toml) for keys and environment names.
 Precedence is environment, explicit CLI arguments, file, then defaults.
 Structured `[domains."example.org"]` tables name IMAP, SMTP, CalDAV, CardDAV,
 Sieve and password-change endpoints separately; `[provider]` instead accepts

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"flag"
 	"net"
 	"net/url"
 	"os"
@@ -14,7 +15,7 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/internal/alborztest"
-	"github.com/BurntSushi/toml"
+	configfile "git.mehdix.org/alborz/internal/config"
 )
 
 const testLoginKey = "YLZFnivEgqo-9cIJcqU6wOS7LhhCrXtgxRvYHoQ6NmA="
@@ -89,15 +90,24 @@ func TestSetupGeneratesAndReusesLoginKey(t *testing.T) {
 	if !bytes.Contains(before, []byte("login-key = \"")) {
 		t.Fatal("configuration has no generated key")
 	}
-	cfg := &configFile{path: config, raw: before, values: make(map[string]any)}
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	fs.String("config", config, "")
+	fs.String("login-key", "", "")
+	cfg, err := configfile.Load(fs, lookup)
+	if err != nil {
+		t.Fatal(err)
+	}
 	domains := map[string]alborz.DomainConfig{
 		"example.invalid": {"imap": "imaps://127.0.0.1:1", "smtp": "smtps://127.0.0.1:1"},
 		"other.invalid":   {"imap": "imaps://127.0.0.1:2", "smtp": "smtps://127.0.0.1:2"},
 	}
-	if err := cfg.saveSetup(domains); err != nil {
+	if err := cfg.SaveSetup(domains); err != nil {
 		t.Fatal(err)
 	}
-	before = bytes.Clone(cfg.raw)
+	before, err = os.ReadFile(config)
+	if err != nil {
+		t.Fatal(err)
+	}
 	output.Reset()
 	if err := run(ctx, args, lookup, &output); err != nil {
 		t.Fatal(err)
@@ -109,12 +119,12 @@ func TestSetupGeneratesAndReusesLoginKey(t *testing.T) {
 	if err != nil || !bytes.Equal(before, after) {
 		t.Fatal("restart changed the configuration")
 	}
-	reloaded := &configFile{values: make(map[string]any)}
-	if _, err := toml.Decode(string(after), &reloaded.values); err != nil {
+	reloaded, err := configfile.Load(fs, lookup)
+	if err != nil {
 		t.Fatal(err)
 	}
 	var options alborz.Options
-	if err := reloaded.servers(&options, nil, lookup); err != nil {
+	if err := reloaded.Servers(&options, nil, lookup); err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(options.Domains, domains) {

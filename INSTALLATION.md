@@ -58,7 +58,7 @@ For unattended configuration, append a domain or explicit upstream URLs to
 `ExecStart`, for example `ExecStart=/usr/local/bin/alborz example.org`.
 Once configured, edit servers through the configuration file, environment or
 CLI; precedence is environment, explicit CLI arguments, file, then defaults.
-See the [complete example](cmd/alborz/config.example.toml) and
+See the [complete example](internal/config/config.example.toml) and
 [CLI guide](docs/cli.md). Outside this unit, the default config location is
 `alborz/config.toml` in the OS user configuration directory; select another
 with `-config` or `LBRZ_CONFIG`.

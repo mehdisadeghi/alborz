@@ -6,3 +6,5 @@
 /.local/
 *.db
 **/.DS_Store
+/dist/
+/cmd/alborz-desktop/rsrc_windows_*.syso

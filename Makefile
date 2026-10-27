@@ -70,3 +70,5 @@ test-js:
 # Generate a key for -login-key.
 login-key:
 	openssl rand -base64 32
+
+include packaging/desktop/desktop.mk

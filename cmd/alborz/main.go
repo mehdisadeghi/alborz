@@ -15,7 +15,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 	// Calendars name zones the host may not hold, such as US/Central on
 	// a system without tzdata-legacy; the host's database still comes first.
@@ -23,6 +22,7 @@ import (
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/cmd/alborz/app"
+	"git.mehdix.org/alborz/internal/config"
 )
 
 // serveProfiles listens only locally: a heap profile holds passwords and mail.
@@ -130,11 +130,11 @@ upstreams are given as repeated domain=url arguments, e.g.:
 			emptyKey = true
 		}
 	})
-	config, err := loadConfig(fs, lookup)
+	cfg, err := config.Load(fs, lookup)
 	if err != nil {
 		return err
 	}
-	if err := applyEnvironment(fs, lookup); err != nil {
+	if err := config.ApplyEnvironment(fs, lookup); err != nil {
 		return err
 	}
 	if emptyKey && options.LoginKey == "" {
@@ -143,16 +143,16 @@ upstreams are given as repeated domain=url arguments, e.g.:
 	for _, apply := range addonValues {
 		apply()
 	}
-	if err := config.servers(&options.Options.Options, fs.Args(), lookup); err != nil {
+	if err := cfg.Servers(&options.Options.Options, fs.Args(), lookup); err != nil {
 		return err
 	}
 	if key, present := lookup("LBRZ_LOGIN_KEY"); present && key == "" {
 		return errors.New("LBRZ_LOGIN_KEY is empty")
 	}
-	if err := config.ensureKey(&options.Options.Options); err != nil {
+	if err := cfg.EnsureKey(&options.Options.Options); err != nil {
 		return err
 	}
-	options.SaveSetup = config.saveSetup
+	options.SaveSetup = cfg.SaveSetup
 	options.TrustedProxies = strings.FieldsFunc(proxies, func(r rune) bool { return r == ',' || r == ' ' })
 	if options.Cache {
 		dir, err := os.UserCacheDir()
@@ -199,7 +199,7 @@ upstreams are given as repeated domain=url arguments, e.g.:
 	go func() { served <- server.Serve(ln) }()
 
 	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGUSR1, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(sigs, processSignals()...)
 	defer signal.Stop(sigs)
 	for stop := false; !stop; {
 		select {
@@ -208,7 +208,7 @@ upstreams are given as repeated domain=url arguments, e.g.:
 		case <-ctx.Done():
 			stop = true
 		case sig := <-sigs:
-			if sig != syscall.SIGUSR1 {
+			if !isReloadSignal(sig) {
 				stop = true
 				break
 			}

@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"bytes"
@@ -22,13 +22,13 @@ import (
 //go:embed config.example.toml
 var configExample string
 
-type configFile struct {
+type File struct {
 	path   string
 	raw    []byte
 	values map[string]any
 }
 
-func loadConfig(fs *flag.FlagSet, lookup func(string) (string, bool)) (*configFile, error) {
+func Load(fs *flag.FlagSet, lookup func(string) (string, bool)) (*File, error) {
 	path := fs.Lookup("config").Value.String()
 	if value, ok := lookup("LBRZ_CONFIG"); ok {
 		path = value
@@ -40,7 +40,7 @@ func loadConfig(fs *flag.FlagSet, lookup func(string) (string, bool)) (*configFi
 		}
 		path = filepath.Join(dir, "alborz", "config.toml")
 	}
-	c := &configFile{path: path, values: make(map[string]any)}
+	c := &File{path: path, values: make(map[string]any)}
 	if path == "none" {
 		c.path = ""
 		return c, nil
@@ -82,7 +82,7 @@ func loadConfig(fs *flag.FlagSet, lookup func(string) (string, bool)) (*configFi
 	return c, nil
 }
 
-func applyEnvironment(fs *flag.FlagSet, lookup func(string) (string, bool)) error {
+func ApplyEnvironment(fs *flag.FlagSet, lookup func(string) (string, bool)) error {
 	var failure error
 	fs.VisitAll(func(f *flag.Flag) {
 		if f.Name == "config" {
@@ -98,7 +98,7 @@ func applyEnvironment(fs *flag.FlagSet, lookup func(string) (string, bool)) erro
 	return failure
 }
 
-func (c *configFile) servers(options *alborz.Options, upstreams []string, lookup func(string) (string, bool)) error {
+func (c *File) Servers(options *alborz.Options, upstreams []string, lookup func(string) (string, bool)) error {
 	if value, ok := c.values["domains"]; ok {
 		domains, ok := value.(map[string]any)
 		if !ok {
@@ -192,7 +192,7 @@ func serverValues(value any) (alborz.DomainConfig, error) {
 	return services, nil
 }
 
-func (c *configFile) ensureKey(options *alborz.Options) error {
+func (c *File) EnsureKey(options *alborz.Options) error {
 	if options.LoginKey != "" {
 		return nil
 	}
@@ -227,7 +227,7 @@ func (c *configFile) ensureKey(options *alborz.Options) error {
 	return nil
 }
 
-func (c *configFile) saveSetup(domains map[string]alborz.DomainConfig) error {
+func (c *File) SaveSetup(domains map[string]alborz.DomainConfig) error {
 	var section bytes.Buffer
 	if err := toml.NewEncoder(&section).Encode(map[string]any{"domains": domains}); err != nil {
 		return err
@@ -250,7 +250,7 @@ func (c *configFile) saveSetup(domains map[string]alborz.DomainConfig) error {
 }
 
 // Keep existing comments and refuse to replace a file changed since it was read.
-func (c *configFile) write(raw []byte) error {
+func (c *File) write(raw []byte) error {
 	if err := os.MkdirAll(filepath.Dir(c.path), 0700); err != nil {
 		return err
 	}

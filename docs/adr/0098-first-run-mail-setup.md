@@ -33,5 +33,5 @@ Deployment configuration must remain editable independently of application data.
 ## References
 
 - RFC 6186, RFC 9051, RFC 5321; XDG Base Directory Specification
-- `cmd/alborz/config.example.toml`, `cmd/alborz/config.go`, `upstream_config.go`
+- `internal/config/config.example.toml`, `internal/config/config.go`, `upstream_config.go`
 - `setup.go`, `auth/web/setup.go`, `templates/pages/setup.html`

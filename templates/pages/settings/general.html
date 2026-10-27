@@ -45,6 +45,15 @@
             {{ template "hint" (dict "text" ($.T "settings.alignscripthint")) }}
           </div>
 
+          <div class="action-group">
+            <input type="hidden" name="account_preferences" value="1">
+            <label for="show_account_names" class="checkbox">
+              <input type="checkbox" name="show_account_names" id="show_account_names" value="1"{{if .ShowAccountNames}} checked{{end}}>
+              {{$.T "settings.accountnames"}}
+            </label>
+            {{ template "hint" (dict "text" ($.T "settings.accountnameshint")) }}
+          </div>
+
           <fieldset class="action-group choices">
             <legend>{{$.T "settings.status"}}</legend>
             {{ range .Segments }}
@@ -212,6 +221,30 @@
 
         <div class="settings-save">{{ template "settings-submit" ($.T "settings.save") }}</div>
       </form>
+      <div class="settings-profile settings-support">
+        <section class="settings-section" aria-labelledby="language-title">
+          <h2 id="language-title">{{$.T "settings.language"}}</h2>
+          <form method="post" action="{{url "settings.language"}}" hx-boost="false">
+            <input type="hidden" name="next" value="{{url "settings.profile"}}">
+            <div class="action-group">
+              <select name="language" id="settings-language" aria-labelledby="language-title">
+                <option value=""{{ if eq .GlobalData.Language "" }} selected{{ end }}>{{$.T "settings.langauto"}}</option>
+                {{ range .GlobalData.LanguageChoices }}
+                <option value="{{.Code}}"{{ if eq .Code $.GlobalData.Language }} selected{{ end }}>{{.Name}}</option>
+                {{ end }}
+              </select>
+            </div>
+            <button type="submit">{{$.T "common.apply"}}</button>
+          </form>
+        </section>
+        <section class="settings-section" aria-labelledby="settings-help">
+          <h2 id="settings-help">{{$.T "list.help"}}</h2>
+          <div class="settings-buttons">
+            <button type="button" class="keys-open" commandfor="keys-help" command="show-modal">{{$.T "keys.title"}}</button>
+            <a href="{{ localhref .GlobalData.TourStart }}">{{$.T "tour.take"}}</a>
+          </div>
+        </section>
+      </div>
 {{ end }}
 
 {{ define "gesture-select" }}

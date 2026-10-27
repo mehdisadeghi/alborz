@@ -72,7 +72,8 @@ type GlobalRenderData struct {
 
 	Unified bool
 
-	AlignByScript bool
+	AlignByScript    bool
+	HideAccountNames bool
 
 	// URLAccount keeps links pointing into the request's account; empty otherwise.
 	URLAccount string
@@ -223,23 +224,9 @@ func (g *GlobalRenderData) MessageLang(s string) string {
 	return lang.OfMessage(s, g.Lang)
 }
 
-// shortAccount names an account by its domain unless two accounts share it.
-func shortAccount(account string, accounts []Account) string {
-	_, domain, ok := strings.Cut(account, "@")
-	if !ok {
-		return account
-	}
-	for _, a := range accounts {
-		if a.Username != account && strings.HasSuffix(a.Username, "@"+domain) {
-			return account
-		}
-	}
-	return domain
-}
-
-// AccountLabel is ShortAccount for the accounts of the page.
+// AccountLabel preserves the full stored address regardless of the other accounts.
 func (g GlobalRenderData) AccountLabel(account string) string {
-	return shortAccount(account, g.Accounts)
+	return account
 }
 
 // Value receivers: templates box the global in a tuple, leaving pointer methods out of reach.
@@ -295,6 +282,7 @@ func NewBaseRenderData(ctx *Context) *BaseRenderData {
 	global.TextSize = ctx.TextSize()
 	global.Unified = ctx.Unified
 	global.AlignByScript = ctx.alignByScript()
+	global.HideAccountNames = ctx.Profile().Display.HideAccountNames
 	swipes, _ := json.Marshal(ctx.Profile().Gestures.Resolved()) // Fixed string fields cannot fail to encode.
 	global.Swipes = string(swipes)
 	global.CustomCSS = len(ctx.Server.loaded.Load().custom) > 0

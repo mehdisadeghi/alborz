@@ -1262,6 +1262,9 @@
 "setup.additionalhelp" = "URL facultatives pour les calendriers, contacts et filtres. Laisse vide pour la découverte automatique."
 "setup.additionalerror" = "Vérifie l’URL du serveur supplémentaire."
 
+"settings.accountnames" = "Afficher les adresses des comptes dans les listes"
+"settings.accountnameshint" = "Désactive pour utiliser une bande de couleur. Touche la bande pour voir l’adresse complète."
+
 ["calendar.more"]
 one = "%d de plus"
 other = "%d de plus"

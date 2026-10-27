@@ -110,11 +110,11 @@
 </header>
 {{ end }}
 
-{{/* dict: g page [mobile]. */}}
+{{/* dict: g page. Desktop account and language menus. */}}
 {{ define "nav-menus" }}
 {{ $g := .g }}{{ $page := .page }}
-<div class="nav-menus{{ if .mobile }} nav-menus-mobile{{ end }}">
-  <details class="accounts{{ if .mobile }} acct-folders{{ end }}" name="{{ if .mobile }}rail{{ else }}header{{ end }}-switchers"><summary class="accounts-button{{ if .mobile }} aside-account{{ end }}" data-tour="accounts settings"><span class="label"{{ if or $g.GlobalData.Scope (not $g.GlobalData.Merged) }} dir="ltr"{{ end }}>{{ if $g.GlobalData.Scope }}{{ template "ltr" $g.GlobalData.Scope }}{{ else if $g.GlobalData.Merged }}{{$g.T "nav.allaccounts"}}{{ else }}{{ template "ltr" $g.GlobalData.Username }}{{ end }}</span>{{ template "icon" "down" }}</summary>
+<div class="nav-menus">
+  <details class="accounts" name="header-switchers"><summary class="accounts-button" data-tour="accounts settings"><span class="label"{{ if or $g.GlobalData.Scope (not $g.GlobalData.Merged) }} dir="ltr"{{ end }}>{{ if $g.GlobalData.Scope }}{{ template "ltr" $g.GlobalData.Scope }}{{ else if $g.GlobalData.Merged }}{{$g.T "nav.allaccounts"}}{{ else }}{{ template "ltr" $g.GlobalData.Username }}{{ end }}</span>{{ template "icon" "down" }}</summary>
   <div class="accounts-menu">
     {{ $section := printf "/%s" $page }}
     {{ $merged := $section }}
@@ -135,16 +135,9 @@
     {{ end }}
     <a href="{{url "auth.login"}}?add=1">{{$g.T "nav.addaccount"}}</a>
     <a href="{{url "settings.profile"}}"{{ if eq $page "settings" }} class="active" aria-current="page"{{ end }}>{{$g.T "nav.settings"}}</a>
-    <button type="button" class="keys-open" commandfor="keys-help" command="show-modal">{{$g.T "keys.title"}}</button>
-    <a href="{{ localhref $g.GlobalData.TourStart }}">{{$g.T "tour.take"}}</a>
-    {{ if $g.GlobalData.LockSeconds }}
-    <form method="post" action="{{url "auth.lock"}}" data-session-lock hx-boost="false">
-      <button type="submit">{{$g.T "lock.now"}}</button>
-    </form>
-    {{ end }}
   </div>
   </details>
-  <details class="accounts lang-menu{{ if .mobile }} acct-folders{{ end }}" name="{{ if .mobile }}rail{{ else }}header{{ end }}-switchers"><summary class="accounts-button{{ if .mobile }} aside-account{{ end }}"><span class="label">{{ with $g.GlobalData.LanguageName }}{{.}}{{ else }}{{$g.T "settings.langauto"}}{{ end }}</span>{{ template "icon" "down" }}</summary>
+  <details class="accounts lang-menu" name="header-switchers"><summary class="accounts-button"><span class="label">{{ with $g.GlobalData.LanguageName }}{{.}}{{ else }}{{$g.T "settings.langauto"}}{{ end }}</span>{{ template "icon" "down" }}</summary>
   <div class="accounts-menu">
     {{/* A whole page: lang and dir live on the root, which a swap keeps. */}}
     <form method="post" action="{{url "settings.language"}}" hx-boost="false">

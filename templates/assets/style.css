@@ -543,7 +543,7 @@ header nav > div {
   align-items: center;
   gap: var(--space-1);
 }
-.nav-menus-mobile { display: none; }
+.rail-mobile { display: none; }
 header nav.is-icons > div,
 header nav.is-icons .nav-menus,
 header nav.is-icons .accounts:not(.lang-menu) { min-width: 0; }
@@ -1880,6 +1880,15 @@ main.event .details th {
   min-width: var(--control-height);
 }
 
+/* Let the title determine row height when its account label is hidden. */
+.list-row .row-star .flag-split .flag-button.button-link,
+.list-row .row-star .flag-split .flag-more.icon-button {
+  min-height: 0;
+  height: auto;
+  padding-block: 0;
+  line-height: 1;
+}
+
 .row-star .flag-split .flag-more.icon-button {
   position: absolute;
   inset-block: 0;
@@ -2336,8 +2345,9 @@ main.message pre {
 }
 
 main.message h1 {
-  text-align: match-parent;
 }
+
+[dir="rtl"] aside details.acct-folders > summary.aside-account a { text-align: right; }
 
 /* :dir() matches the direction dir=auto resolved, so the rule follows the row's own script. */
 :root[data-align="script"] .message-list-subject a:dir(ltr),
@@ -3305,6 +3315,79 @@ main.calendar .actions {
 }
 .row-meta .row-folder:hover { text-decoration: underline; }
 
+/* Color mode marks the record's outer edge, leaving its text tracks intact. */
+.account-marker {
+  display: none;
+  position: absolute;
+  inset-inline-start: 0;
+  inset-block: 4px;
+  width: 12px;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  box-shadow: none;
+  z-index: 1;
+}
+.account-marker .account-color {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 1px;
+  width: 3px;
+  border-radius: 2px;
+}
+.account-marker .account-color,
+.account-legend { background: light-dark(hsl(var(--account-hue) 70% 36%), hsl(var(--account-hue) 70% 70%)); }
+.account-legend {
+  display: none;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+.account-marker:hover { background: transparent; }
+.account-marker:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* Older browsers retain addresses instead of losing account identity. */
+@supports (grid-template-columns: subgrid) and selector(:popover-open) {
+  [data-account-names="hidden"] .row-account { display: none; }
+  [data-account-names="hidden"] .account-marker { display: block; }
+  [data-account-names="hidden"] .account-legend { display: inline-block; }
+  [data-account-names="hidden"] :is(.list-row, .list-item, .info-card, .alert):has(.account-marker) {
+    position: relative;
+  }
+  [data-account-names="hidden"] .list-row:has(.account-marker) .list-checkbox input {
+    position: relative;
+    z-index: 2;
+  }
+  @media (width > 600px) {
+    [data-account-names="hidden"] .list-row:has(.account-marker) {
+      display: grid;
+      grid-template-columns: subgrid;
+      grid-column: 1 / -1;
+    }
+  }
+  @media (forced-colors: active) {
+    [data-account-names="hidden"] .row-account { display: inline; }
+    [data-account-names="hidden"] :is(.account-marker, .account-legend) { display: none; }
+  }
+}
+
+.account-popover {
+  display: none;
+  max-width: calc(100vw - 2rem);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--fg);
+  background: var(--bg);
+  overflow-wrap: anywhere;
+}
+.account-popover:popover-open { display: block; }
+
 .message-list-sender > a {
   flex: 0 1 auto;
   min-width: 0;
@@ -3456,10 +3539,10 @@ aside details.folder-branch details.folder-branch > ul > li {
 .task-row:hover > *,
 .journal-row:hover > * { background: var(--bg-active); }
 
-/* A read-only event has no star; its row keeps the star's height. */
+/* A read-only event keeps a text-height placeholder in the star column. */
 .event-row .list-star::before {
   content: "";
-  block-size: var(--control-height);
+  block-size: 1em;
 }
 
 .event-time,
@@ -3520,14 +3603,22 @@ aside details.folder-branch details.folder-branch > ul > li {
     minmax(4.5rem, 7rem) minmax(4.5rem, 6rem);
 }
 
+.task-row .task-list-fallback { display: none; }
+
 .quick-add {
   display: flex;
+  align-items: center;
   gap: var(--space-2);
   padding: var(--space-2);
   border-bottom: 1px solid var(--border-light);
 }
 
 .quick-add input { flex: 1; min-width: 0; }
+.quick-add :is(input[name="summary"], select, button) {
+  height: var(--control-height);
+  padding-block: 0;
+}
+.quick-add > .picker-quiet { display: flex; }
 
 .calendar-quick { position: relative; }
 .quick-help { flex: none; align-self: center; }
@@ -3634,6 +3725,7 @@ aside details.folder-branch details.folder-branch > ul > li {
 .task-list-status .task-checkbox { margin: 0; }
 .task-list-calendar,
 .task-list-due,
+.task-list-fallback,
 .journal-list-calendar,
 .journal-list-date {
   color: var(--fg-muted);
@@ -3879,7 +3971,8 @@ aside .aside-filter { display: flex; flex-direction: column; overflow-anchor: no
 }
 
 main.settings form,
-main.settings > .info-card {
+main.settings > .info-card,
+main.settings > .settings-support {
   width: min(calc(100% - 2 * var(--space-4)), var(--content-form));
   margin: var(--space-4);
   padding: var(--space-4);
@@ -3887,6 +3980,15 @@ main.settings > .info-card {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-raised);
+}
+
+main.settings .settings-support form {
+  width: auto;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .settings-profile > .settings-section {
@@ -3974,7 +4076,6 @@ button,
   .list-item > form > button,
   .invitation-actions > button,
   .note-box > button,
-  .quick-add > button,
   .form-actions > :is(button, .button, .button-link) {
     min-height: 2.75rem;
     min-width: 2.75rem;
@@ -4564,12 +4665,27 @@ aside a.aside-account {
   color: inherit;
   text-decoration: none;
   flex-grow: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: match-parent;
 }
 
 aside details.acct-folders > summary.aside-account a:hover,
 aside a.aside-account:hover {
   text-decoration: underline;
 }
+
+aside a.rail-account-empty {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0;
+  padding-inline-start: calc(var(--space-2) + var(--rail-chevron-track) + var(--space-1));
+}
+aside .rail-account-empty bdi { overflow: hidden; text-overflow: ellipsis; }
+aside a.rail-account-empty:not(.active) { color: var(--fg-muted); }
 
 aside details.acct-folders > summary::-webkit-details-marker {
   display: none;
@@ -4587,7 +4703,8 @@ aside details.acct-folders > summary::before {
 
 /* A touch target is the row; the branch chevron shares its row with a link, so it has its own. */
 @media (hover: none) {
-  aside details.acct-folders > summary.aside-account { min-height: 2.75rem; }
+  aside details.acct-folders > summary.aside-account,
+  aside a.rail-account-empty { min-height: 2.75rem; }
 }
 
 aside details.acct-folders li {
@@ -4925,41 +5042,28 @@ h1.no-word .title-short {
   header nav .nav-utilities { margin-inline-start: auto; }
   header nav .header-brand { display: none; }
 
-  aside .nav-menus-mobile {
+  aside .rail-mobile { display: block; }
+  aside > a.aside-account {
+    flex: none;
+  }
+  aside .rail-account-settings .account-legend { margin-inline-end: var(--space-1); }
+  aside .rail-mobile-footer {
     display: block;
-    margin-block-start: var(--space-3);
+    margin-block-start: auto;
     padding-block-start: var(--space-2);
+    margin-inline: var(--space-2);
     border-block-start: 1px solid var(--border);
   }
-  aside .nav-menus-mobile .accounts-button { width: 100%; }
-  aside .nav-menus-mobile .accounts-button .icon { display: none; }
-  aside .nav-menus-mobile .accounts-menu {
-    display: none;
-    padding: var(--space-1) var(--space-2) var(--space-2);
-    padding-inline-start: 1rem;
-  }
-  aside .nav-menus-mobile .accounts[open] > .accounts-menu {
+  aside .rail-mobile-footer > a {
     display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: var(--space-1);
-  }
-  aside .nav-menus-mobile .account-menu-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: var(--space-1);
-  }
-  aside .nav-menus-mobile .account-menu-row > a {
-    min-width: 0;
-    overflow-wrap: anywhere;
-  }
-  aside .nav-menus-mobile .accounts-menu :is(a, button) {
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 2.75rem;
+    width: 100%;
+    padding: var(--space-1) var(--space-2);
     color: var(--fg);
     text-decoration: none;
   }
-  aside .nav-menus-mobile .accounts-menu button { text-align: start; padding: 0; }
-  aside .nav-menus-mobile .accounts-menu .active { font-weight: 500; }
-  aside .nav-menus-mobile .account-signout button { color: var(--fg-muted); font-size: var(--text-sm); white-space: nowrap; }
 
   .rail-brand {
     display: flex;
@@ -4968,6 +5072,8 @@ h1.no-word .title-short {
 
   /* They float over the page, so they paint on the opaque raised surface. */
   aside {
+    display: flex;
+    flex-direction: column;
     position: fixed;
     inset-block: 0;
     inset-inline-start: calc(-1 * var(--drawer-width));
@@ -4981,6 +5087,7 @@ h1.no-word .title-short {
     border-inline-end: 1px solid var(--border);
     transition: inset-inline-start 0.15s ease-out;
   }
+  aside > * { flex: none; }
 
   .sidebar-toggle:checked ~ .page-wrap aside { inset-inline-start: 0; }
 
@@ -4999,6 +5106,21 @@ h1.no-word .title-short {
   main.create-update { padding: var(--space-2); }
   main.settings { padding: 0; }
 
+  /* Keep the event field usable when its destination includes an account. */
+  .calendar-quick .quick-add {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .calendar-quick .quick-add > input[name="summary"] { grid-area: 1 / 1; }
+  .calendar-quick .quick-add > button { grid-area: 1 / 2; }
+  .calendar-quick .quick-add > :is(.hint, .picker-quiet) {
+    grid-area: 2 / 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .calendar-quick .picker-quiet > select { min-width: 0; width: 100%; }
+  .calendar-quick .quick-help { grid-area: 2 / 2; }
+
   .event-grid { display: block; }
 
   .event-header-row { display: none; }
@@ -5007,7 +5129,7 @@ h1.no-word .title-short {
      size the star's column and narrow the summary above it. */
   .event-row {
     display: grid;
-    grid-template-columns: auto auto auto minmax(0, 1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr) auto auto var(--control-height);
     column-gap: var(--space-2);
     padding: var(--space-2);
     border-bottom: 1px solid var(--border-light);
@@ -5042,23 +5164,24 @@ h1.no-word .title-short {
     grid-column: 5;
     grid-row: 1;
     justify-self: end;
-    align-self: center;
+    align-self: start;
   }
 
-  .event-row .event-date { grid-column: 2; grid-row: 2; }
+  .event-row .event-date { grid-column: 3; grid-row: 2; }
 
   .event-row .event-time {
-    grid-column: 3;
-    grid-row: 2;
-  }
-
-  .event-row .event-owner {
     grid-column: 4 / 6;
     grid-row: 2;
     justify-content: flex-end;
   }
 
-  .event-grid-grouped .event-row .event-time { grid-column: 2 / 4; }
+  .event-row .event-owner {
+    grid-column: 2;
+    grid-row: 2;
+    justify-content: flex-start;
+  }
+
+  .event-grid-grouped .event-row .event-time { grid-column: 3 / 6; }
 
   .task-grid,
   .journal-grid { display: block; }
@@ -5100,7 +5223,7 @@ h1.no-word .title-short {
     grid-column: 5;
     grid-row: 1;
     justify-self: end;
-    align-self: center;
+    align-self: start;
   }
 
   .journal-row .list-star { grid-column: 4; }
@@ -5122,9 +5245,11 @@ h1.no-word .title-short {
     grid-row: 2;
   }
 
-  .task-row .task-list-due { display: block; }
+  .task-row .task-list-due,
+  .task-row .task-list-fallback { display: block; }
 
-  .task-row .task-list-due {
+  .task-row .task-list-due,
+  .task-row .task-list-fallback {
     grid-column: 4 / 6;
     grid-row: 2;
     justify-self: end;
@@ -5179,16 +5304,16 @@ h1.no-word .title-short {
   .message-grid,
   .contact-grid { display: block; }
 
-  /* The last column is as wide as what it holds; the subject is the line that truncates. */
+  /* Actions stay beside the title; the meaningful date sits below them. */
   .message-row {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) max-content;
     grid-template-areas:
-      "check sender  date"
-      "check subject flags";
+      "check sender  flags"
+      "check subject date";
     column-gap: 0.5rem;
     padding-inline: 0.5rem;
-    padding-block: 0.3rem;
+    padding-block: var(--space-2);
     border-bottom: 1px solid var(--border-light);
   }
 
@@ -5202,11 +5327,11 @@ h1.no-word .title-short {
     grid-template-columns: auto 2.5rem minmax(0, 1fr) auto;
     grid-template-areas:
       "check photo name  star"
-      "check photo phone star"
-      "check photo email star";
+      "check photo phone ."
+      "check photo email date";
     column-gap: 0.5rem;
     padding-inline: 0.5rem;
-    padding-block: 0.3rem;
+    padding-block: var(--space-2);
     border-bottom: 1px solid var(--border-light);
     min-height: 2.75rem;
   }
@@ -5223,8 +5348,8 @@ h1.no-word .title-short {
   }
 
   /* No box: the empty first track's gap stands in for the card's padding. */
-  :is(.message-row, .task-row, .journal-row, .contact-row):not(:has(> .list-checkbox)) { padding-inline-start: 0; }
-  .contact-row > .list-star { grid-area: star; align-self: center; }
+  :is(.message-row, .event-row, .task-row, .journal-row, .contact-row):not(:has(> .list-checkbox)) { padding-inline-start: 0; }
+  .contact-row > .list-star { grid-area: star; align-self: start; }
   .contact-row > .contact-list-photo { grid-area: photo; }
   .contact-row > .contact-list-name { grid-area: name; }
   .contact-row > .contact-list-phone { grid-area: phone; }
@@ -5234,7 +5359,16 @@ h1.no-word .title-short {
     display: flex;
   }
 
-  .contact-row > .contact-list-changed,
+  .contact-row > .contact-list-changed {
+    display: block;
+    grid-area: date;
+    justify-self: end;
+    align-self: end;
+    white-space: nowrap;
+    color: var(--fg-muted);
+    font-size: var(--text-sm);
+  }
+
   .contact-row > .contact-list-book { display: none; }
 
   /* Keep names aligned when any contact has a photo; otherwise give them the space. */
@@ -5242,12 +5376,12 @@ h1.no-word .title-short {
     grid-template-columns: auto minmax(0, 1fr) auto;
     grid-template-areas:
       "check name star"
-      "check phone star"
-      "check email star";
+      "check phone ."
+      "check email date";
   }
   .contact-grid:not(:has(.contact-list-photo img)) .contact-list-photo { display: none; }
 
-  :is(.task-list-calendar, .journal-list-calendar) > a {
+  :is(.event-owner, .task-list-calendar, .journal-list-calendar) > a {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -5270,6 +5404,7 @@ h1.no-word .title-short {
   .message-list-flags .row-star .flag-split .flag-more.icon-button { position: absolute; }
   .message-list-date {
     grid-area: date;
+    align-self: end;
     justify-content: flex-end;
     font-size: 0.8rem;
   }
@@ -5277,7 +5412,7 @@ h1.no-word .title-short {
 
   .message-list-flags {
     grid-area: flags;
-    align-self: center;
+    align-self: start;
     justify-content: flex-end;
     padding-inline-end: 0.15rem;
   }
@@ -5373,7 +5508,6 @@ h1.no-word .title-short {
     overflow-wrap: anywhere;
   }
 
-  .contact-row > .contact-list-changed { display: none; }
   .contact-list-name {
     flex-direction: column;
     align-items: flex-start !important;

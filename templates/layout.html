@@ -1,5 +1,5 @@
 {{ define "layout" }}<!DOCTYPE html>
-<html lang="{{.GlobalData.Lang}}" dir="{{.GlobalData.Dir}}"{{if .GlobalData.AlignByScript}} data-align="script"{{end}}{{with .GlobalData.TextSize}} data-text="{{.}}"{{end}}{{if and .GlobalData.LoggedIn .GlobalData.LockSeconds}} data-session-concealed{{end}}>
+<html{{if .GlobalData.HideAccountNames}} data-account-names="hidden"{{end}} lang="{{.GlobalData.Lang}}" dir="{{.GlobalData.Dir}}"{{if .GlobalData.AlignByScript}} data-align="script"{{end}}{{with .GlobalData.TextSize}} data-text="{{.}}"{{end}}{{if and .GlobalData.LoggedIn .GlobalData.LockSeconds}} data-session-concealed{{end}}>
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -79,6 +79,7 @@
     <main id="main" tabindex="-1"{{ block "main-class" . }} class="list"{{ end }}>
 {{ template "swipe-preferences" . }}
 {{ block "main" . }}{{ end }}
+{{ template "account-popovers" . }}
     </main>
   </div>
 </div>
@@ -91,4 +92,4 @@
 
 {{/* A swap into main: the page's main block, and out of band what of its rail the swap moves and its notices (ADR 13). */}}
 {{ define "swipe-preferences" }}<span id="swipe-preferences" hidden data-swipes="{{.GlobalData.Swipes}}"></span>{{ end }}
-{{ define "swap" }}{{ template "swipe-preferences" . }}{{ template "main" . }}{{ template "rail" . }}{{ template "notices" (dict "g" . "oob" true) }}{{ end }}
+{{ define "swap" }}{{ template "swipe-preferences" . }}{{ template "main" . }}{{ template "account-popovers" . }}{{ template "rail" . }}{{ template "notices" (dict "g" . "oob" true) }}{{ end }}

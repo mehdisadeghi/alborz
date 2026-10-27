@@ -44,7 +44,9 @@ type TaskRow struct {
 	Status  string
 	Due     time.Time
 	// Added is CREATED; zero where the writer sent none, since DTSTAMP moves with every change.
-	Added     time.Time
+	Added time.Time
+	// Modified uses LAST-MODIFIED or the server's modification time, never DTSTAMP.
+	Modified  time.Time
 	Completed bool
 	// Priority is the band the task's PRIORITY falls in, or empty.
 	Priority string
@@ -301,6 +303,10 @@ func taskRow(ctx *web.Context, task *caldav.CalendarObject, cal dav.Collection, 
 		due, _ = todo.Props.DateTime(ical.PropDateTimeStart, loc)
 	}
 	added, _ := todo.Props.DateTime(ical.PropCreated, loc)
+	modified, _ := todo.Props.DateTime(ical.PropLastModified, loc)
+	if modified.IsZero() {
+		modified = task.ModTime
+	}
 	object := calendar.TaskObject{CalendarObject: task, Account: cal.Account}
 	return TaskRow{
 		Task:      object,
@@ -310,6 +316,7 @@ func taskRow(ctx *web.Context, task *caldav.CalendarObject, cal dav.Collection, 
 		Status:    status,
 		Due:       due,
 		Added:     added,
+		Modified:  modified,
 		Completed: status == "COMPLETED",
 		Priority:  calendar.PriorityBand(todo),
 		Star:      calendar.ComponentColor(todo),

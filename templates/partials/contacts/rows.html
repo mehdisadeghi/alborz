@@ -31,9 +31,7 @@
             <div class="contact-list-phone list-cell" role="cell">
               {{ template "ltr" (.Card.PreferredValue "TEL") }}
             </div>
-            {{ $changed := "" }}{{ $changedTitle := "" }}
-            {{ $m := .Modified }}{{ if not $m.IsZero }}{{ $changed = $.GlobalData.Since $m }}{{ $changedTitle = $.GlobalData.FormatDate $m }}{{ end }}
-            <div class="contact-list-changed list-cell" role="cell" title="{{$changedTitle}}">{{$changed}}</div>
+            {{ template "row-date" (dict "g" $ "cell" "contact-list-changed" "label" ($.T "common.modified") "time" .Modified "since" true "describe" true) }}
             <div class="contact-list-book list-cell" role="cell">
               {{if $book.Color}}<span class="color-dot" style="background:{{$book.Color}}"></span>{{end}}<a href="{{ call $.CollectionHref .Account .Path }}">{{$book.Name}}</a>{{ template "collection-mark" (dict "g" $ "c" $book) }}
             </div>

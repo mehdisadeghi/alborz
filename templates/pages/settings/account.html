@@ -90,4 +90,7 @@
         {{ end }}
       </details>
       {{ end }}
+      <form method="post" action="{{url "auth.logout"}}" class="account-signout">
+        <button type="submit" name="account" value="{{.GlobalData.Username}}">{{$.T "nav.signout"}}</button>
+      </form>
 {{ end }}

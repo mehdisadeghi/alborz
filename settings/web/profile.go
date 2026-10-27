@@ -19,9 +19,10 @@ type ProfileRenderData struct {
 	web.PageData[map[string][]web.RailRow]
 	Theme string
 	// Themes are the overlays on offer, built in or dropped in by a deployment.
-	Themes        []web.Theme
-	AlignByScript bool
-	TextSize      string
+	Themes           []web.Theme
+	AlignByScript    bool
+	ShowAccountNames bool
+	TextSize         string
 	// Segments are the status bar's on offer, StatusOn those turned on.
 	Segments []string
 	StatusOn map[string]bool
@@ -65,22 +66,23 @@ func handleProfile(ctx *web.Context) error {
 			return err
 		}
 		return ctx.Render(status, "settings/general", &ProfileRenderData{
-			PageData:      *web.NewSettingsPageData(ctx, ctx.T("settings.general")).WithRefused(message),
-			Theme:         p.Display.Theme,
-			Themes:        ctx.Themes(),
-			AlignByScript: p.Display.AlignByScript,
-			TextSize:      p.Display.TextSize,
-			Segments:      segments(ctx),
-			StatusOn:      turnedOn(p.Display.Status),
-			Addons:        addons(ctx),
-			AddonsOn:      turnedOn(p.Display.Addons),
-			AddonScripts:  addonScripts(ctx),
-			Reading:       p.Reading,
-			Writing:       p.Writing,
-			MaxPerPage:    web.MaxMessagesPerPage,
-			LockMinutes:   lockMinutes(ctx.Session().Lock()),
-			Shown:         string(shown),
-			Gestures:      gestureSettings(ctx, p.Gestures),
+			PageData:         *web.NewSettingsPageData(ctx, ctx.T("settings.general")).WithRefused(message),
+			Theme:            p.Display.Theme,
+			Themes:           ctx.Themes(),
+			AlignByScript:    p.Display.AlignByScript,
+			ShowAccountNames: !p.Display.HideAccountNames,
+			TextSize:         p.Display.TextSize,
+			Segments:         segments(ctx),
+			StatusOn:         turnedOn(p.Display.Status),
+			Addons:           addons(ctx),
+			AddonsOn:         turnedOn(p.Display.Addons),
+			AddonScripts:     addonScripts(ctx),
+			Reading:          p.Reading,
+			Writing:          p.Writing,
+			MaxPerPage:       web.MaxMessagesPerPage,
+			LockMinutes:      lockMinutes(ctx.Session().Lock()),
+			Shown:            string(shown),
+			Gestures:         gestureSettings(ctx, p.Gestures),
 		})
 	}
 	shown := ctx.Profile()
@@ -178,6 +180,9 @@ func handleProfile(ctx *web.Context) error {
 		}
 	}
 	p.Display.AlignByScript = ctx.FormValue("align_script") != ""
+	if _, ok := sent["show_account_names"]; ok || sent["account_preferences"] != nil {
+		p.Display.HideAccountNames = ctx.FormValue("show_account_names") == ""
+	}
 	p.Display.Status = chosen(p.Display.Status, segments(ctx), sent["status"])
 	p.Display.Addons = chosen(p.Display.Addons, addons(ctx), sent["addon"])
 	var lockAfter time.Duration

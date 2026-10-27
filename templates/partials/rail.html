@@ -6,7 +6,7 @@
   {{ if eq .kind "mail" }}
   {{ template "rail-mail-merged" .data }}
   {{ else }}
-  {{ with .all }}<a id="rail-all" class="aside-account aside-all{{ if $merged }} active{{ end }}" href="{{$.path}}"{{ if $.g.GlobalData.Swap }} hx-swap-oob="true"{{ end }}>{{ if eq $.kind "dav" }}{{$.g.T "nav.allaccounts"}}{{ else }}{{.}}{{ end }}</a>{{ end }}
+  {{ with .all }}<a id="rail-all" class="aside-account aside-all{{ if $merged }} active{{ end }}" href="{{$.path}}"{{ if $merged }} aria-current="true"{{ end }}{{ if $.g.GlobalData.Swap }} hx-swap-oob="true"{{ end }}>{{ if eq $.kind "dav" }}{{$.g.T "nav.allaccounts"}}{{ else }}{{.}}{{ end }}</a>{{ end }}
   {{ end }}
   {{ range .accounts }}
   {{ $acct := .Username }}
@@ -15,7 +15,7 @@
   {{ if eq $.kind "dav" }}{{ range $.data.items }}{{ if eq .Account $acct }}{{ $has = true }}{{ break }}{{ end }}{{ end }}{{ end }}
   {{ if $has }}
   <details class="acct-folders" data-rail-key="{{$acct}}"{{ if eq $acct $.urlaccount }} open{{ end }}>
-    <summary class="aside-account"><a href="{{$.path}}{{ account (qsep $.path) $acct }}">{{ template "ltr" $acct }}</a></summary>
+    <summary class="aside-account{{ if eq $acct $.urlaccount }} active{{ end }}">{{ template "account-legend" (dict "g" $.g "account" $acct) }}<a href="{{$.path}}{{ account (qsep $.path) $acct }}" title="{{$acct}}" dir="ltr"{{ if eq $acct $.urlaccount }} aria-current="true"{{ end }}>{{ template "ltr" $acct }}</a></summary>
     {{ if eq $.kind "mail" }}
     {{ template "rail-mail-account" (dict "account" $acct "data" $.data) }}
     {{ else if eq $.kind "dav" }}
@@ -24,9 +24,12 @@
     {{ template "rail-rows" (index $.data.rows $acct) }}
     {{ end }}
   </details>
+  {{ else }}
+  <a class="aside-account rail-account-empty{{ if eq $acct $.urlaccount }} active{{ end }}" href="{{$.path}}{{ account (qsep $.path) $acct }}" title="{{$acct}}"{{ if eq $acct $.urlaccount }} aria-current="true"{{ end }}>{{ template "account-legend" (dict "g" $.g "account" $acct) }}{{ template "ltr" $acct }}</a>
   {{ end }}
   {{ end }}
   {{ else }}
+  {{ range .accounts }}<a class="aside-account rail-mobile rail-account-settings" href="{{url "mail.account"}}{{ account "?" .Username }}" title="{{$.g.T "settings.account"}}: {{.Username}}" dir="ltr">{{ template "account-legend" (dict "g" $.g "account" .Username) }}{{ template "ltr" .Username }}</a>{{ end }}
   {{ if eq .kind "mail" }}
   {{ template "rail-mail-single" .data }}
   {{ else if and (eq .kind "rows") .accounts }}
@@ -36,6 +39,7 @@
   {{ template "rail-dav-account" (dict "account" (index .accounts 0).Username "data" .data "single" true "g" .g) }}
   {{ end }}
   {{ end }}
+  <a href="{{url "auth.login"}}?add=1" class="aside-create rail-mobile rail-add-account">{{.g.T "nav.addaccount"}}</a>
   {{ with .views }}{{ template "rail-colors" (dict "g" $.g "path" .path "view" .view "account" .account) }}{{ end }}
   {{ with .groups }}{{ template "rail-filter-list" . }}{{ end }}
   {{ with .categories }}{{ template "rail-filter-list" . }}{{ end }}
@@ -69,7 +73,9 @@
   {{ with .new }}<a href="{{.href}}" class="aside-create{{ if .active }} active{{ end }}">{{.label}}</a>{{ end }}
   {{ with .follow }}{{ if not .hidden }}<a href="{{.href}}" class="aside-create{{ if .active }} active{{ end }}">{{.label}}</a>{{ end }}{{ end }}
   {{ with .import }}{{ if not .hidden }}<a href="{{.href}}" class="aside-create{{ if .active }} active{{ end }}">{{.label}}</a>{{ end }}{{ end }}
-  {{ template "nav-menus" (dict "g" .g "page" (index .g.GlobalData.Path 0) "mobile" true) }}
+  <div class="rail-mobile rail-mobile-footer">
+    <a href="{{url "settings.profile"}}"{{ if eq (index .g.GlobalData.Path 0) "settings" }} class="active" aria-current="page"{{ end }}>{{.g.T "nav.settings"}}</a>
+  </div>
 {{ end }}
 
 {{ define "rail-rows" }}
@@ -226,7 +232,7 @@
 {{ $active := "" }}{{ with .Mailbox }}{{ $active = .Name }}{{ end }}
 {{ $all := $.GlobalData.Merged }}
 <details class="acct-folders aggregate-folders" data-rail-key="__merged" open>
-<summary class="aside-account"><a href="{{url "mail.mailbox" "INBOX"}}">{{$.T "nav.allaccounts"}}</a></summary>
+<summary class="aside-account{{ if $all }} active{{ end }}"><a href="{{url "mail.mailbox" "INBOX"}}"{{ if $all }} aria-current="true"{{ end }}>{{$.T "nav.allaccounts"}}</a></summary>
 <ul id="merged-roles" class="merged-roles"{{ template "list-swap" . }}>
   {{ range tuple (tuple "aside.inbox" "INBOX") (tuple "aside.drafts" "Drafts") (tuple "aside.sent" "Sent") (tuple "aside.junk" "Junk") (tuple "aside.trash" "Trash") (tuple "aside.archive" "Archive") }}
   {{ $role := index . 1 }}

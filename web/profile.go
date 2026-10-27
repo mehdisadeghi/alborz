@@ -281,6 +281,7 @@ func (ctx *Context) profileDiff(theirs, ours alborz.Profile) []profileChange {
 		return g.T("settings.text" + cmp.Or(p.Display.TextSize, "default"))
 	})
 	add("settings.alignscript", func(p alborz.Profile) string { return onOff(p.Display.AlignByScript) })
+	add("settings.accountnames", func(p alborz.Profile) string { return onOff(!p.Display.HideAccountNames) })
 	add("settings.status", func(p alborz.Profile) string {
 		return selectedLabels(g, ctx.Server.Status, p.Display.Status, func(seg Segment) string { return seg.Name }, ".status")
 	})

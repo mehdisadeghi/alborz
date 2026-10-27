@@ -50,7 +50,9 @@ type Display struct {
 	Theme         string
 	TextSize      string
 	AlignByScript bool
-	Language      string
+	// HideAccountNames is negative so existing profiles keep their account labels.
+	HideAccountNames bool
+	Language         string
 	// Status names the status bar's segments turned on; the bar keeps the order they were mounted in.
 	Status []string
 	// Addons names the add-ons turned on.

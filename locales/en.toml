@@ -930,6 +930,8 @@
 "common.next" = "Next"
 
 "settings.alignscript" = "Start each line of a message on its own side"
+"settings.accountnames" = "Show account addresses in lists"
+"settings.accountnameshint" = "Turn off to use a color strip instead. Tap the strip to see the full address."
 "settings.alignscripthint" = "A Persian, Arabic or Hebrew line starts on the right and any other on the left, within one message."
 "settings.mailtohandler" = "Open mail links from other sites in Alborz"
 "settings.mailtoasked" = "Your browser will ask."

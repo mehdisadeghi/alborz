@@ -930,6 +930,8 @@
 "common.next" = "بعدی"
 
 "settings.alignscript" = "هر خط نامه از سمت خودش شروع شود"
+"settings.accountnames" = "نمایش نشانی حساب‌ها در فهرست‌ها"
+"settings.accountnameshint" = "برای استفاده از نوار رنگی به‌جای نشانی، این گزینه را خاموش کنید. برای دیدن نشانی کامل، نوار را لمس کنید."
 "settings.alignscripthint" = "خط فارسی، عربی یا عبری از راست و هر خط دیگر از چپ شروع می‌شود، در همان نامه."
 "settings.mailtohandler" = "پیوندهای ایمیلِ سایت‌های دیگر در البرز باز شود"
 "settings.mailtoasked" = "مرورگر می‌پرسد."

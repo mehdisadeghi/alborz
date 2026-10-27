@@ -112,6 +112,8 @@ var TemplateFuncs = template.FuncMap{
 	"pathescape": func(s string) string { return strings.ReplaceAll(url.PathEscape(s), ":", "%3A") },
 	// template.URL, or the escaper would percent-encode what QueryValue left alone.
 	"qv":         func(v string) template.URL { return template.URL(web.QueryValue(v)) },
+	"accounthue": web.AccountHue,
+	"accountid":  web.AccountPopoverID,
 	"subjectdir": lang.SubjectDir,
 	"account":    web.AccountParam,
 	"localhref": func(raw string) template.URL {

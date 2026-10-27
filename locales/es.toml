@@ -930,6 +930,8 @@
 "common.next" = "Siguiente"
 
 "settings.alignscript" = "Empezar cada línea de un mensaje por su propio lado"
+"settings.accountnames" = "Mostrar direcciones de cuentas en las listas"
+"settings.accountnameshint" = "Desactive esta opción para usar una franja de color. Pulse la franja para ver la dirección completa."
 "settings.alignscripthint" = "Una línea en persa, árabe o hebreo empieza a la derecha y cualquier otra a la izquierda, dentro del mismo mensaje."
 "settings.mailtohandler" = "Abrir en Alborz los enlaces de correo de otros sitios"
 "settings.mailtoasked" = "El navegador lo preguntará."

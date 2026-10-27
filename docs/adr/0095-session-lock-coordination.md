@@ -11,10 +11,10 @@ unlock state without exposing session secrets.
 
 ## Decision
 
-1. Header and account-menu `Lock` actions lock the current browser
-   session on the server without signing out its accounts or replacing
-   its cookie. The header button is rendered only when at least one
-   passkey is registered.
+1. The header's `Lock` button is the single lock control. It locks the
+   current browser session on the server without signing out its
+   accounts or replacing its cookie, and is rendered only when at least
+   one passkey is registered.
 2. Authorization remains server-side: protected routes and `/events`
    enforce the session lock, and an uncached state probe
    (`Alborz-Unasked`) reports only the public session ID and lock state
@@ -22,7 +22,10 @@ unlock state without exposing session secrets.
 3. Protected pages MUST conceal their content before checking lock
    state, unloading, entering the back-forward cache or becoming hidden,
    and MUST verify that the server session is unlocked before revealing
-   a restored document. Protected HTML starts concealed until script or
+   a restored document. A history load from a visible, unconcealed
+   document whose idle timer has not elapsed MUST NOT conceal; the
+   server's answer to that load enforces the lock. Back-forward cache
+   restores still verify. Protected HTML starts concealed until script or
    server navigation confirms unlock; both the concealment guard and
    `/unlock` include a plain HTML sign-out form (`/unlock/leave`) so a
    browser without JavaScript can always sign out.
@@ -53,4 +56,4 @@ unlock state without exposing session secrets.
 - WebAuthn Level 2; ADR 13, ADR 19, ADR 25, ADR 29
 - `lock.go`, `web/lock.go`, `web/middleware.go`, `web/live.go`,
   `auth/web/lock.go`, `settings/web/passkeys.go`,
-  `templates/assets/helpers.js`
+  `templates/assets/helpers.js`, `templates/assets/session-lock.js`

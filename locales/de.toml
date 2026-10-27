@@ -930,6 +930,8 @@
 "common.next" = "Nächstes"
 
 "settings.alignscript" = "Jede Zeile einer Nachricht auf ihrer eigenen Seite beginnen"
+"settings.accountnames" = "Kontoadressen in Listen anzeigen"
+"settings.accountnameshint" = "Ausschalten, um stattdessen einen Farbstreifen zu verwenden. Tippen Sie darauf, um die vollständige Adresse zu sehen."
 "settings.alignscripthint" = "Eine persische, arabische oder hebräische Zeile beginnt rechts, jede andere links, in derselben Nachricht."
 "settings.mailtohandler" = "E-Mail-Links anderer Seiten in Alborz öffnen"
 "settings.mailtoasked" = "Der Browser fragt nach."

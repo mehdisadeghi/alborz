@@ -33,6 +33,8 @@
 
 - Recover failed history navigation on protected pages with a clear error and
   a working Retry action instead of leaving content hidden indefinitely.
+- Wait for initial DAV server discovery before showing collections or routing
+  their first requests, avoiding misleading empty pages after startup.
 - Keep mail search, starred and color-view sidebars on full-page and history navigation.
 - Preserve notification excerpts after long HTML headers and fall back to HTML
   when a message's plain-text alternative is empty.

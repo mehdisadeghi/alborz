@@ -74,6 +74,8 @@ type Provider struct {
 	// Startup probes fill it after NewProvider returns; hostsMu guards the writes.
 	hosts   map[string]*url.URL
 	hostsMu sync.Mutex
+	// discovery closes when the domain's bounded mail-host probe has finished.
+	discovery map[string]<-chan struct{}
 	// instance is this alborz's name; selves holds, per domain server, whether it is this alborz.
 	instance string
 	selves   sync.Map
@@ -144,6 +146,7 @@ func NewProvider(srv *alborz.Server, st *store.Store, kind Kind) (*Provider, err
 		return nil, err
 	}
 	p = &Provider{Kind: kind, urls: urls, found: found, hosts: hosts, mirror: mirror,
+		discovery:   make(map[string]<-chan struct{}, len(domains)),
 		collections: memo.NewBackground[[]Collection](srv.Options.CacheFor(discoveryTTL))}
 	p.trusted, p.named = srv.Outgoing.Trusted, srv.Outgoing.Trusted
 	if !srv.Options.PrivateServices {
@@ -168,13 +171,17 @@ func NewProvider(srv *alborz.Server, st *store.Store, kind Kind) (*Provider, err
 
 	// Probes may take seconds each, so they run after the port is open.
 	for _, domain := range srv.Domains() {
-		domain := domain
-		go func() {
-			if p.urls[domain] != nil {
+		if p.urls[domain] != nil {
+			go func() {
 				if err := SanityCheckURL(srv.Outgoing.Trusted, p.urls[domain]); err != nil {
 					srv.Logger().Printf("Warning: %s: domain %q: %s server %q not reachable at startup: %v", kind.Name, domain, kind.Label, p.urls[domain], err)
 				}
-			}
+			}()
+		}
+		done := make(chan struct{})
+		p.discovery[domain] = done
+		go func() {
+			defer close(done)
 			if h, ok := OnMailHost(srv.Outgoing.Trusted, srv.UpstreamsFor(domain).IMAP, kind.Name, srv.Instance); ok && (p.urls[domain] == nil || h.Host != p.urls[domain].Host) {
 				if srv.Options.Debug {
 					srv.Logger().Printf("Domain %q: %s server on the mail host: %v", domain, kind.Label, h)
@@ -312,6 +319,9 @@ func (p *Provider) Sources(ctx context.Context, login *alborz.Login) []Source {
 	}
 	p.hostsMu.Lock()
 	h, ok := p.hosts[login.Domain()]
+	if _, explicit := p.discovery[login.Domain()]; !ok && !explicit {
+		h, ok = p.hosts[""]
+	}
 	p.hostsMu.Unlock()
 	if ok {
 		out = append(out, Source{ID: SourceHost, URL: h, Origin: "servers.frommailhost", Record: h.String()})
@@ -363,6 +373,9 @@ func (p *Provider) homes(ctx context.Context, login *alborz.Login) []Home {
 
 // Collections is the account's list of the kind, found once per user; the load outlives the request that starts it.
 func (p *Provider) Collections(ctx context.Context, login *alborz.Login) ([]Collection, error) {
+	if err := p.awaitDiscovery(ctx, login.Domain()); err != nil {
+		return nil, err
+	}
 	// A listing missing a server is kept but asked again after the retry delay, or the failure would stay until restart.
 	defer func() {
 		if len(p.Troubles(login.Username())) > 0 {
@@ -385,6 +398,23 @@ func (p *Provider) Collections(ctx context.Context, login *alborz.Login) ([]Coll
 		}
 		return infos, nil
 	})
+}
+
+// A first page must not cache an empty list while its server is still being found.
+func (p *Provider) awaitDiscovery(ctx context.Context, domain string) error {
+	done, ok := p.discovery[domain]
+	if !ok {
+		done = p.discovery[""]
+	}
+	if done == nil {
+		return nil
+	}
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // Forget drops the account's found list, for a change the next page has to show. The store names

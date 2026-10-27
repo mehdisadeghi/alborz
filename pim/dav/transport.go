@@ -44,6 +44,9 @@ func unanswered(req *http.Request, err error) error {
 const maxRedirects = 10
 
 func httpClient(ctx context.Context, p *Provider, login *alborz.Login) *http.Client {
+	if err := p.awaitDiscovery(ctx, login.Domain()); err != nil {
+		return &http.Client{Transport: failedTransport{err}}
+	}
 	sources := p.Sources(ctx, login)
 	var remote http.RoundTripper = p.router(sources, login)
 	// A copy is served only to the name it was kept for; with the name unknown, none is.
@@ -67,6 +70,11 @@ func httpClient(ctx context.Context, p *Provider, login *alborz.Login) *http.Cli
 		},
 	}
 }
+
+// HTTPClient's callers receive request errors through the client they already use.
+type failedTransport struct{ err error }
+
+func (t failedTransport) RoundTrip(*http.Request) (*http.Response, error) { return nil, t.err }
 
 func (p *Provider) router(sources []Source, login *alborz.Login) sourceRouter {
 	return sourceRouter{

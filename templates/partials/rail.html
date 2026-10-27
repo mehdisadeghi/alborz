@@ -180,7 +180,7 @@
 {{ $root := index .GlobalData.Path 0 }}
 {{ if eq $root "settings" }}
   {{ template "settings-rail" . }}
-{{ else if or (eq $root "mailbox") (eq $root "message") (eq $root "new-mailbox") (eq $root "rename-mailbox") (eq $root "delete-mailbox") (eq $root "import") (eq $root "compose") }}
+{{ else if or (eq $root "mail") (eq $root "mailbox") (eq $root "message") (eq $root "new-mailbox") (eq $root "rename-mailbox") (eq $root "delete-mailbox") (eq $root "import") (eq $root "compose") }}
   {{ template "mail-rail" . }}
 {{ else if or (eq $root "calendar") (eq $root "calendars") (eq $root "contacts") (eq $root "tasks") (eq $root "journal") }}
   {{ template "dav-rail" (dict "g" . "rail" .Rail) }}

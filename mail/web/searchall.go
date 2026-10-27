@@ -38,6 +38,7 @@ func (p *plugin) handleSearch(ctx *web.Context) error {
 		heading = title
 	}
 	base := web.NewBaseRenderData(ctx).WithTitle(heading)
+	base.GlobalData.HasRail = true
 	ibase := &IMAPBaseRenderData{BaseRenderData: *base, ListView: ask.View}
 	if !ctx.Unified {
 		sb, err := p.Rail(ctx.Login)

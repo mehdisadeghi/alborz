@@ -2,10 +2,35 @@ header,
 aside,
 .status-bar,
 .actions,
-.tabs {
+.form-actions,
+.tabs,
+main.message button,
+main.message form,
+main.message .parts-all,
+main.message .remote-content a {
   display: none;
 }
 
-.message {
+#email-print {
+  display: flow-root !important;
+}
+
+body:has(main.message),
+main.message {
+  display: block;
+  min-height: 0;
+}
+
+main.message {
   padding: 0;
+}
+
+/* The shadow copy paginates in normal flow; the screen iframe cannot. */
+#email-frame-wrap:has(#email-print) > #email-frame {
+  display: none;
+}
+
+#email-frame-wrap:has(#email-print) {
+  overflow: visible;
+  height: auto !important;
 }

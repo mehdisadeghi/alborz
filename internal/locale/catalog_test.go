@@ -79,24 +79,26 @@ func TestCatalogs(t *testing.T) {
 	}
 }
 
-// Persian's "one" plural category includes zero: spelling out "one" would
-// report a successful change even when no item changed.
-func TestPersianZeroCounts(t *testing.T) {
-	for _, tc := range []struct {
-		key  string
-		args []any
-	}{
-		{"notice.deleted", []any{0}},
-		{"notice.imported", []any{0, "Inbox"}},
-		{"aside.folderholds", []any{0, 0}},
-		{"mail.status.unread", []any{0}},
-	} {
-		t.Run(tc.key, func(t *testing.T) {
-			got := locale.Tf("fa", tc.key, tc.args...)
-			if !strings.Contains(got, locale.Num("fa", 0)) || strings.Contains(got, "یک") || strings.Contains(got, "%!") {
-				t.Fatalf("zero items reported as %q", got)
-			}
-		})
+// Persian and French "one" plural categories include zero: spelling out "one"
+// would report a successful change even when no item changed.
+func TestZeroCountsInOneCategory(t *testing.T) {
+	for _, lang := range []string{"fa", "fr"} {
+		for _, tc := range []struct {
+			key  string
+			args []any
+		}{
+			{"notice.deleted", []any{0}},
+			{"notice.imported", []any{0, "Inbox"}},
+			{"aside.folderholds", []any{0, 0}},
+			{"mail.status.unread", []any{0}},
+		} {
+			t.Run(lang+"/"+tc.key, func(t *testing.T) {
+				got := locale.Tf(lang, tc.key, tc.args...)
+				if !strings.Contains(got, locale.Num(lang, 0)) || strings.Contains(got, "یک") || strings.Contains(got, "%!") {
+					t.Fatalf("zero items reported as %q", got)
+				}
+			})
+		}
 	}
 }
 

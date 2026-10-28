@@ -41,7 +41,7 @@ func RegisterFS(fsys fs.FS) error {
 }
 
 // Languages are the supported UI Languages, in fallback order.
-var Languages = []string{"en", "fa", "de", "es"}
+var Languages = []string{"en", "fa", "de", "es", "fr", "ar"}
 
 var languageTags = func() []language.Tag {
 	tags := make([]language.Tag, len(Languages))
@@ -115,6 +115,8 @@ var names = map[string]string{
 	"fa": "فارسی",
 	"de": "Deutsch",
 	"es": "Español",
+	"fr": "Français",
+	"ar": "العربية",
 }
 
 // Name is the language in its own name, empty for none supported.

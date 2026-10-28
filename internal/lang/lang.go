@@ -30,22 +30,24 @@ var arabicScriptWords = map[string][]string{
 var latinMarks = map[string][]rune{
 	"de": {'ä', 'ö', 'ü', 'ß'},
 	"es": {'ñ', '¿', '¡'},
+	"fr": {'é', 'è', 'ê', 'à', 'ç', 'œ', 'ù'},
 }
 
 var latinWords = map[string][]string{
 	"de": {"der", "die", "das", "und", "nicht", "für", "mit", "ist", "ein", "eine", "sich", "auch", "wird", "haben"},
 	"es": {"el", "la", "los", "las", "que", "para", "con", "por", "una", "del", "es", "sus", "como"},
+	"fr": {"le", "la", "les", "des", "une", "dans", "pour", "avec", "sur", "pas", "plus", "est", "sont", "cette", "aux"},
 	"en": {"the", "and", "of", "to", "is", "for", "with", "you", "this", "that", "your", "from", "are"},
 }
 
-// OfContent names the language of interface text, "" where it is the page's own; never Arabic, as alborz ships no Arabic interface.
+// OfContent names the language of interface text, "" where it is the page's own.
 func OfContent(s, page string) string {
-	return answer(classify(s, false), page)
+	return answer(classify(s), page)
 }
 
-// OfMessage is OfContent for a message's own text, where Arabic is a real possibility.
+// OfMessage is OfContent for a message's own text.
 func OfMessage(s, page string) string {
-	return answer(classify(s, true), page)
+	return answer(classify(s), page)
 }
 
 func answer(lang, page string) string {
@@ -55,7 +57,7 @@ func answer(lang, page string) string {
 	return lang
 }
 
-func classify(s string, mail bool) string {
+func classify(s string) string {
 	stripped := stripReplyPrefix(s)
 	arab, latn := 0, 0
 	for _, r := range stripped {
@@ -70,9 +72,6 @@ func classify(s string, mail bool) string {
 		return ""
 	}
 	if arab > latn {
-		if !mail {
-			return "fa"
-		}
 		return arabicLang(stripped)
 	}
 	return latinLang(stripped)
@@ -132,7 +131,7 @@ func wordCounts(s string, dictionary map[string][]string) map[string]int {
 
 func soleMax(score map[string]int) (string, bool) {
 	best, top, tied := "", 0, false
-	for _, lang := range []string{"en", "de", "es"} {
+	for _, lang := range []string{"en", "de", "es", "fr"} {
 		switch n := score[lang]; {
 		case n > top:
 			best, top, tied = lang, n, false

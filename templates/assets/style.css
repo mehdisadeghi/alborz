@@ -289,13 +289,16 @@ select {
 }
 
 /* The good Persian faces are named first; none is downloaded. */
-:root:lang(fa) {
+:root:lang(fa),
+:root:lang(ar) {
   --font-sans: var(--font-fa), var(--font-latin);
 }
 
 /* Persian dots run into the next line at Latin leading; prose only, to keep the chrome's density. */
 :root:lang(fa) .user-text,
-:root:lang(fa) main.message pre {
+:root:lang(fa) main.message pre,
+:root:lang(ar) .user-text,
+:root:lang(ar) main.message pre {
   line-height: 1.8;
 }
 

@@ -71,9 +71,9 @@ type Provider struct {
 	// found is, per domain, the SRV record its endpoint came from; none where the deployment named it.
 	found map[string]string
 	// hosts is, per domain, a DAV server on the mail host that is not the domain's own (ADR 28).
-	// Startup probes fill it after NewProvider returns; hostsMu guards the writes.
-	hosts   map[string]*url.URL
-	hostsMu sync.Mutex
+	// Startup probes fill it after NewProvider returns; sourcesMu guards the writes.
+	hosts     map[string]*url.URL
+	sourcesMu sync.Mutex
 	// discovery closes when the domain's bounded mail-host probe has finished.
 	discovery map[string]<-chan struct{}
 	// instance is this alborz's name; selves holds, per domain server, whether it is this alborz.
@@ -169,29 +169,58 @@ func NewProvider(srv *alborz.Server, st *store.Store, kind Kind) (*Provider, err
 	})
 	srv.OnClose = append(srv.OnClose, p.Close)
 
-	// Probes may take seconds each, so they run after the port is open.
-	for _, domain := range srv.Domains() {
-		if p.urls[domain] != nil {
-			go func() {
-				if err := SanityCheckURL(srv.Outgoing.Trusted, p.urls[domain]); err != nil {
-					srv.Logger().Printf("Warning: %s: domain %q: %s server %q not reachable at startup: %v", kind.Name, domain, kind.Label, p.urls[domain], err)
-				}
-			}()
-		}
+	// Register the pending discovery before login can start reading collections.
+	probe := func(domain string, resolve bool) {
 		done := make(chan struct{})
+		p.sourcesMu.Lock()
 		p.discovery[domain] = done
+		p.sourcesMu.Unlock()
 		go func() {
 			defer close(done)
-			if h, ok := OnMailHost(srv.Outgoing.Trusted, srv.UpstreamsFor(domain).IMAP, kind.Name, srv.Instance); ok && (p.urls[domain] == nil || h.Host != p.urls[domain].Host) {
+			if resolve {
+				u, record, err := domainURL(srv, kind, domain)
+				if err != nil {
+					srv.Logger().Printf("%s: discover %s: %v", kind.Name, domain, err)
+					return
+				}
+				p.sourcesMu.Lock()
+				if u != nil {
+					p.urls[domain] = u
+				}
+				p.found[domain] = record
+				p.sourcesMu.Unlock()
+			}
+			p.sourcesMu.Lock()
+			u := p.urls[domain]
+			p.sourcesMu.Unlock()
+			if u != nil {
+				go func() {
+					if err := SanityCheckURL(srv.Outgoing.Trusted, u); err != nil {
+						srv.Logger().Printf("Warning: %s: domain %q: %s server %q not reachable: %v", kind.Name, domain, kind.Label, u, err)
+					}
+				}()
+			}
+			if srv.ServiceDisabled(domain, kind.Name) {
+				return
+			}
+			if h, ok := OnMailHost(srv.Outgoing.Trusted, srv.UpstreamsFor(domain).IMAP, kind.Name, srv.Instance); ok && (u == nil || h.Host != u.Host) {
 				if srv.Options.Debug {
 					srv.Logger().Printf("Domain %q: %s server on the mail host: %v", domain, kind.Label, h)
 				}
-				p.hostsMu.Lock()
+				p.sourcesMu.Lock()
 				p.hosts[domain] = h
-				p.hostsMu.Unlock()
+				p.sourcesMu.Unlock()
 			}
 		}()
 	}
+	for _, domain := range domains {
+		probe(domain, false)
+	}
+	srv.OnSetup = append(srv.OnSetup, func() {
+		for _, domain := range srv.Domains() {
+			probe(domain, true)
+		}
+	})
 	return p, nil
 }
 
@@ -305,24 +334,27 @@ func (p *Provider) Sources(ctx context.Context, login *alborz.Login) []Source {
 		}
 	}
 	domain := login.Domain()
+	p.sourcesMu.Lock()
 	u, ok := p.urls[domain]
 	if !ok {
 		domain = ""
 		u, ok = p.urls[""]
 	}
+	record := p.found[domain]
+	p.sourcesMu.Unlock()
 	if ok && !p.isHere(u) {
 		origin := "servers.fromconfig"
-		if p.found[domain] != "" {
+		if record != "" {
 			origin = "servers.fromsrv"
 		}
-		out = append(out, Source{ID: SourceDomain, URL: u, Origin: origin, Record: p.found[domain]})
+		out = append(out, Source{ID: SourceDomain, URL: u, Origin: origin, Record: record})
 	}
-	p.hostsMu.Lock()
+	p.sourcesMu.Lock()
 	h, ok := p.hosts[login.Domain()]
 	if _, explicit := p.discovery[login.Domain()]; !ok && !explicit {
 		h, ok = p.hosts[""]
 	}
-	p.hostsMu.Unlock()
+	p.sourcesMu.Unlock()
 	if ok {
 		out = append(out, Source{ID: SourceHost, URL: h, Origin: "servers.frommailhost", Record: h.String()})
 	}
@@ -402,10 +434,12 @@ func (p *Provider) Collections(ctx context.Context, login *alborz.Login) ([]Coll
 
 // A first page must not cache an empty list while its server is still being found.
 func (p *Provider) awaitDiscovery(ctx context.Context, domain string) error {
+	p.sourcesMu.Lock()
 	done, ok := p.discovery[domain]
 	if !ok {
 		done = p.discovery[""]
 	}
+	p.sourcesMu.Unlock()
 	if done == nil {
 		return nil
 	}
@@ -557,7 +591,7 @@ func (p *Provider) Close() error { return p.mirror.Close() }
 func domainURL(srv *alborz.Server, kind Kind, domain string) (*url.URL, string, error) {
 	secure, plain := kind.Schemes[0], kind.Schemes[1]
 	record := ""
-	u, err := srv.Upstream(domain, secure, plain, "https", "http+insecure")
+	u, err := srv.Upstream(domain, kind.Name)
 	if _, ok := err.(*alborz.NoUpstreamError); ok {
 		return nil, "", nil
 	} else if err != nil {

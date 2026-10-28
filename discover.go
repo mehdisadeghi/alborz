@@ -13,9 +13,7 @@ func srvName(service, domain string) string {
 	return "_" + service + "._tcp." + domain
 }
 
-func discoverTCP(service, name string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), RoundTripTimeout)
-	defer cancel()
+func discoverTCPContext(ctx context.Context, service, name string) (string, error) {
 	_, addrs, err := net.DefaultResolver.LookupSRV(ctx, service, "tcp", name)
 	if dnsErr, ok := err.(*net.DNSError); ok {
 		if dnsErr.IsTemporary {
@@ -41,8 +39,14 @@ func discoverTCP(service, name string) (string, error) {
 type discoveredService struct{ lookup, scheme string }
 
 func discoverServices(domain string, services ...discoveredService) (*url.URL, string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), RoundTripTimeout)
+	defer cancel()
+	return discoverServicesContext(ctx, domain, services...)
+}
+
+func discoverServicesContext(ctx context.Context, domain string, services ...discoveredService) (*url.URL, string, error) {
 	for _, service := range services {
-		host, err := discoverTCP(service.lookup, domain)
+		host, err := discoverTCPContext(ctx, service.lookup, domain)
 		if err != nil {
 			return nil, "", err
 		}

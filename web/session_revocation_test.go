@@ -49,7 +49,7 @@ func rememberedServer(t *testing.T, hold func(string)) *Server {
 	t.Cleanup(func() { imap.Close() })
 	core, err := alborz.New(log.New(io.Discard, "", 0), alborz.Options{
 		LoginKey: "YLZFnivEgqo-9cIJcqU6wOS7LhhCrXtgxRvYHoQ6NmA=", DataDir: t.TempDir(),
-		Upstreams: []string{"test.local=imap+insecure://" + listener.Addr().String()},
+		Domains: map[string]alborz.DomainConfig{"test.local": {"imap": "imap+insecure://" + listener.Addr().String()}},
 	})
 	if err != nil {
 		t.Fatal(err)

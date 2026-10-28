@@ -7,6 +7,8 @@ import "git.mehdix.org/alborz/web"
 func Mount(public, unlock, app *web.Group) {
 	public.GET("login", "/login", handleLogin)
 	public.POST("login", "/login", handleLogin)
+	public.GET("setup", "/setup", handleSetup)
+	public.POST("setup", "/setup", handleSetup)
 
 	app.POST("logout", "/logout", handleLogout)
 	registerPasskeyRoutes(unlock, app)

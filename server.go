@@ -65,10 +65,16 @@ type Server struct {
 	LoginKey  seal.Root
 	PublicURL *url.URL
 
-	domains map[string]*domainUpstreams
+	domains        map[string]*domainUpstreams
+	domainsMu      sync.RWMutex
+	setupMu        sync.Mutex
+	setupCode      string
+	setupProviders map[string]SetupProvider
 
 	// OnAccountGone is called when an account signs out.
 	OnAccountGone []func(username string)
+	// OnSetup starts service discovery after the first provider is commissioned.
+	OnSetup []func()
 
 	// Archive are the features' shares of an account's archive, beside its settings.
 	Archive []ArchivePart
@@ -112,8 +118,8 @@ type Server struct {
 }
 
 type domainUpstreams struct {
-	// protocol can be empty for auto-discovery
-	upstreams map[string]*url.URL
+	// An empty URL scheme requests discovery; a nil URL disables the service.
+	services map[string]*url.URL
 
 	// found is the SRV record a server was found at, empty where the deployment named it.
 	imap struct {
@@ -175,6 +181,12 @@ func New(log *log.Logger, options Options) (*Server, error) {
 	if s.data, s.Instance, err = openData(dataDir, version, log.Printf); err != nil {
 		return nil, err
 	}
+	ready := false
+	defer func() {
+		if !ready {
+			s.data.Close()
+		}
+	}()
 	sessionsKey, settingsKey := s.LoginKey.Key(sessionsOwner), s.LoginKey.Key(settingsOwner)
 	err = CheckKey(s.data, s.DataPath, s.LoginKey, map[string]*seal.Key{sessionsOwner + "/": sessionsKey, settingsOwner + "/": settingsKey})
 	if err != nil {
@@ -194,36 +206,27 @@ func New(log *log.Logger, options Options) (*Server, error) {
 	settings := openSettingsRecords(s.data, settingsKey, s.LoginKey.Names(), s.Keys)
 
 	s.domains = make(map[string]*domainUpstreams)
-	for _, arg := range options.Upstreams {
-		name, spec, explicit := strings.Cut(arg, "=")
-		if !explicit && strings.Contains(arg, "://") {
-			// A plain URL configures the unnamed provider, which accepts any domain.
-			name, spec = "", arg
-		} else if name == "" || strings.ContainsAny(name, ":/") {
-			return nil, fmt.Errorf("invalid upstream %q: expected url, domain or domain=url", arg)
-		} else if !explicit {
-			spec = name
+	if len(options.Domains) > 0 && options.Provider != nil {
+		return nil, errors.New("cannot mix provider-wide servers with domain-specific servers")
+	}
+	for domain, config := range options.Domains {
+		if domain == "" {
+			return nil, errors.New("domain name must not be empty; use provider for all domains")
 		}
-		u, err := parseUpstream(spec)
+		d, err := parseDomainConfig(domain, config)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse upstream %q: %v", arg, err)
+			return nil, err
 		}
-		d, ok := s.domains[name]
-		if !ok {
-			d = &domainUpstreams{upstreams: make(map[string]*url.URL)}
-			s.domains[name] = d
+		s.domains[domain] = d
+	}
+	if options.Provider != nil {
+		d, err := parseDomainConfig("", options.Provider)
+		if err != nil {
+			return nil, err
 		}
-		if _, ok := d.upstreams[u.Scheme]; ok {
-			return nil, fmt.Errorf("domain %q: found two upstream servers for scheme %q", name, u.Scheme)
-		}
-		d.upstreams[u.Scheme] = u
+		s.domains[""] = d
 	}
-	if len(s.domains) == 0 {
-		return nil, fmt.Errorf("no upstreams specified")
-	}
-	if _, ok := s.domains[""]; ok && len(s.domains) > 1 {
-		return nil, fmt.Errorf("cannot mix plain upstream URLs with domains")
-	}
+	needsSetup := len(s.domains) == 0
 
 	// Each lookup can wait out a resolver's timeout, so all run at once.
 	names := s.Domains()
@@ -246,12 +249,16 @@ func New(log *log.Logger, options Options) (*Server, error) {
 			return nil, err
 		}
 	}
-	if len(s.domains) == 0 {
+	if len(s.domains) == 0 && !needsSetup {
 		return nil, fmt.Errorf("no usable domains left")
 	}
 
 	s.logins = newLoginManager(s.dialIMAP, s.dialIMAPTransfer, s.dialIMAPWatch, s.dialSMTP, s.dialSieve, log, settings, s.Keys, s.unlock, s.Options.LoginIdle,
 		func(l *Login) bool { return s.KeepLogin != nil && s.KeepLogin(l) })
+	if needsSetup {
+		s.startSetup()
+	}
+	ready = true
 	return s, nil
 }
 
@@ -263,6 +270,8 @@ func (s *Server) Logger() *log.Logger { return s.log }
 
 // Domains lists the served mail domains in stable order.
 func (s *Server) Domains() []string {
+	s.domainsMu.RLock()
+	defer s.domainsMu.RUnlock()
 	names := make([]string, 0, len(s.domains))
 	for name := range s.domains {
 		names = append(names, name)
@@ -288,24 +297,24 @@ type NotFoundError struct {
 
 var notFoundMessages = map[string]string{
 	"notfound.addressbook": "no address books found",
-	"notfound.calendar":   "no calendars found",
-	"notfound.collection": "collection not found",
-	"notfound.contact":    "contact not found",
-	"notfound.entry":      "journal entry not found",
-	"notfound.event":      "event not found",
-	"notfound.folder":     "folder %q not found",
-	"notfound.invitation": "invitation not found",
-	"notfound.message":    "message %s not found in folder",
-	"notfound.page":       "page not found",
-	"notfound.part":       "part not found in message %s",
-	"notfound.passkey":    "passkey not found",
-	"notfound.reply":      "automatic reply not found",
-	"notfound.rule":       "filter rule not found",
-	"notfound.script":     "filter script %q not found",
-	"notfound.server":     "server not found",
-	"notfound.share":      "share not found",
-	"notfound.signature":  "signature %q not found",
-	"notfound.task":       "task not found",
+	"notfound.calendar":    "no calendars found",
+	"notfound.collection":  "collection not found",
+	"notfound.contact":     "contact not found",
+	"notfound.entry":       "journal entry not found",
+	"notfound.event":       "event not found",
+	"notfound.folder":      "folder %q not found",
+	"notfound.invitation":  "invitation not found",
+	"notfound.message":     "message %s not found in folder",
+	"notfound.page":        "page not found",
+	"notfound.part":        "part not found in message %s",
+	"notfound.passkey":     "passkey not found",
+	"notfound.reply":       "automatic reply not found",
+	"notfound.rule":        "filter rule not found",
+	"notfound.script":      "filter script %q not found",
+	"notfound.server":      "server not found",
+	"notfound.share":       "share not found",
+	"notfound.signature":   "signature %q not found",
+	"notfound.task":        "task not found",
 }
 
 func (e *NotFoundError) Error() string {
@@ -344,13 +353,6 @@ func (s *Server) Close() {
 	}
 }
 
-func parseUpstream(s string) (*url.URL, error) {
-	if !strings.ContainsAny(s, ":/") {
-		s = "//" + s
-	}
-	return url.Parse(s)
-}
-
 func hostWithDefaultPort(host string, secure bool, securePort, plainPort string) string {
 	if strings.ContainsRune(host, ':') {
 		return host
@@ -362,14 +364,16 @@ func hostWithDefaultPort(host string, secure bool, securePort, plainPort string)
 }
 
 type NoUpstreamError struct {
-	schemes []string
+	service string
 }
 
 func (err *NoUpstreamError) Error() string {
-	return fmt.Sprintf("no upstream server configured for schemes %v", err.schemes)
+	return fmt.Sprintf("no %s server configured", err.service)
 }
 
 func (s *Server) upstreamsFor(domain string) (*domainUpstreams, bool) {
+	s.domainsMu.RLock()
+	defer s.domainsMu.RUnlock()
 	d, ok := s.domains[domain]
 	if !ok {
 		d, ok = s.domains[""]
@@ -377,36 +381,22 @@ func (s *Server) upstreamsFor(domain string) (*domainUpstreams, bool) {
 	return d, ok
 }
 
-// Upstream returns the domain's upstream URL for schemes; an empty Scheme means auto-discover with Host.
-func (s *Server) Upstream(domain string, schemes ...string) (*url.URL, error) {
+// Upstream returns the service URL; an empty Scheme requests discovery using Host.
+func (s *Server) Upstream(domain, service string) (*url.URL, error) {
 	d, ok := s.upstreamsFor(domain)
 	if !ok {
 		return nil, UnknownDomainError{domain}
 	}
-	var urls []*url.URL
-	for _, scheme := range schemes {
-		if u, ok := d.upstreams[scheme]; ok {
-			urls = append(urls, u)
-		}
+	if u := d.services[service]; u != nil {
+		return u, nil
 	}
-	if len(urls) == 0 {
-		if u, ok := d.upstreams[""]; ok {
-			urls = append(urls, u)
-		}
-	}
-	if len(urls) == 0 {
-		return nil, &NoUpstreamError{schemes}
-	}
-	if len(urls) > 1 {
-		return nil, fmt.Errorf("multiple upstream servers are configured for schemes %v", schemes)
-	}
-	return urls[0], nil
+	return nil, &NoUpstreamError{service}
 }
 
 func (s *Server) parseIMAPUpstream(domain string) error {
 	d := s.domains[domain]
 
-	u, err := s.Upstream(domain, "imap", "imaps", "imap+insecure")
+	u, err := s.Upstream(domain, "imap")
 	if err != nil {
 		return fmt.Errorf("domain %q: failed to parse upstream IMAP server: %v", domain, err)
 	}
@@ -443,7 +433,7 @@ func (s *Server) parseIMAPUpstream(domain string) error {
 func (s *Server) parseSMTPUpstream(domain string) error {
 	d := s.domains[domain]
 
-	u, err := s.Upstream(domain, "smtp", "smtps", "smtp+insecure")
+	u, err := s.Upstream(domain, "smtp")
 	if _, ok := err.(*NoUpstreamError); ok {
 		return nil
 	} else if err != nil {
@@ -494,7 +484,10 @@ func (s *Server) ForgetAccount(username string) {
 }
 
 type Options struct {
-	Upstreams []string
+	Domains  map[string]DomainConfig
+	Provider DomainConfig
+	// SaveSetup persists verified first-run configuration before it becomes active.
+	SaveSetup func(map[string]DomainConfig) error
 	// Debug logs more, and reads templates and assets from ./templates.
 	Debug bool
 	// LoginKey is the key, as base64 text, every key sealing what alborz keeps is derived from.

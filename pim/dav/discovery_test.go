@@ -34,7 +34,10 @@ func firstDAVRead(t *testing.T, upstream string) {
 	login := a.Server.Logins()[0]
 	options := *a.Server.Options
 	options.DataDir, options.CacheDir = t.TempDir(), t.TempDir()
-	options.Upstreams = []string{upstream + "imap+insecure://mail.example.test:143"}
+	options.Domains, options.Provider = nil, nil
+	if err := options.ParseUpstreams([]string{upstream + "imap+insecure://mail.example.test:143"}); err != nil {
+		t.Fatal(err)
+	}
 	srv, err := alborz.New(a.Server.Logger(), options)
 	if err != nil {
 		t.Fatal(err)
@@ -61,7 +64,8 @@ func firstDAVRead(t *testing.T, upstream string) {
 	t.Cleanup(func() { db.Close() })
 	p, err := dav.NewProvider(srv, store.New(db, srv.LoginKey, srv.Keys), dav.Kind{
 		Name: "caldav", Label: "calendar",
-		Discover: func(context.Context, string) (string, error) { return "", nil },
+		Schemes:  [2]string{"caldavs", "caldav+insecure"},
+		Discover: func(context.Context, string) (string, error) { return "", errors.New("no SRV records") },
 		Own:      func(dav.Services) string { return "" },
 		FindHome: func(_ context.Context, _ *http.Client, endpoint string) (string, error) { return endpoint, nil },
 		List: func(_ context.Context, _ *http.Client, _ *url.URL, homes []dav.Home) ([]dav.Collection, []error) {

@@ -39,14 +39,23 @@ type App struct {
 }
 
 type config struct {
-	options   app.Options
-	imap      *IMAPServer
-	upstreams []string
-	selfDAV   bool
-	segments  []web.Segment
+	options      app.Options
+	imap         *IMAPServer
+	upstreams    []string
+	selfDAV      bool
+	segments     []web.Segment
+	unconfigured bool
 }
 
 type Option func(*config)
+
+// Unconfigured starts the first-run setup flow without a mail provider.
+func Unconfigured() Option {
+	return func(c *config) {
+		c.unconfigured = true
+		c.options.SaveSetup = func(map[string]alborz.DomainConfig) error { return nil }
+	}
+}
 
 // WithIMAP serves Domain's mail from s; without it the domain has an IMAP of its own.
 func WithIMAP(s *IMAPServer) Option { return func(c *config) { c.imap = s } }
@@ -124,7 +133,7 @@ func Alborz(t *testing.T, opts ...Option) *App {
 	for _, o := range opts {
 		o(&c)
 	}
-	if c.imap == nil {
+	if c.imap == nil && !c.unconfigured {
 		c.imap = IMAP(t)
 	}
 	if c.options.DataDir == "" {
@@ -134,9 +143,15 @@ func Alborz(t *testing.T, opts ...Option) *App {
 		c.options.CacheDir = t.TempDir()
 	}
 	ln := listen(t)
-	c.options.Upstreams = append([]string{Domain + "=" + c.imap.Upstream()}, c.upstreams...)
+	var upstreams []string
+	if !c.unconfigured {
+		upstreams = append([]string{Domain + "=" + c.imap.Upstream()}, c.upstreams...)
+	}
 	if c.selfDAV {
-		c.options.Upstreams = append(c.options.Upstreams, Domain+"=caldav+insecure://"+ln.Addr().String()+store.Prefix+"/")
+		upstreams = append(upstreams, Domain+"=caldav+insecure://"+ln.Addr().String()+store.Prefix+"/")
+	}
+	if err := c.options.ParseUpstreams(upstreams); err != nil {
+		t.Fatal(err)
 	}
 	s, h, err := app.New(log.New(os.Stderr, "", log.LstdFlags), c.options)
 	if err != nil {

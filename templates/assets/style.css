@@ -1156,6 +1156,10 @@ main.login {
   justify-content: center;
 }
 
+main.login .notices { position: static; padding: 0; align-items: stretch; }
+main.login .notice { width: 100%; margin-block-end: var(--space-4); animation: none; }
+main.setup details { margin-block-end: var(--space-4); }
+
 main.login > section {
   align-self: center;
   background: var(--bg);
@@ -1180,6 +1184,9 @@ main.login button {
   padding-block: 0.6rem;
   font-weight: bold;
 }
+
+main.login .notice-dismiss { margin-inline-start: auto; flex-shrink: 0; }
+main.login .notice-dismiss button { width: auto; padding: 0; }
 
 body:has(main.login form[data-redirecting]) #notices > .notice-failed:not([id]) { display: none; }
 

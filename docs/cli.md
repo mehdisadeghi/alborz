@@ -1,14 +1,28 @@
 # SYNOPSIS
 
-    alborz [options...] <upstream servers...>
+    alborz [options...] [upstream servers...]
 
 # DESCRIPTION
 
 alborz is a simple and extensible webmail. It offers a web interface for IMAP,
 SMTP and other upstream servers.
 
-At least one upstream IMAP server needs to be specified. The easiest way to do
-so is to just specify a domain name:
+Start without upstream arguments to use first-run setup:
+
+    alborz -data-dir /var/lib/alborz
+
+If no provider is configured, Alborz generates a login key in
+`alborz/config.toml` (inside the OS user configuration directory, or the file
+named by `-config` / `LBRZ_CONFIG`) and prints a `/setup` URL and one-time
+setup code to the console. `/setup` discovers and verifies TLS IMAP/SMTP
+endpoints (plus optional DAV/Sieve URLs) for one or more domains without asking
+for a mail password, writes them to `config.toml`, and opens sign-in. Reopening
+`/setup` before finishing discards unsaved domains. Later changes use
+`config.toml`, environment variables, or CLI arguments (environment overrides
+CLI, then file, then defaults). Keep the configuration file and data directory
+across deployments.
+
+To configure a provider directly, specify a domain name:
 
     alborz example.org
 
@@ -61,16 +75,18 @@ Secure cookies (default: unset, the connection's own address and scheme)
 clients and passkey origin validation; scheme and host only. Can also be given as `LBRZ_PUBLIC_URL`
 (default: unset, each request's own)
 
-**-login-key**: required key sealing what alborz keeps: remembered
+**-login-key**: key sealing what alborz keeps: remembered
 logins, settings, the calendars and address books kept here, and the cache. Can also be given as the `LBRZ_LOGIN_KEY`
-environment variable, which keeps it out of the process list.
+environment variable, which keeps it out of the process list. A fresh
+installation generates and saves a key in its configuration file.
 
 **-cache**: keep what the servers answered in the user cache directory
 (`$XDG_CACHE_HOME/alborz` or the platform's equivalent), so pages open without
 asking again (default: true); `-cache=false` asks every time and keeps nothing
 
-**-data-dir**: directory holding `alborz.db` and an optional `custom.css`; it
-must exist (default: the working directory)
+**-data-dir**: directory holding `alborz.db` and an optional `custom.css`;
+it must exist (default: the working
+directory)
 
 **-project-url**: where the footer's project name links (default: unset, the
 name is printed as text)

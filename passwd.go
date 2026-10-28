@@ -27,7 +27,7 @@ type PasswordRefusal struct{ Text string }
 func (r PasswordRefusal) Error() string { return "password server refused: " + r.Text }
 
 func (s *Server) parsePasswdUpstream(domain string) error {
-	u, err := s.Upstream(domain, "poppassd", "poppassd+unix")
+	u, err := s.Upstream(domain, "poppassd")
 	if _, ok := err.(*NoUpstreamError); ok {
 		return nil
 	} else if err != nil {

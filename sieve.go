@@ -38,7 +38,7 @@ type dialSieveFunc func(domain, username, password string) (SieveClient, error)
 func (s *Server) parseSieveUpstream(domain string) error {
 	d := s.domains[domain]
 
-	u, err := s.Upstream(domain, "sieve", "sieve+insecure")
+	u, err := s.Upstream(domain, "sieve")
 	if _, ok := err.(*NoUpstreamError); ok {
 		return nil
 	} else if err != nil {

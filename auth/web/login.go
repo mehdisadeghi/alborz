@@ -9,6 +9,9 @@ import (
 )
 
 func handleLogin(ctx *web.Context) error {
+	if ctx.Server.NeedsSetup() {
+		return ctx.QuietRedirect(ctx.Path("auth.setup"))
+	}
 	username := ctx.FormValue("username")
 	password := ctx.FormValue("password")
 	remember := ctx.FormValue("remember-me")

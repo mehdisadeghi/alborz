@@ -8,8 +8,10 @@ Installing on a server, assuming existing IMAP and SMTP servers.
 
 The binary is self-contained.
 
-There is no config file; the arguments are the configuration. Example
-unit for `/etc/systemd/system/alborz.service`:
+Start without upstream arguments for first-run setup. Alborz generates its
+encryption key and saves it and the configured servers in an owner-readable
+TOML file. Example unit for
+`/etc/systemd/system/alborz.service`:
 
     [Unit]
     Description=alborz webmail
@@ -20,10 +22,12 @@ unit for `/etc/systemd/system/alborz.service`:
     User=alborz
     Group=alborz
     WorkingDirectory=/var/lib/alborz
+    StateDirectory=alborz
     CacheDirectory=alborz
     Environment=XDG_CACHE_HOME=/var/cache
-    EnvironmentFile=/etc/default/alborz
-    ExecStart=/usr/local/bin/alborz example.org
+    Environment=LBRZ_CONFIG=/var/lib/alborz/config.toml
+    EnvironmentFile=-/etc/default/alborz
+    ExecStart=/usr/local/bin/alborz
     Restart=on-failure
     NoNewPrivileges=yes
     PrivateTmp=yes
@@ -33,10 +37,31 @@ unit for `/etc/systemd/system/alborz.service`:
     [Install]
     WantedBy=multi-user.target
 
-Generate the login key with `openssl rand -base64 32` and keep it in
-`/etc/default/alborz` (mode 600) as `LBRZ_LOGIN_KEY=...`. It is read
-from the environment, so it never appears in the unit or the process
-list.
+The service writes `/var/lib/alborz/config.toml` with mode 600. No manual key
+generation is needed. To supply an externally managed key instead, set
+`LBRZ_LOGIN_KEY` in `/etc/default/alborz` (mode 600).
+
+After starting the service, read its output with `journalctl -u alborz`.
+An unconfigured instance prints a local setup address and a one-time setup
+code. Open `/setup`, enter the code and an email address, and review the
+discovered IMAP and SMTP servers (or enter them manually, along with optional
+DAV and Sieve URLs). “Add another domain” verifies TLS connections and queues
+the domain while you add another; “Finish setup” writes all domains to the
+configuration file and opens sign-in without asking for a mail password.
+Reopening `/setup` before finishing discards unsaved domains.
+
+Keep the setup code private: it authorizes initial configuration, changes on
+restart, and stops working once setup finishes. Keep both the data directory
+and the configuration file across restarts and deployments.
+
+For unattended configuration, append a domain or explicit upstream URLs to
+`ExecStart`, for example `ExecStart=/usr/local/bin/alborz example.org`.
+Once configured, edit servers through the configuration file, environment or
+CLI; precedence is environment, explicit CLI arguments, file, then defaults.
+See the [complete example](cmd/alborz/config.example.toml) and
+[CLI guide](docs/cli.md). Outside this unit, the default config location is
+`alborz/config.toml` in the OS user configuration directory; select another
+with `-config` or `LBRZ_CONFIG`.
 
 `CacheDirectory=alborz` gives the service `/var/cache/alborz`, and
 `XDG_CACHE_HOME` points alborz's default cache there. Copies of remote calendars,

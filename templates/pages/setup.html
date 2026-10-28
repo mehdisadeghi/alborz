@@ -1,0 +1,86 @@
+{{ define "body" }}
+<main id="main" tabindex="-1" class="login setup">
+  <section>
+    {{ template "login-head" (dict "g" $ "title" ($.T "setup.title")) }}
+    {{ template "notices" (dict "g" $) }}
+    {{ if not (or .ShowServers .Domains) }}<p>{{$.T "setup.intro"}}</p>{{ end }}
+    {{ with .Domains }}
+    <p class="hint">{{$.T "setup.domains"}}: {{range $i, $domain := .}}{{if $i}}, {{end}}<bdi dir="ltr">{{$domain}}</bdi>{{end}}</p>
+    {{ end }}
+
+    {{/* Allow server discovery or connection checks to finish. */}}
+    <form method="post" action="" hx-request='{"timeout":45000}'>
+      {{ if or .ShowServers .Domains }}
+      <input type="hidden" name="setup-code" value="{{.Code}}" />
+      {{ else }}
+      <div class="action-group">
+        <label for="setup-code">{{$.T "setup.code"}}</label>
+        <input type="password" name="setup-code" id="setup-code" value="{{.Code}}" autocomplete="off" aria-describedby="setup-code-help" required autofocus />
+        <p class="hint" id="setup-code-help">{{$.T "setup.codehelp"}}</p>
+      </div>
+      {{ end }}
+
+      <div class="action-group">
+        <label for="username">{{$.T "setup.email"}}</label>
+        <input type="email" name="username" id="username" value="{{.Username}}" autocomplete="username" required />
+      </div>
+
+      {{ if .ShowServers }}
+      <details{{if .Manual}} open{{end}}>
+        <summary>{{$.T "setup.servers"}}</summary>
+        <p class="hint">{{$.T "setup.serverhelp"}}</p>
+        {{ range list (dict "prefix" "imap" "title" "setup.imap" "server" .IMAP "tls" "imaps" "starttls" "imap") (dict "prefix" "smtp" "title" "setup.smtp" "server" .SMTP "tls" "smtps" "starttls" "smtp") }}
+        <fieldset>
+          <legend>{{$.T .title}}</legend>
+          <div class="action-group">
+            <label for="{{.prefix}}-host">{{$.T "setup.host"}}</label>
+            <input type="text" name="{{.prefix}}-host" id="{{.prefix}}-host" value="{{.server.Host}}" autocomplete="off" autocapitalize="off" spellcheck="false" required />
+          </div>
+          <div class="action-group">
+            <label for="{{.prefix}}-port">{{$.T "setup.port"}}</label>
+            <input type="number" name="{{.prefix}}-port" id="{{.prefix}}-port" value="{{.server.Port}}" min="1" max="65535" required />
+          </div>
+          <div class="action-group">
+            <label for="{{.prefix}}-security">{{$.T "setup.security"}}</label>
+            <select name="{{.prefix}}-security" id="{{.prefix}}-security">
+              <option value="{{.tls}}"{{if eq .server.Security .tls}} selected{{end}}>TLS</option>
+              <option value="{{.starttls}}"{{if eq .server.Security .starttls}} selected{{end}}>STARTTLS</option>
+            </select>
+          </div>
+        </fieldset>
+        {{ end }}
+      </details>
+
+      <details{{if or .CalDAV .CardDAV .Sieve}} open{{end}}>
+        <summary>{{$.T "setup.additional"}}</summary>
+        <p class="hint">{{$.T "setup.additionalhelp"}}</p>
+        {{ range list (dict "name" "caldav" "label" "settings.caldavurl" "value" .CalDAV) (dict "name" "carddav" "label" "settings.carddavurl" "value" .CardDAV) (dict "name" "sieve" "label" "settings.serversieve" "value" .Sieve) }}
+        <div class="action-group">
+          <label for="setup-{{.name}}">{{$.T .label}}</label>
+          <input type="url" id="setup-{{.name}}" name="{{.name}}" value="{{.value}}" autocomplete="off" autocapitalize="off" spellcheck="false" />
+        </div>
+        {{ end }}
+      </details>
+      <div class="action-group">
+        <button type="submit" name="action" value="add">{{$.T "setup.adddomain"}}</button>
+      </div>
+      <div class="action-group">
+        <button type="submit" name="action" value="finish" class="button-primary">{{$.T "setup.connect"}}</button>
+      </div>
+      {{ else }}
+      <div class="action-group">
+        <button type="submit" name="action" value="discover"{{if not .Domains}} class="button-primary"{{end}}>{{$.T "setup.discover"}}</button>
+      </div>
+      {{ if .Domains }}
+      <div class="action-group">
+        <button type="submit" name="action" value="finish" formnovalidate class="button-primary">{{$.T "setup.connect"}}</button>
+      </div>
+      {{ end }}
+      {{ end }}
+    </form>
+    {{ if or .ShowServers .Domains }}
+    <p class="hint"><a href="{{url "auth.setup"}}">{{$.T "setup.restart"}}</a></p>
+    {{ end }}
+  </section>
+</main>
+{{ end }}

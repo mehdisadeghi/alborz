@@ -1,9 +1,8 @@
 {{ define "body" }}
-{{ template "notices" (dict "g" $) }}
-
 <main id="main" tabindex="-1" class="login">
   <section>
     {{ template "login-head" (dict "g" $ "title" ($.T "lock.title")) }}
+    {{ template "notices" (dict "g" $) }}
     <p class="action-group">
       <button type="button" class="button-primary" id="passkey-unlock" autofocus
               data-begin="{{url "auth.unlock.begin"}}" data-finish="{{url "auth.unlock.finish"}}" data-next="{{.Next}}"

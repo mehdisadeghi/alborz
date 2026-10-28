@@ -21,7 +21,6 @@ RUN apk add --no-cache tzdata \
 COPY --from=build /alborz /usr/local/bin/alborz
 USER alborz
 EXPOSE 1323
-# It refuses to start without LBRZ_LOGIN_KEY; without a volume on /data
-# it keeps its data inside the container.
-ENV XDG_CACHE_HOME=/cache
+# Keep both configuration (including the generated key) and data in the volume.
+ENV XDG_CACHE_HOME=/cache LBRZ_CONFIG=/data/config.toml
 ENTRYPOINT ["alborz", "-data-dir", "/data"]

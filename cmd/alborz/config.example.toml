@@ -1,0 +1,47 @@
+# Alborz configuration. Back up this file together with your data directory.
+# Precedence: LBRZ_* environment > explicit CLI > file > defaults.
+# Uncomment settings to override defaults. Never publish a real login-key.
+# Select this file with -config or LBRZ_CONFIG; "none" disables file loading.
+
+# addr = ":1323"                    # LBRZ_ADDR: listening address.
+# public-url = ""                   # LBRZ_PUBLIC_URL: external origin, e.g. https://mail.example.org.
+# trusted-proxy = ""                # LBRZ_TRUSTED_PROXY: comma-separated addresses/CIDRs.
+# data-dir = "."                    # LBRZ_DATA_DIR: database and persistent application data.
+# cache = true                      # LBRZ_CACHE: cache server responses.
+# login-key = ""                    # LBRZ_LOGIN_KEY: base64-encoded 32-byte encryption key.
+# private-services = false          # LBRZ_PRIVATE_SERVICES: allow private/plain-HTTP account DAV servers.
+# debug = false                     # LBRZ_DEBUG: verbose logs and local templates/assets.
+# pprof = ""                        # LBRZ_PPROF: optional loopback profiling address.
+# project-url = ""                  # LBRZ_PROJECT_URL: footer link.
+
+# Optional add-ons (only available when included in the build).
+# motd = ""                        # LBRZ_MOTD: directory of message-of-the-day collections.
+# weather-stations = "https://www.dwd.de/DE/leistungen/met_verfahren_mosmix/mosmix_stationskatalog.cfg?view=nasPublication"
+# weather-forecasts = "https://opendata.dwd.de/weather/local_forecasts/mos/MOSMIX_L/single_stations/"
+# weather-places = ""               # LBRZ_WEATHER_PLACES: optional Nominatim server.
+# weather-places-policy = ""        # LBRZ_WEATHER_PLACES_POLICY: that server's usage-policy URL.
+# Weather URLs use LBRZ_WEATHER_STATIONS and LBRZ_WEATHER_FORECASTS.
+
+# Email domains allowed to sign in. Omitted services use discovery; "" disables a service.
+# IMAP is required. SMTP uses STARTTLS (smtp://) or implicit TLS (smtps://).
+# DAV URLs may include paths. No URL may contain a password.
+# [domains."example.org"]
+# imap = "imaps://mail.example.org:993"
+# smtp = "smtp://mail.example.org:587"
+# caldav = "https://dav.example.org/calendars/"
+# carddav = "https://dav.example.org/addressbooks/"
+# sieve = "sieve://mail.example.org:4190"
+# poppassd = ""                     # Optional password-change service.
+
+# An empty domain table requests discovery for that domain.
+# [domains."example.net"]
+
+# Alternatively, [provider] accepts any email domain; do not mix it with [domains].
+# [provider]
+# imap = "imaps://imap.example.org"
+# smtp = "smtps://smtp.example.org"
+
+# Environment-only deployments: LBRZ_DOMAINS=example.org,example.net
+# Override one service: LBRZ_DOMAIN_EXAMPLE_ORG_IMAP=imaps://imap.example.org
+# Domain dots/hyphens become underscores; ambiguous names are rejected when overridden.
+# Provider-wide services: LBRZ_PROVIDER_IMAP, LBRZ_PROVIDER_SMTP, etc.

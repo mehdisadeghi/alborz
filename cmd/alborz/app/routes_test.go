@@ -15,7 +15,7 @@ import (
 // in, the way back in, and DAV, which asks for a password on every request.
 var lockOpen = map[string]bool{
 	"core.manifest": true, "core.worker": true, "core.asset": true,
-	"auth.login": true, "auth.unlock": true, "auth.unlock.begin": true,
+	"auth.login": true, "auth.setup": true, "auth.unlock": true, "auth.unlock.begin": true,
 	"auth.unlock.finish": true, "auth.unlock.leave": true,
 	"auth.unlock.state": true,
 	"dav.caldav":        true, "dav.carddav": true, "dav.published": true, "dav.collections": true,

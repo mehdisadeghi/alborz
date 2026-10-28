@@ -66,7 +66,7 @@ func TestAnUnreadableMOTDStopsStartup(t *testing.T) {
 	}
 	start := func(dir string) error {
 		options := app.Options{Options: web.Options{Options: alborz.Options{LoginKey: "YLZFnivEgqo-9cIJcqU6wOS7LhhCrXtgxRvYHoQ6NmA=", DataDir: t.TempDir(),
-			Upstreams: []string{"imap://127.0.0.1:1"}}}, Addons: map[string]any{"motd": dir}}
+			Provider: alborz.DomainConfig{"imap": "imap://127.0.0.1:1"}}}, Addons: map[string]any{"motd": dir}}
 		s, _, err := app.New(log.New(io.Discard, "", 0), options)
 		if err == nil {
 			s.Close()

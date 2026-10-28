@@ -49,7 +49,7 @@ func serveProfiles(addr string) error {
 }
 
 func main() {
-	err := run(context.Background(), os.Args[1:], os.Getenv, os.Stdout)
+	err := run(context.Background(), os.Args[1:], os.LookupEnv, os.Stdout)
 	var usage usageError
 	switch {
 	case err == nil, errors.Is(err, flag.ErrHelp):
@@ -67,8 +67,8 @@ type usageError struct{ error }
 
 var addonFlags []func(*flag.FlagSet, *app.Options) func()
 
-// run serves alborz until ctx ends or a signal stops it; the environment comes through getenv.
-func run(ctx context.Context, args []string, getenv func(string) string, stdout io.Writer) error {
+// run serves alborz until ctx ends or a signal stops it; lookup supplies the environment.
+func run(ctx context.Context, args []string, lookup func(string) (string, bool), stdout io.Writer) error {
 	fs := flag.NewFlagSet("alborz", flag.ContinueOnError)
 	fs.SetOutput(stdout)
 	var (
@@ -78,6 +78,7 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout 
 		options     app.Options
 	)
 	options.Addons = make(map[string]any)
+	fs.String("config", "", "configuration file (or LBRZ_CONFIG); none disables file loading")
 	fs.StringVar(&addr, "addr", ":1323", "listening address")
 	fs.StringVar(&profileAddr, "pprof", "",
 		"loopback address serving Go's profiles, the goroutine leak profile among them; unset serves none")
@@ -86,10 +87,10 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout 
 		"let an account name a calendar or contacts server on plain HTTP or a private address")
 	fs.StringVar(&proxies, "trusted-proxy", "",
 		"comma-separated addresses or CIDR ranges of the proxies in front of alborz, whose X-Forwarded-For names the reader and X-Forwarded-Proto the scheme; unset takes the connection's own")
-	fs.StringVar(&options.PublicURL, "public-url", getenv("LBRZ_PUBLIC_URL"),
+	fs.StringVar(&options.PublicURL, "public-url", "",
 		"where readers reach alborz, such as https://mail.example.org, for links in mail and addresses shown to other clients (or $LBRZ_PUBLIC_URL); unset uses each request's own")
 	// The environment keeps the key out of the process list.
-	fs.StringVar(&options.LoginKey, "login-key", getenv("LBRZ_LOGIN_KEY"), "key sealing what alborz keeps, 32 bytes in base64 (or $LBRZ_LOGIN_KEY); required")
+	fs.StringVar(&options.LoginKey, "login-key", "", "key sealing what alborz keeps, 32 bytes in base64 (or $LBRZ_LOGIN_KEY); generated for a fresh installation")
 	fs.BoolVar(&options.Cache, "cache", true,
 		"keep what the servers answered, so pages open without asking again; false asks every time and keeps nothing")
 	fs.StringVar(&options.DataDir, "data-dir", ".",
@@ -101,7 +102,11 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout 
 		addonValues = append(addonValues, register(fs, &options))
 	}
 	fs.Usage = func() {
-		fmt.Fprint(fs.Output(), `usage: alborz [options...] <upstreams...>
+		fmt.Fprint(fs.Output(), `usage: alborz [options...] [upstreams...]
+
+Configuration: LBRZ_* environment > explicit CLI > TOML file > defaults.
+Without mail servers, open the setup address and enter the owner code printed
+after startup. Setup saves server settings to the configuration file.
 
 Plain imap[s]://, smtp[s]://, sieve://, https://, poppassd:// or +insecure URLs
 configure a single provider accepting logins of any domain. Alternatively,
@@ -119,15 +124,35 @@ upstreams are given as repeated domain=url arguments, e.g.:
 	} else if err != nil {
 		return usageError{err}
 	}
+	var emptyKey bool
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "login-key" && f.Value.String() == "" {
+			emptyKey = true
+		}
+	})
+	config, err := loadConfig(fs, lookup)
+	if err != nil {
+		return err
+	}
+	if err := applyEnvironment(fs, lookup); err != nil {
+		return err
+	}
+	if emptyKey && options.LoginKey == "" {
+		return errors.New("-login-key is empty")
+	}
 	for _, apply := range addonValues {
 		apply()
 	}
-	options.Upstreams = fs.Args()
-	if len(options.Upstreams) == 0 {
-		fmt.Fprintln(fs.Output(), "alborz: no upstream servers specified")
-		fs.Usage()
-		return usageError{errors.New("no upstream servers specified")}
+	if err := config.servers(&options.Options.Options, fs.Args(), lookup); err != nil {
+		return err
 	}
+	if key, present := lookup("LBRZ_LOGIN_KEY"); present && key == "" {
+		return errors.New("LBRZ_LOGIN_KEY is empty")
+	}
+	if err := config.ensureKey(&options.Options.Options); err != nil {
+		return err
+	}
+	options.SaveSetup = config.saveSetup
 	options.TrustedProxies = strings.FieldsFunc(proxies, func(r rune) bool { return r == ',' || r == ' ' })
 	if options.Cache {
 		dir, err := os.UserCacheDir()
@@ -155,6 +180,18 @@ upstreams are given as repeated domain=url arguments, e.g.:
 		return err
 	}
 	fmt.Fprint(stdout, alborz.Prologue)
+	if s.NeedsSetup() {
+		host, port, err := net.SplitHostPort(ln.Addr().String())
+		if err != nil {
+			ln.Close()
+			return err
+		}
+		if ip := net.ParseIP(host); ip != nil && ip.IsUnspecified() {
+			host = "localhost"
+		}
+		fmt.Fprintf(stdout, "First-run setup: http://%s/setup\nOwner setup code: %s\nKeep this code private: it authorizes the instance's initial configuration.\n",
+			net.JoinHostPort(host, port), s.SetupCode())
+	}
 
 	server := &http.Server{Handler: handler}
 	server.RegisterOnShutdown(s.Changes.Close)

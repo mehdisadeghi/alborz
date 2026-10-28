@@ -79,15 +79,36 @@ A container image is published at `ghcr.io/mehdisadeghi/alborz`. The complete
 app is `:latest` or a version such as `:0.18.0`; the build without add-ons is
 `:minimal` or `:0.18.0-minimal`:
 
-    docker run -p 1323:1323 -v alborz-data:/data -e LBRZ_LOGIN_KEY=<key> ghcr.io/mehdisadeghi/alborz example.org
+    docker run -p 1323:1323 -v alborz-data:/data -e LBRZ_CONFIG=/data/config.toml ghcr.io/mehdisadeghi/alborz
 
-The login key is required. Without the volume, alborz's data stays
-inside the container and goes with it.
-Keep the same volume and login key across deployments to preserve remembered
-sign-ins. “Keep me signed in on this device” expires after 60 days without user
-activity; regular use renews it in both the browser and installed app.
+On first start without upstream arguments, Alborz generates its login key in
+the owner-readable configuration file and prints a `/setup` URL and one-time
+setup code to the console. Open `/setup`, enter the code and an email address,
+review the discovered IMAP and SMTP servers (plus optional DAV/Sieve URLs), and
+add any further domains. Finishing verifies TLS connections, writes all domains
+to the configuration file, and opens sign-in. Reopening `/setup` before
+finishing discards unsaved domains. Keep the setup code private.
+Without the volume, alborz's data stays inside the container and goes with it.
+Keep the same volume, configuration file and login key across deployments to
+preserve encrypted data and remembered sign-ins (“Keep me signed in on this
+device” expires after 60 days of inactivity).
 
 ## Usage
+
+Start without upstream arguments to configure a new instance in the browser:
+
+    alborz
+
+Configuration defaults to `alborz/config.toml` inside the OS user configuration
+directory (`$XDG_CONFIG_HOME`, or `~/.config`, on Linux). Use `-config` or
+`LBRZ_CONFIG` to choose a file; `none` disables file loading. See the complete
+[example configuration](cmd/alborz/config.example.toml) for keys and environment names.
+Precedence is environment, explicit CLI arguments, file, then defaults.
+Structured `[domains."example.org"]` tables name IMAP, SMTP, CalDAV, CardDAV,
+Sieve and password-change endpoints separately; `[provider]` instead accepts
+any email domain. Missing domain services use discovery; empty strings disable them.
+`LBRZ_LOGIN_KEY` supplies an externally managed key without writing it to the
+file. Setup preserves existing comments and refuses to overwrite concurrent edits.
 
 With SRV DNS records set up (see [RFC 6186]):
 

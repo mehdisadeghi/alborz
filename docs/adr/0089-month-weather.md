@@ -1,35 +1,42 @@
 # ADR 89: Weather in the month grid
 
-Status: accepted.
+Status: accepted. Amends ADR 79.
 
 ## Context
 
-The weather service caches a station's complete hourly MOSMIX forecast, but
-only its current hour appeared in the status bar. Calendar planning also needs
-a compact indication on upcoming days.
+The weather add-on caches a 240-hour hourly MOSMIX forecast for the
+reader's chosen place (ADR 79), but showed only the current hour in the
+status bar. The calendar month view benefits from compact daily weather
+icons on upcoming dates without coupling `pim/calendar` to the add-on.
 
 ## Decision
 
-- Reuse the selected place and existing weather status setting. Disabling
-  weather or forgetting the place removes the month annotations.
-- Add a generic month-only day-annotation hook using the existing page
-  extension mechanism. Core calendars do not import the weather add-on.
-- Load annotations separately with HTMX and refresh hourly. Background
-  requests carry `Alborz-Unasked`, so they do not keep an idle account alive.
-  A weather fetch must never hold up the month page.
-- Reuse the station's cached forecast for every visible date. Today uses the
-  current forecast hour; future dates use the first available hour at or after
-  local noon, on that same date. Tooltips name the actual forecast hour.
-- Render only available conditions, with localized accessible descriptions.
-  Past dates, missing values and dates beyond the forecast remain empty.
-  Empty out-of-band updates clear obsolete icons after settings or data change.
-- Keep a compact annotation row separate from primary and secondary dates and
-  week numbers. Clicking an icon opens the same day with the same account and
-  calendar scope as the cell's normal link.
+1. The calendar month page exposes a generic day-annotation extension
+   hook via `web.Extend`; `pim/calendar` MUST NOT import
+   `addons/weather`.
+2. When the `weather` status segment is enabled and `Profile.Place` is
+   set (ADR 79), the month grid loads day annotations asynchronously via
+   htmx with `Alborz-Unasked` and refreshes them hourly. Weather fetches
+   MUST NOT delay rendering the month page.
+3. Annotations read the station's cached forecast: today uses the
+   current forecast hour, and future dates use the first forecast hour
+   at or after local noon on that date. Past dates and dates beyond the
+   forecast range render empty.
+4. Each icon carries a localized accessible label and tooltip naming the
+   forecast hour, condition, temperature and DWD attribution, and links
+   to that day's view in the cell's account and calendar scope.
+5. Disabling the weather segment or clearing `Profile.Place` sends empty
+   out-of-band updates that clear the annotations.
 
 ## Consequences
 
-These icons summarize a forecast hour, not a daily aggregate. The tooltip makes
-that distinction explicit. No new weather provider, per-day download, or user
-preference is required. The calendar remains usable when weather is unavailable
-or excluded from the build.
+- Each day's icon represents a single forecast hour (current hour today,
+  local noon on future days), stated in its tooltip.
+- Builds with `-tags noweather` or `-tags noaddons` (ADR 82) omit the
+  annotations without affecting the calendar.
+
+## References
+
+- ADR 66, ADR 67, ADR 79, ADR 82
+- `addons/weather/web/calendar.go`, `pim/calendar/web/month.go`,
+  `templates/pages/calendar/month.html`

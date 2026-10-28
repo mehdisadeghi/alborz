@@ -1,22 +1,44 @@
 # ADR 91: Start page and writing preferences
 
-Status: accepted.
+Status: accepted. Amends ADR 52.
+
+## Context
+
+Readers who use Alborz primarily for calendar, tasks or contacts want
+root navigation and sign-in to open that section by default. In
+multi-account sessions, writers also want to pick signatures across
+signed-in accounts and control whether outgoing mail appends a client
+attribution line.
 
 ## Decision
 
-- Store the default section in the shared profile. Root navigation and sign-in
-  use it; explicit links and a safe `next` destination retain precedence.
-  Mail remains the default for old profiles and unknown future values.
-- Offer account-labelled signatures from all signed-in accounts only when
-  pooling is enabled. Definitions and defaults remain owned by their accounts.
-  An unavailable selection is refused with the editor's text retained.
-- Add the default-on, optional `Sent by Alborz Webmail` footer to a copy of a
-  composed message immediately before submission. It is independent of
-  signatures and never modifies drafts, invitation messages or a refused editor.
-- Partial profile updates do not implicitly disable these new checkboxes.
+1. `Profile` (ADR 52) stores the default start section (`StartPage`).
+   `/` and post-login redirects open that section unless an explicit
+   link or valid `next` parameter was given. Unknown or empty values
+   default to mail.
+2. When signature pooling (`PoolSignatures` in `Profile.Writing`) is
+   enabled, compose offers signatures from all signed-in accounts,
+   labelled by account. Signatures and default signature choices remain
+   stored per account (`mail.Settings`). Selecting a signature that no
+   longer exists refuses the submission and preserves the composed text.
+3. When attribution (`Attribution` in `Profile.Writing`, on by default)
+   is enabled, sending appends a `Sent by Alborz Webmail` footer to the
+   outgoing copy immediately before SMTP submission. It MUST NOT modify
+   saved drafts, calendar invitation messages or a re-rendered compose
+   form.
+4. Partial profile form submissions MUST NOT reset checkboxes that were
+   not rendered on the submitted form.
 
 ## Consequences
 
-The attribution can be disabled globally. Pooling does not copy signatures
-between stores or change an account's default. The sender remains the account
-the reader chose, regardless of which account owns a selected signature.
+- Signature pooling reads other signed-in accounts' settings at compose
+  time without copying signatures between stores or changing the `From`
+  account.
+- The attribution line is controlled globally in Settings and never
+  pollutes drafts.
+
+## References
+
+- ADR 1, ADR 52
+- `profile.go`, `web/start.go`, `settings/web/profile.go`,
+  `mail/web/compose.go`, `mail/send.go`

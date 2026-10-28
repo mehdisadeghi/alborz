@@ -2,43 +2,61 @@
 
 Status: accepted.
 
+## Context
+
+Calendar views need a quick-add bar like the task list's so a reader can
+type a short line (`Lunch tomorrow at noon`) to create an event, and
+tasks need one-level parent/subtask relationships (`RELATED-TO`,
+RFC 5545 3.8.4.5).
+
 ## Decision
 
-- Calendar quick-add uses the task quick-add destination rules: a single
-  selected collection is named explicitly, otherwise a picker is shown.
-  Persistently hidden collections are excluded; temporary list filters do not
-  erase an account's available destinations.
-- Extract date, clock/range and duration independently, wherever they appear
-  in a title. Support Gregorian ISO/dotted dates, localized today/tomorrow,
-  English weekday and named-month dates, `in N days`, noon/midnight, spaced
-  am/pm, time ranges and `for N minutes/hours`. Normalize localized digits and
-  syntax punctuation while retaining original title text.
-- Date-only entries are all-day. Clock-only entries use their next occurrence;
-  weekdays always use the next occurrence, and named dates without a year use
-  their next occurrence. Bare hours after `at` use 24-hour time. Timed entries
-  default to one hour; a trailing meridiem applies to both clocks in a range.
-- Reject conflicting dates/clocks, invalid dates, unsupported obvious timing
-  and recurrence, and ambiguous or nonexistent daylight-saving times. Recognized
-  unsupported timing modifiers produce an error rather than an all-day fallback.
-- Show interpretation from the same server parser in a compact overlay while
-  typing, with clocks first so they remain visible on narrow screens. Keep help
-  collapsed and out of the calendar layout. Validation redraws the originating
-  calendar with the draft, selected destination and filters intact, plus an
-  explicit link carrying the draft and destination into the full editor.
-- Subtasks are VTODOs related by `RELATED-TO;RELTYPE=PARENT`. Creation verifies
-  that the parent belongs to the writable destination collection. Parent and
-  child navigation includes completed children; completion never cascades.
+### Quick events
+
+1. Calendar quick-add selects its destination collection by the same
+   rule as task quick-add: a single visible writable collection is used
+   directly; otherwise a collection picker is shown. Persistently hidden
+   collections (`VisibleCalendars`, ADR 80) are excluded; temporary list
+   filters do not hide destinations.
+2. The server parser extracts date, time or time range, and duration
+   from anywhere in the title, supporting Gregorian ISO (`YYYY-MM-DD`)
+   and dotted (`DD.MM.YYYY`) dates, localized `today`/`tomorrow`,
+   English weekday and month names, `in N days`, `noon`/`midnight`,
+   12-hour (`am`/`pm`) and 24-hour clocks, time ranges and `for N
+   minutes/hours`, normalizing localized digits while preserving the
+   remaining title text.
+3. Date-only input creates an all-day event. Time-only input, weekdays
+   and month-day dates without a year resolve to their next occurrence.
+   Bare hours after `at` (`calendar.quick.at`) use 24-hour time. Timed
+   events default to 1 hour; a trailing meridiem in a range applies to
+   both clocks.
+4. Conflicting dates or clocks, invalid calendar dates, recurrence
+   phrases, and ambiguous or nonexistent daylight-saving local times
+   MUST be refused rather than falling back to all-day.
+5. While typing, a compact preview overlay queries the server parser and
+   shows the interpreted time first; validation failures re-render the
+   calendar with the draft, selected collection and link to the full
+   event editor intact.
+
+### Subtasks
+
+6. Subtasks are `VTODO` components linked to their parent by
+   `RELATED-TO;RELTYPE=PARENT` (RFC 5545 3.8.4.5) within the same
+   writable task collection.
+7. Parent and subtask pages link to each other, including completed
+   subtasks. Marking a parent or subtask complete MUST NOT cascade to
+   its relatives.
 
 ## Consequences
 
-This is predictable parsing, not unrestricted natural-language understanding.
-The placeholder and expandable help show supported input. A bounded extraction
-parser keeps title spans, range/duration rules, translation and daylight-saving
-validation under one policy. The evaluated dateparse, when and go-naturaldate
-packages do not supply that complete policy: flexible parsing alone does not
-make extraction, ranges or ambiguous local clocks safe. No parser dependency
-or external text service is added. English grammar additions are not translated
-grammar; translated today/tomorrow and clock connectors remain supported.
+- Quick-add uses deterministic extraction with no external NLP or
+  date-parsing dependency.
+- Subtask relationships use standard iCalendar `RELATED-TO` and are
+  preserved across CalDAV clients.
 
-References: RFC 5545 section 3.8.4.5; github.com/araddon/dateparse;
-github.com/olebedev/when; github.com/tj/go-naturaldate.
+## References
+
+- RFC 5545 3.8.4.5 (`RELATED-TO`)
+- ADR 2, ADR 49, ADR 80, ADR 81
+- `pim/calendar/web/quick.go`, `pim/calendar/web/subtasks.go`,
+  `pim/calendar/caldav.go`, `templates/partials/calendar/toolbar.html`

@@ -1,50 +1,61 @@
 # ADR 88: Moving and copying DAV objects
 
-Status: accepted.
+Status: accepted. Amends ADR 3, ADR 20, ADR 63 and ADR 75.
 
 ## Context
 
-Events, tasks, journal entries and contacts need the same Copy to and Move to
-actions. Collections may belong to different accounts or servers, so a move
-cannot always be atomic.
+Events, tasks, journal entries and contacts all need "Copy to" and "Move
+to" actions across collections that may live on the same DAV server or
+on different accounts and servers.
 
 ## Decision
 
-- Object menus offer both actions. Read-only shares and subscribed calendars
-  remain valid copy sources; only writable collections may be move sources or
-  destinations. Calendar destinations must support the object's component.
-- Selectable DAV lists also offer bulk Copy to. Selected references include
-  their accounts and are deduplicated, including recurring event occurrences
-  that refer to one resource. A partial failure reports completed copies and
-  retains only unfinished references for a retry.
-- Copy creates a new UID. Calendar copies retain the existing behavior of
-  removing scheduling properties and recording their origin. Contact copies
-  retain the complete card with a new UID and revision.
-- Move retains the object's identity and data. Within one account and DAV
-  source, use conditional native MOVE without overwriting the destination.
-  Fall back only when the server explicitly does not implement MOVE.
-- Across sources or accounts, create the destination conditionally, then
-  conditionally delete the version read from the source. Both versions must
-  have strong ETags. Missing versions cause a refusal, preserving the source.
-- For objects with scheduling participants, refuse the fallback if either
-  server schedules automatically or its capabilities cannot be established.
-  Ordinary PUT/DELETE must not send invitations or cancel a meeting merely
-  because its owner wanted to move it. Native MOVE remains available.
-- Roll back a destination only after an explicit source-deletion refusal and
-  fresh confirmation that the source exists. Rollback itself is conditional
-  on the created destination's ETag, preserving concurrent destination edits.
-- An uncertain deletion retains the destination. The error asks the reader to
-  check both collections before retrying. A lost response must not cause the
-  last remaining copy to be deleted.
-- Native moves invalidate both mirrored collections and prevent a sync begun
-  before the move from restoring their stale contents.
+1. Object menus for events, tasks, journal entries and contacts MUST
+   offer both "Copy to" and "Move to". Read-only shares and subscribed
+   calendars MAY be copy sources; only writable collections MAY be move
+   sources or transfer destinations. Calendar destinations MUST support
+   the object's component.
+2. Selectable DAV lists MUST offer bulk "Copy to" across accounts,
+   deduplicating selected references (including recurring event
+   occurrences of the same resource). Partial failures report the copied
+   count and retain only unfinished references for retry.
+3. Copying creates a new `UID` and `DTSTAMP`/`REV`. Calendar copies
+   strip `METHOD`, `ORGANIZER` and `ATTENDEE` and record their origin in
+   `LINK` properties (ADR 63); contact copies retain the card with a new
+   `UID` and `REV`.
+4. Moving preserves the object's `UID` and content:
+   - within the same account and DAV source, alborz MUST use conditional
+     WebDAV `MOVE` (`Overwrite: F`, `If-Match`), falling back only when
+     the server answers 405 or 501;
+   - across sources or accounts, alborz MUST `PUT` to the destination
+     with `If-None-Match: *` and then `DELETE` the source with
+     `If-Match` using the strong ETag read from the source. Missing
+     strong ETags refuse the move without touching the source.
+5. For calendar objects with scheduling participants, the cross-server
+   `PUT`/`DELETE` fallback MUST be refused if either server advertises
+   `calendar-auto-schedule` or fails `OPTIONS` (ADR 58), so moving an
+   event never sends invitations or cancellations. Native `MOVE` remains
+   allowed.
+6. If the source `DELETE` is explicitly refused and a fresh read
+   confirms the source still exists, alborz rolls back the destination
+   `PUT` conditioned on the created destination ETag. If the `DELETE`
+   outcome is uncertain, both copies are kept and the refusal tells the
+   reader to check both collections (`form.moveuncertain`).
+7. Native `MOVE` invalidates both collections in the DAV mirror and
+   increments their write counters (ADR 20, ADR 53).
 
 ## Consequences
 
-Moves between independent servers can leave two copies after failures. They
-do not overwrite collisions or discard the destination to conceal uncertainty.
-Servers without native MOVE may refuse same-principal calendar transfers when
-their UID uniqueness or scheduling rules prevent the fallback operation.
+- Cross-server moves never delete the source before confirming the
+  destination write, and never delete the destination when source
+  deletion is uncertain.
+- Bulk task move (ADR 3) and single-object transfers share the same
+  transfer rules.
 
-The interface checks permissions, and the handlers enforce them independently.
-The existing bulk task move uses the same transfer rules.
+## References
+
+- RFC 4918 9.9 (`MOVE`), RFC 9110 13.1.1 (`If-Match`), 13.1.2
+  (`If-None-Match`), RFC 6638
+- ADR 3, ADR 20, ADR 53, ADR 58, ADR 63, ADR 75
+- `pim/calendar/web/copy.go`, `pim/contacts/web/transfer.go`,
+  `pim/web/destinations.go`, `pim/dav/mirror.go`

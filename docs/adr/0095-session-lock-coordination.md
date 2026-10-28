@@ -1,59 +1,56 @@
 # ADR 95: Session lock coordination
 
-Status: accepted.
+Status: accepted. Amends ADR 25.
+
+## Context
+
+When a browser session protected by a passkey (ADR 25) locks manually or
+after inactivity, every open tab and history-restored document of that
+session must conceal private content immediately and coordinate lock and
+unlock state without exposing session secrets.
 
 ## Decision
 
-- Compact header and account-menu actions lock the current browser session
-  without ending its accounts or replacing its cookie. The header action appears
-  only after a passkey is configured in Settings.
-- Keep authorization on the server: protected routes and streams check the
-  session lock. A minimal, uncached state probe reports only the public session
-  identifier and lock flags. Background probes do not extend the idle period.
-- Conceal private pages before checking state, leaving, entering the history
-  cache or becoming hidden. Verify the same server session before revealing a
-  restored page. Protected HTML starts concealed even if its script fails.
-- Passkeys are an optional JavaScript enhancement to the HTML baseline. Both
-  the concealment guard and unlock page retain a native sign-out form, so a
-  browser without scripts can discard its protected session and sign in with
-  passwords again. Missing scripts never authorize revealing private content.
-- Coordinate all tabs through server events, BroadcastChannel and a storage
-  fallback. Scope messages to the public session identifier, never the cookie
-  secret or account content. Use a fresh marker for each confirmed lock.
-- Only a successful WebAuthn finish clears the shared lock marker. An individual
-  tab's idle timer asks the server rather than assuming the whole session is idle.
-  Failed or ambiguous lock requests remain concealed with a retry action.
-- Successful authentication transitions replace the whole document, including
-  its session-scoped head metadata. First passkey registration also informs tabs
-  that were opened before protection was enabled.
-- Locked in-page and history navigation also replace the whole document. Keep
-  history content concealed until verified, and direct history redirects away
-  from the live document so an unlock page cannot inherit a private page's guard.
-- Prompt once when a new unlock document is ready and visible. Cancellation or
-  a browser requiring user activation leaves manual retry available; visibility
-  changes caused by native dialogs must not trigger another prompt. Reload
-  history-restored passkey pages to revalidate the session and discard ceremonies.
-- Registration requires an explicit action but no typed name. Label credentials
-  with the creation browser and system, without treating that label as proof of
-  where a synced or external credential is stored.
+1. Header and account-menu `Lock` actions lock the current browser
+   session on the server without signing out its accounts or replacing
+   its cookie. The header button is rendered only when at least one
+   passkey is registered.
+2. Authorization remains server-side: protected routes and `/events`
+   enforce the session lock, and an uncached state probe
+   (`Alborz-Unasked`) reports only the public session ID and lock state
+   without extending idle activity.
+3. Protected pages MUST conceal their content before checking lock
+   state, unloading, entering the back-forward cache or becoming hidden,
+   and MUST verify that the server session is unlocked before revealing
+   a restored document. Protected HTML starts concealed until script or
+   server navigation confirms unlock; both the concealment guard and
+   `/unlock` include a plain HTML sign-out form (`/unlock/leave`) so a
+   browser without JavaScript can always sign out.
+4. Tabs coordinate via Server-Sent Events (`/events`),
+   `BroadcastChannel` and a `localStorage` fallback, keyed by the public
+   session ID and a fresh lock marker—never the cookie secret or account
+   data.
+5. Only a completed WebAuthn assertion clears the lock marker and
+   reloads the full document. When a single tab's idle timer elapses, it
+   probes the server rather than locking unilaterally if another tab was
+   active.
+6. Opening `/unlock` in a visible tab prompts for the passkey once
+   automatically; dialog dismissal or focus changes MUST NOT trigger
+   repeated prompts, leaving the manual retry button active.
+7. Passkey registration requires an explicit click without a typed label
+   and names the credential after the browser and OS from `User-Agent`.
 
-## Verification
+## Consequences
 
-HTTP tests check a manual lock from an unlocked session, independent clients
-sharing its cookie, account preservation, unasked state probes and stream races.
-Browser-handler tests cover storage fallback, restored pages, stale responses,
-cancelled assertions and repeated locks after a lost unlock response.
-Passkey handler tests cover automatic prompts, hidden documents, cancellation,
-competing clicks and history restoration.
+- Locking one tab conceals all other tabs of the same browser session,
+  even when SSE or `BroadcastChannel` is unavailable.
+- One pending WebAuthn challenge is held per session; concurrent
+  ceremonies in two tabs of the same session require a retry on the
+  earlier tab.
 
-A real browser with a virtual WebAuthn authenticator additionally verifies a
-pre-registration compose tab with SSE and BroadcastChannel disabled, concealment
-before stalled unlock navigation, new tabs, Back/history, cancellation and a
-successful unlock without signing in again or changing the session cookie.
+## References
 
-## Follow-up
-
-The server currently stores one pending WebAuthn ceremony per session. Concurrent
-ceremonies in separate tabs can invalidate each other and require retry; the
-per-page pending guard does not coordinate separate windows. Supporting these
-requires matching and consuming individual challenges, with bounded expiry.
+- WebAuthn Level 2; ADR 13, ADR 19, ADR 25, ADR 29
+- `lock.go`, `web/lock.go`, `web/middleware.go`, `web/live.go`,
+  `auth/web/lock.go`, `settings/web/passkeys.go`,
+  `templates/assets/helpers.js`

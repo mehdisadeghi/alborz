@@ -2,13 +2,24 @@
 
 Status: superseded by ADR 24.
 
-Proposed shape for alborz serving CalDAV and CardDAV itself: the
-principal is the IMAP account, authenticated by an IMAP login; each
-collection is an IMAP mailbox typed with METADATA (RFC 5464), each
-object one message holding one iCalendar or vCard, with ETags from the
-message and `sync-collection` (RFC 6578) from CONDSTORE MODSEQ (RFC
-7162); the protocol side is go-webdav's `caldav.Handler` and
-`carddav.Handler`; `calendar-auto-schedule` (RFC 6638) is not
-advertised until scheduling is complete. ADR 24 built the server with
-the IMAP-login principal and go-webdav handlers but stores collections
-in alborz's own database instead of IMAP mailboxes.
+## Context
+
+Accounts whose mail domain provides no CalDAV or CardDAV server need
+built-in calendar, task and contact storage authenticated by the mail
+account.
+
+## Decision
+
+1. Superseded by ADR 24: alborz authenticates DAV principals by IMAP
+   login and serves CalDAV and CardDAV via `go-webdav`, but stores
+   collections and objects in `alborz.db` rather than in IMAP mailboxes.
+
+## Consequences
+
+- Built-in DAV storage does not depend on the IMAP server supporting
+  RFC 5464 `METADATA` or RFC 7162 `CONDSTORE`.
+
+## References
+
+- ADR 24
+- `pim/store/`, `pim/web/owndav.go`

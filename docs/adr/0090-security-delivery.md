@@ -1,50 +1,70 @@
 # ADR 90: Mail notification actions and image loading
 
-Status: accepted. Amends ADR 44 (CSS image URLs) and ADR 74 (notification content).
+Status: accepted. Amends ADR 19, ADR 44 and ADR 74.
+
+## Context
+
+Push notifications that show only "New mail" require opening the app to
+triage routine messages, while showing message previews on a locked
+browser session would leak protected content. Separately, incoming HTML
+mail uses percent-encoded `cid:` URLs, CSS `background-image` URLs and
+legacy `http:` image links that need consistent sanitization and proxy
+bounds.
 
 ## Decision
 
-- Mail notifications open the exact account, mailbox and UID. They include a subject
-  capped at 100 characters and a plain-text excerpt capped at 180 characters. HTML
-  contributes text only; attachments, encrypted parts and remote resources are not
-  opened. Preview reads use IMAP PEEK and leave unread state unchanged.
-  The actual FETCH limits the Subject header to 4 KiB and body part to 16 KiB;
-  transfer decoding uses BODYSTRUCTURE instead of fetching a complete MIME header.
-- The recipient's server session controls disclosure. Locked, idle-locked and
-  unrestored sessions receive the account-only notification. An unlocked passkey
-  session receives the preview. Previously delivered notifications remain under
-  the operating system's notification controls.
-- Supported browsers offer Mark read and Delete. Delete moves the message to
-  Trash; no Trash means the action fails. Actions use authenticated same-origin
-  POST requests, require a custom header, obey the existing passkey middleware,
-  and verify UIDVALIDITY on the same IMAP connection as the mutation. Failed or
-  intercepted actions open the exact message for recovery; no mutation is replayed
-  automatically after authentication.
-  Normal clicks and action recovery use an authenticated notification-open route
-  that checks UIDVALIDITY before redirecting to mail. Stale links return to the
-  folder without marking a reused UID read.
-- Inline CID URLs are percent-decoded before matching Content-ID. CSS image URLs
-  follow the same consent and proxy path as image elements. CSS escapes, comments
-  and URL syntax that cannot be parsed are discarded. Imports and expressions
-  remain blocked.
-- Legacy HTTP and protocol-relative image references use HTTPS. Outgoing image requests
-  retain public-address checks and HTTPS at every redirect. Hosts without HTTPS
-  remain unsupported. The proxy accepts generic MIME headers only when sniffing
-  identifies an image, checks upstream status, and buffers at most 5 MiB before
-  returning a successful cacheable response.
-- Service-worker navigation starts the network and offline-cache lookup together.
-  A live response, including a locked session's no-store response, never waits for
-  cache storage. A failed network request still waits for an eligible saved copy;
-  no-store responses purge saved pages and never fall back to their old content.
+### Notifications
 
-## Verification
+1. Mail push notifications link to the exact account, mailbox and UID
+   via an authenticated notification-open route that checks
+   `UIDVALIDITY` before redirecting. If `UIDVALIDITY` changed, it
+   redirects to the folder without marking a reused UID read.
+2. When the target device's browser session is unlocked, a mail push
+   includes the `Subject` (capped at 100 characters) and a plain-text
+   body excerpt (capped at 180 characters, fetched via `BODY.PEEK` with
+   a 4 KiB header limit and 16 KiB body limit, leaving `\Seen`
+   unchanged), and calendar reminders include the event title. When the
+   session is locked, idle-locked or unrestored, pushes MUST include
+   only the account address (and event time for reminders, ADR 74).
+3. On unlocked sessions, mail notifications offer `Mark read` and
+   `Delete` (move to Trash; refused if no Trash folder exists). Action
+   requests use authenticated same-origin `POST`s with a custom header,
+   pass the session lock middleware, and verify `UIDVALIDITY` on the
+   same IMAP connection as the write. Failed or locked actions open the
+   message for manual recovery without auto-replaying the mutation.
 
-Local IMAP and encrypted push fixtures cover previews, unread preservation,
-Origin/header rejection, stale UIDVALIDITY, marking read and moving to Trash.
-Worker fixtures cover exact navigation, action requests and recovery. Image tests
-cover encoded CIDs, consent, CSS URLs, generic MIME, failed upstream responses and
-oversized chunked bodies. The all-route lock test uses independent clients sharing
-one session cookie and also probes background, fragment and no-store behavior.
+### Incoming images
 
-The lock remains a server-side browser-session lock shared by all its tabs. Other
-browser sessions and password-authenticated DAV connections are separate.
+4. Inline `cid:` URLs MUST be percent-decoded before matching MIME
+   `Content-ID` headers.
+5. CSS `url(...)` values on allowed style properties MUST pass the same
+   consent and `/proxy` resolution as `<img src>` (ADR 44); CSS escapes,
+   comments and unparseable `url()` values are stripped, and `@import`
+   and `expression()` remain blocked.
+6. Legacy `http://` and protocol-relative `//` remote image URLs are
+   upgraded to `https://` when proxied. Outgoing image proxy requests
+   MUST enforce public-address checks (`Outgoing.Guarded`) and `https`
+   on every redirect, accept generic upstream MIME types only when byte
+   sniffing confirms a supported image format, and cap buffered bodies
+   at 5 MiB.
+
+### Service worker
+
+7. The service worker starts network fetch and offline-cache lookup
+   concurrently; a live network response never waits for cache storage,
+   and `Cache-Control: no-store` responses purge saved pages and never
+   fall back to cached content (ADR 19, ADR 25).
+
+## Consequences
+
+- Unlocked browsers get actionable mail previews without marking mail
+  read; locked sessions disclose no subject or body text.
+- Remote images on hosts that do not serve HTTPS are not loaded.
+
+## References
+
+- RFC 2392 (`cid:`), RFC 8030, RFC 9051 (`BODY.PEEK`, `UIDVALIDITY`)
+- ADR 19, ADR 25, ADR 44, ADR 74
+- `mail/watch.go`, `mail/web/notification.go`, `mail/web/sanitize.go`,
+  `mail/web/images.go`, `mail/web/proxy.go`, `web/serviceworker.go`,
+  `pim/calendar/reminders.go`

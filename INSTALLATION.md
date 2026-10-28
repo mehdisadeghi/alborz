@@ -75,6 +75,20 @@ with `-config` or `LBRZ_CONFIG`.
 address books and calendar feeds are kept there between runs, sealed
 under the login key, so a restart starts warm. `-cache=false` keeps no cache.
 
+## Debian and Red Hat
+
+Each release has `.deb` and `.rpm` packages of `alborz` and
+`alborz-minimal`, with the binary and a hardened systemd unit listening on
+`127.0.0.1:1323`; `make packages` builds them locally.
+
+    sudo apt install ./alborz_0.21.0_amd64.deb      # or
+    sudo dnf install ./alborz-0.21.0-1.x86_64.rpm
+    sudo systemctl enable --now alborz
+    journalctl -u alborz
+
+The journal shows the setup code. The configuration lives in
+`/var/lib/alborz/config.toml`; `LBRZ_*` overrides go in `/etc/alborz.env`.
+
 ## Custom stylesheet
 
 A `custom.css` in the data directory (`-data-dir`, here `/var/lib/alborz`)

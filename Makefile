@@ -73,4 +73,16 @@ HEIGHT ?= 900
 shot:
 	$(GO) test -tags preview -run TestPreview -count=1 -v ./tools/preview -args -route "$(ROUTE)" -width "$(WIDTH)" -height "$(HEIGHT)" $(if $(OUT),-out "$(OUT)") $(if $(JS),-js "$(JS)") $(if $(CHROME),-chrome "$(CHROME)")
 
+# Debian and Red Hat packages in dist/, e.g.
+# make packages NAME=alborz-minimal GOARCH=arm GOARM=7
+.PHONY: packages
+packages: export NAME ?= alborz
+packages: export VERSION ?= $(patsubst v%,%,$(shell git describe --tags --always))
+packages: export ARCH = $(GOARCH)$(GOARM)
+packages: GOARCH ?= $(shell $(GO) env GOHOSTARCH)
+packages:
+	GOOS=linux GOARCH=$(GOARCH) GOARM=$(GOARM) CGO_ENABLED=0 $(GO) build $(if $(filter alborz-minimal,$(NAME)),-tags noaddons) -trimpath -ldflags "-s -w" -o dist/alborz ./cmd/alborz
+	$(TOOL) nfpm package -f contrib/packaging/nfpm.yaml -p deb -t dist
+	$(TOOL) nfpm package -f contrib/packaging/nfpm.yaml -p rpm -t dist
+
 include contrib/packaging/desktop/desktop.mk

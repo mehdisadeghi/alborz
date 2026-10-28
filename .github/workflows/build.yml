@@ -95,11 +95,30 @@ jobs:
           go build -tags "$BUILD_TAGS" -trimpath -ldflags "-s -w" -o "$name" ./cmd/alborz
           sha256sum "$name" > "$name.sha256"
 
+      # Packages the binary just built; nfpm itself is built for the runner.
+      - name: Package deb and rpm
+        env:
+          NAME: ${{ matrix.variant }}
+          ARCH: ${{ matrix.goarch }}${{ matrix.goarm }}
+          BIN: ${{ matrix.variant }}-linux-${{ matrix.goarch }}${{ matrix.goarm && format('v{0}', matrix.goarm) || '' }}
+        run: |
+          set -eu
+          case "$GITHUB_REF" in
+            refs/tags/v*) VERSION="${GITHUB_REF_NAME#v}" ;;
+            *) VERSION="0.0.0-g${GITHUB_SHA::8}" ;;
+          esac
+          export VERSION
+          install -D -m 755 "$BIN" dist/alborz
+          go tool -modfile=tools/tools.mod nfpm package -f contrib/packaging/nfpm.yaml -p deb -t .
+          go tool -modfile=tools/tools.mod nfpm package -f contrib/packaging/nfpm.yaml -p rpm -t .
+
       - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.variant }}-linux-${{ matrix.goarch }}${{ matrix.goarm }}
           path: |
             ${{ matrix.variant }}-linux-*
+            *.deb
+            *.rpm
           if-no-files-found: error
 
   desktop-macos:
@@ -167,6 +186,8 @@ jobs:
         with:
           files: |
             alborz*-linux-*
+            alborz*.deb
+            alborz*.rpm
             alborz-*-macos-*
             alborz-*-windows-*
           fail_on_unmatched_files: true

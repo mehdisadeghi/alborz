@@ -61,6 +61,7 @@ from the mail password (ADR 5).
 ## References
 
 - ADR 5, ADR 30
+- alborz-passwd: https://github.com/alborzmail/passwd
 - `passwd.go` (`parsePasswdUpstream`, `ChangePassword`,
   `passwdServer.change`), `secret.go` (`rewrap`),
   `settings/web/password.go`, `web/sessions.go` (`PasswordChanged`),

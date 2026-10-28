@@ -1,0 +1,23 @@
+[Unit]
+Description=Alborz webmail and personal information manager
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+DynamicUser=yes
+StateDirectory=alborz
+StateDirectoryMode=0700
+CacheDirectory=alborz
+WorkingDirectory=/var/lib/alborz
+Environment=XDG_CACHE_HOME=/var/cache
+EnvironmentFile=-/etc/alborz.env
+ExecStart=/usr/bin/alborz -config /var/lib/alborz/config.toml -data-dir /var/lib/alborz -addr 127.0.0.1:1323
+Restart=on-failure
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+
+[Install]
+WantedBy=multi-user.target

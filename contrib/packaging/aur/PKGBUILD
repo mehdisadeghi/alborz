@@ -1,0 +1,28 @@
+pkgname=alborz-git
+pkgver=0.20.0.r2.g3cf05b4c
+pkgrel=1
+pkgdesc='Privacy-conscious webmail, calendar, contacts, tasks and journal'
+arch=('x86_64' 'aarch64')
+url='https://git.mehdix.org/alborz'
+license=('MIT')
+depends=('ca-certificates')
+makedepends=('git' 'go>=1.27.3')
+provides=('alborz')
+conflicts=('alborz')
+source=('alborz::git+https://git.mehdix.org/alborz/')
+sha256sums=('SKIP')
+
+pkgver() {
+  git -C "$srcdir/alborz" describe --long --tags --always | sed 's/^v//;s/\([^-]*-g\)/r\1/;s/-/./g'
+}
+
+build() {
+  export CGO_ENABLED=0
+  go -C "$srcdir/alborz" build -trimpath -o alborz ./cmd/alborz
+}
+
+package() {
+  install -Dm755 "$srcdir/alborz/alborz" "$pkgdir/usr/bin/alborz"
+  install -Dm644 "$srcdir/alborz/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  install -Dm644 "$srcdir/alborz/contrib/packaging/alborz.service" "$pkgdir/usr/lib/systemd/system/alborz.service"
+}

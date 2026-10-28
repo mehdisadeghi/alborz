@@ -1,0 +1,35 @@
+# Debian and Red Hat packages of the linux binary at dist/alborz.
+# NAME (alborz or alborz-minimal), VERSION (tag without v) and ARCH
+# (GOARCH, arm7 for GOARCH=arm GOARM=7) come from the environment.
+# Paths are relative to the repository root.
+name: ${NAME}
+version: ${VERSION}
+arch: ${ARCH}
+platform: linux
+maintainer: Mehdi Sadeghi <mehdi@mehdix.org>
+description: Privacy-conscious webmail, calendar, contacts, tasks and journal
+homepage: https://git.mehdix.org/alborz
+license: MIT
+section: mail
+depends: [ca-certificates]
+provides: [alborz]
+conflicts: [alborz]
+overrides:
+  deb:
+    replaces: [alborz]
+contents:
+  - src: dist/alborz
+    dst: /usr/bin/alborz
+    file_info: {mode: 0755}
+  - src: contrib/packaging/alborz.service
+    dst: /usr/lib/systemd/system/alborz.service
+    file_info: {mode: 0644}
+  - src: LICENSE
+    dst: /usr/share/doc/alborz/copyright
+    packager: deb
+    file_info: {mode: 0644}
+  - src: LICENSE
+    dst: /usr/share/licenses/alborz/LICENSE
+    type: license
+    packager: rpm
+    file_info: {mode: 0644}

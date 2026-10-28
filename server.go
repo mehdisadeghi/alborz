@@ -286,7 +286,34 @@ type NotFoundError struct {
 	Args []interface{}
 }
 
-func (e *NotFoundError) Error() string { return fmt.Sprintf("%s %v", e.Key, e.Args) }
+var notFoundMessages = map[string]string{
+	"notfound.addressbook": "no address books found",
+	"notfound.calendar":   "no calendars found",
+	"notfound.collection": "collection not found",
+	"notfound.contact":    "contact not found",
+	"notfound.entry":      "journal entry not found",
+	"notfound.event":      "event not found",
+	"notfound.folder":     "folder %q not found",
+	"notfound.invitation": "invitation not found",
+	"notfound.message":    "message %s not found in folder",
+	"notfound.page":       "page not found",
+	"notfound.part":       "part not found in message %s",
+	"notfound.passkey":    "passkey not found",
+	"notfound.reply":      "automatic reply not found",
+	"notfound.rule":       "filter rule not found",
+	"notfound.script":     "filter script %q not found",
+	"notfound.server":     "server not found",
+	"notfound.share":      "share not found",
+	"notfound.signature":  "signature %q not found",
+	"notfound.task":       "task not found",
+}
+
+func (e *NotFoundError) Error() string {
+	if message, ok := notFoundMessages[e.Key]; ok {
+		return fmt.Sprintf(message, e.Args...)
+	}
+	return "resource not found"
+}
 func (e *NotFoundError) Unwrap() error { return ErrNotFound }
 
 // NotFound builds a not-found error naming the missing subject by its locale key.

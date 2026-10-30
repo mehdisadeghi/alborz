@@ -1,8 +1,8 @@
 package web_test
 
 import (
+	"fmt"
 	"html"
-	"io"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -10,77 +10,68 @@ import (
 	"testing"
 
 	. "git.mehdix.org/alborz/internal/alborztest"
-	"github.com/emersion/go-message"
 )
 
-func TestComposeAttributionIsSeparateFromSignaturesAndDrafts(t *testing.T) {
-	smtp := SMTP(t)
-	c := Alborz(t, WithSMTP(smtp)).SignIn(t, User)
+// The attribution closes the sign-off: under the signature, once after a switch, above a quote on top.
+func TestComposeAttributionClosesTheSignOff(t *testing.T) {
+	a := Alborz(t)
+	c := a.SignIn(t, User)
 	const footer = "Sent by Alborz Webmail"
-	page := c.Page(t, "mail.compose")
-	if strings.Contains(page, footer) {
-		t.Fatal("attribution leaked into the editor")
-	}
-	for _, rich := range []bool{false, true} {
-		fields := url.Values{"text": {"Hello\n\n-- \nRegards"}}
-		if rich {
-			fields.Set("html", "<p>Hello</p><p>Regards</p>")
+	body := func(page string) string {
+		m := composeText.FindStringSubmatch(page)
+		if m == nil {
+			t.Fatal("no compose body")
 		}
-		c.Send(t, c.Page(t, "mail.compose"), fields, "mail.compose")
-		e, err := message.Read(strings.NewReader(smtp.Last()))
-		if err != nil {
-			t.Fatal(err)
+		return html.UnescapeString(m[1])
+	}
+	if !strings.Contains(c.Page(t, "mail.compose"), "-- \n"+footer+"</textarea>") {
+		t.Fatal("new mail lacks the attribution under its delimiter")
+	}
+	if r := c.Post(t, "mail.signatures", url.Values{"name": {"Work"}, "text": {"Regards"}}); r.StatusCode != http.StatusFound {
+		t.Fatal(r.Status)
+	}
+	apply := func(text, sig string, route string, args ...any) string {
+		values := url.Values{"signature_apply": {"1"}, "signature": {sig}, "text": {text}}
+		return body(c.Compose(t, c.Page(t, route, args...), values, route, args...).Text)
+	}
+	if got := apply("Hello\n\n-- \n"+footer, "Work", "mail.compose"); got != "Hello\n\n-- \nRegards\n"+footer {
+		t.Fatalf("switching to a signature gave %q", got)
+	}
+	// Browsers submit textarea lines as CRLF.
+	if got := apply("Hello\r\n\r\n-- \r\nRegards\r\n"+footer, "", "mail.compose"); got != "Hello\n\n-- \n"+footer {
+		t.Fatalf("removing the signature gave %q", got)
+	}
+	uid := fmt.Sprint(a.IMAP.Append(t, "INBOX", "From: sender@example.org\r\nTo: "+User+"\r\nSubject: quoted\r\nContent-Type: text/plain\r\n\r\nOriginal words\r\n"))
+	reply := body(c.Page(t, "mail.message.reply", "INBOX", uid))
+	got := apply(reply, "Work", "mail.message.reply", "INBOX", uid)
+	if strings.Count(got, footer) != 1 || !strings.Contains(got, "Regards\n"+footer) || strings.Index(got, footer) > strings.Index(got, "> Original words") {
+		t.Fatalf("the reply's sign-off is not once above the quote: %q", got)
+	}
+	edited := strings.Replace(reply, footer, "Sent by me", 1)
+	values := url.Values{"signature_apply": {"1"}, "signature": {"Work"}, "text": {edited}}
+	r := c.Compose(t, c.Page(t, "mail.message.reply", "INBOX", uid), values, "mail.message.reply", "INBOX", uid)
+	if got := body(r.Text); r.StatusCode != http.StatusUnprocessableEntity || got != strings.ReplaceAll(edited, "\r\n", "\n") {
+		t.Fatalf("a switch under an edited sign-off changed the body: %s %q", r.Status, got)
+	}
+	rich := func(sign string) string {
+		values := url.Values{"signature_apply": {"1"}, "signature": {"Work"}, "html": {`<p>Hello</p><p dir="rtl">-- <br>` + sign + `</p><blockquote><p>-- <br>Old</p></blockquote>`}}
+		m := regexp.MustCompile(`name="html" value="([^"]*)"`).FindStringSubmatch(c.Compose(t, c.Page(t, "mail.compose"), values, "mail.compose").Text)
+		if m == nil {
+			t.Fatal("no rich compose body")
 		}
-		parts := 0
-		if err := e.Walk(func(_ []int, part *message.Entity, err error) error {
-			if err != nil {
-				return err
-			}
-			kind, _, _ := part.Header.ContentType()
-			if kind != "text/plain" && kind != "text/html" {
-				return nil
-			}
-			body, err := io.ReadAll(part.Body)
-			if err != nil {
-				return err
-			}
-			if strings.Count(string(body), footer) != 1 || !strings.Contains(string(body), "Regards") {
-				t.Errorf("%s lost the signature or has wrong attribution count: %s", kind, body)
-			}
-			parts++
-			return nil
-		}); err != nil {
-			t.Fatal(err)
-		}
-		if parts == 0 {
-			t.Fatal("no outgoing text part")
-		}
+		return html.UnescapeString(m[1])
 	}
-	draft := c.Compose(t, page, url.Values{"save_as_draft": {"1"}, "text": {"Draft body"}}, "mail.compose")
-	if draft.StatusCode >= 400 {
-		t.Fatal(draft.Status)
+	if got := rich(footer); !strings.Contains(got, ">Hello</p>") || !strings.Contains(got, "-- <br>Regards<br>"+footer+"</p>") || !strings.Contains(got, "-- <br>Old") {
+		t.Fatalf("rich sign-off not swapped in place: %q", got)
 	}
-	if strings.Contains(c.Follow(t, draft.Header.Get("Location")), footer) {
-		t.Fatal("draft contains attribution")
-	}
-	refused := c.Compose(t, c.Page(t, "mail.compose"), url.Values{"to": {"refused@example.org"}, "text": {"Retry body"}}, "mail.compose")
-	if refused.StatusCode != http.StatusUnprocessableEntity || strings.Contains(refused.Text, footer) {
-		t.Fatalf("refused send polluted the editor: %s", refused.Status)
-	}
-	text := composeText.FindStringSubmatch(refused.Text)
-	if text == nil {
-		t.Fatal("refused send lost its body")
-	}
-	c.Send(t, refused.Text, url.Values{"text": {html.UnescapeString(text[1])}}, "mail.compose")
-	if strings.Count(smtp.Last(), footer) != 1 {
-		t.Fatal("retry duplicated attribution")
+	if got := rich("Sent by me"); strings.Contains(got, "Regards") || !strings.Contains(got, "Sent by me") {
+		t.Fatalf("an edited rich sign-off was replaced: %q", got)
 	}
 	if r := c.Post(t, "settings.profile", url.Values{"writing_preferences": {"1"}, "include_attribution": {""}}); r.StatusCode != http.StatusFound {
 		t.Fatal(r.Status)
 	}
-	c.Send(t, c.Page(t, "mail.compose"), url.Values{"text": {"No footer"}}, "mail.compose")
-	if strings.Contains(smtp.Last(), footer) {
-		t.Fatal("disabled attribution was sent")
+	if strings.Contains(c.Page(t, "mail.compose"), footer) {
+		t.Fatal("disabled attribution was pre-filled")
 	}
 }
 

@@ -35,6 +35,8 @@
 
 ### Changed
 
+- The “Sent by Alborz Webmail” line is pre-filled, translated and editable under
+  the signature in new mail, replies and forwards instead of added at sending.
 - Browser history follows the markup: page navigations add an entry, list
   refinements replace it, and done, star and colour update the page in place.
 - Use the mobile drawer’s account rows for switching, with a color legend and

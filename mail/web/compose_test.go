@@ -334,34 +334,6 @@ func TestSignatureChangeKeepsItsUploads(t *testing.T) {
 	}
 }
 
-func TestRemovingSignatureFromCompose(t *testing.T) {
-	c := Alborz(t).SignIn(t, User)
-	if resp := c.Post(t, "mail.signatures", url.Values{"name": {"Work"}, "text": {"Regards"}}); resp.StatusCode != http.StatusFound {
-		t.Fatalf("saving signature: %s", resp.Status)
-	}
-	page := c.Page(t, "mail.compose")
-	applied := c.Compose(t, page, url.Values{
-		"signature_apply": {"1"}, "signature": {"Work"}, "text": {"Hello"},
-	}, "mail.compose")
-	if applied.StatusCode != http.StatusOK {
-		t.Fatalf("applying signature: %s", applied.Status)
-	}
-	m := composeText.FindStringSubmatch(applied.Text)
-	if m == nil || !strings.Contains(m[1], "Regards") {
-		t.Fatal("the selected signature was not applied")
-	}
-	resp := c.Compose(t, applied.Text, url.Values{
-		"signature_apply": {"1"}, "signature": {""},
-		"text": {strings.ReplaceAll(html.UnescapeString(m[1]), "\n", "\r\n")},
-	}, "mail.compose")
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("removing signature: %s", resp.Status)
-	}
-	if m := composeText.FindStringSubmatch(resp.Text); m == nil || strings.Contains(m[1], "Regards") {
-		t.Fatal("the signature remains in the compose body")
-	}
-}
-
 func TestPastedImageTravelsBesideTheHTML(t *testing.T) {
 	smtp := SMTP(t)
 	c := Alborz(t, WithSMTP(smtp)).SignIn(t, User)

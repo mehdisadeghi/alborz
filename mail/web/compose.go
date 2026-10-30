@@ -180,9 +180,6 @@ func attachedRef(p mail.MessagePath) string {
 
 // The sender is the From account; the draft and the answered message stay on the request's account.
 func (p *plugin) submitCompose(ctx *web.Context, sender *alborz.Login, msg *mail.OutgoingMessage, options *mail.ComposeOptions) error {
-	if !ctx.Profile().Writing.NoAttribution {
-		msg = attributed(msg)
-	}
 	sent, sentUID, to, err := p.Submit(ctx.Request().Context(), ctx.Login, sender, msg, options)
 	if errors.Is(err, mail.ErrSendUncertain) {
 		ctx.Logger().Printf("send outcome uncertain: %v", err)
@@ -392,16 +389,16 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *mail.OutgoingMessage, opti
 		// A signature change keeps the same uploads and message as a refused send.
 		if _, ok := formParams["signature_apply"]; ok {
 			chosen := ctx.FormValue("signature")
-			sig, err := chosenSignature(ctx, settings, chosen)
-			if errors.Is(err, errSignatureUnavailable) {
-				return render(http.StatusUnprocessableEntity, "", ctx.T("mail.signatureunavailable"))
-			}
+			choices, err := composeSignatures(ctx, settings)
 			if err != nil {
 				return err
 			}
-			msg.Text = mail.WithSignature(msg.Text, sig.Text)
-			if msg.HTML != "" {
-				msg.HTML = mail.WithSignatureHTML(msg.HTML, sig.Text)
+			sig, ok := chosenSignature(choices, chosen)
+			if !ok {
+				return render(http.StatusUnprocessableEntity, "", ctx.T("mail.signatureunavailable"))
+			}
+			if !switchSignOff(ctx, msg, choices, sig.Text, options.Forward != nil || options.InReplyTo != nil && !ctx.Profile().Writing.ReplyBelowQuote) {
+				return render(http.StatusUnprocessableEntity, chosen, ctx.T("compose.signaturekept"))
 			}
 			return render(http.StatusOK, chosen, "")
 		}
@@ -463,10 +460,12 @@ func (p *plugin) handleComposeNew(ctx *web.Context) error {
 		return err
 	}
 	chosen := settings.DefaultSignature
-	if sig, ok := settings.SignatureNamed(chosen); ok && text == "" {
-		text = mail.WithSignature(text, sig.Text)
-	} else if !ok {
+	sig, ok := settings.SignatureNamed(chosen)
+	if !ok {
 		chosen = ""
+	}
+	if text == "" {
+		text = mail.WithSignature(text, signOff(ctx, sig.Text))
 	}
 
 	return p.handleCompose(ctx, &mail.OutgoingMessage{
@@ -697,7 +696,7 @@ func forwardBody(ctx *web.Context, original *mail.IMAPMessage, body string) stri
 func forwardHTML(ctx *web.Context, original *mail.IMAPMessage, body string) template.HTML {
 	head := strings.TrimSpace(forwardBody(ctx, original, ""))
 	lines := strings.Split(html.EscapeString(head), "\n")
-	return template.HTML(`<p dir="auto"><br></p>` + "\n" +
+	return template.HTML(`<p dir="auto"><br></p>` + mail.WithSignatureHTML("", signOff(ctx, "")) + "\n" +
 		`<p dir="` + lang.ParagraphDir(head) + `">` + strings.Join(lines, "<br>") + "</p>\n<div>" + body + "</div>\n")
 }
 
@@ -729,10 +728,11 @@ func replyBody(ctx *web.Context, original *mail.IMAPMessage, quoted string, belo
 	}
 	when := ctx.Dates().Full(original.Date())
 	attribution := ctx.Tf("message.wrote", when, who)
+	sign := mail.WithSignature("", signOff(ctx, ""))
 	if below {
-		return attribution + "\n" + quoted + "\n"
+		return attribution + "\n" + quoted + "\n" + sign
 	}
-	return "\n\n" + attribution + "\n" + quoted
+	return sign + "\n\n" + attribution + "\n" + quoted
 }
 
 func replyHTML(ctx *web.Context, original *mail.IMAPMessage, quoted string, below bool) template.HTML {
@@ -746,10 +746,11 @@ func replyHTML(ctx *web.Context, original *mail.IMAPMessage, quoted string, belo
 	when := ctx.Dates().Full(original.Date())
 	attribution := ctx.Tf("message.wrote", when, who)
 	head := `<p dir="` + lang.ParagraphDir(attribution) + `">` + html.EscapeString(attribution) + "</p>\n<blockquote>" + quoted + "</blockquote>\n"
+	sign := mail.WithSignatureHTML("", signOff(ctx, ""))
 	if below {
-		return template.HTML(head + `<p dir="auto"><br></p>`)
+		return template.HTML(head + `<p dir="auto"><br></p>` + sign)
 	}
-	return template.HTML(`<p dir="auto"><br></p>` + "\n" + head)
+	return template.HTML(`<p dir="auto"><br></p>` + sign + "\n" + head)
 }
 
 func handleForwardSelection(ctx *web.Context) error {
@@ -800,6 +801,7 @@ func (p *plugin) handleForwardAttached(ctx *web.Context) error {
 		}
 		msg.MessageID = mail.NewMessageID()
 		msg.Subject = ctx.Tf("message.forwardcount", len(uids))
+		msg.Text = mail.WithSignature("", signOff(ctx, ""))
 		msg.QuoteBelow = true
 	}
 	return p.handleCompose(ctx, &msg, &mail.ComposeOptions{Attached: paths})
@@ -823,7 +825,7 @@ func (p *plugin) handleForward(ctx *web.Context) error {
 		if err != nil {
 			return err
 		}
-		msg.Text = forwardBody(ctx, source, body)
+		msg.Text = mail.WithSignature("", signOff(ctx, "")) + forwardBody(ctx, source, body)
 		msg.QuoteBelow = true
 		if quoted, err := p.quotedHTML(ctx, sourcePath, source); err != nil {
 			return err

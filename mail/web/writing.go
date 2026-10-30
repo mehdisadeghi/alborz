@@ -2,7 +2,6 @@ package web
 
 import (
 	"encoding/base64"
-	"errors"
 	"strings"
 
 	"git.mehdix.org/alborz/mail"
@@ -48,33 +47,116 @@ func composeSignatures(ctx *web.Context, settings *mail.Settings) ([]SignatureCh
 	return choices, nil
 }
 
-var errSignatureUnavailable = errors.New("signature is no longer available")
-
-func chosenSignature(ctx *web.Context, settings *mail.Settings, chosen string) (mail.Signature, error) {
-	if chosen == "" {
-		return mail.Signature{}, nil
-	}
-	choices, err := composeSignatures(ctx, settings)
-	if err != nil {
-		return mail.Signature{}, err
-	}
+// chosenSignature is false for a signature no longer offered.
+func chosenSignature(choices []SignatureChoice, chosen string) (mail.Signature, bool) {
 	for _, sig := range choices {
 		if sig.Value == chosen {
-			return sig.Signature, nil
+			return sig.Signature, true
 		}
 	}
-	return mail.Signature{}, errSignatureUnavailable
+	return mail.Signature{}, chosen == ""
 }
 
-const attribution = "Sent by Alborz Webmail"
-
-// attributed leaves the editable body alone, including when SMTP refuses a send.
-// Keeping this at the compose boundary excludes drafts and generated invitations.
-func attributed(original *mail.OutgoingMessage) *mail.OutgoingMessage {
-	msg := *original
-	msg.Text = strings.TrimRight(msg.Text, "\r\n") + "\n\n" + attribution
-	if msg.HTML != "" {
-		msg.HTML += `<p dir="ltr">` + attribution + `</p>`
+// signOff is what goes under "-- ": the signature, then the attribution line unless the profile drops it.
+func signOff(ctx *web.Context, sig string) string {
+	if ctx.Profile().Writing.NoAttribution {
+		return sig
 	}
-	return &msg
+	return strings.TrimPrefix(sig+"\n"+ctx.T("compose.attribution"), "\n")
+}
+
+// signOffFormat is how a sign-off stands in one body format.
+type signOffFormat struct {
+	delimiter string
+	block     func(signOff string) string
+	locate    func(body, block string) (int, int, bool)
+	add       func(body, block string, top bool) string
+}
+
+var plainSignOff = signOffFormat{
+	delimiter: "\n-- \n",
+	block:     func(s string) string { return "-- \n" + s },
+	// Whole lines only, so a quoted "> -- " never matches.
+	locate: func(body, block string) (int, int, bool) {
+		padded, lines := "\n"+body+"\n", "\n"+block+"\n"
+		if strings.Count(padded, lines) != 1 {
+			return 0, 0, false
+		}
+		i := strings.Index(padded, lines)
+		return i, i + len(block), true
+	},
+	add: func(body, block string, top bool) string {
+		if top {
+			return "\n\n" + block + "\n" + body
+		}
+		return body + "\n\n\n" + block
+	},
+}
+
+var htmlSignOff = signOffFormat{
+	delimiter: "-- <br>",
+	block:     func(s string) string { return strings.TrimSpace(mail.WithSignatureHTML("", s)) },
+	// The paragraph's own attributes may change on the way back from the editor; its content may not.
+	locate: func(body, block string) (int, int, bool) {
+		content := block[strings.Index(block, ">")+1:]
+		if strings.Count(body, content) != 1 {
+			return 0, 0, false
+		}
+		end := strings.Index(body, content)
+		start := strings.LastIndex(body[:end], "<p")
+		if start < 0 || strings.Index(body[start:end], ">") != end-start-1 {
+			return 0, 0, false
+		}
+		return start, end + len(content), true
+	},
+	add: func(body, block string, top bool) string {
+		if top {
+			return `<p dir="auto"><br></p>` + block + "\n" + body
+		}
+		return body + "\n" + block
+	},
+}
+
+// swap puts next in place of the sign-off one of offered left, standing exactly and once.
+// Under no delimiter next is added, on top above a quote; an edited sign-off is left alone.
+func (f signOffFormat) swap(body string, offered []string, next string, top bool) (string, bool) {
+	at, end := -1, 0
+	for _, s := range offered {
+		if i, j, ok := f.locate(body, f.block(s)); ok {
+			if at >= 0 {
+				return body, false
+			}
+			at, end = i, j
+		}
+	}
+	switch {
+	case at >= 0 && next == "":
+		return body[:at] + body[end:], true
+	case at >= 0:
+		return body[:at] + f.block(next) + body[end:], true
+	case strings.Contains("\n"+body, f.delimiter):
+		return body, false
+	case next == "":
+		return body, true
+	}
+	return f.add(body, f.block(next), top), true
+}
+
+// switchSignOff puts sig's sign-off in msg; false when the one there was edited and is kept.
+func switchSignOff(ctx *web.Context, msg *mail.OutgoingMessage, choices []SignatureChoice, sig string, top bool) bool {
+	var offered []string
+	for _, s := range append(choices, SignatureChoice{}) {
+		if block := signOff(ctx, s.Text); block != "" {
+			offered = append(offered, block)
+		}
+	}
+	next, ok := signOff(ctx, sig), false
+	if msg.HTML != "" {
+		if msg.HTML, ok = htmlSignOff.swap(msg.HTML, offered, next, top); ok {
+			msg.Text = mail.ComposedText(msg.HTML)
+		}
+		return ok
+	}
+	msg.Text, ok = plainSignOff.swap(strings.ReplaceAll(msg.Text, "\r\n", "\n"), offered, next, top)
+	return ok
 }

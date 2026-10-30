@@ -9,7 +9,7 @@
           <a class="icon-button" href="{{ localhref (from (printf "%s%s" (url (printf "%s.%s" .object .edit) .id) .acct) $g.GlobalData.From) }}" title="{{$g.T "common.edit"}}" aria-label="{{$g.T "common.edit"}}" data-phone-priority="13">{{ template "icon" "edit" }}<span class="label">{{$g.T "common.edit"}}</span></a>
           {{ end }}
           <a hx-boost="false" class="icon-button" href="{{url (printf "%s.raw" .object) .id}}{{ $g.GlobalData.AccountQuery }}" title="{{$g.T "common.source"}}" aria-label="{{$g.T "common.source"}}" data-phone-priority="12">{{ template "icon" "source" }}<span class="label">{{$g.T "common.source"}}</span></a>
-          <a hx-boost="false" class="icon-button" href="{{url (printf "%s.raw" .object) .id}}?save=1{{ account "&" $g.GlobalData.URLAccount }}" title="{{ printf ($g.T "common.saveas") .ext }}" aria-label="{{ printf ($g.T "common.saveas") .ext }}" data-phone-priority="10">{{ template "icon" "download" }}<span class="label">{{ printf ($g.T "common.saveas") .ext }}</span></a>
+          <a hx-boost="false" class="icon-button" href="{{url (printf "%s.raw" .object) .id}}?save=1{{ account "&" $g.GlobalData.URLAccount }}" title="{{ $g.Tf "common.saveas" .ext }}" aria-label="{{ $g.Tf "common.saveas" .ext }}" data-phone-priority="10">{{ template "icon" "download" }}<span class="label">{{ $g.Tf "common.saveas" .ext }}</span></a>
           {{ if not .readonly }}
           <form action="{{url (printf "%s.delete" .object) .id}}{{.acct}}" method="post" data-phone-priority="11">
             <input type="hidden" name="next" value="{{.list}}">

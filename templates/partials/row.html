@@ -27,7 +27,7 @@
   {{ $g := .g }}
   <div class="{{.class}} list-primary list-cell" role="cell" data-label="{{.label}}">
     <div class="record-label">
-    <a href="{{.href}}" dir="auto"{{ with .addedby }} title="{{ printf ($g.T "share.addedby") . }}"{{ end }}>{{.summary}}</a>
+    <a href="{{.href}}" dir="auto"{{ with .addedby }} title="{{ $g.Tf "share.addedby" . }}"{{ end }}>{{.summary}}</a>
     {{ template "record-account" (dict "g" $g "account" .account) }}
     </div>
   </div>

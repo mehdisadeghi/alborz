@@ -6,7 +6,7 @@
         <div class="list-item">
           <div class="list-content">
             <span class="list-summary" dir="auto">{{ or .Name ($.T "passkeys.unnamed") }}</span>
-            <span class="list-detail">{{ if .LastUsed.IsZero }}{{ printf ($.T "passkeys.added") ($.GlobalData.ShortDate .Added) }}{{ else }}{{ printf ($.T "passkeys.lastused") ($.GlobalData.ShortDate .LastUsed) }}{{ end }}</span>
+            <span class="list-detail">{{ if .LastUsed.IsZero }}{{ $.Tf "passkeys.added" ($.GlobalData.ShortDate .Added) }}{{ else }}{{ $.Tf "passkeys.lastused" ($.GlobalData.ShortDate .LastUsed) }}{{ end }}</span>
           </div>
           <form method="post" action="{{url "settings.passkeys.remove"}}">
             <input type="hidden" name="passkey" value="{{.ID}}">

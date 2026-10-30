@@ -40,7 +40,7 @@
         <input type="hidden" name="quick" value="1">
         {{ $one := .Only }}
         {{ $list := .Name }}{{ if $.GlobalData.Unified }}{{ $list = printf "%s · %s" .Name ($.GlobalData.AccountLabel .Account) }}{{ end }}
-        <input type="text" id="quick" name="summary" required dir="auto" placeholder="{{ if $one }}{{ printf ($.T "tasks.quickadd") $list }}{{ else }}{{ $.T "tasks.quicknew" }}{{ end }}" aria-label="{{$.T "tasks.summary"}}">
+        <input type="text" id="quick" name="summary" required dir="auto" placeholder="{{ if $one }}{{ $.Tf "tasks.quickadd" $list }}{{ else }}{{ $.T "tasks.quicknew" }}{{ end }}" aria-label="{{$.T "tasks.summary"}}">
         {{ if $one }}
         <input type="hidden" name="calendar" value="{{.Account}}|{{.Path}}">
         {{ else }}

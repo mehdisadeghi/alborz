@@ -23,6 +23,7 @@ import (
 
 // GlobalRenderData contains data available in all templates.
 type GlobalRenderData struct {
+	// Path holds the escaped path segments, so a "/" inside a segment stays one segment.
 	Path []string
 	URL  *url.URL
 
@@ -164,6 +165,11 @@ func (brd *BaseRenderData) T(key string) string {
 	return locale.T(brd.GlobalData.Lang, key)
 }
 
+// Tf translates a format key and fills it in the UI language's digits.
+func (brd *BaseRenderData) Tf(key string, args ...any) string {
+	return locale.Tf(brd.GlobalData.Lang, key, args...)
+}
+
 func (g *GlobalRenderData) dates() dates.Reader {
 	return dates.Reader{Lang: g.Lang, Loc: g.Timezone, Primary: g.Primary, Secondary: g.Secondary}
 }
@@ -253,7 +259,7 @@ func NewBaseRenderData(ctx *Context) *BaseRenderData {
 	reader := ctx.Dates()
 	lang := reader.Lang
 	global := GlobalRenderData{
-		Path:           strings.Split(ctx.Request().URL.Path, "/")[1:],
+		Path:           strings.Split(ctx.Request().URL.EscapedPath(), "/")[1:],
 		Title:          alborz.BrandName,
 		URL:            withoutTour(ctx.Request().URL),
 		FirstDayOfWeek: alborz.Reading{}.WeekStart(),

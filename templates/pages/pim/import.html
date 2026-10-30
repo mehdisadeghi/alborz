@@ -8,7 +8,7 @@
         {{ if .Address }}
         {{ template "field" (dict "label" ($.T "import.url") "name" "url" "type" "url" "value" .URL "hint" ($.T "import.urlhint") "autofocus" (ne .URL "")) }}
         {{ end }}
-        {{ template "import-fields" (dict "g" $ "file" (printf ($.T "collection.importfile") .Ext) "accept" (printf "%s,.zip" .Ext) "hint" .Hint "go" ($.T "collection.importdo") "cancel" .Rail.Path "optional" .Address) }}
+        {{ template "import-fields" (dict "g" $ "file" ($.Tf "collection.importfile" .Ext) "accept" (printf "%s,.zip" .Ext) "hint" .Hint "go" ($.T "collection.importdo") "cancel" .Rail.Path "optional" .Address) }}
       </form>
       <p class="hint"><a href="{{ localhref (printf "%s/export-all" .Rail.Path) }}" download>{{ $.T "import.exportall" }}</a></p>
 {{ end }}

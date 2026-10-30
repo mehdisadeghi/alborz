@@ -15,7 +15,7 @@
   <button>{{$.T "common.add"}}</button>
   <details class="quick-help">
     <summary>{{$.T "list.help"}}</summary>
-    <p class="hint" id="event-quick-hint">{{printf ($.T "calendar.quick.hint") $.QuickTimezone}}</p>
+    <p class="hint" id="event-quick-hint">{{$.Tf "calendar.quick.hint" $.QuickTimezone}}</p>
   </details>
 </form>
 {{with $.QuickError}}<p class="hint" id="event-quick-error" role="alert">{{.}} <a href="{{localhref $.QuickEditor}}">{{$.T "calendar.quick.editor"}}</a></p>{{end}}

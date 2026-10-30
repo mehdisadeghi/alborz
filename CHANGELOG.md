@@ -29,6 +29,8 @@
   keep the previous form page's margins.
 - Align mobile list stars and dates, including undated tasks and contacts;
   keep quick-add controls at 32px and sidebar addresses on one line.
+- Dates and counts filled into translated labels use the reader's digits.
+- Sidebar and page links keep a folder name that holds a slash.
 - Recipient suggestions come from every signed-in account's address books, not
   only the account in view.
 - Enter in a compose field sends instead of applying the signature; upload

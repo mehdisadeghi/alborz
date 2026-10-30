@@ -16,7 +16,7 @@
             </div>
             <div class="contact-list-name list-primary list-cell" role="cell">
               <div class="record-label">
-              <a href="{{ call $.HrefFor .Account .Path }}" dir="auto"{{ with call $.AddedBy .Account .Path }} title="{{ printf ($.T "share.addedby") . }}"{{ end }}>
+              <a href="{{ call $.HrefFor .Account .Path }}" dir="auto"{{ with call $.AddedBy .Account .Path }} title="{{ $.Tf "share.addedby" . }}"{{ end }}>
                 {{.DisplayName}}
               </a>
               {{ template "record-account" (dict "g" $ "account" .Account) }}

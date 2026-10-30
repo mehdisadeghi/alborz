@@ -11,7 +11,7 @@
           <div class="list-content">
             <strong>{{ template "ltr" $account }}</strong>
             <span class="list-detail">{{ if .Current }}{{$.T "notifications.enabled"}}{{ else }}{{$.T "notifications.disabled"}}{{ end }}</span>
-            {{ with .Current }}<span class="list-detail">{{ printf ($.T "notifications.since") ($.GlobalData.ShortDate .Created) }}</span>{{ end }}
+            {{ with .Current }}<span class="list-detail">{{ $.Tf "notifications.since" ($.GlobalData.ShortDate .Created) }}</span>{{ end }}
           </div>
           {{ if .Current }}
           <form method="post" action="{{url "settings.notifications.off"}}">
@@ -36,7 +36,7 @@
         <div class="list-item">
           <div class="list-content">
             {{ template "device-summary" (dict "g" $ "device" .Device) }}
-            <span class="list-detail">{{ printf ($.T "notifications.since") ($.GlobalData.ShortDate .Created) }}{{ if .Current }} · {{$.T "sessions.current"}}{{ end }}{{ if .Gone }} · {{$.T "notifications.gone"}}{{ end }}</span>
+            <span class="list-detail">{{ $.Tf "notifications.since" ($.GlobalData.ShortDate .Created) }}{{ if .Current }} · {{$.T "sessions.current"}}{{ end }}{{ if .Gone }} · {{$.T "notifications.gone"}}{{ end }}</span>
           </div>
           <form method="post" action="{{url "settings.notifications.off"}}">
             <input type="hidden" name="account" value="{{$account}}">

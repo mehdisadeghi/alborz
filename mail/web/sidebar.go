@@ -18,18 +18,19 @@ func (p *plugin) handleSidebar(ctx *web.Context) error {
 	if !strings.HasPrefix(page, "/") || strings.HasPrefix(page, "//") {
 		page = ctx.Path("mail.mailbox", "INBOX")
 	}
+	at, err := url.Parse(page)
+	if err != nil {
+		return web.NewError(http.StatusBadRequest, err)
+	}
 	u := *base.GlobalData.URL
-	u.Path = page
+	u.Path, u.RawPath = at.Path, at.RawPath
 	q := u.Query()
 	q.Del("path")
 	u.RawQuery = web.Query(q)
 	base.GlobalData.URL = &u
-	base.GlobalData.Path = strings.Split(page, "/")[1:]
-	folder := ""
-	if at, err := url.Parse(page); err == nil {
-		_, values, _ := ctx.Server.Match(at)
-		folder = values["mbox"]
-	}
+	base.GlobalData.Path = strings.Split(at.EscapedPath(), "/")[1:]
+	_, values, _ := ctx.Server.Match(at)
+	folder := values["mbox"]
 	view, err := readViewValue(web.ReadListState(ctx).View)
 	if err != nil {
 		return err

@@ -9,6 +9,37 @@ import (
 	"testing"
 )
 
+var untranslatedFormat = regexp.MustCompile(`printf \(\$?[A-Za-z.]*\bT\s`)
+
+var (
+	scriptTag     = regexp.MustCompile(`<script\b[^>]*>`)
+	inlineHandler = regexp.MustCompile(`<[a-z][^>]*\son[a-z]+\s*=|javascript:`)
+)
+
+// The policy allows scripts from files only (default-src 'self'), so inline code would be dead.
+func TestTemplatesHaveNoInlineScript(t *testing.T) {
+	for _, root := range []string{"templates", "addons"} {
+		err := filepath.WalkDir(root, func(f string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() || filepath.Ext(f) != ".html" {
+				return err
+			}
+			b, err := os.ReadFile(f)
+			for _, tag := range scriptTag.FindAll(b, -1) {
+				if !strings.Contains(string(tag), " src=") {
+					t.Errorf("%s has an inline script: %s", f, tag)
+				}
+			}
+			if m := inlineHandler.Find(b); m != nil {
+				t.Errorf("%s has inline code: %s", f, m)
+			}
+			return err
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 func TestTranslationKeysExist(t *testing.T) {
 	scans := []struct {
 		root, ext string
@@ -40,6 +71,10 @@ func TestTranslationKeysExist(t *testing.T) {
 				return nil
 			}
 			b, err := os.ReadFile(f)
+			// printf writes Latin digits; Tf writes the reader's.
+			if scan.ext == ".html" && untranslatedFormat.Match(b) {
+				t.Errorf("%s fills a translation with printf; use Tf", f)
+			}
 			for _, m := range scan.key.FindAllStringSubmatch(string(b), -1) {
 				used[m[1]] = append(used[m[1]], f)
 				found++

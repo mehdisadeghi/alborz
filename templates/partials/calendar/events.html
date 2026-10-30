@@ -39,7 +39,7 @@
 {{ with $obj.Account }}{{ $href = printf "%s%s" $href (account (qsep $href) .) }}{{ end }}
 {{ with $base.ListQuery }}{{ $href = printf "%s%s%s" $href (qsep $href) . }}{{ end }}
 {{ $href = from $href $base.GlobalData.URL.RequestURI }}
-{{ $addedby := "" }}{{ with call $base.AddedBy .Account .Path }}{{ $addedby = printf ($base.T "share.addedby") . }}{{ end }}
+{{ $addedby := "" }}{{ with call $base.AddedBy .Account .Path }}{{ $addedby = $base.Tf "share.addedby" . }}{{ end }}
 {{ $staraction := "" }}{{ if not $obj.ReadOnly }}{{ $staraction = printf "%s%s" (url "calendar.event.color" $obj.Path) (account "?" $obj.Account) }}{{ end }}
 {{ $date := "" }}{{ $dateTitle := "" }}{{ if $.dated }}{{ $date = $base.GlobalData.ShortDate .Start }}{{ $dateTitle = $base.GlobalData.LongDate .Start }}{{ with $base.GlobalData.SecondaryDate .Start }}{{ $dateTitle = printf "%s (%s)" $dateTitle . }}{{ end }}{{ end }}
 {{ $collection := call $base.CollectionFor .Account .Path }}

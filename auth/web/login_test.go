@@ -15,7 +15,7 @@ func TestRememberedSignInExplainsInactivity(t *testing.T) {
 		{"en", "Keep me signed in on this device", "Signs out after 60 days without use. Use only on a device you trust."},
 		{"de", "Auf diesem Gerät angemeldet bleiben", "Abmeldung nach 60 Tagen ohne Nutzung. Nur auf einem vertrauenswürdigen Gerät verwenden."},
 		{"es", "Mantener la sesión iniciada en este dispositivo", "La sesión se cierra tras 60 días sin uso. Úsalo solo en un dispositivo de confianza."},
-		{"fa", "در این دستگاه وارد بمانم", "پس از 60 روز بدون استفاده، از حساب خارج می‌شوید. فقط در دستگاهی که به آن اعتماد دارید استفاده کنید."},
+		{"fa", "در این دستگاه وارد بمانم", "پس از ۶۰ روز بدون استفاده، از حساب خارج می\u200cشوید. فقط در دستگاهی که به آن اعتماد دارید استفاده کنید."},
 	} {
 		t.Run(tc.language, func(t *testing.T) {
 			resp := a.Client().Get(t, "auth.login", url.Values{"lang": {tc.language}})

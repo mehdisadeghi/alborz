@@ -43,7 +43,7 @@
               {{ else if .Declined }}{{ $state = "share.answereddeclined" }}{{ $at = .Answered }}
               {{ else if .Left }}{{ $state = "share.answeredleft" }}{{ $at = .Answered }}
               {{ else if .Accepted }}{{ $state = "share.answeredaccepted" }}{{ $at = .Answered }}{{ end }}
-              <span class="list-detail">{{$.T (or (and .Write "share.canedit") "share.canview")}}{{ if not .Expires.IsZero }}, {{ printf ($.T "share.until") ($.GlobalData.ShortDate (.Expires.AddDate 0 0 -1)) }}{{ end }} · {{$.T $state}}{{ if not $at.IsZero }} {{ $.GlobalData.ShortDate $at }}{{ end }}</span>
+              <span class="list-detail">{{$.T (or (and .Write "share.canedit") "share.canview")}}{{ if not .Expires.IsZero }}, {{ $.Tf "share.until" ($.GlobalData.ShortDate (.Expires.AddDate 0 0 -1)) }}{{ end }} · {{$.T $state}}{{ if not $at.IsZero }} {{ $.GlobalData.ShortDate $at }}{{ end }}</span>
             </div>
             <form method="post" class="list-actions">
               <input type="hidden" name="to" value="{{.To}}">
@@ -95,7 +95,7 @@
         <input type="hidden" name="next" value="{{.GlobalData.URL.RequestURI}}">
         <h2>{{$.T "collection.importtitle"}}</h2>
         <label>
-          <span>{{ printf ($.T "collection.importfile") .Ext }}</span>
+          <span>{{ $.Tf "collection.importfile" .Ext }}</span>
           <input type="file" name="file" accept="{{.Ext}}" required>
         </label>
         <button>{{$.T "collection.importdo"}}</button>
@@ -108,13 +108,13 @@
         {{ template "field" (dict "label" ($.T "collection.exportfrom") "name" "from" "type" "date") }}
         {{ template "field" (dict "label" ($.T "collection.exportto") "name" "to" "type" "date") }}
         {{ end }}
-        <button>{{ printf ($.T "collection.exportdo") .Ext }}</button>
+        <button>{{ $.Tf "collection.exportdo" .Ext }}</button>
       </form>
 
       <form class="danger-zone" method="post" action="{{url (printf "%s.delete" .Collection) .Path}}{{account "?" .Account}}">
         {{ if .SharedBy }}
         <h2>{{$.T "share.leavetitle"}}</h2>
-        <button class="button-danger">{{ printf ($.T "share.leavedo") .Name }}</button>
+        <button class="button-danger">{{ $.Tf "share.leavedo" .Name }}</button>
         {{ else }}
         <h2>{{$.T "collection.deletetitle"}}</h2>
         {{ if gt .Count 0 }}
@@ -122,7 +122,7 @@
         {{ else if lt .Count 0 }}
         <p>{{$.T "collection.deleteunknown"}}</p>
         {{ end }}
-        <button class="button-danger">{{ if eq .Count 0 }}{{ printf ($.T "collection.deletedoempty") .Name }}{{ else }}{{ printf ($.T "collection.deletedo") .Name }}{{ end }}</button>
+        <button class="button-danger">{{ if eq .Count 0 }}{{ $.Tf "collection.deletedoempty" .Name }}{{ else }}{{ $.Tf "collection.deletedo" .Name }}{{ end }}</button>
         {{ end }}
       </form>
       {{ end }}

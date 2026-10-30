@@ -59,9 +59,9 @@
           <tr id="message-conversation"{{ if not (or .InReplyTo .Answers .Message.ListID .ContextPending) }} hidden{{ end }}>
             <th scope="row">{{ if .ThreadSupported }}<a href="{{ localhref (printf "%s?thread=%d%s" (url "mail.mailbox" $.Mailbox.Name) .Message.UID (account "&" $.GlobalData.URLAccount)) }}">{{$.T "list.conversation"}}</a>{{ else }}{{$.T "list.conversation"}}{{ end }}:</th>
             <td class="conversation">
-              {{ with .InReplyTo }}<a href="{{url "mail.message" .Mailbox .UID}}{{$.GlobalData.AccountQuery}}">{{ printf ($.T "list.answering") (or .From ($.T "mailbox.nosender")) }}</a>{{ end }}
-              {{ with .Answers }}<a href="{{ url "mail.message" (index . 0).Mailbox (index . 0).UID }}{{$.GlobalData.AccountQuery}}">{{ if eq (len .) 1 }}{{ printf ($.T "list.answeredby") (or (index . 0).From ($.T "mailbox.nosender")) }}{{ else }}{{ printf ($.T "list.answeredbymore") (or (index . 0).From ($.T "mailbox.nosender")) (sub (len .) 1) }}{{ end }}</a>{{ end }}
-              {{ with .Message.ListID }}<a href="{{ localhref (printf "%s?query=list:%s%s" (url "mail.mailbox" $.Mailbox.Name) (. | qv) (account "&" $.GlobalData.URLAccount)) }}">{{ printf ($.T "list.via") . }}</a>{{ end }}
+              {{ with .InReplyTo }}<a href="{{url "mail.message" .Mailbox .UID}}{{$.GlobalData.AccountQuery}}">{{ $.Tf "list.answering" (or .From ($.T "mailbox.nosender")) }}</a>{{ end }}
+              {{ with .Answers }}<a href="{{ url "mail.message" (index . 0).Mailbox (index . 0).UID }}{{$.GlobalData.AccountQuery}}">{{ if eq (len .) 1 }}{{ $.Tf "list.answeredby" (or (index . 0).From ($.T "mailbox.nosender")) }}{{ else }}{{ $.Tf "list.answeredbymore" (or (index . 0).From ($.T "mailbox.nosender")) (sub (len .) 1) }}{{ end }}</a>{{ end }}
+              {{ with .Message.ListID }}<a href="{{ localhref (printf "%s?query=list:%s%s" (url "mail.mailbox" $.Mailbox.Name) (. | qv) (account "&" $.GlobalData.URLAccount)) }}">{{ $.Tf "list.via" . }}</a>{{ end }}
             </td>
           </tr>
 {{ end }}
@@ -73,9 +73,9 @@
 
 {{ define "message-signature" }}
 {{ if .Signature.Confirmed }}
-<span class="sig sig-verified" title="{{ printf ($.T .Signature.Claim) .Signature.Signer }}">{{$.T "pgp.verified"}}</span>
+<span class="sig sig-verified" title="{{ $.Tf .Signature.Claim .Signature.Signer }}">{{$.T "pgp.verified"}}</span>
 {{ else if eq .Signature.State "good" }}
-<span class="sig sig-good" title="{{ printf ($.T .Signature.Claim) .Signature.Signer }}">{{$.T "pgp.good"}}</span>
+<span class="sig sig-good" title="{{ $.Tf .Signature.Claim .Signature.Signer }}">{{$.T "pgp.good"}}</span>
 {{ else if eq .Signature.State "bad" }}
 <span class="sig sig-bad" title="{{$.T .Signature.Reason}}">{{$.T "pgp.bad"}}</span>
 {{ end }}

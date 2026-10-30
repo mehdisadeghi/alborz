@@ -3,7 +3,7 @@
   {{ $aq := .GlobalData.AccountQuery }}
       {{ template "settings-head" (dict "g" $ "title" ($.T "settings.signatures") "path" (url "mail.signatures") "newhref" (printf "%s%s" (url "mail.signatures.create") $aq) "newlabel" ($.T "settings.signaturenew")) }}
 
-      <p class="help">{{ printf ($.T "mail.signatureaccount") .GlobalData.Username }}</p>
+      <p class="help">{{ $.Tf "mail.signatureaccount" .GlobalData.Username }}</p>
 
       <section class="list-items">
         {{ range .Settings.Signatures }}

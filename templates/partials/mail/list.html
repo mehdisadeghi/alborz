@@ -42,7 +42,7 @@
           </div>
           {{ template "message-rows" $ }}
           {{if not .Messages}}
-          <p class="empty-list">{{if .Query}}{{printf (.T "common.noresults") .Query}}{{else if eq .ListView "starred"}}{{$.T "mailbox.nostarred"}}{{else if eq .ListView "unread"}}{{$.T "mailbox.nounread"}}{{else if .ListView}}{{printf ($.T "mailbox.nocolor") ($.T (printf "color.%s" .ListView))}}{{else}}{{$.T "common.empty"}}{{end}}</p>
+          <p class="empty-list">{{if .Query}}{{.Tf "common.noresults" .Query}}{{else if eq .ListView "starred"}}{{$.T "mailbox.nostarred"}}{{else if eq .ListView "unread"}}{{$.T "mailbox.nounread"}}{{else if .ListView}}{{$.Tf "mailbox.nocolor" ($.T (printf "color.%s" .ListView))}}{{else}}{{$.T "common.empty"}}{{end}}</p>
           {{end}}
         </div>
       </section>
@@ -81,7 +81,7 @@
             {{if .HasFlag "\\Answered"}}<span class="message-mark" title="{{$.T "mailbox.answered"}}"><span aria-hidden="true">↩︎</span><span class="visually-hidden">{{$.T "mailbox.answered"}}</span></span>{{end}}
             {{if .HasFlag "$Forwarded"}}<span class="message-mark" title="{{$.T "mailbox.forwarded"}}"><span aria-hidden="true">↪︎</span><span class="visually-hidden">{{$.T "mailbox.forwarded"}}</span></span>{{end}}
             {{if not (.HasFlag "\\Seen")}}<span class="visually-hidden">{{$.T "a11y.unread"}}</span>{{end}}
-            {{ with .Alias }}<span class="message-mark alias-mark" title="{{ printf ($.T "message.aliasmark") . }}"><span aria-hidden="true">@</span><span class="visually-hidden">{{ printf ($.T "message.aliasmark") . }}</span></span>{{ end }}
+            {{ with .Alias }}<span class="message-mark alias-mark" title="{{ $.Tf "message.aliasmark" . }}"><span aria-hidden="true">@</span><span class="visually-hidden">{{ $.Tf "message.aliasmark" . }}</span></span>{{ end }}
           </div>
           <div class="message-list-sender {{$classes}}" role="cell">
             {{ $people := .Envelope.From }}{{ $field := "from" }}{{ if $.Outgoing }}{{ $people = .Envelope.To }}{{ $field = "to" }}{{ end }}

@@ -21,7 +21,7 @@
           <input type="checkbox" name="remember-me" id="remember-me"{{if .Remember}} checked{{end}} aria-describedby="remember-help" />
           {{$.T "login.remember"}}
         </label>
-        <p class="hint" id="remember-help">{{printf ($.T "login.rememberhelp") .RememberDays}}</p>
+        <p class="hint" id="remember-help">{{$.Tf "login.rememberhelp" .RememberDays}}</p>
       </div>
 
       <div class="action-group">

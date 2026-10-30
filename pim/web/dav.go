@@ -60,6 +60,19 @@ func ReadPlace(ctx *web.Context, p *dav.Provider, account string) (string, strin
 	return account, p.DefaultPlace(ctx.Request().Context(), s)
 }
 
+// Preselected is where a new object goes unless the reader chooses: the account in view's first collection, else the first of all.
+func Preselected(ctx *web.Context, groups []dav.Group) *dav.Collection {
+	for i := range groups {
+		if groups[i].Account == ctx.URLAccount() && len(groups[i].Collections) > 0 {
+			return &groups[i].Collections[0]
+		}
+	}
+	if len(groups) > 0 && len(groups[0].Collections) > 0 {
+		return &groups[0].Collections[0]
+	}
+	return &dav.Collection{}
+}
+
 // HandleRefresh asks every signed-in account's server again and lands on list, a route.
 func HandleRefresh(p *dav.Provider, list string) func(*web.Context) error {
 	return func(ctx *web.Context) error {

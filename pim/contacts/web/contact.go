@@ -165,10 +165,7 @@ func (p *plugin) updateContact(ctx *web.Context) error {
 			return err
 		}
 		card = make(vcard.Card)
-		currentAddressBook = &dav.Collection{}
-		if len(groups) > 0 {
-			currentAddressBook = &groups[0].Collections[0]
-		}
+		currentAddressBook = pimweb.Preselected(ctx, groups)
 	}
 
 	if ctx.Request().Method == "POST" {

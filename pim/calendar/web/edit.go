@@ -26,16 +26,13 @@ type calendarEdit struct {
 func (p *plugin) editCalendarObject(ctx *web.Context, path, notFound, failed string, empty error, supports func([]string) bool,
 	component func(*ical.Calendar) *ical.Component, fresh func() *ical.Component,
 ) (*calendarEdit, error) {
-	e := &calendarEdit{collection: &dav.Collection{}}
+	e := &calendarEdit{}
 	if path == "" {
 		groups, err := p.writableGroups(ctx, supports)
 		if err != nil {
 			return nil, err
 		}
-		e.groups, e.component = groups, fresh()
-		if len(groups) > 0 {
-			e.collection = &groups[0].Collections[0]
-		}
+		e.groups, e.component, e.collection = groups, fresh(), pimweb.Preselected(ctx, groups)
 		return e, nil
 	}
 

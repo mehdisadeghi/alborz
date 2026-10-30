@@ -3,42 +3,45 @@ package alborz_test
 import (
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 
 	. "git.mehdix.org/alborz/internal/alborztest"
 )
 
-func TestMailToolbarComposeKeepsTheAccount(t *testing.T) {
+// Every section's New opens on the account in view, as Compose does.
+func TestToolbarNewKeepsTheAccount(t *testing.T) {
 	a := Alborz(t)
+	for _, account := range []string{User, User2} {
+		c := a.SignIn(t, account)
+		c.CreateCalendar(t, "Events", "")
+		c.CreateBook(t, "People")
+		c.Post(t, "calendar.calendars.create", url.Values{"account": {account}, "place": {"here"}, "name": {"Diary"}}, url.Values{"for": {"journal"}})
+	}
 	c := a.SignIn(t, User)
 	c.SignIn(t, User2)
-	for _, account := range []string{User, User2, ""} {
-		t.Run(account, func(t *testing.T) {
-			doc := swipeDocument(t, c.Page(t, "mail.mailbox", "INBOX", url.Values{"account": {account}}))
-			links := swipeElements(doc, "data-tour", "new")
-			if len(links) != 1 {
-				t.Fatalf("the toolbar has %d compose links", len(links))
-			}
-			href := swipeAttribute(links[0], "href")
-			u, err := url.Parse(href)
-			if err != nil || u.Path != a.Path("mail.compose") || u.Query().Get("account") != account {
-				t.Fatalf("compose link lost account %q: %s (%v)", account, href, err)
-			}
-			page := swipeDocument(t, c.Follow(t, href))
-			want := account
-			if want == "" {
-				want = User
-			}
-			selected := false
-			for _, option := range swipeElements(page, "value", want) {
-				if _, ok := swipeFindAttribute(option, "selected"); option.Data == "option" && ok {
-					selected = true
+	for _, page := range []struct {
+		route string
+		args  []any
+	}{
+		{"mail.mailbox", []any{"INBOX"}}, {"calendar.month", nil}, {"calendar.tasks", nil}, {"calendar.journal", nil}, {"contacts.list", nil},
+	} {
+		for _, account := range []string{User, User2} {
+			t.Run(page.route+"/"+account, func(t *testing.T) {
+				doc := swipeDocument(t, c.Page(t, page.route, append(page.args, url.Values{"account": {account}})...))
+				links := swipeElements(doc, "data-tour", "new")
+				if len(links) != 1 {
+					t.Fatalf("the toolbar has %d New links", len(links))
 				}
-			}
-			if !selected {
-				t.Fatalf("following Compose does not select %s as sender", want)
-			}
-		})
+				form := swipeDocument(t, c.Follow(t, swipeAttribute(links[0], "href")))
+				for _, option := range swipeElements(form, "selected", "") {
+					if v := swipeAttribute(option, "value"); option.Data == "option" && (v == account || strings.HasPrefix(v, account+"|")) {
+						return
+					}
+				}
+				t.Fatalf("New does not preselect %s", account)
+			})
+		}
 	}
 }
 

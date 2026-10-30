@@ -6,11 +6,6 @@
         {{ template "object-form-head" (dict "g" $ "editing" .Object "collection" .Collection "groups" .Groups "section" ($.T "nav.tasks") "home" (url "calendar.tasks") "field" "cal"
            "title" (or (and .Object ($.T "tasks.edittitle")) ($.T "tasks.createtitle")) "name" "calendar" "key" "task") }}
 
-        {{ with .Parent }}
-        <input type="hidden" name="parent" value="{{.Path}}">
-        <p>{{$.T "tasks.subtask.parent"}}: <a href="{{.Href}}" dir="auto">{{.Summary}}</a></p>
-        {{ end }}
-
         {{$summary := ""}}
         {{$desc := ""}}
         {{if .Todo}}
@@ -30,6 +25,15 @@
             {{ end }}
           </select>
         </div>
+        {{ with .Parents }}
+        <div class="field">
+          <label for="parent">{{$.T "tasks.subtask.parent"}}</label>
+          <select name="parent" id="parent">
+            <option value="">{{$.T "tasks.subtask.none"}}</option>
+            {{ range . }}<option value="{{.UID}}" dir="auto"{{ if eq .UID $.Parent }} selected{{ end }}>{{.Summary}}</option>{{ end }}
+          </select>
+        </div>
+        {{ end }}
         {{ template "field" (dict "label" ($.T "common.description") "name" "description" "value" $desc "dir" "auto" "rows" "4") }}
 
         {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (or .GlobalData.From (printf "%s%s" (url "calendar.tasks") $acct)) "cancelLabel" ($.T "common.cancel")) }}

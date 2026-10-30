@@ -50,16 +50,15 @@
           <dd>{{ template "user-text" $desc }}</dd>
           {{end}}
         </dl>
+        {{ with .Children }}
         <section class="subtasks">
           <h2>{{$.T "tasks.subtask.children"}}</h2>
-          {{ if .Children }}
           <ul>
-            {{ range .Children }}<li{{ if .Completed }} class="completed"{{ end }}><a href="{{.Href}}" dir="auto">{{.Summary}}</a> · {{if .Completed}}{{$.T "tasks.completed"}}{{else}}{{$.T "tasks.pending"}}{{end}}</li>{{ end }}
+            {{ range . }}<li{{ if .Completed }} class="completed"{{ end }}><a href="{{.Href}}" dir="auto">{{.Summary}}</a> · {{if .Completed}}{{$.T "tasks.completed"}}{{else}}{{$.T "tasks.pending"}}{{end}}</li>{{ end }}
           </ul>
           <p class="hint">{{$.T "tasks.subtask.independent"}}</p>
-          {{ end }}
-          {{ if .Collection.Writable }}<a href="{{.ChildCreate}}" class="button-link">{{$.T "tasks.subtask.add"}}</a>{{ end }}
         </section>
+        {{ end }}
         {{ if .Collection.Writable }}{{ template "note-box" (dict
            "action" (printf "%s%s" (url "calendar.task.note" .Task.Path) $acct)
            "next" .GlobalData.URL.RequestURI

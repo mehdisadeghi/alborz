@@ -19,11 +19,10 @@ type TaskRenderData struct {
 	Task calendar.TaskObject
 	// Authors are who added and last changed the object, where another account.
 	// List is the list the page was opened from.
-	Star        string
-	Priority    string
-	Parent      *TaskLink
-	Children    []TaskLink
-	ChildCreate string
+	Star     string
+	Priority string
+	Parent   *TaskLink
+	Children []TaskLink
 }
 
 type UpdateTaskRenderData struct {
@@ -34,7 +33,9 @@ type UpdateTaskRenderData struct {
 	// Priority is the band the select holds; PriorityBands the bands offered.
 	Priority      string
 	PriorityBands []string
-	Parent        *TaskLink
+	// Parent is the parent's UID the select holds; Parents the tasks offered, none when creating.
+	Parent  string
+	Parents []TaskLink
 }
 
 func (p *plugin) task(ctx *web.Context) error {
@@ -64,7 +65,7 @@ func (p *plugin) task(ctx *web.Context) error {
 		Task:     calendar.TaskObject{CalendarObject: task},
 		Star:     calendar.ComponentColor(todo),
 		Priority: calendar.PriorityBand(todo),
-		Parent:   parent, Children: children, ChildCreate: childCreateURL(ctx, e),
+		Parent:   parent, Children: children,
 	})
 }
 func (p *plugin) updateTask(ctx *web.Context) error {
@@ -80,9 +81,19 @@ func (p *plugin) updateTask(ctx *web.Context) error {
 		return err
 	}
 	todo := e.component
-	parent, err := p.newSubtask(ctx, e)
-	if err != nil {
-		return err
+	parent := calendar.ParentUID(todo)
+	var parents []TaskLink
+	if !e.creating() {
+		tasks, err := collectionTasks(ctx, e.client, e.collection.Path)
+		if err != nil {
+			return err
+		}
+		uid, _ := todo.Props.Text(ical.PropUID)
+		parents = parentChoices(tasks, uid)
+		// A parent outside the collection stays until the reader picks another.
+		if parent != "" && !slices.ContainsFunc(tasks, func(task TaskLink) bool { return task.UID == parent }) {
+			parents = append(parents, TaskLink{UID: parent, Summary: ctx.T("tasks.subtask.missing")})
+		}
 	}
 
 	if ctx.Request().Method == "POST" {
@@ -99,6 +110,13 @@ func (p *plugin) updateTask(ctx *web.Context) error {
 		if band != "" && !slices.Contains(calendar.PriorityBands, band) {
 			return web.NewError(http.StatusBadRequest, "no such priority")
 		}
+		_, parentSent := params["parent"]
+		if parentSent {
+			parent = ctx.FormValue("parent")
+			if parent != "" && !slices.ContainsFunc(parents, func(task TaskLink) bool { return task.UID == parent }) {
+				return web.NewError(http.StatusBadRequest, "no such parent task")
+			}
+		}
 
 		reject := func(message string) error {
 			todo.Props.SetText(ical.PropSummary, summary)
@@ -113,14 +131,11 @@ func (p *plugin) updateTask(ctx *web.Context) error {
 				Priority:                       band,
 				PriorityBands:                  calendar.PriorityBands,
 				Parent:                         parent,
+				Parents:                        parents,
 			})
 		}
 		if summary == "" {
 			return reject(ctx.T("form.summaryneeded"))
-		}
-
-		if parent != nil && (len(e.groups) == 0 || ctx.FormValue("calendar") != ctx.Login.Username()+"|"+e.collection.Path) {
-			return reject(ctx.T("form.destinationneeded"))
 		}
 		to, err := e.destination(ctx, p, calendar.SupportsTodo)
 		if handled, refusal := pimweb.DestinationRefusal(ctx, err, reject); handled {
@@ -151,6 +166,9 @@ func (p *plugin) updateTask(ctx *web.Context) error {
 		todo.Props.Del(ical.PropDateTimeStart)
 		if prioritySent {
 			calendar.SetPriorityBand(todo, band)
+		}
+		if parentSent {
+			calendar.SetParent(todo, parent)
 		}
 
 		if todo.Props.Get(ical.PropUID) == nil {
@@ -188,5 +206,6 @@ func (p *plugin) updateTask(ctx *web.Context) error {
 		Priority:                       calendar.PriorityBand(todo),
 		PriorityBands:                  calendar.PriorityBands,
 		Parent:                         parent,
+		Parents:                        parents,
 	})
 }

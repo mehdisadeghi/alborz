@@ -27,4 +27,12 @@ func TestParentUIDUsesTheICalendarRelationship(t *testing.T) {
 	if got := ParentUID(todo); got != "parent,escaped" {
 		t.Fatalf("parent round trip = %q", got)
 	}
+	SetParent(todo, "other")
+	if got := len(todo.Props["RELATED-TO"]); got != 1 || ParentUID(todo) != "other" {
+		t.Fatalf("replace kept %d relations, parent %q", got, ParentUID(todo))
+	}
+	SetParent(todo, "")
+	if ParentUID(todo) != "" {
+		t.Fatal("empty uid kept the parent")
+	}
 }

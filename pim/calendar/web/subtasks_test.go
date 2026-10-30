@@ -12,34 +12,30 @@ import (
 func TestSubtasksKeepTheirParentAndCompleteIndependently(t *testing.T) {
 	a, c := SignedIn(t, User)
 	cal := c.CreateCalendar(t, "Project", "tasks")
-	other := c.CreateCalendar(t, "Other", "tasks")
-	parent := cal + "parent.ics"
+	parent, child := cal+"parent.ics", cal+"child.ics"
 	a.Put(t, parent, "text/calendar", Todo("parent-uid", "Build prototype"))
-	page := c.Page(t, "calendar.task", Here+parent)
-	if !Says(t, page, "tasks.subtask.add") {
-		t.Fatal("parent does not offer subtask creation")
+	a.Put(t, child, "text/calendar", Todo("child-uid", "Order components"))
+	if edit := c.Page(t, "calendar.task.edit", Here+child); !strings.Contains(edit, `<option value="parent-uid"`) {
+		t.Fatal("edit form does not offer the parent")
 	}
-	create := c.Page(t, "calendar.task.create", url.Values{"parent": {Here + parent}})
-	if !strings.Contains(create, `name="parent"`) || !strings.Contains(create, "Build prototype") {
-		t.Fatal("child form lost its parent")
+	if resp := c.Post(t, "calendar.task.edit", url.Values{"summary": {"Order components"}, "parent": {"parent-uid"}}, Here+child); resp.StatusCode != http.StatusFound {
+		t.Fatalf("set parent: %s\n%s", resp.Status, resp.Text)
 	}
-	form := url.Values{"parent": {Here + parent}, "summary": {"Order components"}, "calendar": {User + "|" + Here + other}}
-	if resp := c.Post(t, "calendar.task.create", form); resp.StatusCode != http.StatusUnprocessableEntity || !strings.Contains(resp.Text, `value="Order components"`) {
-		t.Fatalf("child in unrelated list did not retain input: %s", resp.Status)
+	// A descendant as parent would close a cycle.
+	if edit := c.Page(t, "calendar.task.edit", Here+parent); strings.Contains(edit, `value="child-uid"`) {
+		t.Fatal("edit form offers a descendant as parent")
 	}
-	form.Set("calendar", User+"|"+Here+cal)
-	if resp := c.Post(t, "calendar.task.create", form); resp.StatusCode != http.StatusFound {
-		t.Fatalf("create child: %s\n%s", resp.Status, resp.Text)
+	if resp := c.Post(t, "calendar.task.edit", url.Values{"summary": {"Build prototype"}, "parent": {"child-uid"}}, Here+parent); resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("cycle accepted: %s", resp.Status)
 	}
-	page = c.Page(t, "calendar.task", Here+parent)
-	if !strings.Contains(page, "Order components") {
+	if !strings.Contains(c.Page(t, "calendar.task", Here+parent), "Order components") {
 		t.Fatal("parent page does not list its child")
 	}
 	if resp := c.Post(t, "calendar.task.complete", url.Values{}, Here+parent); resp.StatusCode != http.StatusFound {
 		t.Fatalf("complete parent: %s", resp.Status)
 	}
 	report := a.DAV(t, "REPORT", cal, map[string]string{"Depth": "1", "Content-Type": "application/xml"}, `<C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:prop><C:calendar-data/></D:prop><C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VTODO"/></C:comp-filter></C:filter></C:calendar-query>`).Text
-	if !strings.Contains(report, "RELATED-TO;RELTYPE=PARENT:parent-uid") || strings.Count(report, "STATUS:COMPLETED") != 1 || !strings.Contains(report, "STATUS:NEEDS-ACTION") {
+	if strings.Count(report, "RELATED-TO;RELTYPE=PARENT:parent-uid") != 1 || strings.Contains(report, "PARENT:child-uid") || strings.Count(report, "STATUS:COMPLETED") != 1 {
 		t.Fatalf("relationship/completion not preserved:\n%s", report)
 	}
 	// Completed parents are absent from the open list; the child remains an open task.
@@ -48,5 +44,21 @@ func TestSubtasksKeepTheirParentAndCompleteIndependently(t *testing.T) {
 	}
 	if !strings.Contains(c.Page(t, "calendar.task", Here+parent), "Order components") {
 		t.Fatal("completed parent lost its children")
+	}
+}
+
+func TestSavingKeepsAMissingParent(t *testing.T) {
+	a, c := SignedIn(t, User)
+	cal := c.CreateCalendar(t, "Project", "tasks")
+	orphan := cal + "orphan.ics"
+	a.Put(t, orphan, "text/calendar", strings.Replace(Todo("orphan-uid", "Solder header"), "END:VTODO", "RELATED-TO;RELTYPE=PARENT:gone-uid\r\nEND:VTODO", 1))
+	if edit := c.Page(t, "calendar.task.edit", Here+orphan); !strings.Contains(edit, `<option value="gone-uid" dir="auto" selected>`) {
+		t.Fatal("edit form drops the missing parent")
+	}
+	if resp := c.Post(t, "calendar.task.edit", url.Values{"summary": {"Solder header"}, "parent": {"gone-uid"}}, Here+orphan); resp.StatusCode != http.StatusFound {
+		t.Fatalf("save: %s\n%s", resp.Status, resp.Text)
+	}
+	if got := a.DAV(t, "GET", orphan, nil, "").Text; !strings.Contains(got, "RELATED-TO;RELTYPE=PARENT:gone-uid") {
+		t.Fatalf("missing parent lost on save:\n%s", got)
 	}
 }

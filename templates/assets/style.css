@@ -2223,7 +2223,10 @@ main.create-update > form > .allday-label::before {
 .info-card dd,
 .info-explain dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 
-.detail-card > h2 {
+main.task .subtasks { margin-top: var(--space-4); }
+
+.detail-card > h2,
+main.task .subtasks > h2 {
   margin: 0 0 var(--space-2);
   font-size: var(--text-base, 1rem);
 }

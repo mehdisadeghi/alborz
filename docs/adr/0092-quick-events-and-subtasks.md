@@ -40,12 +40,16 @@ RFC 5545 3.8.4.5).
 
 ### Subtasks
 
-6. Subtasks are `VTODO` components linked to their parent by
+6. A subtask is any `VTODO` linked to a parent by
    `RELATED-TO;RELTYPE=PARENT` (RFC 5545 3.8.4.5) within the same
-   writable task collection.
-7. Parent and subtask pages link to each other, including completed
-   subtasks. Marking a parent or subtask complete MUST NOT cascade to
-   its relatives.
+   task collection.
+7. The task edit form offers a Parent select listing the collection's
+   tasks; an empty choice removes the parent. It MUST NOT offer the task
+   itself or its descendants, and the server MUST refuse a parent
+   outside that set. New tasks have no parent until edited.
+8. Parent and subtask pages link to each other; the parent page lists
+   every child, including completed ones. Marking a parent or subtask
+   complete MUST NOT cascade to its relatives.
 
 ## Consequences
 
@@ -59,4 +63,6 @@ RFC 5545 3.8.4.5).
 - RFC 5545 3.8.4.5 (`RELATED-TO`)
 - ADR 2, ADR 49, ADR 80, ADR 81
 - `pim/calendar/web/quick.go`, `pim/calendar/web/subtasks.go`,
-  `pim/calendar/caldav.go`, `templates/partials/calendar/toolbar.html`
+  `pim/calendar/subtasks.go`, `pim/calendar/caldav.go`,
+  `templates/pages/tasks/task-edit.html`,
+  `templates/partials/calendar/toolbar.html`

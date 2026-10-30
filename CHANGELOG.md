@@ -35,6 +35,8 @@
 
 ### Changed
 
+- A task's parent is set in its edit form; the detail page lists its subtasks
+  and no longer offers Add subtask.
 - The “Sent by Alborz Webmail” line is pre-filled, translated and editable under
   the signature in new mail, replies and forwards instead of added at sending.
 - Browser history follows the markup: page navigations add an entry, list

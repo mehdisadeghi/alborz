@@ -20,5 +20,5 @@ rests on. When the code and an ADR disagree, one of them is wrong: fix
 it in the same change. A new decision gets a new number; a changed one
 amends or supersedes the old in its Status line.
 
-Bugs and features, open or done, live in `docs/tracker.db`; an item
-that needed a decision names its ADR there.
+Bugs and features, open or done, live in `tracker.db` at the repository
+root (untracked); an item that needed a decision names its ADR there.

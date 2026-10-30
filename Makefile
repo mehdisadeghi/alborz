@@ -7,23 +7,18 @@ ARGS ?=
 
 .PHONY: build run watch fmt lint vuln test test-js login-key
 
-# Keep agent/developer test outputs and temporary fixtures inside the checkout.
+# Go's cache and temp files go where these name, e.g. inside the checkout
+# for a sandboxed agent; unset, Go's own defaults apply.
+export GOCACHE GOTMPDIR TMPDIR
 PACKAGES ?= ./...
 TESTDIR ?= .
 TESTFLAGS ?=
-.PHONY: test-local vet-local security-local local-dirs
-test-local vet-local security-local: export GOCACHE = $(CURDIR)/.local/go-build
-test-local vet-local security-local: export GOTMPDIR = $(CURDIR)/.local/go-tmp
-test-local vet-local security-local: export TMPDIR = $(CURDIR)/.local/tmp
-local-dirs:
-	mkdir -p .local/go-build .local/go-tmp .local/tmp
-test-local vet-local security-local: local-dirs
+.PHONY: test-local vet-local security-local
 test-local:
 	$(GO) -C $(TESTDIR) test $(TESTFLAGS) $(PACKAGES)
 vet-local:
 	$(GO) vet $(PACKAGES)
-security-local:
-	$(GO) run golang.org/x/vuln/cmd/govulncheck@latest -scan=symbol -show=verbose ./...
+security-local: vuln
 
 build:
 	$(GO) build -o alborz ./cmd/alborz
@@ -43,11 +38,12 @@ fmt:
 # The same diagnostics the editor shows: gofmt, vet, and gopls with its
 # analyzers, which is where the modernize hints come from; then
 # golangci-lint (staticcheck included) and revive (go test checks ADR 66's import rule);
-# eslint and stylelint for the browser side. Tools are pinned and fetched
-# on first use; local/ is untracked.
+# eslint and stylelint for the browser side. Go tools are pinned in
+# tools/tools.mod, gopls and the others here; all are fetched on first use.
+TOOL ?= $(GO) tool -modfile=tools/tools.mod
 GOPLS ?= $(GO) run golang.org/x/tools/gopls@v0.24.0
-GOLANGCI ?= $(GO) run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0
-REVIVE ?= $(GO) run github.com/mgechev/revive@v1.17.1
+GOLANGCI ?= $(TOOL) golangci-lint
+REVIVE ?= $(TOOL) revive
 ESLINT ?= npx --yes eslint@10.13.0
 STYLELINT ?= npx --yes stylelint@17.15.0
 .PHONY: lint-go lint-web
@@ -64,7 +60,7 @@ lint-go:
 
 # Report module advisories too; fail on vulnerable symbols reachable by our code.
 vuln:
-	$(GO) run golang.org/x/vuln/cmd/govulncheck@latest -scan=symbol -show=verbose ./...
+	$(TOOL) govulncheck -scan=symbol -show=verbose ./...
 
 # Templates, locales, and every page a signed-in reader can open, served
 # by an in-process IMAP server. No rig or credentials.
@@ -79,4 +75,13 @@ test-js:
 login-key:
 	openssl rand -base64 32
 
-include packaging/desktop/desktop.mk
+# Screenshots of fixture pages in headless Chrome, e.g.
+# make shot ROUTE=calendar,settings WIDTH=1280,390 OUT=/tmp/shots
+ROUTE ?= mail
+WIDTH ?= 1280,390
+HEIGHT ?= 900
+.PHONY: shot
+shot:
+	$(GO) test -tags preview -run TestPreview -count=1 -v ./tools/preview -args -route "$(ROUTE)" -width "$(WIDTH)" -height "$(HEIGHT)" $(if $(OUT),-out "$(OUT)") $(if $(JS),-js "$(JS)") $(if $(CHROME),-chrome "$(CHROME)")
+
+include contrib/packaging/desktop/desktop.mk

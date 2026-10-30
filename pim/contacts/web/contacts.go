@@ -254,8 +254,8 @@ func (p *plugin) found(ctx *web.Context, q search.Query, view string, limit int)
 	}
 	collection, href := pimweb.Labels(ctx, books, "contacts.list", "book", nil)
 	return web.Found{Rows: &AddressBookRenderData{
-		ListRenderData: pimweb.ListRenderData{CollectionLabels: pimweb.NewCollectionLabels(p.DAV, ctx.Login.Username(), collection, href)},
-		AddressObjects: shown,
-		HrefFor:        func(_, path string) string { return hrefs[path] },
+		CollectionLabels: pimweb.NewCollectionLabels(p.DAV, ctx.Login.Username(), collection, href),
+		AddressObjects:   shown,
+		HrefFor:          func(_, path string) string { return hrefs[path] },
 	}, Total: total, All: ctx.SearchURL("contacts.list", q, view)}, nil
 }

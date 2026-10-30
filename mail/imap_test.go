@@ -77,8 +77,7 @@ func TestFetchOneRefreshesAStaleSelectedMailbox(t *testing.T) {
 				t.Errorf("fetched %v, want UID 1", msg)
 			}
 			if tc.missing {
-				var missing *alborz.NotFoundError
-				if !errors.As(err, &missing) {
+				if _, ok := errors.AsType[*alborz.NotFoundError](err); !ok {
 					t.Errorf("missing UID: %v, want not found", err)
 				}
 			}

@@ -1,6 +1,7 @@
 package web_test
 
 import (
+	"maps"
 	"net"
 	"net/http"
 	"net/url"
@@ -77,9 +78,7 @@ func TestAStaleAutoReplyEditKeepsAnotherBrowsersSave(t *testing.T) {
 	account := url.Values{"account": {User}}
 	reply := func(c *Client, shown string, changed url.Values) *Response {
 		form := url.Values{"shown": {shown}, "index": {"0"}, "name": {"Away"}, "subject": {""}, "text": {"Back soon"}, "days": {"7"}, "addresses": {User}}
-		for k, v := range changed {
-			form[k] = v
-		}
+		maps.Copy(form, changed)
 		return c.Post(t, "filters.autoreply", form, account)
 	}
 	if resp := reply(other, "", url.Values{"index": nil}); resp.StatusCode != http.StatusFound {

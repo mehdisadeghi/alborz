@@ -46,7 +46,7 @@ func OnMailHost(rt http.RoundTripper, host, service, instance string) (*url.URL,
 		return nil, false
 	}
 	for _, v := range resp.Header.Values("DAV") {
-		for _, feature := range strings.Split(v, ",") {
+		for feature := range strings.SplitSeq(v, ",") {
 			if strings.TrimSpace(feature) == davFeature[service] {
 				return u, true
 			}

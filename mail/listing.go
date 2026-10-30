@@ -148,11 +148,9 @@ func (p *Mailboxes) gather(ctx context.Context, logins []*alborz.Login, spec lis
 	}
 	entries := make([]*listingEntry, len(logins))
 	for i, s := range logins {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			entries[i] = asked(i, s)
-		}()
+		})
 	}
 	wg.Wait()
 	alborz.AddTiming(ctx, "imap", imapStart)
@@ -552,7 +550,7 @@ var heldFields = map[string]func(env *imap.Envelope) string{
 func addressesText(list []imap.Address) string {
 	var b strings.Builder
 	for _, a := range list {
-		b.WriteString(a.Name + " <" + a.Addr() + ">\n")
+		fmt.Fprintf(&b, "%s <%s>\n", a.Name, a.Addr())
 	}
 	return b.String()
 }

@@ -15,9 +15,9 @@ import (
 func TestInstanceReuseAndIsolation(t *testing.T) {
 	dir := t.TempDir()
 	var opened, created atomic.Int32
-	options := Options{DataDir: dir, Address: "127.0.0.1:0", Open: func(string) error { opened.Add(1); return nil }, New: func(dir, origin string) (Service, error) {
+	options := Options{DataDir: dir, Address: "127.0.0.1:0", Open: func(string) error { opened.Add(1); return nil }, New: func(_, _ string) (Service, error) {
 		created.Add(1)
-		return Service{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("app")) })}, nil
+		return Service{Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.Write([]byte("app")) })}, nil
 	}}
 	instance, reused, err := Start(context.Background(), options)
 	if err != nil {

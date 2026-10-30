@@ -3,6 +3,7 @@ package alborz_test
 import (
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 
@@ -13,11 +14,8 @@ import (
 
 func mobileClass(node *html.Node, class string) []*html.Node {
 	var found []*html.Node
-	for _, value := range strings.Fields(swipeAttribute(node, "class")) {
-		if value == class {
-			found = append(found, node)
-			break
-		}
+	if slices.Contains(strings.Fields(swipeAttribute(node, "class")), class) {
+		found = append(found, node)
 	}
 	for child := node.FirstChild; child != nil; child = child.NextSibling {
 		found = append(found, mobileClass(child, class)...)

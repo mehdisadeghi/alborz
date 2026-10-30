@@ -32,7 +32,7 @@ func TestPagesAnswer(t *testing.T) {
 			}
 			for _, a := range n.Attr {
 				if a.Key == "class" {
-					for _, class := range strings.Fields(a.Val) {
+					for class := range strings.FieldsSeq(a.Val) {
 						if class == "page-wrap" {
 							wrap = n
 						}

@@ -33,7 +33,7 @@ const Any = "\x00"
 func Says(t *testing.T, page, key string, args ...any) bool {
 	t.Helper()
 	text := html.UnescapeString(page)
-	for _, part := range strings.Split(T(t, key, args...), Any) {
+	for part := range strings.SplitSeq(T(t, key, args...), Any) {
 		i := strings.Index(text, part)
 		if i < 0 {
 			return false

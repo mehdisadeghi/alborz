@@ -1,6 +1,7 @@
 package web
 
 import (
+	"maps"
 	"net/url"
 
 	"git.mehdix.org/alborz/pim/dav"
@@ -59,9 +60,7 @@ func Widened(next, field string) string {
 // ObjectURL is an object's page, the route's, with the list's parameters and, in a pooled list, its account.
 func ObjectURL(ctx *web.Context, route, path, account string, params url.Values) string {
 	q := url.Values{}
-	for key, values := range params {
-		q[key] = values
-	}
+	maps.Copy(q, params)
 	if account != "" {
 		q.Set("account", account)
 	}
@@ -83,9 +82,7 @@ func Labels(ctx *web.Context, colls []dav.Collection, list, field string, shape 
 			return ""
 		}
 		q := url.Values{field: {c.Path}}
-		for key, values := range shape {
-			q[key] = values
-		}
+		maps.Copy(q, shape)
 		if account == "" {
 			account = ctx.URLAccount()
 		}

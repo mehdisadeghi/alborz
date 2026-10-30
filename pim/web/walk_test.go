@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
@@ -196,9 +197,7 @@ func walk(t *testing.T, a *App, c *Client, k walked, scope url.Values) {
 
 	found("the create form", c.Page(t, k.create, scope), `name="`+k.titleField+`"`)
 	form := url.Values{k.titleField: {"Walked made"}}
-	for field, values := range k.form {
-		form[field] = values
-	}
+	maps.Copy(form, k.form)
 	form.Set(k.destField, User+"|"+Here+CalendarsOf("nowhere"))
 	if resp := c.Post(t, k.create, form, scope); resp.StatusCode != http.StatusUnprocessableEntity {
 		t.Errorf("a create into a collection the account has not answered %s", resp.Status)
@@ -409,9 +408,7 @@ func TestAStaleEditFormKeepsAnotherBrowsersSave(t *testing.T) {
 				}
 				save := func(title, etag string) url.Values {
 					f := url.Values{k.titleField: {title}, "etag": {etag}}
-					for name, v := range k.form {
-						f[name] = v
-					}
+					maps.Copy(f, k.form)
 					return f
 				}
 				if resp := other.Post(t, k.edit, save("Saved elsewhere", etagDrawn(other.Page(t, k.edit, obj))), obj); resp.StatusCode != http.StatusFound {

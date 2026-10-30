@@ -22,8 +22,9 @@ middleware, and URLs were written out by hand in Go and templates.
    (named `*test`) MAY import `alborz/web`. A logic package MUST NOT
    import a `web` package. A `web` package MUST NOT import another
    feature's `web` package, except a sub-feature's pages using its
-   parent's (`pim/calendar/web` uses `pim/web`). `make lint` enforces
-   this with `internal/importrule` over `go list`.
+   parent's (`pim/calendar/web` uses `pim/web`) and an add-on's pages
+   using the page they extend (ADR 82, `web.Extend`). `TestImportRule`
+   enforces this over `go list`.
 3. Formatting lives in `internal/locale` (catalog, plurals, language
    matching, digits) and `internal/dates`. A `dates.Reader` is a
    language, a zone and a primary and secondary calendar; a
@@ -91,5 +92,5 @@ middleware, and URLs were written out by hand in Go and templates.
 - `cmd/alborz/app/routes.go`, `cmd/alborz/main.go`, `web/router.go`
   (`Group`, `Server.Path`, `Server.Match`, `unrouted`,
   `checkURLs`), `web/server.go` (`Extend`, `OnServers`),
-  `internal/importrule`, `internal/locale`, `internal/dates`,
+  `importrule_test.go`, `internal/locale`, `internal/dates`,
   `internal/alborztest`, `Makefile` (`lint`)

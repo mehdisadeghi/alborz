@@ -94,7 +94,9 @@ func Query(q url.Values) string {
 			if b.Len() > 0 {
 				b.WriteByte('&')
 			}
-			b.WriteString(QueryValue(k) + "=" + QueryValue(v))
+			b.WriteString(QueryValue(k))
+			b.WriteByte('=')
+			b.WriteString(QueryValue(v))
 		}
 	}
 	return b.String()
@@ -212,32 +214,26 @@ func (ctx *Context) forgetLoginToken(username string) {
 // SignInRefusal returns the reader's message and status for a failed sign-in;
 // an empty message means alborz itself failed.
 func (ctx *Context) SignInRefusal(err error) (string, int) {
-	var paused alborz.PausedError
-	if errors.As(err, &paused) {
+	if paused, ok := errors.AsType[alborz.PausedError](err); ok {
 		minutes := int(math.Ceil(time.Until(paused.Until).Minutes()))
 		return ctx.Tf("notice.loginpaused", minutes), http.StatusTooManyRequests
 	}
-	var refused alborz.AuthError
-	if errors.As(err, &refused) {
+	if _, ok := errors.AsType[alborz.AuthError](err); ok {
 		return ctx.T("notice.loginfailed"), http.StatusUnauthorized
 	}
-	var domain alborz.UnknownDomainError
-	if errors.As(err, &domain) {
+	if domain, ok := errors.AsType[alborz.UnknownDomainError](err); ok {
 		if domain.Domain == "" {
 			return ctx.T("login.needsdomain"), http.StatusUnauthorized
 		}
 		return fmt.Sprintf(ctx.T("login.baddomain"), domain.Domain), http.StatusUnauthorized
 	}
-	var baseline alborz.BaselineError
-	if errors.As(err, &baseline) {
+	if baseline, ok := errors.AsType[alborz.BaselineError](err); ok {
 		return fmt.Sprintf(ctx.T("notice.loginerror"), baseline.Error()), http.StatusBadGateway
 	}
-	var dial *net.OpError
-	if errors.As(err, &dial) {
+	if dial, ok := errors.AsType[*net.OpError](err); ok {
 		return fmt.Sprintf(ctx.T("notice.loginerror"), dial.Err), http.StatusServiceUnavailable
 	}
-	var upstream alborz.UpstreamError
-	if errors.As(err, &upstream) {
+	if upstream, ok := errors.AsType[alborz.UpstreamError](err); ok {
 		return fmt.Sprintf(ctx.T("notice.loginerror"), upstream.Error()), http.StatusGatewayTimeout
 	}
 	return "", http.StatusInternalServerError
@@ -270,9 +266,7 @@ func (ctx *Context) RestoreRememberedAccounts() bool {
 	refused := make([]error, len(want))
 	var wg sync.WaitGroup
 	for i, c := range want {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			s, err := ctx.Server.Restore(c.address, c.password, ctx.RealIP())
 			if err != nil {
 				ctx.Logger().Printf("Login failed for %q: %v", c.address, err)
@@ -280,7 +274,7 @@ func (ctx *Context) RestoreRememberedAccounts() bool {
 				return
 			}
 			logins[i] = s
-		}()
+		})
 	}
 	wg.Wait()
 

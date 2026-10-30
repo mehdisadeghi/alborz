@@ -10,7 +10,7 @@ func TestReminderSummaryIsBoundedPlainText(t *testing.T) {
 		{"", ""},
 		{"  Budget\n\treview  ", "Budget review"},
 		{"Meet\u202eing\x00 at <HQ>", "Meeting at <HQ>"},
-		{"برنامه‌ریزی 👩‍💻", "برنامه‌ریزی 👩‍💻"},
+		{"برنامه\u200cریزی 👩\u200d💻", "برنامه\u200cریزی 👩\u200d💻"},
 		{strings.Repeat("界", 200), strings.Repeat("界", 179) + "…"},
 		{strings.Repeat("a", 180), strings.Repeat("a", 180)},
 	} {

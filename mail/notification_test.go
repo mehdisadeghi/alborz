@@ -19,7 +19,7 @@ func TestNotificationTextIsBoundedAndPlain(t *testing.T) {
 	if got := notificationText("x\u202ey\n\t z", 180); got != "xy z" {
 		t.Fatalf("controls survived: %q", got)
 	}
-	if text := "برنامه‌ریزی 👩‍💻"; notificationText(text, 180) != text {
+	if text := "برنامه\u200cریزی 👩\u200d💻"; notificationText(text, 180) != text {
 		t.Fatal("preview removed linguistic or emoji joiners")
 	}
 	if got := notificationText(strings.Repeat("界", 300), 180); len([]rune(got)) != 180 || !strings.HasSuffix(got, "…") {

@@ -194,7 +194,7 @@ self.addEventListener("notificationclick", event => {
 				const response = await fetch(action.url, { method: "POST", credentials: "same-origin", redirect: "manual",
 					headers: { "Alborz-Notification": "1" }, body: new URLSearchParams({ action: action.action }) });
 				if (response.status === 204) { return; }
-			} catch (_) { /* Opening the message lets the reader retry after a lost connection. */ }
+			} catch { /* Opening the message lets the reader retry after a lost connection. */ }
 		}
 		// A locked or signed-out session opens this exact message after authentication.
 		return openNotification(data.url);

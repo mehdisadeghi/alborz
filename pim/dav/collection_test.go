@@ -181,8 +181,7 @@ func TestALoginStaysOnItsSourcesHost(t *testing.T) {
 	defer own.Close()
 	req, _ := http.NewRequest("PROPFIND", "http://alborz.invalid"+at(own)+"/dav/", nil)
 	_, err := routerTo(own, http.DefaultTransport).RoundTrip(req)
-	var refused *RefusedError
-	if !errors.As(err, &refused) {
+	if _, ok := errors.AsType[*RefusedError](err); !ok {
 		t.Fatalf("a 401 after a redirect came back as %v, want a refusal", err)
 	}
 	if want := []string{"own:true", "other:"}; !slices.Equal(got, want) {

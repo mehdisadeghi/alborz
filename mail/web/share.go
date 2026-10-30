@@ -18,8 +18,7 @@ func handleShare(ctx *web.Context) error {
 		return web.NewError(http.StatusBadRequest, ctx.T("attach.invalid"))
 	}
 	form, err := web.ReadForm(reader)
-	var over *http.MaxBytesError
-	if errors.As(err, &over) {
+	if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
 		return web.NewError(http.StatusRequestEntityTooLarge, ctx.T("attach.toolarge"))
 	} else if err != nil {
 		return web.NewError(http.StatusBadRequest, ctx.T("attach.invalid"))

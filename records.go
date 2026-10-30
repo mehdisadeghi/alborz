@@ -275,7 +275,7 @@ type SessionRecord struct {
 	ID       string
 	Created  time.Time
 	Seen     time.Time
-	Expires  time.Time `json:",omitempty"`
+	Expires  time.Time
 	Proof    []byte
 	Accounts []RememberedAccount
 	Profile  *Profile

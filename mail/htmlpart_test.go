@@ -64,7 +64,7 @@ func TestSendHTMLKeepsThePlainPartFirst(t *testing.T) {
 	if plain > html {
 		t.Errorf("the HTML part came first: %v", types)
 	}
-	for _, line := range strings.Split(mixedBody, "\n\n") {
+	for line := range strings.SplitSeq(mixedBody, "\n\n") {
 		if !strings.Contains(bodies["text/plain"], line) {
 			t.Errorf("the typed text did not survive: %q\ngot: %q", line, bodies["text/plain"])
 		}

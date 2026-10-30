@@ -83,5 +83,5 @@ Few servers expand RSCALE.
   (`scaleGuard`, `ErrScaleUnlisted`), `pim/store/caldav.go`,
   `internal/calsys/calsys.go` (`For`, `ParsePage`),
   `internal/dates/field.go` (`Field`)
-- `github.com/alborzmail/go-recur` (`rscale/persian.go`),
+- `github.com/alborzmail/go-recur/rscale/persian.go`,
   `github.com/alborzmail/go-ical`, `github.com/alborzmail/go-webdav`

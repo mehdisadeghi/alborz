@@ -128,8 +128,7 @@ func TestSetupRejectsUntrustedTLSWithoutSaving(t *testing.T) {
 	p := setupTestProvider("example.org")
 	p.IMAP = strings.Replace(remote.URL, "https:", "imaps:", 1)
 	err := s.AddSetup(context.Background(), s.SetupCode(), "me@example.org", p)
-	var verification *tls.CertificateVerificationError
-	if !errors.As(err, &verification) {
+	if _, ok := errors.AsType[*tls.CertificateVerificationError](err); !ok {
 		t.Fatalf("expected TLS verification failure, got %v", err)
 	}
 	if !s.NeedsSetup() || len(s.Domains()) != 0 {

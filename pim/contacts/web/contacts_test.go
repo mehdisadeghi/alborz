@@ -28,7 +28,7 @@ func bookCards(t *testing.T, a *App, name string) string {
 	list := a.DAV(t, "PROPFIND", BooksOf(User), map[string]string{"Depth": "1", "Content-Type": "application/xml"},
 		`<propfind xmlns="DAV:"><prop><displayname/></prop></propfind>`).Text
 	href := ""
-	for _, r := range strings.Split(list, "response>") {
+	for r := range strings.SplitSeq(list, "response>") {
 		if strings.Contains(r, ">"+name+"<") {
 			href = Between(r, "href>", "<")
 		}

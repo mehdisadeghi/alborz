@@ -2,7 +2,7 @@ package web_test
 
 import (
 	"bytes"
-	"crypto/elliptic"
+	"crypto/ecdh"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
@@ -89,8 +89,12 @@ func enrollFallbackPasskey(t *testing.T, a *App, c *Client) {
 	if err := json.Unmarshal([]byte(begin.Text), &options); err != nil || options.PublicKey.Challenge == "" {
 		t.Fatalf("begin registration: %s %v", begin.Text, err)
 	}
-	x, y := elliptic.P256().ScalarBaseMult([]byte{1})
-	key, err := cbor.Marshal(map[int]any{1: 2, 3: -7, -1: 1, -2: x.FillBytes(make([]byte, 32)), -3: y.FillBytes(make([]byte, 32))})
+	private, err := ecdh.P256().NewPrivateKey(append(make([]byte, 31), 1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	point := private.PublicKey().Bytes() // 0x04 || X || Y
+	key, err := cbor.Marshal(map[int]any{1: 2, 3: -7, -1: 1, -2: point[1:33], -3: point[33:]})
 	if err != nil {
 		t.Fatal(err)
 	}

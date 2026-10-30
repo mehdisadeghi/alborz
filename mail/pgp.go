@@ -242,7 +242,7 @@ func senderKeys(h textproto.Header, attached openpgp.EntityList, from string, au
 func authorAddresses(h, inner textproto.Header) []string {
 	var out []string
 	add := func(value string) {
-		for _, a := range strings.Split(value, ",") {
+		for a := range strings.SplitSeq(value, ",") {
 			if parsed, err := mail.ParseAddress(strings.TrimSpace(a)); err == nil {
 				out = append(out, parsed.Address)
 			}

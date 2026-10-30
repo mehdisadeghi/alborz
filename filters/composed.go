@@ -67,7 +67,7 @@ func mainScriptFor(present []string, own string) string {
 var includeLine = regexp.MustCompile(`^include :personal ` + quoted + `;$`)
 
 func ownScriptIn(content string) string {
-	for _, line := range strings.Split(content, "\n") {
+	for line := range strings.SplitSeq(content, "\n") {
 		m := includeLine.FindStringSubmatch(strings.TrimSpace(line))
 		if m != nil && !slices.Contains(composed, unquote(m[1])) {
 			return unquote(m[1])
@@ -82,7 +82,7 @@ func checkMainScript(c alborz.SieveClient) error {
 		return err
 	}
 	included := map[string]bool{}
-	for _, line := range strings.Split(content, "\n") {
+	for line := range strings.SplitSeq(content, "\n") {
 		if m := includeLine.FindStringSubmatch(line); m != nil {
 			included[unquote(m[1])] = true
 		}

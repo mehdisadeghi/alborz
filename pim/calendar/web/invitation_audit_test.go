@@ -50,7 +50,7 @@ func TestInvitationRefusesAConcurrentEdit(t *testing.T) {
 						safe = r.Header.Get("If-None-Match") == "*"
 					}
 					if safe {
-						http.Error(w, "changed by another client", 412)
+						http.Error(w, "changed by another client", http.StatusPreconditionFailed)
 						return
 					}
 				}

@@ -99,10 +99,11 @@ func (p *plugin) eventSearch(ctx *web.Context, only map[string]bool, view string
 	})
 	collection, href := pimweb.Labels(ctx, calendars, "calendar.month", "cal", map[string][]string{"view": {"list"}})
 	return &EventSearchRenderData{
-		ListRenderData: pimweb.ListRenderData{CollectionLabels: pimweb.NewCollectionLabels(p.DAV, ctx.Login.Username(), collection, href), Collections: calendars},
-		Found:          found,
-		ListQuery:      web.Query(web.ReadListState(ctx).Keep(eventSearchParams...)),
-		unread:         unread,
+		CollectionLabels: pimweb.NewCollectionLabels(p.DAV, ctx.Login.Username(), collection, href),
+		Collections:      calendars,
+		Found:            found,
+		ListQuery:        web.Query(web.ReadListState(ctx).Keep(eventSearchParams...)),
+		unread:           unread,
 	}, nil
 }
 

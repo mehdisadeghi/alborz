@@ -95,7 +95,7 @@ func run() error {
 		return desktop.Service{Handler: handler, SetupCode: server.SetupCode, StopStreams: server.Changes.Close, Close: func() { server.Close(); logFile.Close() }}, nil
 	}})
 	if err != nil {
-		return fmt.Errorf("Alborz could not start: %w", err)
+		return fmt.Errorf("could not start Alborz: %w", err)
 	}
 	if reused {
 		return nil

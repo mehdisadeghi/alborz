@@ -4,10 +4,11 @@ package desktop
 
 import (
 	"errors"
-	"golang.org/x/sys/unix"
 	"os"
 	"path/filepath"
 	"runtime"
+
+	"golang.org/x/sys/unix"
 )
 
 func DefaultDataDir() (string, error) {
@@ -39,4 +40,6 @@ func acquireLock(path string) (*os.File, bool, error) {
 	}
 	return file, true, nil
 }
-func releaseLock(file *os.File) { unix.Flock(int(file.Fd()), unix.LOCK_UN); file.Close() }
+
+// Closing the only descriptor releases its flock.
+func releaseLock(file *os.File) { file.Close() }

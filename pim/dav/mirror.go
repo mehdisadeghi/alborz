@@ -456,9 +456,7 @@ func (m *Mirror) start(ctx context.Context, u string, target *url.URL) (done <-c
 	}
 	c.syncing = ch
 	out, written := r.out, c.writes
-	m.work.Add(1)
-	go func() {
-		defer m.work.Done()
+	m.work.Go(func() {
 		ctx, cancel := context.WithTimeout(ctx, syncBudget)
 		err := m.sync(ctx, r, u, target, out, written)
 		cancel()
@@ -469,7 +467,7 @@ func (m *Mirror) start(ctx context.Context, u string, target *url.URL) (done <-c
 		}
 		m.mu.Unlock()
 		close(ch)
-	}()
+	})
 	return ch, true
 }
 

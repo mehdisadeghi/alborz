@@ -16,7 +16,7 @@ func TestCalendarMonthDayAnnotations(t *testing.T) {
 	var dates []time.Time
 	calls := 0
 	annotationURL := ""
-	web.Extend(a.Server, func(ctx *web.Context, data *calweb.CalendarRenderData) error {
+	web.Extend(a.Server, func(_ *web.Context, data *calweb.CalendarRenderData) error {
 		calls++
 		dates = append([]time.Time(nil), data.Dates...)
 		query := url.Values{

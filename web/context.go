@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
+	"slices"
 	"strings"
 
 	"git.mehdix.org/alborz"
@@ -179,8 +180,8 @@ func (ctx *Context) RealIP() string {
 		return direct
 	}
 	hops := append(strings.Split(strings.Join(forwarded, ","), ","), direct)
-	for i := len(hops) - 1; i >= 0; i-- {
-		ip, err := netip.ParseAddr(strings.Trim(strings.TrimSpace(hops[i]), "[]"))
+	for _, hop := range slices.Backward(hops) {
+		ip, err := netip.ParseAddr(strings.Trim(strings.TrimSpace(hop), "[]"))
 		if err != nil {
 			return direct
 		}

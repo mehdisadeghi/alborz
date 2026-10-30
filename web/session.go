@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"slices"
 	"strings"
@@ -524,9 +525,7 @@ func (ctx *Context) saveRemembered(now time.Time, account string, added []byte) 
 	kept := make(map[string][]byte, len(s.remember))
 	want := make(map[string][]byte, len(s.remember)+1)
 	if valid {
-		for account, sealed := range s.remember {
-			want[account] = sealed
-		}
+		maps.Copy(want, s.remember)
 	}
 	if account != "" {
 		want[account] = added

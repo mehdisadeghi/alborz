@@ -283,8 +283,7 @@ func (l *Login) DoIMAPWork(ctx context.Context, class IMAPClass, bound time.Dura
 	if *conn == nil {
 		*conn, err = l.manager.connectIMAPContext(ctx, l.manager.dialIMAP, l.domain, l.username, l.password, "")
 		if err != nil {
-			var refused AuthError
-			if errors.As(err, &refused) {
+			if _, ok := errors.AsType[AuthError](err); ok {
 				l.Close()
 			}
 			return err
@@ -445,8 +444,7 @@ func isSieveConnClosed(err error) bool {
 	if err == nil {
 		return false
 	}
-	var closed *managesieve.ConnClosedError
-	if errors.As(err, &closed) {
+	if _, ok := errors.AsType[*managesieve.ConnClosedError](err); ok {
 		return true
 	}
 	return errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) ||
@@ -600,8 +598,7 @@ func (sm *loginManager) connectIMAPContext(ctx context.Context, dial dialIMAPFun
 	c, err := dial(domain, from)
 	if err != nil {
 		// A misconfigured domain is ours; any other dial failure is the server's.
-		var unknown UnknownDomainError
-		if errors.As(err, &unknown) {
+		if _, ok := errors.AsType[UnknownDomainError](err); ok {
 			return nil, err
 		}
 		return nil, UpstreamError{Service: "mail", cause: err}
@@ -616,8 +613,7 @@ func (sm *loginManager) connectIMAPContext(ctx context.Context, dial dialIMAPFun
 	}
 	if err != nil {
 		c.Close()
-		var status *imap.Error
-		if errors.As(err, &status) {
+		if _, ok := errors.AsType[*imap.Error](err); ok {
 			return nil, AuthError{err}
 		}
 		return nil, UpstreamError{Service: "mail", cause: err}

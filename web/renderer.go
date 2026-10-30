@@ -244,7 +244,7 @@ func (g GlobalRenderData) FormatYear(n int) string { return locale.Year(g.Lang, 
 
 func (g GlobalRenderData) T(key string) string { return locale.T(g.Lang, key) }
 
-func (g GlobalRenderData) Tf(key string, args ...interface{}) string {
+func (g GlobalRenderData) Tf(key string, args ...any) string {
 	return locale.Tf(g.Lang, key, args...)
 }
 
@@ -341,7 +341,7 @@ func NewBaseRenderData(ctx *Context) *BaseRenderData {
 }
 
 // Tf is T with a count and arguments, in the plural form the count calls for.
-func (ctx *Context) Tf(key string, args ...interface{}) string {
+func (ctx *Context) Tf(key string, args ...any) string {
 	return locale.Tf(requestLanguage(ctx), key, args...)
 }
 
@@ -449,7 +449,7 @@ type renderer struct {
 	pages    map[string]*template.Template
 }
 
-func (r *renderer) Render(w io.Writer, name string, data interface{}, ctx *Context) error {
+func (r *renderer) Render(w io.Writer, name string, data any, ctx *Context) error {
 	var renderData RenderData
 	if data == nil {
 		renderData = &struct{ BaseRenderData }{*NewBaseRenderData(ctx)}

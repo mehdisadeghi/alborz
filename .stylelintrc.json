@@ -1,0 +1,19 @@
+{
+	"rules": {
+		"block-no-empty": true,
+		"color-no-invalid-hex": true,
+		"comment-no-empty": true,
+		"custom-property-no-missing-var-function": true,
+		"declaration-block-no-duplicate-properties": true,
+		"declaration-block-no-redundant-longhand-properties": true,
+		"declaration-block-no-shorthand-property-overrides": true,
+		"function-calc-no-unspaced-operator": true,
+		"no-duplicate-at-import-rules": true,
+		"no-duplicate-selectors": true,
+		"no-invalid-double-slash-comments": true,
+		"property-no-unknown": true,
+		"selector-pseudo-class-no-unknown": true,
+		"shorthand-property-no-redundant-values": true,
+		"unit-no-unknown": true
+	}
+}

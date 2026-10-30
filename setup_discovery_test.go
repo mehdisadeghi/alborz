@@ -31,7 +31,7 @@ func TestSetupDiscoveryIsOwnerGatedAndKeepsPartialResults(t *testing.T) {
 			if err := query.Unpack(body); err != nil {
 				return
 			}
-			response := dnsmessage.Message{Header: dnsmessage.Header{ID: query.ID, Response: true, Authoritative: true}, Questions: query.Questions}
+			response := dnsmessage.Message{ID: query.ID, Response: true, Authoritative: true, Questions: query.Questions}
 			for _, q := range query.Questions {
 				if q.Name.String() == "_imaps._tcp.example.org." {
 					response.Answers = append(response.Answers, dnsmessage.Resource{

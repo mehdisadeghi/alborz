@@ -22,7 +22,7 @@ type MessageRenderData struct {
 	Part *mail.IMAPPartNode
 	// AsText is the HTML part read as words, offered only without a plain part.
 	AsText         bool
-	View           interface{}
+	View           any
 	MailboxPage    int
 	ContextPending bool
 	ContextURL     template.URL
@@ -253,7 +253,7 @@ func (p *plugin) handleGetPart(ctx *web.Context) error {
 		ContextPending:     shown.DeferContext,
 		ContextURL:         template.URL(contextURL.RequestURI()),
 		IMAPBaseRenderData: *ibase,
-		Shown:              mail.Shown{Message: msg},
+		Message:            msg,
 		Part:               msg.PartByPath(partPath),
 		AsText:             asText,
 		View:               view.Body,

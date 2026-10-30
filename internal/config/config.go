@@ -52,8 +52,7 @@ func Load(fs *flag.FlagSet, lookup func(string) (string, bool)) (*File, error) {
 	if err == nil {
 		c.raw = raw
 		if _, err := toml.Decode(string(raw), &c.values); err != nil {
-			var syntax toml.ParseError
-			if errors.As(err, &syntax) {
+			if syntax, ok := errors.AsType[toml.ParseError](err); ok {
 				return nil, fmt.Errorf("invalid configuration in %s at line %d (check TOML syntax)", path, syntax.Position.Line)
 			}
 			return nil, fmt.Errorf("invalid configuration in %s (check TOML syntax)", path)

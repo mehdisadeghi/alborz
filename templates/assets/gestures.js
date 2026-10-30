@@ -46,7 +46,7 @@
 		for (const kind of Object.keys(local)) {
 			try {
 				local[kind] = localStorage.getItem("alborz.gestures." + kind) !== "off";
-			} catch (error) {
+			} catch {
 				// Storage can be denied; the switch still applies in this document.
 			}
 			document.documentElement.dataset[kind === "rows" ? "rowSwipes" : "swipeNavigation"] = local[kind] ? "on" : "off";
@@ -62,7 +62,7 @@
 		local[kind] = event.target.checked;
 		try {
 			localStorage.setItem("alborz.gestures." + kind, local[kind] ? "on" : "off");
-		} catch (error) {
+		} catch {
 			// A browser-local preference is optional when storage is unavailable.
 		}
 		cancel();

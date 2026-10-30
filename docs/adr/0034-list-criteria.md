@@ -50,4 +50,4 @@ hold one IMAP connection turn past its deadline.
   `envelopeCarries`, `viewOrder`), `mail/listing.go` (`searchWindow`,
   `gather`, `searchFolders`), `mail/prefetch.go` (`listingBudget`),
   `mail/actions.go` (`Ref`, `ParseRefs`), `search/query.go`,
-  `mail/imapsearch/criteria.go`
+  `mail/imapsearch/query.go`

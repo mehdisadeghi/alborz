@@ -281,7 +281,7 @@ func TestMovingAnEventPreservesTheDestinationWhenDeleteAppliedButReplyFailed(t *
 func TestMovingSchedulingObjectsRequiresASafeFallback(t *testing.T) {
 	for _, property := range []string{"ORGANIZER:mailto:host@example.org", "ATTENDEE:mailto:guest@example.org", ""} {
 		for _, capability := range []string{"source schedules", "destination schedules", "source capability fails", "destination capability fails"} {
-			name := strings.Split(property, ":")[0]
+			name, _, _ := strings.Cut(property, ":")
 			if property == "" {
 				if capability != "source schedules" {
 					continue

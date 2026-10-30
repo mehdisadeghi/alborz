@@ -108,13 +108,13 @@ func (a AccountIdentities) offers(address string) bool {
 const attachedField = "attached_messages"
 
 func parseAttachedRef(s string) (mail.MessagePath, error) {
-	i := strings.LastIndex(s, "/")
-	if i < 0 {
+	mailbox, uid, ok := strings.CutLast(s, "/")
+	if !ok {
 		return mail.MessagePath{}, fmt.Errorf("bad attached message %q", s)
 	}
 	var p mail.MessagePath
 	var err error
-	p.Mailbox, p.UID, err = mail.ParseMessageRef(s[:i], s[i+1:])
+	p.Mailbox, p.UID, err = mail.ParseMessageRef(mailbox, uid)
 	return p, err
 }
 
@@ -266,8 +266,7 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *mail.OutgoingMessage, opti
 			if errors.Is(err, mail.ErrSentMailboxMissing) {
 				return render(http.StatusServiceUnavailable, ctx.FormValue("signature"), ctx.T("form.sentmissing"))
 			}
-			var no mail.Refused
-			if errors.As(err, &no) {
+			if no, ok := errors.AsType[mail.Refused](err); ok {
 				return render(http.StatusUnprocessableEntity, ctx.FormValue("signature"), fmt.Sprintf(ctx.T(no.Key), no.Err))
 			}
 			if err == nil {
@@ -365,7 +364,7 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *mail.OutgoingMessage, opti
 		}
 
 		uuids := ctx.FormValue("attachment-uuids")
-		for _, uuid := range strings.Split(uuids, ",") {
+		for uuid := range strings.SplitSeq(uuids, ",") {
 			if uuid == "" {
 				continue
 			}
@@ -492,8 +491,7 @@ func handleComposeAttachment(ctx *web.Context) error {
 		return ctx.JSONError(http.StatusBadRequest, ctx.T("attach.invalid"))
 	}
 	form, err := web.ReadForm(reader)
-	var over *http.MaxBytesError
-	if errors.As(err, &over) {
+	if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
 		return ctx.JSONError(http.StatusRequestEntityTooLarge, ctx.T("attach.toolarge"))
 	} else if err != nil {
 		return ctx.JSONError(http.StatusBadRequest, ctx.T("attach.invalid"))

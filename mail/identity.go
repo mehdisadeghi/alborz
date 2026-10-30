@@ -64,7 +64,7 @@ func BareAddress(s string) string {
 // ParseIdentities reads the addresses an account may write as, one a line.
 func ParseIdentities(raw string) []string {
 	var out []string
-	for _, line := range strings.Split(raw, "\n") {
+	for line := range strings.SplitSeq(raw, "\n") {
 		if line = strings.TrimSpace(line); line != "" {
 			out = append(out, line)
 		}
@@ -115,11 +115,11 @@ func (p *Mailboxes) newDeliveryTrust(login *alborz.Login, settings *Settings) de
 }
 
 func (t deliveryTrust) ours(addr string) bool {
-	at := strings.LastIndex(addr, "@")
-	if at < 0 {
+	_, domain, ok := strings.CutLast(addr, "@")
+	if !ok {
 		return false
 	}
-	domain := strings.ToLower(addr[at+1:])
+	domain = strings.ToLower(domain)
 	if account := strings.LastIndex(t.account, "@"); account >= 0 &&
 		strings.EqualFold(domain, t.account[account+1:]) {
 		return true

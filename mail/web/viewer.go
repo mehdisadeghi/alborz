@@ -13,7 +13,7 @@ var ErrViewUnsupported = fmt.Errorf("cannot generate message view: unsupported p
 
 // View is a message part as the page shows it.
 type View struct {
-	Body interface{}
+	Body any
 	// Remote says the part asks for resources elsewhere.
 	Remote bool
 }

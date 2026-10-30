@@ -67,10 +67,12 @@ func wrapped(b []byte) string {
 	encoded := base64.StdEncoding.EncodeToString(b)
 	var w strings.Builder
 	for len(encoded) > 76 {
-		w.WriteString(encoded[:76] + "\r\n")
+		w.WriteString(encoded[:76])
+		w.WriteString("\r\n")
 		encoded = encoded[76:]
 	}
-	w.WriteString(encoded + "\r\n")
+	w.WriteString(encoded)
+	w.WriteString("\r\n")
 	return w.String()
 }
 
@@ -273,7 +275,8 @@ func TestEverySenderShapeOfAFileIsListed(t *testing.T) {
 		fmt.Fprintf(&b, "From: <eve@example.org>\r\nTo: <%s>\r\nSubject: %s\r\nMIME-Version: 1.0\r\n"+
 			"Content-Type: multipart/%s; boundary=\"outer\"\r\n\r\n", User, s.name, s.top)
 		for _, p := range s.parts {
-			b.WriteString("--outer\r\n" + p)
+			b.WriteString("--outer\r\n")
+			b.WriteString(p)
 		}
 		b.WriteString("--outer--\r\n")
 		a.IMAP.Append(t, "Shapes", b.String())

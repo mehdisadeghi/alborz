@@ -90,7 +90,7 @@ func TestCalendarWeatherUsesLocalDaysAndOneForecast(t *testing.T) {
 				if start < 0 {
 					t.Fatalf("missing day %s: %s", date, shown)
 				}
-				piece := strings.SplitN(shown[start:], "</span>", 2)[0]
+				piece, _, _ := strings.Cut(shown[start:], "</span>")
 				has := strings.Contains(piece, `class="weather-day"`)
 				want := i == 0 || i == 1 || i == 3
 				if has != want {

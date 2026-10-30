@@ -205,7 +205,7 @@ func (p *plugin) monthView(ctx *web.Context) (monthView, error) {
 
 	dates := make([]time.Time, rows*7)
 	d := gridStart
-	for i := 0; i < len(dates); i++ {
+	for i := range dates {
 		dates[i] = d
 		d = d.AddDate(0, 0, 1)
 	}

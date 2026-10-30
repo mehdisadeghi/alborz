@@ -48,8 +48,7 @@ func ActOn(logins []*alborz.Login, refs []Ref, act Act) (done int, failed []Fail
 	}
 	down := 0
 	for _, f := range failed {
-		var upstream alborz.UpstreamError
-		if errors.As(f.Err, &upstream) {
+		if _, ok := errors.AsType[alborz.UpstreamError](f.Err); ok {
 			down++
 		}
 	}

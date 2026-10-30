@@ -30,7 +30,7 @@
 				applicationServerKey: toBuffer(settings.dataset.key),
 			});
 			subscription = sub.toJSON();
-		} catch (e) {
+		} catch {
 			fail(settings.dataset.failed);
 			return;
 		}

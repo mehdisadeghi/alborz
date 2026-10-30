@@ -35,6 +35,6 @@ or ID field announces an index.
 
 - RFC 9051 section 6.4.4 (SEARCH), RFC 6203 (SEARCH=FUZZY)
 - ADR 21, ADR 33
-- `mail/views.go` (`SearchesIndex`), `mail/imapsearch/criteria.go`
-  (`Criteria`), `mail/settings.go` (`IndexedSearch`),
+- `mail/views.go` (`SearchesIndex`), `mail/imapsearch/query.go`
+  (`Of`), `mail/settings.go` (`IndexedSearch`),
   `settings/web/servers.go` (`abilities`), `mail/web/account.go`

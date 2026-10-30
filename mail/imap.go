@@ -1109,10 +1109,7 @@ func recentEnvelopes(conn *imapclient.Client, mboxName string, n int) ([]*imapcl
 	if total == 0 {
 		return nil, nil
 	}
-	from := total - n + 1
-	if from < 1 {
-		from = 1
-	}
+	from := max(total-n+1, 1)
 	var seqSet imap.SeqSet
 	seqSet.AddRange(uint32(from), uint32(total))
 	return conn.Fetch(seqSet, &imap.FetchOptions{Envelope: true}).Collect()
@@ -1359,14 +1356,14 @@ func threadParent(conn *imapclient.Client, mboxName, sent string, msg *IMAPMessa
 // Only the list's own name is dropped, never a "via" the sender wrote.
 func trimListVia(name, listID string) string {
 	label, _, _ := strings.Cut(listID, ".")
-	cut := strings.LastIndex(name, " via ")
-	if label == "" || cut < 0 {
+	before, via, ok := strings.CutLast(name, " via ")
+	if label == "" || !ok {
 		return name
 	}
-	if !strings.EqualFold(name[cut+len(" via "):], label) {
+	if !strings.EqualFold(via, label) {
 		return name
 	}
-	return name[:cut]
+	return before
 }
 
 func envelopeName(from []imap.Address) string {

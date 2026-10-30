@@ -445,7 +445,7 @@ func (pg Page) importFiles(ctx *web.Context, name string, raw []byte) ([]importF
 
 // collectionName is the file's X-WR-CALNAME, else its file name.
 func collectionName(f importFile) string {
-	for _, line := range strings.Split(string(f.raw), "\n") {
+	for line := range strings.SplitSeq(string(f.raw), "\n") {
 		if v, ok := strings.CutPrefix(strings.TrimRight(line, "\r"), "X-WR-CALNAME:"); ok && strings.TrimSpace(v) != "" {
 			return strings.TrimSpace(v)
 		}
@@ -789,8 +789,7 @@ func (pg Page) HandleExportAll(list, filename string) func(*web.Context) error {
 				continue
 			}
 			body, err := pg.Export(ctx, coll.Path, time.Time{}, time.Time{})
-			var out *pim.LeftOutError
-			if errors.As(err, &out) {
+			if out, ok := errors.AsType[*pim.LeftOutError](err); ok {
 				left.Left, left.Err, err = left.Left+out.Left, errors.Join(left.Err, fmt.Errorf("%s: %w", coll.Name, out.Err)), nil
 			}
 			if errors.Is(err, pim.ErrNothingToExport) || (err == nil && len(body) == 0) {

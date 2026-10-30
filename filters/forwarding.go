@@ -51,7 +51,7 @@ func (f Forwarding) script() string {
 func readForwarding(content string) (f Forwarding, ok bool) {
 	f.Keep = true
 	off := false
-	for _, line := range strings.Split(content, "\n") {
+	for line := range strings.SplitSeq(content, "\n") {
 		line = strings.TrimSpace(line)
 		switch {
 		case line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "require "):

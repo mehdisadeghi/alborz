@@ -292,7 +292,7 @@ var ErrNotFound = errors.New("not found")
 
 type NotFoundError struct {
 	Key  string
-	Args []interface{}
+	Args []any
 }
 
 var notFoundMessages = map[string]string{
@@ -326,7 +326,7 @@ func (e *NotFoundError) Error() string {
 func (e *NotFoundError) Unwrap() error { return ErrNotFound }
 
 // NotFound builds a not-found error naming the missing subject by its locale key.
-func NotFound(key string, args ...interface{}) error {
+func NotFound(key string, args ...any) error {
 	return &NotFoundError{key, args}
 }
 

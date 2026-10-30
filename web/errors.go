@@ -58,8 +58,7 @@ func (s *Server) fail(ctx *Context, err error) {
 	}
 	if code == http.StatusNotFound {
 		message := ctx.T("notfound.page")
-		var missing *alborz.NotFoundError
-		if errors.As(err, &missing) {
+		if missing, ok := errors.AsType[*alborz.NotFoundError](err); ok {
 			message = ctx.Tf(missing.Key, missing.Args...)
 		}
 		if err := renderInfo(ctx, code, message); err == nil {
@@ -75,8 +74,7 @@ func (s *Server) fail(ctx *Context, err error) {
 	}
 
 	// An upstream that did not answer is not this program failing, so it gets its own page rather than a 500.
-	var upstream alborz.UpstreamError
-	if errors.As(err, &upstream) {
+	if upstream, ok := errors.AsType[alborz.UpstreamError](err); ok {
 		if err := renderUpstreamDown(ctx, upstream); err == nil {
 			return
 		}

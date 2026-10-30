@@ -111,8 +111,7 @@ func (g *Group) bounded(method string, limit int64, h, over HandlerFunc) Handler
 			return h(ctx)
 		}
 		err := ctx.parseForm()
-		var tooLarge *http.MaxBytesError
-		if errors.As(err, &tooLarge) {
+		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
 			return over(ctx)
 		} else if err != nil {
 			return NewError(http.StatusBadRequest, err)

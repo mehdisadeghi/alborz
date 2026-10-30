@@ -135,7 +135,7 @@ func (san *sanitizer) sanitizeImageURL(src string) string {
 			return "about:blank"
 		}
 		var path []int
-		for _, s := range strings.Split(u.Opaque, ".") {
+		for s := range strings.SplitSeq(u.Opaque, ".") {
 			n, err := strconv.Atoi(s)
 			if err != nil {
 				return "about:blank"

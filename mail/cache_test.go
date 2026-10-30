@@ -72,7 +72,7 @@ func TestListingCacheStates(t *testing.T) {
 
 func TestListingCacheStaysBounded(t *testing.T) {
 	lc := newListingCache(listingKeepFor, memo.NewBackground[Rail](listingFreshFor), newBodyCache(bodyKeepFor))
-	for i := 0; i < maxListingEntries+10; i++ {
+	for i := range maxListingEntries + 10 {
 		lc.storeAt("u", listingView("INBOX", fmt.Sprint("q", i), "", "", ""), &listingEntry{perPage: 25}, lc.epoch("u"))
 	}
 	if n := len(lc.entries); n != maxListingEntries {

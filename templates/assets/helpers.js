@@ -8,7 +8,7 @@ try {
 		document.cookie =
 			"alborz_tz=" + tz + ";path=/;max-age=31536000;SameSite=Lax" + secure;
 	}
-} catch (e) {}
+} catch {}
 
 
 // narrowBy hides the target's options and groups the controller's value rules out; a chosen one that hides falls back to the empty choice.
@@ -59,7 +59,7 @@ const enhance = () => {
 	if (tz_input && !tz_input.value) {
 		try {
 			tz_input.placeholder = Intl.DateTimeFormat().resolvedOptions().timeZone;
-		} catch (e) {}
+		} catch {}
 	}
 
 	// A list is any form its rows' checkboxes name; its controls are disabled while nothing is ticked.
@@ -201,7 +201,7 @@ const enhance = () => {
 			}
 			select.addEventListener("change", () => localStorage.setItem(key, select.value));
 			select.form.addEventListener("submit", () => localStorage.setItem(key, select.value));
-		} catch (e) {}
+		} catch {}
 	}
 
 	const submit_on_change = document.querySelectorAll("[data-submit-on-change]");
@@ -245,7 +245,7 @@ const enhance = () => {
 				localStorage.setItem(button.dataset.protocol + "-asked", "1");
 				document.getElementById("register-mailto-before").hidden = true;
 				document.getElementById("register-mailto-asked").hidden = false;
-			} catch (e) {
+			} catch {
 				document.getElementById("register-mailto-refused").hidden = false;
 			}
 		});
@@ -259,7 +259,7 @@ const enhance = () => {
 				drawer.checked = true;
 				sessionStorage.removeItem("drawer");
 			}
-		} catch (e) {}
+		} catch {}
 		for (const form of document.querySelectorAll("aside form")) {
 			if (!once(form, "drawer")) {
 				continue;
@@ -269,7 +269,7 @@ const enhance = () => {
 					if (drawer.checked) {
 						sessionStorage.setItem("drawer", "1");
 					}
-				} catch (e) {}
+				} catch {}
 			});
 		}
 	}
@@ -284,11 +284,11 @@ const enhance = () => {
 			if (v !== null) {
 				d.open = v === "1";
 			}
-		} catch (e) {}
+		} catch {}
 		d.addEventListener("toggle", () => {
 			try {
 				localStorage.setItem(key, d.open ? "1" : "0");
-			} catch (e) {}
+			} catch {}
 		});
 	}
 

@@ -3,6 +3,7 @@ package filters
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 
 	"git.mehdix.org/alborz"
@@ -100,10 +101,8 @@ func rulesScriptFor(rules []Rule) string {
 	}
 	var need []string
 	add := func(ext string) {
-		for _, n := range need {
-			if n == ext {
-				return
-			}
+		if slices.Contains(need, ext) {
+			return
 		}
 		need = append(need, ext)
 	}

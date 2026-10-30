@@ -38,7 +38,7 @@ func wrapText(text string) string {
 		out.WriteString(line)
 		out.WriteString(end)
 	}
-	for _, line := range strings.Split(text, "\n") {
+	for line := range strings.SplitSeq(text, "\n") {
 		line, cr := strings.CutSuffix(line, "\r")
 		end := "\n"
 		if cr {
@@ -82,7 +82,7 @@ func wrapText(text string) string {
 func Unflow(text string, delSp bool) string {
 	var out []string
 	soft, depth := false, -1
-	for _, line := range strings.Split(text, "\n") {
+	for line := range strings.SplitSeq(text, "\n") {
 		line = strings.TrimSuffix(line, "\r")
 		content := strings.TrimLeft(line, ">")
 		n := len(line) - len(content)

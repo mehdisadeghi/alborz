@@ -15,7 +15,7 @@ import (
 	"github.com/emersion/go-imap/v2"
 )
 
-func templateList(values ...interface{}) []interface{} { return values }
+func templateList(values ...any) []any { return values }
 
 // TemplateFuncs are the functions the templates call.
 var TemplateFuncs = template.FuncMap{
@@ -84,11 +84,11 @@ var TemplateFuncs = template.FuncMap{
 		return opts
 	},
 	"devicename": web.DeviceName,
-	"dict": func(pairs ...interface{}) (map[string]interface{}, error) {
+	"dict": func(pairs ...any) (map[string]any, error) {
 		if len(pairs)%2 != 0 {
 			return nil, fmt.Errorf("dict: odd number of arguments")
 		}
-		m := make(map[string]interface{}, len(pairs)/2)
+		m := make(map[string]any, len(pairs)/2)
 		for i := 0; i < len(pairs); i += 2 {
 			k, ok := pairs[i].(string)
 			if !ok {

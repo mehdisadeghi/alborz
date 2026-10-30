@@ -2,6 +2,7 @@ package alborztest
 
 import (
 	"html"
+	"maps"
 	"net/url"
 	"regexp"
 	"strings"
@@ -21,9 +22,7 @@ func (c *Client) Compose(t *testing.T, page string, fields url.Values, route str
 		"from":        {User}, "to": {"friend@example.org"},
 		"subject": {"direction"}, "text": {"سلام\n\nEnglish."},
 	}
-	for k, v := range fields {
-		form[k] = v
-	}
+	maps.Copy(form, fields)
 	return c.Upload(t, route, form, nil, args...)
 }
 

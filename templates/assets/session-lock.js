@@ -4,8 +4,8 @@
 	if (!meta) { return; }
 	const id = meta.content, data = meta.dataset;
 	const lockKey = "alborz-locked:" + id, enabledKey = "alborz-protected:" + id;
-	const read = key => { try { return localStorage.getItem(key); } catch (_) { return null; } };
-	const write = (key, value) => { try { value === null ? localStorage.removeItem(key) : localStorage.setItem(key, value); } catch (_) {} };
+	const read = key => { try { return localStorage.getItem(key); } catch { return null; } };
+	const write = (key, value) => { try { value === null ? localStorage.removeItem(key) : localStorage.setItem(key, value); } catch {} };
 	const unlockPage = location.pathname === data.unlock;
 	const privatePage = data.private === "true" && !unlockPage;
 	let after = Number(data.after) * 1000;
@@ -19,7 +19,7 @@
 	};
 	let title = document.title, message = data.checking;
 	let channel;
-	try { if (typeof BroadcastChannel !== "undefined") { channel = new BroadcastChannel("alborz-session:" + id); } } catch (_) {}
+	try { if (typeof BroadcastChannel !== "undefined") { channel = new BroadcastChannel("alborz-session:" + id); } } catch {}
 	const broadcast = type => channel?.postMessage({session: id, type});
 	const paint = () => {
 		const status = document.getElementById("session-lock-status");
@@ -86,7 +86,7 @@
 				document.title = title;
 			}
 			arm();
-		} catch (_) {
+		} catch {
 			if (ticket === generation) { conceal(data.failed); }
 		}
 	};
@@ -99,7 +99,7 @@
 		try {
 			const response = await fetch(data.lock, {method: "POST", headers: {"Alborz-Lock": "1"}, credentials: "same-origin", redirect: "manual"});
 			if (response.status === 204) { confirmedLock(); return; }
-		} catch (_) {}
+		} catch {}
 		// The server may have accepted a POST whose reply was lost. Verify before
 		// claiming success; an unreachable or still-open session stays concealed here.
 		await verify();

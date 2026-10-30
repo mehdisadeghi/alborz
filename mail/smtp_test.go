@@ -83,7 +83,7 @@ func TestQuoteOfQuoteSurvivesUnflow(t *testing.T) {
 		t.Fatal(err)
 	}
 	wrapped := wrapText(quoted)
-	for _, line := range strings.Split(strings.TrimSpace(wrapped), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(wrapped), "\n") {
 		if line = strings.TrimSuffix(line, " "); len(line) > wrapColumn {
 			t.Errorf("line of %d exceeds %d: %q", len(line), wrapColumn, line)
 		}

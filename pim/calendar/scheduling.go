@@ -28,7 +28,7 @@ const ItipProductID = "-//mehdix.org//Alborz//EN"
 func ParseAttendees(value string) []string {
 	var out []string
 	seen := make(map[string]bool)
-	for _, line := range strings.Split(value, "\n") {
+	for line := range strings.SplitSeq(value, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue

@@ -38,19 +38,27 @@ watch:
 	find . -name '*.go' | entr -nr $(MAKE) run
 
 fmt:
-	gofmt -w .
+	gofmt -w $$(git ls-files '*.go')
 
 # The same diagnostics the editor shows: gofmt, vet, and gopls with its
-# analyzers, which is where the modernize hints come from; then the
-# import rule of ADR 66, golangci-lint and revive. local/ is untracked.
-GOPLS ?= gopls
-GOLANGCI ?= golangci-lint
-REVIVE ?= revive
-lint: vuln
-	@test -z "$$(gofmt -l .)" || { gofmt -l .; exit 1; }
+# analyzers, which is where the modernize hints come from; then
+# golangci-lint (staticcheck included) and revive (go test checks ADR 66's import rule);
+# eslint and stylelint for the browser side. Tools are pinned and fetched
+# on first use; local/ is untracked.
+GOPLS ?= $(GO) run golang.org/x/tools/gopls@v0.24.0
+GOLANGCI ?= $(GO) run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0
+REVIVE ?= $(GO) run github.com/mgechev/revive@v1.17.1
+ESLINT ?= npx --yes eslint@10.13.0
+STYLELINT ?= npx --yes stylelint@17.15.0
+.PHONY: lint-go lint-web
+lint: vuln lint-go lint-web
+lint-web:
+	$(ESLINT) .
+	$(STYLELINT) "templates/assets/**/*.css" "addons/*/web/**/*.css"
+lint-go:
+	@out=$$(gofmt -l $$(git ls-files '*.go')) && test -z "$$out" || { echo "$$out"; exit 1; }
 	$(GO) vet ./...
 	@out=$$($(GOPLS) check -severity=hint $$(git ls-files '*.go') 2>&1) && test -z "$$out" || { echo "$$out"; exit 1; }
-	$(GO) list -f '{{.ImportPath}}{{range .Imports}} {{.}}{{end}}' ./... | awk -f tools/import-rule.awk
 	$(GOLANGCI) run ./...
 	$(REVIVE) -config revive.toml -set_exit_status -exclude ./local/... ./...
 

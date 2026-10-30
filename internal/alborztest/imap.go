@@ -357,7 +357,7 @@ func (s fetchKeepsUnread) Select(mailbox string, options *imap.SelectOptions) (*
 
 type readOnlyMailboxes struct{ imapserver.SessionIMAP4rev2 }
 
-func (s readOnlyMailboxes) Select(mailbox string, options *imap.SelectOptions) (*imap.SelectData, error) {
+func (s readOnlyMailboxes) Select(mailbox string, _ *imap.SelectOptions) (*imap.SelectData, error) {
 	data, err := s.SessionIMAP4rev2.Select(mailbox, &imap.SelectOptions{ReadOnly: true})
 	if data != nil {
 		data.PermanentFlags = nil
@@ -370,7 +370,7 @@ func (s readOnlyMailboxes) Store(*imapserver.FetchWriter, imap.NumSet, *imap.Sto
 }
 
 func (s readOnlyMailboxes) Fetch(w *imapserver.FetchWriter, set imap.NumSet, options *imap.FetchOptions) error {
-	return (fetchKeepsUnread{s.SessionIMAP4rev2}).Fetch(w, set, options)
+	return fetchKeepsUnread(s).Fetch(w, set, options)
 }
 
 func (s fetchKeepsUnread) Fetch(w *imapserver.FetchWriter, set imap.NumSet, options *imap.FetchOptions) error {

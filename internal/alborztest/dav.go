@@ -327,8 +327,8 @@ func (d *DAVServer) mkcalendar(w http.ResponseWriter, r *http.Request, body stri
 		return
 	}
 	name := "New"
-	if i := strings.Index(body, "<D:displayname>"); i >= 0 {
-		name = body[i+len("<D:displayname>"):]
+	if _, after, ok := strings.Cut(body, "<D:displayname>"); ok {
+		name = after
 		name = name[:strings.Index(name, "</D:displayname>")]
 	}
 	d.cals[p] = name

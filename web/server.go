@@ -334,8 +334,8 @@ func (s *Server) assetStamp(name string) string {
 
 // assetSource maps a shared asset URL to the owning embedded tree.
 func (s *Server) assetSource(name string) (fs.FS, string, bool) {
-	if strings.HasPrefix(name, "addons/") {
-		segment, rest, ok := strings.Cut(strings.TrimPrefix(name, "addons/"), "/")
+	if after, ok := strings.CutPrefix(name, "addons/"); ok {
+		segment, rest, ok := strings.Cut(after, "/")
 		if !ok || rest == "" {
 			return nil, "", false
 		}

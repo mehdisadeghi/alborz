@@ -127,7 +127,7 @@ func flagButtonColor(t *testing.T, page string) string {
 	}
 	start := i + len(`class="`)
 	end := strings.IndexByte(page[start:], '"')
-	for _, cls := range strings.Fields(page[start : start+end]) {
+	for cls := range strings.FieldsSeq(page[start : start+end]) {
 		if strings.HasPrefix(cls, "flag-") && cls != "flag-button" {
 			return strings.TrimPrefix(cls, "flag-")
 		}

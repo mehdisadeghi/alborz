@@ -44,6 +44,8 @@ func TestActiveIMAPSurvivesReaderCancellation(t *testing.T) {
 				fmt.Fprintf(serverConn, "%s OK completed\r\n", fields[0])
 			}
 		}
+		// The test closes the pipe when done; a read error then is expected.
+		_ = scanner.Err()
 	}()
 	if err := client.WaitGreeting(); err != nil {
 		t.Fatal(err)

@@ -94,7 +94,7 @@ func Plural(lang, key string, count int) string {
 }
 
 // Tf translates a format string and fills it; a first int argument is the count its plural form follows.
-func Tf(lang, key string, args ...interface{}) string {
+func Tf(lang, key string, args ...any) string {
 	count := 1
 	if len(args) > 0 {
 		if n, ok := args[0].(int); ok {

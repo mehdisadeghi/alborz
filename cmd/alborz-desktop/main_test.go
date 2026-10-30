@@ -14,10 +14,10 @@ import (
 
 func TestDesktopStartsCommissioningWithoutExposingOwnerCode(t *testing.T) {
 	instance, _, err := desktop.Start(context.Background(), desktop.Options{DataDir: t.TempDir(), Address: "127.0.0.1:0", Open: func(string) error { return nil }, New: func(dir, origin string) (desktop.Service, error) {
-		options := app.Options{Addons: make(map[string]any)}
-		options.LoginKey = "YLZFnivEgqo-9cIJcqU6wOS7LhhCrXtgxRvYHoQ6NmA="
-		options.DataDir = dir
-		options.PublicURL = origin
+		options := app.Options{Addons: make(map[string]any),
+			LoginKey:  "YLZFnivEgqo-9cIJcqU6wOS7LhhCrXtgxRvYHoQ6NmA=",
+			DataDir:   dir,
+			PublicURL: origin}
 		server, handler, err := app.New(log.New(io.Discard, "", 0), options)
 		if err != nil {
 			return desktop.Service{}, err

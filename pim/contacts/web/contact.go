@@ -237,7 +237,7 @@ func (p *plugin) updateContact(ctx *web.Context) error {
 		setValue(card, vcard.FieldNote, strings.TrimSpace(ctx.FormValue("note")))
 		// CATEGORIES is a comma list (RFC 6350 6.7.1).
 		var words []string
-		for _, word := range strings.Split(ctx.FormValue("categories"), ",") {
+		for word := range strings.SplitSeq(ctx.FormValue("categories"), ",") {
 			if word = strings.TrimSpace(word); word != "" {
 				words = append(words, word)
 			}

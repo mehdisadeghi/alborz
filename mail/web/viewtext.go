@@ -30,7 +30,7 @@ func init() {
 }
 
 type textRenderData struct {
-	Tokens []interface{}
+	Tokens []any
 	Images []imageRenderData
 }
 
@@ -56,7 +56,7 @@ var allowedSchemes = map[string]bool{
 	"ircs":   true,
 }
 
-func executeTemplate(name string, data interface{}) (template.HTML, error) {
+func executeTemplate(name string, data any) (template.HTML, error) {
 	var sb strings.Builder
 	err := textTpl.ExecuteTemplate(&sb, name, data)
 	if err != nil {
@@ -76,7 +76,7 @@ func viewText(ctx *web.Context, msg *mail.IMAPMessage, path []int, part *message
 
 	// Language is decided per paragraph: per line the voice would stutter.
 	page := ctx.PageLanguage()
-	var tokens, para []interface{}
+	var tokens, para []any
 	var text strings.Builder
 	flush := func() {
 		if len(para) == 0 {

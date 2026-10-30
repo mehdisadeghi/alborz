@@ -3,6 +3,7 @@ package web_test
 import (
 	"fmt"
 	"html"
+	"maps"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -118,9 +119,7 @@ func TestAnOrganizerKeepsAttendeesInformed(t *testing.T) {
 	step := func(change url.Values) []sentCalendar {
 		t.Helper()
 		was := len(sent.All())
-		for k, v := range change {
-			form[k] = v
-		}
+		maps.Copy(form, change)
 		if resp := c.Post(t, "calendar.event.update", form, event); resp.StatusCode != http.StatusFound {
 			t.Fatalf("updating the event answered %s", resp.Status)
 		}

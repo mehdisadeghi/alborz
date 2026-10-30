@@ -193,8 +193,7 @@ func (s *imapMetadataStore) Put(ctx context.Context, key string, v any) error {
 	err = s.login.DoIMAPContext(ctx, RoundTripTimeout, func(c *imapclient.Client) error {
 		return c.SetMetadata("", entries).Wait()
 	})
-	var refused *imap.Error
-	if errors.As(err, &refused) {
+	if _, ok := errors.AsType[*imap.Error](err); ok {
 		return StoreRefusedError{err}
 	} else if err != nil {
 		return fmt.Errorf("alborz: failed to put IMAP store entry %q: %w", key, err)

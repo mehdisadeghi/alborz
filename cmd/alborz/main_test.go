@@ -41,7 +41,7 @@ func TestUnconfiguredInstanceAnnouncesOwnerSetupAfterBinding(t *testing.T) {
 		t.Fatal(err)
 	}
 	var address, code string
-	for _, line := range strings.Split(output, "\n") {
+	for line := range strings.SplitSeq(output, "\n") {
 		if value, found := strings.CutPrefix(line, "First-run setup: "); found {
 			address = value
 		}

@@ -54,8 +54,7 @@ func (s *Store) Handler() http.Handler {
 
 func serveError(w http.ResponseWriter, err error) {
 	code := http.StatusInternalServerError
-	var status statusError
-	if errors.As(err, &status) {
+	if status, ok := errors.AsType[statusError](err); ok {
 		code = status.code
 	}
 	http.Error(w, err.Error(), code)

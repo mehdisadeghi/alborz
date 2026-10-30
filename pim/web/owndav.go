@@ -131,14 +131,12 @@ func serveOwn(g *web.Group, srv *web.Server, st *store.Store) {
 		username, password, ok := r.BasicAuth()
 		if ok {
 			err := passwords.authenticate(srv, username, password, ctx.RealIP())
-			var upstream alborz.UpstreamError
-			if errors.As(err, &upstream) {
+			if _, ok := errors.AsType[alborz.UpstreamError](err); ok {
 				http.Error(w, err.Error(), http.StatusServiceUnavailable)
 				return nil
 			}
 			// Not 401 for a paused reader: a client hearing 401 asks its owner for a new password.
-			var paused alborz.PausedError
-			if errors.As(err, &paused) {
+			if paused, ok := errors.AsType[alborz.PausedError](err); ok {
 				w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(time.Until(paused.Until).Seconds()))))
 				http.Error(w, err.Error(), http.StatusTooManyRequests)
 				return nil

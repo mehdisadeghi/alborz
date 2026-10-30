@@ -126,8 +126,7 @@ func (p passwdServer) change(user, current, next string) error {
 			}
 		}
 		_, _, err := c.ReadCodeLine(2)
-		var no *textproto.Error
-		if errors.As(err, &no) {
+		if no, ok := errors.AsType[*textproto.Error](err); ok {
 			return PasswordRefusal{Text: no.Msg}
 		}
 		var slow net.Error

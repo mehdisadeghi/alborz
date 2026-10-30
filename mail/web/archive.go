@@ -253,8 +253,7 @@ func importSaid(ctx *web.Context, key string, n mail.Imported, folder string) st
 
 // A body past the bound is 413, as a proxy in front would answer, so clients split alike.
 func importBodyError(err error) error {
-	var tooLarge *http.MaxBytesError
-	if errors.As(err, &tooLarge) {
+	if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
 		return web.NewError(http.StatusRequestEntityTooLarge, err)
 	}
 	return web.NewError(http.StatusBadRequest, err)

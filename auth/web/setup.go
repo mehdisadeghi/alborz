@@ -75,11 +75,10 @@ func handleSetup(ctx *web.Context) error {
 			return ctx.NoContent(http.StatusNotFound)
 		}
 		status, text := http.StatusUnprocessableEntity, ctx.T("setup.manual")
-		var setupErr *alborz.SetupError
 		if errors.Is(err, alborz.ErrSetupCode) {
 			status, text = http.StatusForbidden, ctx.T("setup.badcode")
 			d.ShowServers = false
-		} else if errors.As(err, &setupErr) {
+		} else if setupErr, ok := errors.AsType[*alborz.SetupError](err); ok {
 			key := "setup." + setupErr.Field + "error"
 			if setupErr.Field == "caldav" || setupErr.Field == "carddav" || setupErr.Field == "sieve" {
 				key = "setup.additionalerror"

@@ -46,7 +46,7 @@ func Describe(ctx context.Context, client *http.Client, base *url.URL) (Advertis
 	}
 
 	a.Software = resp.Header.Get("Server")
-	for _, class := range strings.Split(resp.Header.Get("DAV"), ",") {
+	for class := range strings.SplitSeq(resp.Header.Get("DAV"), ",") {
 		if class = strings.TrimSpace(class); class != "" {
 			a.Compliance = append(a.Compliance, class)
 		}

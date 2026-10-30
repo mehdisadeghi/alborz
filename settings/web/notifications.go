@@ -1,7 +1,6 @@
 package web
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -83,7 +82,7 @@ func notificationAccount(ctx *web.Context) (*alborz.Login, error) {
 	if login := ctx.LoginFor(account); login != nil {
 		return login, nil
 	}
-	return nil, web.NewError(http.StatusBadRequest, errors.New(fmt.Sprintf(ctx.T("account.notsignedin"), account)))
+	return nil, web.NewError(http.StatusBadRequest, fmt.Errorf(ctx.T("account.notsignedin"), account))
 }
 
 // handleNotificationCreate keeps the shared subscription for the account the reader turned on.

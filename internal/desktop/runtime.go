@@ -159,7 +159,7 @@ func openExisting(ctx context.Context, path string, open func(string) error) err
 		}
 		select {
 		case <-ctx.Done():
-			return errors.New("Alborz is already starting; try again shortly")
+			return errors.New("another Alborz instance is starting; try again shortly")
 		case <-time.After(100 * time.Millisecond):
 		}
 	}

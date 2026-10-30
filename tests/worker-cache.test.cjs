@@ -4,9 +4,10 @@ const path = require('node:path');
 const test = require('node:test');
 const vm = require('node:vm');
 
-const values = ['v1', '[]', '[]', '[]', '"/login"', '"/assets/"', '"/icon.png"', '"key"', '"/subscribe"', '"X-Shell"'];
-const source = fs.readFileSync(path.join(__dirname, '../web/serviceworker.js'), 'utf8')
-	.replace(/%\[(\d+)\]s/g, (_, n) => values[Number(n) - 1]);
+const config = {version: 'v1', shell: [], downloads: [], signings: [], signIn: '/login', assets: '/assets/',
+	icon: '/icon.png', pushKey: 'key', renew: '/subscribe', shellHeader: 'X-Shell'};
+const source = `const CONFIG = ${JSON.stringify(config)};\n`
+	+ fs.readFileSync(path.join(__dirname, '../web/serviceworker.js'), 'utf8');
 
 function fixture(fetchResult) {
 	let releaseCache, requests = 0;

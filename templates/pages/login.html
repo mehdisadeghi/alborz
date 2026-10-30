@@ -1,5 +1,6 @@
-{{ define "body" }}
-<main id="main" tabindex="-1" class="login">
+{{ define "body" }}{{ template "bare" . }}{{ end }}
+{{ define "main-class" }} class="login"{{ end }}
+{{ define "main" }}
   <section>
     {{ $title := $.GlobalData.Tf "login.welcome" $.GlobalData.Brand }}{{ if .Add }}{{ $title = $.T "login.add" }}{{ end }}
     {{ template "login-head" (dict "g" $ "title" $title) }}
@@ -33,5 +34,4 @@
       {{ with .GlobalData.ProjectURL }}<a href="{{.}}">{{$.GlobalData.Brand}}</a>{{ else }}{{.GlobalData.Brand}}{{ end }} · {{.GlobalData.Year}}{{ with .GlobalData.Version }} · {{ . }}{{ end }}
     </p>
   </section>
-</main>
 {{ end }}

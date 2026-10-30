@@ -1,5 +1,8 @@
-{{ define "body" }}
-<main id="main" tabindex="-1" class="login">
+{{ define "body" }}{{ template "bare" . }}
+<script src="{{call .GlobalData.Asset "passkeys.js"}}"></script>
+{{ end }}
+{{ define "main-class" }} class="login"{{ end }}
+{{ define "main" }}
   <section>
     {{ template "login-head" (dict "g" $ "title" ($.T "lock.title")) }}
     {{ template "notices" (dict "g" $) }}
@@ -14,6 +17,4 @@
       {{ template "hint" (dict "text" ($.T "lock.leavehint")) }}
     </form>
   </section>
-</main>
-<script src="{{call .GlobalData.Asset "passkeys.js"}}"></script>
 {{ end }}

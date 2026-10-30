@@ -59,23 +59,20 @@ if (form && textarea && holder && toolbar && htmlInput && toggle && window.Squir
 		return frag;
 	};
 
-	const escape = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-
+	// Built as nodes so the browser escapes the text.
 	const fromText = text => {
-		const out = [];
-		let para = [], quoted = false, inQuote = false;
+		const root = document.createElement("div");
+		let target = root, para = [], quoted = false;
 		const flush = () => {
 			if (para.length === 0) {
 				return;
 			}
-			if (quoted && !inQuote) {
-				out.push("<blockquote>");
-				inQuote = true;
-			} else if (!quoted && inQuote) {
-				out.push("</blockquote>");
-				inQuote = false;
+			if (quoted !== (target !== root)) {
+				target = quoted ? root.appendChild(document.createElement("blockquote")) : root;
 			}
-			out.push('<p dir="auto">' + para.map(escape).join("<br>") + "</p>");
+			const p = target.appendChild(document.createElement("p"));
+			p.dir = "auto";
+			para.forEach((line, i) => i ? p.append(document.createElement("br"), line) : p.append(line));
 			para = [];
 		};
 		for (const raw of text.replace(/\r\n/g, "\n").split("\n")) {
@@ -91,10 +88,7 @@ if (form && textarea && holder && toolbar && htmlInput && toggle && window.Squir
 			para.push(line);
 		}
 		flush();
-		if (inQuote) {
-			out.push("</blockquote>");
-		}
-		return out.join("\n");
+		return root.innerHTML;
 	};
 
 	const toText = root => {

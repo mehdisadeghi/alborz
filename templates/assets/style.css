@@ -1025,10 +1025,10 @@ a.notice-name {
   min-width: 0;
 }
 
-.container.error {
+main.error {
   max-width: 800px;
   margin: 0 auto;
-  padding: 1rem 0;
+  padding: 1rem;
 }
 
 /* A flex item's min-width is auto, so a row that will not truncate would widen the rail. */

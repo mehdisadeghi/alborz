@@ -1,4 +1,7 @@
-{{ define "layout" }}<!DOCTYPE html>
+{{/* A page renders base with the chrome as its body; a page outside it defines body as bare (ADR 55). */}}
+{{ define "layout" }}{{ template "base" . }}{{ end }}
+
+{{ define "base" }}<!DOCTYPE html>
 <html{{if .GlobalData.HideAccountNames}} data-account-names="hidden"{{end}} lang="{{.GlobalData.Lang}}" dir="{{.GlobalData.Dir}}"{{if .GlobalData.AlignByScript}} data-align="script"{{end}}{{with .GlobalData.TextSize}} data-text="{{.}}"{{end}}{{if .GlobalData.PhoneBar}} data-phone="bar"{{end}}{{if and .GlobalData.LoggedIn .GlobalData.LockSeconds}} data-session-concealed{{end}}>
   <head>
     <meta charset="utf-8">
@@ -69,7 +72,13 @@
     <a class="skip-link visually-hidden" href="#main">{{$.T "a11y.skip"}}</a>
     {{template "icons" .}}
     {{ block "page-background" . }}{{ end }}
-{{ block "body" . }}
+{{ block "body" . }}{{ template "chrome" . }}{{ end }}
+  </body>
+</html>
+{{ end }}
+
+{{/* Header, rail, main and status bar. */}}
+{{ define "chrome" }}
 {{ template "nav" . }}
 <div class="page-wrap">
   {{ if .GlobalData.LoggedIn }}<label for="sidebar" class="sidebar-backdrop" aria-hidden="true"></label>{{ end }}
@@ -86,9 +95,11 @@
 {{ template "status-bar" . }}
 {{ block "scripts" . }}{{ end }}
 {{ end }}
-  </body>
-</html>
-{{ end }}
+
+{{/* Main alone: sign-in, setup, unlock, an unreachable server. */}}
+{{ define "bare" }}<main id="main" tabindex="-1"{{ template "main-class" . }}>
+{{ template "main" . }}
+</main>{{ end }}
 
 {{/* A swap into main: the page's main block, and out of band what of its rail the swap moves and its notices (ADR 13). */}}
 {{ define "swipe-preferences" }}<span id="swipe-preferences" hidden data-swipes="{{.GlobalData.Swipes}}"></span>{{ end }}

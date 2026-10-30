@@ -1097,7 +1097,8 @@ const noticeBar = () => {
 			clearTimeout(leaving);
 			if (!bar) {
 				bar = document.createElement("div");
-				bar.innerHTML = "<span class=\"notice-text\"></span><progress max=\"100\"></progress>";
+				bar.append(Object.assign(document.createElement("span"), { className: "notice-text" }),
+					Object.assign(document.createElement("progress"), { max: 100 }));
 				place();
 			}
 			bar.className = "notice notice-" + (kind || "");

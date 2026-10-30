@@ -1,5 +1,6 @@
-{{ define "body" }}
-<main id="main" tabindex="-1" class="login setup">
+{{ define "body" }}{{ template "bare" . }}{{ end }}
+{{ define "main-class" }} class="login setup"{{ end }}
+{{ define "main" }}
   <section>
     {{ template "login-head" (dict "g" $ "title" ($.T "setup.title")) }}
     {{ template "notices" (dict "g" $) }}
@@ -61,26 +62,26 @@
         </div>
         {{ end }}
       </details>
-      <div class="action-group">
-        <button type="submit" name="action" value="add">{{$.T "setup.adddomain"}}</button>
-      </div>
+      {{/* The primary comes first: Enter submits the first button. */}}
       <div class="action-group">
         <button type="submit" name="action" value="finish" class="button-primary">{{$.T "setup.connect"}}</button>
       </div>
-      {{ else }}
       <div class="action-group">
-        <button type="submit" name="action" value="discover"{{if not .Domains}} class="button-primary"{{end}}>{{$.T "setup.discover"}}</button>
+        <button type="submit" name="action" value="add">{{$.T "setup.adddomain"}}</button>
       </div>
+      {{ else }}
       {{ if .Domains }}
       <div class="action-group">
         <button type="submit" name="action" value="finish" formnovalidate class="button-primary">{{$.T "setup.connect"}}</button>
       </div>
       {{ end }}
+      <div class="action-group">
+        <button type="submit" name="action" value="discover"{{if not .Domains}} class="button-primary"{{end}}>{{$.T "setup.discover"}}</button>
+      </div>
       {{ end }}
     </form>
     {{ if or .ShowServers .Domains }}
     <p class="hint"><a href="{{url "auth.setup"}}">{{$.T "setup.restart"}}</a></p>
     {{ end }}
   </section>
-</main>
 {{ end }}

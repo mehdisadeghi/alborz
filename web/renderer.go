@@ -551,7 +551,7 @@ func loadTemplates(files fs.FS, funcs template.FuncMap, bundles []AddonBundle) (
 			if !slices.Contains(defined, "main") && !slices.Contains(defined, "body") {
 				return fmt.Errorf("%s: page must define main or body", name)
 			}
-			for _, forbidden := range []string{"layout", "nav", "status-bar"} {
+			for _, forbidden := range []string{"layout", "base", "chrome", "bare", "nav", "status-bar"} {
 				if slices.Contains(defined, forbidden) {
 					return fmt.Errorf("%s: page cannot replace shared %q", name, forbidden)
 				}

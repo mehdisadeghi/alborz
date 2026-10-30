@@ -46,7 +46,7 @@ function fixture(shared = hub(), options = {}) {
 		return {status: 200, ok: true, json: async () => ({session: meta.content, protected: true, locked: shared.locked, after: 600})};
 	};
 	shared.tabs.push(window);
-	vm.runInNewContext(source, {window, document, location, localStorage, fetch, Date: Clock, URL,
+	vm.runInNewContext(source, {window, document, location, localStorage, fetch, Date: Clock, URL, URLSearchParams,
 		BroadcastChannel: options.noBroadcast ? undefined : BroadcastChannel,
 		setTimeout(fn) { const id = ++nextTimer; timers.set(id, fn); return id; }, clearTimeout: id => timers.delete(id)}, {filename: 'session-lock.js'});
 	const f = {window, document, location, nodes, calls, shared, options, timers, hidden: () => root.hasAttribute('data-session-concealed')};

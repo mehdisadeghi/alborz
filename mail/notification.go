@@ -166,6 +166,7 @@ func notificationText(text string, limit int) string {
 	return string(runes)
 }
 
+// Unlike html2text, which decorates headings, tables and links for reading, a notification wants bare text.
 func notificationHTML(text string) string {
 	z := html.NewTokenizer(strings.NewReader(text))
 	var out strings.Builder

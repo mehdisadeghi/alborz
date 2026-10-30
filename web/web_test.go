@@ -163,16 +163,13 @@ func TestShellCachesLayoutScripts(t *testing.T) {
 	c := a.Client()
 	page := c.Page(t, "auth.login")
 	worker := c.Get(t, "core.worker").Text
-	shell := regexp.MustCompile(`const SHELL = (\[[^;]+\]);`).FindStringSubmatch(worker)
-	if shell == nil {
-		t.Fatal("worker does not declare its shell assets")
-	}
-	var urls []string
-	if err := json.Unmarshal([]byte(shell[1]), &urls); err != nil {
-		t.Fatal(err)
+	line, _, _ := strings.Cut(worker, "\n")
+	var config struct{ Shell []string }
+	if err := json.Unmarshal([]byte(strings.TrimSuffix(strings.TrimPrefix(line, "const CONFIG = "), ";")), &config); err != nil || len(config.Shell) == 0 {
+		t.Fatalf("worker does not declare its shell assets: %v", err)
 	}
 	for _, script := range regexp.MustCompile(`<script(?: defer)? src="([^"]+)"`).FindAllStringSubmatch(page, -1) {
-		if !slices.Contains(urls, html.UnescapeString(script[1])) {
+		if !slices.Contains(config.Shell, html.UnescapeString(script[1])) {
 			t.Errorf("layout script %s is missing from the offline shell", script[1])
 		}
 	}

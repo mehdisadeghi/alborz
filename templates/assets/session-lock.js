@@ -34,7 +34,7 @@
 		paint();
 	};
 	const leave = () => {
-		if (privatePage) { location.assign(data.unlock + "?next=" + encodeURIComponent(location.pathname + location.search)); }
+		if (privatePage) { location.assign(data.unlock + "?" + new URLSearchParams({next: location.pathname + location.search})); }
 	};
 	const confirmedLock = (announce = true) => {
 		cancelHistory();

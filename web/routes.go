@@ -2,7 +2,6 @@ package web
 
 import (
 	"errors"
-	"fmt"
 	"io/fs"
 	"net/http"
 	"path"
@@ -73,11 +72,13 @@ func PublicRoutes(g *Group) {
 		for _, pattern := range s.routes.downloads {
 			downloads = append(downloads, pathRegexp(pattern))
 		}
-		body := fmt.Sprintf(serviceWorker, version, mustJSON(urls), mustJSON(downloads),
-			mustJSON([]string{ctx.Path("auth.login"), ctx.Path("auth.logout"), ctx.Path("auth.unlock.leave"), ctx.Path("settings.sessions")}),
-			mustJSON(ctx.Path("auth.login")), mustJSON(ctx.Path("core.asset", "")), mustJSON(s.AssetURL("icon-192.png")),
-			mustJSON(s.Pushes.Key.Public()), mustJSON(ctx.Path("settings.notifications.create")), mustJSON(shellHeader))
-		return ctx.Blob(http.StatusOK, "text/javascript; charset=utf-8", []byte(body))
+		config := mustJSON(map[string]any{
+			"version": version, "shell": urls, "downloads": downloads,
+			"signings": []string{ctx.Path("auth.login"), ctx.Path("auth.logout"), ctx.Path("auth.unlock.leave"), ctx.Path("settings.sessions")},
+			"signIn":   ctx.Path("auth.login"), "assets": ctx.Path("core.asset", ""), "icon": s.AssetURL("icon-192.png"),
+			"pushKey": s.Pushes.Key.Public(), "renew": ctx.Path("settings.notifications.create"), "shellHeader": shellHeader,
+		})
+		return ctx.Blob(http.StatusOK, "text/javascript; charset=utf-8", []byte("const CONFIG = "+config+";\n"+serviceWorker))
 	})
 
 	g.GET("asset", "/assets/{name...}", func(ctx *Context) error {

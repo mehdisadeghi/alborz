@@ -19,6 +19,8 @@
 ### Fixed
 
 - Page links in mail subfolders keep the folder path.
+- A page opened from the sidebar takes its own layout, so toolbars no longer
+  keep the previous form page's margins.
 - Align mobile list stars and dates, including undated tasks and contacts;
   keep quick-add controls at 32px and sidebar addresses on one line.
 

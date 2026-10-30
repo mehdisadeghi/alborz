@@ -603,6 +603,12 @@ document.addEventListener("htmx:afterSwap", ev => {
 	if (!ev.target || ev.target.id !== "main") {
 		return;
 	}
+	// A swap brings the page's own main class; innerHTML keeps the old page's.
+	const mark = ev.target.querySelector(":scope > template#main-class");
+	if (mark) {
+		ev.target.className = mark.className;
+		mark.remove();
+	}
 	// On a phone the list is under the drawer; a rail link's tap is for the page.
 	const from = ev.detail && ev.detail.requestConfig && ev.detail.requestConfig.elt;
 	const drawer = document.getElementById("sidebar");

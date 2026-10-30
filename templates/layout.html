@@ -92,4 +92,4 @@
 
 {{/* A swap into main: the page's main block, and out of band what of its rail the swap moves and its notices (ADR 13). */}}
 {{ define "swipe-preferences" }}<span id="swipe-preferences" hidden data-swipes="{{.GlobalData.Swipes}}"></span>{{ end }}
-{{ define "swap" }}{{ template "swipe-preferences" . }}{{ template "main" . }}{{ template "account-popovers" . }}{{ template "rail" . }}{{ template "notices" (dict "g" . "oob" true) }}{{ end }}
+{{ define "swap" }}<template id="main-class"{{ template "main-class" . }}></template>{{ template "swipe-preferences" . }}{{ template "main" . }}{{ template "account-popovers" . }}{{ template "rail" . }}{{ template "notices" (dict "g" . "oob" true) }}{{ end }}

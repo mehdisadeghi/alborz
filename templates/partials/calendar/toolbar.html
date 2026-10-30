@@ -19,7 +19,7 @@
       {{if not .ThisMonth}}
       {{/* localhref, or html/template escapes the whole query as one value. */}}
       {{ $today := (url "calendar.month") }}{{ if $suffix }}{{ $today = printf "%s?%s" (url "calendar.month") (slice $suffix 1) }}{{ end }}
-      <a href="{{ localhref $today }}" class="button-link">{{$.T "calendar.today"}}</a>
+      <a href="{{ localhref $today }}" class="button-link" hx-replace-url="true">{{$.T "calendar.today"}}</a>
       {{else}}
       <span class="button-link" aria-disabled="true">{{$.T "calendar.today"}}</span>
       {{end}}

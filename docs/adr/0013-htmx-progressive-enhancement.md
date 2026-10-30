@@ -1,7 +1,7 @@
 # ADR 13: htmx as progressive enhancement
 
-Status: accepted, amended by ADR 96 (navigation history replaces list
-refinements and neighbour steps).
+Status: accepted, amended by ADR 96 (refinements and actions take no
+history step).
 
 ## Context
 
@@ -56,6 +56,6 @@ must continue working without JavaScript.
 - CSP Level 3 (`unsafe-eval`); Media Queries Level 5 (`scripting`)
 - ADR 8, ADR 14, ADR 41, ADR 96
 - `templates/layout.html`, `templates/assets/helpers.js`,
-  `templates/assets/history.js`, `web/htmx.go` (`Partial`,
+  `web/htmx.go` (`Partial`,
   `PartialFor`), `web/renderer.go`, `web/server.go` (`Relocate`,
   `Redraw`), `web/middleware.go` (CSP)

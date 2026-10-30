@@ -30,6 +30,8 @@
 
 ### Changed
 
+- Browser history follows the markup: page navigations add an entry, list
+  refinements replace it, and done, star and colour update the page in place.
 - Use the mobile drawer’s account rows for switching, with a color legend and
   a direct Settings action. Put sign-out in account settings and
   language, shortcuts and the tour in general settings.

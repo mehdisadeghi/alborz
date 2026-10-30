@@ -3,8 +3,9 @@
           {{ $todo := index .g.Task.Data.Children 0 }}
           {{ $done := eq ($todo.Props.Text "STATUS") "COMPLETED" }}
           {{ $mark := .g.T "tasks.markcomplete" }}{{ if $done }}{{ $mark = .g.T "tasks.markincomplete" }}{{ end }}
-          <form action="{{url "calendar.task.complete" .id}}{{.acct}}" method="post" hx-boost="false">
-            {{ template "next-field" .list }}
+          {{ $act := printf "%s%s" (url "calendar.task.complete" .id) .acct }}
+          <form action="{{$act}}" method="post"{{ template "swap-main" $act }}>
+            {{ template "next-field" .g.GlobalData.URL.RequestURI }}
             {{ if $done }}<input type="hidden" name="reopen" value="1">{{ end }}
             <button type="submit" class="icon-button" aria-pressed="{{$done}}" title="{{$mark}}" aria-label="{{$mark}}">{{ template "icon" "check" }}</button>
           </form>

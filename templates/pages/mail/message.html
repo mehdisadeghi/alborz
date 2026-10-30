@@ -43,7 +43,7 @@
 {{ define "main" }}
   {{ $aq := "" }}{{ $aamp := "" }}{{ with .GlobalData.URLAccount }}{{ $aq = printf "?account=%s" . }}{{ $aamp = printf "&account=%s" . }}{{ end }}
   {{ $partq := $aq }}{{ $partallq := $aq }}{{ $partlistq := printf "?list=1%s" $aamp }}{{ with .Message.PreferredPart $.PreferHTML }}{{ $partq = printf "?part=%s%s" .PathString $aamp }}{{ $partallq = printf "?part=%s&all=true%s" .PathString $aamp }}{{ $partlistq = printf "?part=%s&list=1%s" .PathString $aamp }}{{ end }}
-      {{ $here := printf "%s%s" (url "mail.message" .Message.Mailbox .Message.UID) $partq }}
+      {{ $here := .GlobalData.URL.RequestURI }}
       <form id="message-flag-form" method="post" hx-boost="false">
         {{ template "message-action-fields" (dict "uid" .Message.UID "next" $here) }}
       </form>
@@ -179,7 +179,7 @@
                  "toggle" true
                  "form" "message-flag-form"
                  "action" (printf "%s%v" (url "mail.messages.flag" .Mailbox.Name) $aq)
-                 "current" .Message.FlagColor
+                 "current" .Message.FlagColor "swap" true
                  "title" ($.T "mailbox.flagcolor") "clear" ($.T "mailbox.flagnone") "colors" (flagcolors $)) }}
               </div>
             </th>
@@ -333,7 +333,7 @@
           <tr class="remote-content">
             <td colspan="2" dir="auto">
               {{$.T "message.remote"}}
-              <a href="?part={{.Part.PathString}}&allow-remote-resources=1{{account "&" $.GlobalData.URLAccount}}">
+              <a href="?part={{.Part.PathString}}&allow-remote-resources=1{{account "&" $.GlobalData.URLAccount}}" hx-replace-url="true">
                 {{$.T "message.loadremote"}}
               </a>
             </td>
@@ -390,7 +390,7 @@
 
       {{ $html := .Message.HTMLPart }}
       {{ $text := .Message.TextPart }}
-      <div class="tabs">
+      <div class="tabs" hx-replace-url="true">
         {{ if $text }}
         {{ if ne $text.MIMEType "text/html" }}
         <a

@@ -45,7 +45,7 @@
 
 {{/* dict: placeholder button [account all query disabled]. */}}
 {{ define "toolbar-search" }}
-<form method="get" class="actions-search{{ if .disabled }} is-disabled{{ end }}"{{ with .target }} hx-get="" hx-target="#{{.}}" hx-swap="innerHTML show:window:top" hx-push-url="true"{{ end }}>
+<form method="get" class="actions-search{{ if .disabled }} is-disabled{{ end }}"{{ with .target }} hx-get="" hx-target="#{{.}}" hx-swap="innerHTML show:window:top" hx-replace-url="true"{{ end }}>
   {{ with .account }}<input type="hidden" name="account" value="{{.}}">{{ end }}
   {{ range $name, $value := .keep }}{{ with $value }}<input type="hidden" name="{{$name}}" value="{{.}}">{{ end }}{{ end }}
   <input type="text" name="query" dir="auto" value="{{.query}}" placeholder="{{.placeholder}}" aria-label="{{.placeholder}}"{{ if .disabled }} disabled{{ end }}>
@@ -66,8 +66,8 @@
 {{/* An action posted from the list redraws it where the reader is, without a step in history (ADR 13); without script the form posts whole. */}}
 {{ define "swap-main" }} hx-post="{{.}}" hx-target="#main" hx-swap="innerHTML show:none"{{ end }}
 
-{{/* dict: target href. */}}
-{{ define "swaps" }}{{ with .target }} hx-get="{{$.href}}" hx-target="#{{.}}" hx-swap="innerHTML show:window:top" hx-push-url="true"{{ end }}{{ end }}
+{{/* dict: target href. A refinement redraws its list in place and takes no step in history (ADR 96). */}}
+{{ define "swaps" }}{{ with .target }} hx-get="{{$.href}}" hx-target="#{{.}}" hx-swap="innerHTML show:window:top"{{ end }} hx-replace-url="true"{{ end }}
 
 {{/* dict: id icon title rows [target priority class disabled name]; with name the rows submit their Value under it. */}}
 {{ define "filter-menu" }}
@@ -199,7 +199,7 @@
 
 {{/* dict: href title icon key. */}}
 {{ define "object-step" }}
-{{ if .href }}<a class="icon-button" href="{{ localhref .href }}" title="{{.title}}" aria-label="{{.title}}" data-key="{{.key}}" data-swipe-step="{{index (dict "k" "prev" "j" "next") .key}}">{{ template "icon" .icon }}</a>{{ else }}<span class="icon-button" aria-disabled="true" title="{{.title}}" aria-label="{{.title}}" data-swipe-step="{{index (dict "k" "prev" "j" "next") .key}}">{{ template "icon" .icon }}</span>{{ end }}
+{{ if .href }}<a class="icon-button" href="{{ localhref .href }}" hx-replace-url="true" title="{{.title}}" aria-label="{{.title}}" data-key="{{.key}}" data-swipe-step="{{index (dict "k" "prev" "j" "next") .key}}">{{ template "icon" .icon }}</a>{{ else }}<span class="icon-button" aria-disabled="true" title="{{.title}}" aria-label="{{.title}}" data-swipe-step="{{index (dict "k" "prev" "j" "next") .key}}">{{ template "icon" .icon }}</span>{{ end }}
 {{ end }}
 
 {{/* dict: items [label]; item: label href current [icon]. */}}
@@ -210,7 +210,7 @@
   {{ if .current }}
   <span class="toggle-option is-current" aria-current="true"{{ with .icon }} title="{{$item.label}}"{{ end }}>{{ with .icon }}{{ template "icon" . }}{{ end }}<span class="label">{{.label}}</span></span>
   {{ else }}
-  <a class="toggle-option" href="{{.href}}"{{ with .icon }} title="{{$item.label}}"{{ end }}>{{ with .icon }}{{ template "icon" . }}{{ end }}<span class="label">{{.label}}</span></a>
+  <a class="toggle-option" href="{{.href}}" hx-replace-url="true"{{ with .icon }} title="{{$item.label}}"{{ end }}>{{ with .icon }}{{ template "icon" . }}{{ end }}<span class="label">{{.label}}</span></a>
   {{ end }}
   {{ end }}
 </div>

@@ -176,6 +176,8 @@ select {
   /* The row checkbox and the toolbar's select-all stand in the same track. */
   --check-track: 2.2rem;
   --star-track: 3rem;
+  /* A collection's name is capped, so the summary beside it takes the rest. */
+  --collection-track: minmax(5rem, 10rem);
 
   /* A menu must not let through what it floats over; every popover paints on this. */
   --surface-raised: var(--bg);
@@ -3472,7 +3474,7 @@ aside details.folder-branch details.folder-branch > ul > li {
   display: grid;
   grid-template-columns:
     var(--check-track) var(--star-track) 2.5rem minmax(8rem, 1fr) minmax(6rem, 1fr)
-    minmax(6rem, 8rem) minmax(6rem, 7rem) minmax(7rem, 0.7fr);
+    var(--collection-track) minmax(6rem, 7rem) minmax(6rem, 7rem);
   grid-template-rows: auto;
 }
 
@@ -3481,7 +3483,7 @@ aside details.folder-branch details.folder-branch > ul > li {
   .contact-grid {
     grid-template-columns:
       var(--check-track) var(--star-track) 2.5rem minmax(8rem, 1fr) minmax(6rem, 1fr)
-      minmax(6rem, 8rem) minmax(7rem, 0.7fr);
+      var(--collection-track) minmax(6rem, 7rem);
   }
 
   .contact-grid .contact-list-changed { display: none; }
@@ -3491,7 +3493,7 @@ aside details.folder-branch details.folder-branch > ul > li {
   .contact-grid {
     grid-template-columns:
       var(--check-track) var(--star-track) 2.5rem minmax(8rem, 1fr)
-      minmax(6rem, 8rem) minmax(7rem, 0.7fr);
+      var(--collection-track) minmax(6rem, 7rem);
   }
 
   .contact-grid .contact-list-email { display: none; }
@@ -3499,19 +3501,19 @@ aside details.folder-branch details.folder-branch > ul > li {
 
 .event-grid {
   display: grid;
-  grid-template-columns: var(--star-track) 6.5rem 5rem minmax(12rem, 1fr) minmax(8rem, 16rem);
+  grid-template-columns: var(--star-track) 6.5rem 5rem minmax(12rem, 1fr) var(--collection-track);
 }
 
 .event-grid-select {
-  grid-template-columns: var(--control-height) var(--star-track) 6.5rem 5rem minmax(12rem, 1fr) minmax(8rem, 16rem);
+  grid-template-columns: var(--control-height) var(--star-track) 6.5rem 5rem minmax(12rem, 1fr) var(--collection-track);
 }
 
 .event-grid-grouped {
-  grid-template-columns: var(--star-track) 5rem minmax(12rem, 1fr) minmax(8rem, 16rem);
+  grid-template-columns: var(--star-track) 5rem minmax(12rem, 1fr) var(--collection-track);
 }
 
 .event-grid-select.event-grid-grouped {
-  grid-template-columns: var(--control-height) var(--star-track) 5rem minmax(12rem, 1fr) minmax(8rem, 16rem);
+  grid-template-columns: var(--control-height) var(--star-track) 5rem minmax(12rem, 1fr) var(--collection-track);
 }
 
 @media (width < 60rem) {
@@ -3602,8 +3604,8 @@ aside details.folder-branch details.folder-branch > ul > li {
 .task-grid {
   display: grid;
   grid-template-columns:
-    var(--check-track) var(--star-track) 2.75rem minmax(8rem, 1fr) minmax(5rem, 0.5fr)
-    minmax(4.5rem, 7rem) minmax(4.5rem, 6rem);
+    var(--check-track) var(--star-track) 2.75rem minmax(8rem, 1fr) var(--collection-track)
+    minmax(4.5rem, 6rem) minmax(4.5rem, 7rem);
 }
 
 .task-row .task-list-fallback { display: none; }
@@ -3651,30 +3653,30 @@ aside details.folder-branch details.folder-branch > ul > li {
 @media (width < 60rem) {
   .task-grid {
     grid-template-columns:
-      var(--check-track) var(--star-track) 2.75rem minmax(8rem, 1fr) minmax(5rem, 0.5fr) minmax(4.5rem, 7rem);
-  }
-
-  .task-grid .task-list-added { display: none; }
-}
-
-@media (width < 52rem) {
-  .task-grid {
-    grid-template-columns: var(--check-track) var(--star-track) 2.75rem minmax(8rem, 1fr) minmax(5rem, 0.5fr);
+      var(--check-track) var(--star-track) 2.75rem minmax(8rem, 1fr) var(--collection-track) minmax(4.5rem, 6rem);
   }
 
   .task-grid .task-list-due { display: none; }
 }
 
+@media (width < 52rem) {
+  .task-grid {
+    grid-template-columns: var(--check-track) var(--star-track) 2.75rem minmax(8rem, 1fr) var(--collection-track);
+  }
+
+  .task-grid .task-list-added { display: none; }
+}
+
 .journal-grid {
   display: grid;
   grid-template-columns:
-    var(--check-track) var(--star-track) minmax(8rem, 1fr) minmax(5rem, 0.5fr)
+    var(--check-track) var(--star-track) minmax(8rem, 1fr) var(--collection-track)
     minmax(4.5rem, 7rem) minmax(4.5rem, 6rem);
 }
 
 @media (width < 60rem) {
   .journal-grid {
-    grid-template-columns: var(--check-track) var(--star-track) minmax(8rem, 1fr) minmax(5rem, 0.5fr) minmax(4.5rem, 7rem);
+    grid-template-columns: var(--check-track) var(--star-track) minmax(8rem, 1fr) var(--collection-track) minmax(4.5rem, 7rem);
   }
 
   .journal-grid .journal-list-added { display: none; }

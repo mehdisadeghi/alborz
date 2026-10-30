@@ -28,8 +28,8 @@
                "filter" (dict "id" "menu-filter" "icon" "list-filter" "title" ($.T "filter.menu") "rows" .FilterRows "priority" 25 "class" "filter-overflow")
                "sort" (dict "g" $ "s" .Sorting "disabled" (not .Tasks) "wide" true "rows" (tuple
                (tuple ($.T "sort.starred") "starred") (tuple ($.T "tasks.status") "status") (tuple ($.T "tasks.priority") "priority")
-               (tuple ($.T "tasks.summary") "summary") (tuple ($.T "common.calendar") "calendar") (tuple ($.T "tasks.duedate") "due")
-               (tuple ($.T "common.added") "added")))) }}
+               (tuple ($.T "tasks.summary") "summary") (tuple ($.T "common.calendar") "calendar") (tuple ($.T "common.added") "added")
+               (tuple ($.T "tasks.duedate") "due")))) }}
         {{ template "toolbar-foot" }}
 
       {{ template "pim-list-head" (dict "crumb" (dict "g" $ "section" ($.T "nav.tasks") "home" (url "calendar.tasks") "field" "cal" "items" .Collections "collection" "" "path" "" "heading" true) "filters" (dict "filters" .Filters "remove" ($.T "filter.remove"))) }}
@@ -57,8 +57,8 @@
              (tuple "status" "✓" "task-list-status" ($.T "tasks.status") "status-sort")
              (tuple "summary" ($.T "tasks.summary") "list-primary task-list-summary" "" "")
              (tuple "calendar" ($.T "common.calendar") "task-list-calendar" "" "")
-             (tuple "due" ($.T "tasks.duedate") "task-list-due" "" "")
-             (tuple "added" ($.T "common.added") "task-list-added" "" ""))) }}
+             (tuple "added" ($.T "common.added") "task-list-added" "" "")
+             (tuple "due" ($.T "tasks.duedate") "task-list-due" "" ""))) }}
 
           {{ template "task-rows" $ }}
           {{else}}

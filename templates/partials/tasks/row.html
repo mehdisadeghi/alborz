@@ -27,8 +27,8 @@
     </div>
   </div>
   {{ template "row-collection" (dict "g" $g "cell" "task-list-calendar" "label" ($g.T "common.calendar") "list" (url "calendar.tasks") "coll" .Calendar "account" .Task.Account) }}
-  {{ template "row-date" (dict "g" $g "cell" "task-list-due" "label" ($g.T "tasks.duedate") "time" .Due) }}
   {{ template "row-date" (dict "g" $g "cell" "task-list-added" "label" ($g.T "common.added") "time" .Added "since" true) }}
+  {{ template "row-date" (dict "g" $g "cell" "task-list-due" "label" ($g.T "tasks.duedate") "time" .Due) }}
   {{ if .Due.IsZero }}
   {{ $date := .Added }}{{ $label := $g.T "common.added" }}
   {{ if $date.IsZero }}{{ $date = .Modified }}{{ $label = $g.T "common.modified" }}{{ end }}

@@ -19,6 +19,8 @@
 ### Fixed
 
 - Page links in mail subfolders keep the folder path.
+- Collection columns are capped so summaries take the free space; the task list
+  shows Added before Due date and keeps Due date longest on narrow windows.
 - New mail, events, tasks, journal entries and contacts preselect the account
   in view.
 - A page opened from the sidebar takes its own layout, so toolbars no longer

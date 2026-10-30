@@ -41,6 +41,10 @@ The service writes `/var/lib/alborz/config.toml` with mode 600. No manual key
 generation is needed. To supply an externally managed key instead, set
 `LBRZ_LOGIN_KEY` in `/etc/default/alborz` (mode 600).
 
+Keep the host kernel patched (CVE-2026-98432). Alborz disables MPTCP on its
+listeners, which blocks the published exploit but not the kernel bug; a
+container shares the host's kernel.
+
 After starting the service, read its output with `journalctl -u alborz`.
 An unconfigured instance prints a local setup address and a one-time setup
 code. Open `/setup`, enter the code and an email address, and review the

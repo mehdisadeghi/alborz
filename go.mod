@@ -2,6 +2,10 @@ module git.mehdix.org/alborz
 
 go 1.27.3
 
+// Listeners on Linux use plain TCP: Go 1.24+ defaults them to MPTCP, the
+// path to remote code execution in CVE-2026-98432 (golang/go#82717).
+godebug multipathtcp=0
+
 require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/ProtonMail/go-crypto v1.5.0

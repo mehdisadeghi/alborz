@@ -61,3 +61,8 @@
 - Use the mobile drawer’s account rows for switching, with a color legend and
   a direct Settings action. Put sign-out in account settings and
   language, shortcuts and the tour in general settings.
+
+### Security
+
+- Listeners use plain TCP instead of Go's default Multipath TCP on Linux,
+  closing the published remote code execution path of CVE-2026-98432.

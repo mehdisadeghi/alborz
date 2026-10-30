@@ -33,6 +33,17 @@
 		}
 	};
 
+	// Select all on a message takes its body; the frame's document is its own (allow-same-origin).
+	const selectBody = () => {
+		const frame = document.getElementById("email-frame");
+		const node = frame ? frame.contentDocument?.body : document.querySelector("main.message pre");
+		if (node) {
+			frame?.focus();
+			node.ownerDocument.getSelection().selectAllChildren(node);
+		}
+		return !!node;
+	};
+
 	const inRow = selector => {
 		const row = rowOf(document.activeElement);
 		return row && row.querySelector(selector);
@@ -95,6 +106,10 @@
 		if ((ev.ctrlKey || ev.metaKey) && !ev.altKey && !ev.shiftKey && ev.key.toLowerCase() === "k") {
 			ev.preventDefault();
 			builtin["/"]();
+			return;
+		}
+		if ((ev.ctrlKey || ev.metaKey) && !ev.altKey && !ev.shiftKey && ev.key.toLowerCase() === "a" && !typing(ev.target) && selectBody()) {
+			ev.preventDefault();
 			return;
 		}
 		if (ev.ctrlKey || ev.metaKey || ev.altKey || typing(ev.target)) {

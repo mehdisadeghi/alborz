@@ -1,5 +1,6 @@
 {{ define "field" }}
 <div class="field{{ with .class }} {{.}}{{ end }}">
+  {{ with .focus }}{{ template "focus-toggle" (dict "id" $.name "g" .) }}{{ end }}
   <label for="{{.name}}">{{.label}}</label>
   {{ if .rows }}
   <textarea name="{{.name}}" id="{{.name}}"{{ with .dir }} dir="{{.}}"{{ end }} rows="{{.rows}}"{{ if .autofocus }} autofocus{{ end }}>{{.value}}</textarea>
@@ -21,6 +22,12 @@
 {{ end }}
 {{ template "field" (dict "class" .class "label" .label "name" .name "type" $type "value" .value.Value "placeholder" $example "hint" $hint "example" $example "dir" "ltr") }}
 <input type="hidden" name="{{.name}}-calendar" value="{{.value.Calendar}}">
+{{ end }}
+
+{{/* dict: g id. The writing area fills the window while #id is the target: plain links, no script. */}}
+{{ define "focus-toggle" }}
+<a class="focus-toggle focus-enter" href="#{{.id}}">{{.g.T "editor.focus"}}</a>
+<a class="focus-toggle focus-exit" href="#">{{.g.T "editor.focusexit"}}</a>
 {{ end }}
 
 {{/* dict: save [cancel cancelLabel]. */}}

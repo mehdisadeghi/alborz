@@ -4,6 +4,8 @@
       <form method="post" enctype="multipart/form-data" hx-boost="false" id="compose-form" data-upload="{{url "mail.attachment.add"}}" data-local-image="{{.LocalImage}}"{{ if .Reply }} data-reply{{ end }}>
         {{ template "mail-crumb" $ }}
         <h1 class="visually-hidden">{{$.T "aside.compose"}}</h1>
+        {{/* Enter in a field presses the form's first submit button: Send, never the signature's Apply. */}}
+        <button type="submit" class="visually-hidden" id="send-default" tabindex="-1" aria-hidden="true">{{$.T "compose.send"}}</button>
         {{ template "compose-state" (dict "message" .Message "uploads" .Uploads) }}
 
         <div class="headers">
@@ -37,33 +39,12 @@
             {{ if not $to }} autofocus{{ end }}
           />
 
-          <label for="cc">{{$.T "compose.cc"}}</label>
-          <input
-            type="text"
-            name="cc"
-            id="cc"
-            value="{{ join .Message.Cc ", " }}"
-            data-recipient autocomplete="off"
-          />
-          <label for="bcc">{{$.T "compose.bcc"}}</label>
-          <input
-            type="text"
-            name="bcc"
-            id="bcc"
-            value="{{ join .Message.Bcc ", " }}"
-            data-recipient autocomplete="off"
-          />
-
-          <details class="compose-more"{{ if .Message.ReplyTo }} open{{ end }}>
-            <summary>{{$.T "compose.replyto"}}</summary>
-            <input
-              type="text"
-              name="reply_to"
-              id="reply_to"
-              aria-label="{{$.T "compose.replyto"}}"
-              value="{{ join .Message.ReplyTo ", " }}"
-              data-recipient autocomplete="off"
-            />
+          <details class="compose-more"{{ if or (join .Message.Cc "") (join .Message.Bcc "") (join .Message.ReplyTo "") }} open{{ end }}>
+            <summary>{{$.T "compose.more"}}</summary>
+            {{ range tuple (tuple "cc" "compose.cc" .Message.Cc) (tuple "bcc" "compose.bcc" .Message.Bcc) (tuple "reply_to" "compose.replyto" .Message.ReplyTo) }}
+            <label for="{{ index . 0 }}">{{$.T (index . 1)}}</label>
+            <input type="text" name="{{ index . 0 }}" id="{{ index . 0 }}" value="{{ join (index . 2) ", " }}" data-recipient autocomplete="off" />
+            {{ end }}
             {{ template "hint" (dict "text" ($.T "help.replyto")) }}
           </details>
 
@@ -81,32 +62,27 @@
           <input type="file" name="attachments" id="attachments" multiple>
 
           <div id="attachment-list">
-            <div class="help">{{$.T "compose.dragdrop"}}</div>
             {{range .Attached}}
             {{ template "attachment-checkbox" (dict "name" "attached_messages" "value" .Ref "label" .Name) }}
             {{end}}
             {{range .Uploads}}
-            <div class="upload" data-uuid="{{.ID}}" data-remove="{{url "mail.attachment.remove" .ID}}">
-              <span class="progress"></span>
-              <span class="filename">{{.Filename}}</span>
-              <span class="error"></span>
-              <span class="size">{{.SizeString}}</span>
-              <button type="button">&times;</button>
-            </div>
+            {{ template "compose-upload" (dict "g" $ "id" .ID "remove" (url "mail.attachment.remove" .ID) "filename" .Filename "size" .SizeString) }}
             {{end}}
             {{range .PartAttachments}}
             {{ template "attachment-checkbox" (dict "name" "prev_attachments" "value" .Node.PathString "label" .Filename) }}
             {{end}}
           </div>
+          <template id="upload-row" data-failed="{{$.T "compose.uploadfailed"}}">{{ template "compose-upload" (dict "g" $) }}</template>
 
         </div>
 
-        <div class="text">
+        <div class="text focus-write" id="write" data-drop="{{$.T "compose.dragdrop"}}">
           <div class="editor-toolbar" role="toolbar" aria-label="{{$.T "editor.toolbar"}}">
             <button type="button" class="icon-button" data-editor-toggle title="{{$.T "editor.richtext"}}" aria-label="{{$.T "editor.richtext"}}" aria-pressed="false">{{ template "icon" "richtext" }}<span class="label">{{$.T "editor.richtext"}}</span></button>
             {{ range tuple (tuple "bold" "editor.bold") (tuple "italic" "editor.italic") (tuple "list" "editor.list") (tuple "quote" "editor.quote") (tuple "link" "editor.link") (tuple "rtl" "editor.rtl") (tuple "ltr" "editor.ltr") (tuple "clear" "editor.clear") }}
             <button type="button" class="icon-button" data-act="{{ index . 0 }}"{{ if eq (index . 0) "link" }} data-prompt="{{$.T "editor.linkprompt"}}"{{ end }} title="{{$.T (index . 1)}}" aria-label="{{$.T (index . 1)}}" aria-pressed="false">{{ template "icon" (index . 0) }}</button>
             {{ end }}
+            {{ template "focus-toggle" (dict "id" "write" "g" $) }}
           </div>
           <div class="editor body" hidden></div>
           <input type="hidden" name="html" value="{{.Message.HTML}}">
@@ -119,7 +95,7 @@
               License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License)
             -->
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><path d="M288 39.056v16.659c0 10.804 7.281 20.159 17.686 23.066C383.204 100.434 440 171.518 440 256c0 101.689-82.295 184-184 184-101.689 0-184-82.295-184-184 0-84.47 56.786-155.564 134.312-177.219C216.719 75.874 224 66.517 224 55.712V39.064c0-15.709-14.834-27.153-30.046-23.234C86.603 43.482 7.394 141.206 8.003 257.332c.72 137.052 111.477 246.956 248.531 246.667C393.255 503.711 504 392.788 504 256c0-115.633-79.14-212.779-186.211-240.236C302.678 11.889 288 23.456 288 39.056z"/></svg>
-            <span class="info">{{$.T "compose.sending"}}</span>
+            <span class="info" data-draft="{{$.T "compose.savingdraft"}}">{{$.T "compose.sending"}}</span>
           </div>
         </div>
 
@@ -148,6 +124,17 @@
           <a class="button-link button-quiet" href="{{url "mail.mailbox" "INBOX"}}">{{$.T "common.cancel"}}</a>
         </div>
       </form>
+{{ end }}
+
+{{/* dict: g [id remove filename size]; without an id it is the row the script fills for a new upload. */}}
+{{ define "compose-upload" }}
+<div class="upload"{{ with .id }} data-uuid="{{.}}" data-remove="{{$.remove}}"{{ end }}>
+  <span class="progress"></span>
+  <span class="filename">{{.filename}}</span>
+  <span class="error"></span>
+  <span class="size">{{.size}}</span>
+  <button type="button" aria-label="{{.g.T "compose.removeattachment"}}" title="{{.g.T "compose.removeattachment"}}">&times;</button>
+</div>
 {{ end }}
 
 {{ define "scripts" }}

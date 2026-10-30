@@ -11,7 +11,8 @@ if ("reply" in composeForm.dataset) {
 }
 
 const sendButton = document.getElementById("send-button"),
-	saveButton = document.getElementById("save-button");
+	saveButton = document.getElementById("save-button"),
+	defaultButton = document.getElementById("send-default");
 const signatureSelect = document.getElementById("signature");
 const signatureApply = composeForm.querySelector('button[name="signature_apply"]');
 signatureSelect.addEventListener("change", () => composeForm.requestSubmit(signatureApply));
@@ -24,8 +25,9 @@ composeForm.addEventListener("submit", ev => {
 	sendProgress.style.display = 'flex';
 });
 
-saveButton.addEventListener("click", ev => {
-	sendProgress.querySelector(".info").innerText = "Saving draft...";
+saveButton.addEventListener("click", () => {
+	const info = sendProgress.querySelector(".info");
+	info.textContent = info.dataset.draft;
 });
 
 let attachments = [];
@@ -33,11 +35,11 @@ let attachments = [];
 const headers = document.querySelector(".create-update .headers");
 
 const attachmentsNode = document.getElementById("attachment-list");
-const helpNode = attachmentsNode.querySelector(".help");
+const uploadRow = document.getElementById("upload-row");
 
 const attachmentsInput = headers.querySelector("input[type='file']");
 attachmentsInput.removeAttribute("name");
-attachmentsInput.addEventListener("input", ev => {
+attachmentsInput.addEventListener("input", () => {
 	const files = attachmentsInput.files;
 	for (let i = 0; i < files.length; i++) {
 		attachFile(files[i]);
@@ -45,7 +47,17 @@ attachmentsInput.addEventListener("input", ev => {
 });
 
 // The page takes the drop, not the window: the window outlives a boosted page.
-composeForm.closest(".page-wrap").addEventListener("drop", ev => {
+const pageWrap = composeForm.closest(".page-wrap");
+const writeArea = document.getElementById("write");
+// The writing area names the drop while files are dragged over the page.
+pageWrap.addEventListener("dragover", ev => writeArea.toggleAttribute("data-dragging", ev.dataTransfer.types.includes("Files")));
+pageWrap.addEventListener("dragleave", ev => {
+	if (!pageWrap.contains(ev.relatedTarget)) {
+		writeArea.removeAttribute("data-dragging");
+	}
+});
+pageWrap.addEventListener("drop", ev => {
+	writeArea.removeAttribute("data-dragging");
 	// A drop on the mail rail imports; one on the file field is the field's own.
 	if (ev.target.closest("aside[data-mail-sidebar], input[type='file']")) {
 		return;
@@ -69,14 +81,8 @@ function updateState() {
 		}
 	}
 
-	if (complete) {
-		sendButton.removeAttribute("disabled");
-		saveButton.removeAttribute("disabled");
-		signatureSelect.removeAttribute("disabled");
-	} else {
-		sendButton.setAttribute("disabled", "disabled");
-		saveButton.setAttribute("disabled", "disabled");
-		signatureSelect.setAttribute("disabled", "disabled");
+	for (const control of [sendButton, saveButton, defaultButton, signatureSelect]) {
+		control.toggleAttribute("disabled", !complete);
 	}
 
 	attachmentUUIDsNode.value = attachments.
@@ -86,8 +92,6 @@ function updateState() {
 }
 
 function attachFile(file) {
-	helpNode.remove();
-
 	const xhr = new XMLHttpRequest();
 	const node = attachmentNodeFor(file);
 	const attachment = {
@@ -102,13 +106,18 @@ function attachFile(file) {
 	let formData = new FormData();
 	formData.append("attachments", file);
 
+	// The server's reason, when it gave one, is a detail under the translated statement.
 	const handleError = msg => {
 		attachments = attachments.filter(a => a !== attachment);
 		node.classList.add("error");
 		node.querySelector(".progress").remove();
 		node.querySelector(".size").remove();
 		node.querySelector("button").remove();
-		node.querySelector(".error").innerText = "Error: " + msg;
+		const error = node.querySelector(".error");
+		error.textContent = uploadRow.dataset.failed;
+		if (msg) {
+			error.title = msg;
+		}
 		updateState();
 	};
 
@@ -122,11 +131,11 @@ function attachFile(file) {
 		try {
 			resp = JSON.parse(xhr.responseText);
 		} catch {
-			resp = { "error": "Error: invalid response" };
+			resp = {};
 		}
 
 		if (xhr.status !== 200) {
-			handleError(resp["error"]);
+			handleError(resp.error);
 			return;
 		}
 
@@ -134,16 +143,14 @@ function attachFile(file) {
 		attachment.remove = resp[0].remove;
 		updateState();
 	});
-	xhr.addEventListener("error", () => {
-		handleError("an unexpected problem occured");
-	});
+	xhr.addEventListener("error", () => handleError());
 	xhr.send(formData);
 
 	updateState();
 }
 
 function removable(attachment) {
-	attachment.node.querySelector("button").addEventListener("click", ev => {
+	attachment.node.querySelector("button").addEventListener("click", () => {
 		attachment.xhr?.abort();
 		attachments = attachments.filter(a => a !== attachment);
 		attachment.node.remove();
@@ -159,38 +166,17 @@ function removable(attachment) {
 
 // A refused send renders what it held; those uploads are finished.
 for (const node of attachmentsNode.querySelectorAll(".upload[data-uuid]")) {
-	helpNode.remove();
 	const attachment = { node: node, progress: 1.0, uuid: node.dataset.uuid, remove: node.dataset.remove };
 	attachments.push(attachment);
 	removable(attachment);
 }
 updateState();
 
+// The server renders the row, its labels translated; the script fills in the file.
 function attachmentNodeFor(file) {
-	const node = document.createElement("div"),
-		progress = document.createElement("span"),
-		filename = document.createElement("span"),
-		error = document.createElement("span"),
-		size = document.createElement("span"),
-		button = document.createElement("button");
-	node.classList.add("upload");
-
-	progress.classList.add("progress");
-	node.appendChild(progress);
-
-	filename.classList.add("filename");
-	filename.innerText = file.name;
-	node.appendChild(filename);
-
-	error.classList.add("error");
-	node.appendChild(error);
-
-	size.classList.add("size");
-	size.innerText = formatSI(file.size) + "B";
-	node.appendChild(size);
-
-	button.innerHTML = "&times";
-	node.appendChild(button);
+	const node = uploadRow.content.firstElementChild.cloneNode(true);
+	node.querySelector(".filename").textContent = file.name;
+	node.querySelector(".size").textContent = formatSI(file.size) + "B";
 	return node;
 }
 

@@ -1232,8 +1232,10 @@ main.create-update > form > p:not(.hint) {
   margin-bottom: var(--space-3);
 }
 
+/* The window sizes the writing area, not a rail taller than it (the header is one toolbar and its border). */
 main.create-update:has(.headers) {
-  flex: 1 auto;
+  flex: none;
+  min-height: calc(100dvh - var(--toolbar-height) - 1px);
 }
 
 main.create-update:has(.headers) form {
@@ -1321,8 +1323,7 @@ main.create-update .headers {
 /* minmax: a plain 1fr keeps the fields' own width, wider than a phone. */
 @media (scripting: none) {
   main.create-update .headers { grid-template-columns: auto minmax(0, 1fr); }
-  /* Dropping files needs the script; what is attached is listed to untick. */
-  main.create-update #attachment-list .help,
+  /* What is attached is listed to untick. */
   main.create-update #attachment-list:not(:has(.upload)) { display: none; }
 }
 
@@ -1358,10 +1359,8 @@ main.create-update .headers > .recipient-field { grid-column: 2; min-width: 0; }
 }
 .recipient-suggestions > [aria-selected="true"] { background: var(--bg-inset); }
 
-@media (width <= 600px), (pointer: coarse) {
-  main.create-update #attachment-list .help { display: none; }
-  main.create-update #attachment-list:not(:has(.upload, .attach-chip, input)) { display: none; }
-}
+/* The whole page takes a drop, so an empty list is no target of its own. */
+main.create-update #attachment-list:not(:has(.upload, .attach-chip, input)) { display: none; }
 
 main.create-update #attachment-list {
   grid-column-start: 3;
@@ -1378,12 +1377,6 @@ main.create-update #attachment-list {
 
   display: flex;
   flex-direction: column;
-}
-
-main.create-update #attachment-list .help {
-  text-align: center;
-  color: var(--fg-dim);
-  margin-top: 1rem;
 }
 
 main.create-update #attachment-list .upload {
@@ -1444,6 +1437,39 @@ main.create-update .text textarea {
   height: 100%;
 }
 
+main.create-update .text[data-dragging]::after {
+  content: attr(data-drop);
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--fg-dim);
+  background: color-mix(in srgb, var(--bg) 85%, transparent);
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius-sm);
+  pointer-events: none;
+}
+
+/* Focus writing: the targeted area covers the window; Back or the exit link leaves it.
+   body main: outweighs the form layouts (main.create-update form .field, .text). */
+body main .focus-write:is(:target, :has(:target)) {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: var(--space-3);
+  background: var(--bg);
+}
+
+body main .focus-write:is(:target, :has(:target)) :is(textarea, .editor) { flex: 1; resize: none; }
+.focus-toggle { color: var(--fg-dim); font-size: var(--text-sm); }
+.field.focus-write > .focus-toggle { float: inline-end; align-self: flex-end; }
+.editor-toolbar > .focus-toggle { margin-inline-start: auto; }
+.focus-write:is(:target, :has(:target)) .focus-enter,
+.focus-write:not(:target, :has(:target)) .focus-exit { display: none; }
+
 .editor-toolbar {
   display: flex;
   align-items: center;
@@ -1455,7 +1481,7 @@ main.create-update .text textarea {
 
 /* Rich text is written in the script's editor. */
 @media (scripting: none) {
-  .editor-toolbar { display: none; }
+  .editor-toolbar > button { display: none; }
 }
 
 .editor-toolbar [aria-pressed="true"] {
@@ -1465,8 +1491,9 @@ main.create-update .text textarea {
 
 .editor-toolbar [data-act="rtl"] { margin-inline-start: var(--space-2); }
 
+/* A zero basis: a long body scrolls inside, as the textarea's does, rather than lengthening the page. */
 main.create-update .text .editor {
-  flex: 1 1 auto;
+  flex: 1 1 0;
   min-height: 12rem;
   overflow-y: auto;
   padding: var(--space-2);
@@ -2265,6 +2292,7 @@ main.create-update .headers > .compose-more {
 }
 
 .compose-more > input { width: 100%; box-sizing: border-box; }
+.compose-more > label { display: block; margin-block: var(--space-2) var(--space-1); color: var(--fg-dim); font-size: var(--text-sm); }
 
 .signature-pick {
   display: flex;

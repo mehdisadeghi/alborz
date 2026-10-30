@@ -15,6 +15,8 @@
 - Owner-only first-run setup with DNS discovery, verified TLS connections and
   a separate login step; structured TOML configuration, `LBRZ_` overrides and
   automatic encryption-key creation for fresh installations.
+- A focus link fills the window with the writing area in mail and journal
+  entries; Back leaves it.
 
 ### Fixed
 
@@ -27,6 +29,8 @@
   keep the previous form page's margins.
 - Align mobile list stars and dates, including undated tasks and contacts;
   keep quick-add controls at 32px and sidebar addresses on one line.
+- Enter in a compose field sends instead of applying the signature; upload
+  rows, upload errors and the draft notice are translated.
 
 - Mobile navigation reserves its primary action’s space, accounts for safe-area
   insets, and groups less frequent sections under More on narrow layouts.
@@ -43,6 +47,9 @@
   the signature in new mail, replies and forwards instead of added at sending.
 - Browser history follows the markup: page navigations add an entry, list
   refinements replace it, and done, star and colour update the page in place.
+- Cc, Bcc and Reply to share one section in compose, open when any holds an
+  address. Files dropped anywhere on the page attach, the hint showing over the
+  writing area; Ctrl+A on a message selects only its body.
 - Use the mobile drawer’s account rows for switching, with a color legend and
   a direct Settings action. Put sign-out in account settings and
   language, shortcuts and the tour in general settings.

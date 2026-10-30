@@ -8,7 +8,7 @@
 
         {{ template "field" (dict "label" ($.T "journal.summary") "name" "summary" "value" .Summary "dir" "auto" "required" true) }}
         {{ template "date-field" (dict "g" $ "label" ($.T "journal.date") "name" "date" "value" .Date "hint" true) }}
-        {{ template "field" (dict "label" ($.T "common.description") "name" "description" "value" .Text "dir" "auto" "rows" "12") }}
+        {{ template "field" (dict "label" ($.T "common.description") "name" "description" "value" .Text "dir" "auto" "rows" "12" "class" "focus-write" "focus" $) }}
 
         {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (or .GlobalData.From (printf "%s%s" (url "calendar.journal") $acct)) "cancelLabel" ($.T "common.cancel")) }}
       </form>

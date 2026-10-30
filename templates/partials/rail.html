@@ -5,6 +5,12 @@
   {{ if gt (len .accounts) 1 }}
   {{ if eq .kind "mail" }}
   {{ template "rail-mail-merged" .data }}
+  {{ else if and .all .views }}
+  {{/* As mail's: the merged views under All accounts, each account's under its own. */}}
+  <details id="rail-all" class="acct-folders aggregate-folders" data-rail-key="__merged" open{{ if $.g.GlobalData.Swap }} hx-swap-oob="true"{{ end }}>
+    <summary class="aside-account{{ if $merged }} active{{ end }}"><a href="{{$.path}}"{{ if $merged }} aria-current="true"{{ end }}>{{$.g.T "nav.allaccounts"}}</a></summary>
+    {{ template "rail-colors" (dict "g" $.g "path" .views.path "view" (or (and $merged .views.view) "") "account" "") }}
+  </details>
   {{ else }}
   {{ with .all }}<a id="rail-all" class="aside-account aside-all{{ if $merged }} active{{ end }}" href="{{$.path}}"{{ if $merged }} aria-current="true"{{ end }}{{ if $.g.GlobalData.Swap }} hx-swap-oob="true"{{ end }}>{{ if eq $.kind "dav" }}{{$.g.T "nav.allaccounts"}}{{ else }}{{.}}{{ end }}</a>{{ end }}
   {{ end }}
@@ -20,6 +26,7 @@
     {{ template "rail-mail-account" (dict "account" $acct "data" $.data) }}
     {{ else if eq $.kind "dav" }}
     {{ template "rail-dav-account" (dict "account" $acct "data" $.data "g" $.g "all" $.all "path" $.path "urlaccount" $.urlaccount) }}
+    {{ with $.views }}{{ $view := "" }}{{ if eq $acct $.urlaccount }}{{ $view = .view }}{{ end }}{{ template "rail-colors" (dict "g" $.g "path" .path "view" $view "account" $acct) }}{{ end }}
     {{ else }}
     {{ template "rail-rows" (index $.data.rows $acct) }}
     {{ end }}
@@ -38,9 +45,8 @@
   {{ with .all }}<a id="rail-all" class="aside-account aside-all{{ if $merged }} active{{ end }}" href="{{$.path}}"{{ if $.g.GlobalData.Swap }} hx-swap-oob="true"{{ end }}>{{.}}</a>{{ end }}
   {{ template "rail-dav-account" (dict "account" (index .accounts 0).Username "data" .data "single" true "g" .g) }}
   {{ end }}
-  {{ end }}
-  <a href="{{url "auth.login"}}?add=1" class="aside-create rail-mobile rail-add-account">{{.g.T "nav.addaccount"}}</a>
   {{ with .views }}{{ template "rail-colors" (dict "g" $.g "path" .path "view" .view "account" .account) }}{{ end }}
+  {{ end }}
   {{ with .groups }}{{ template "rail-filter-list" . }}{{ end }}
   {{ with .categories }}{{ template "rail-filter-list" . }}{{ end }}
   {{ with .invitations }}
@@ -70,9 +76,9 @@
     </li>
   </ul>
   {{ end }}
-  {{ with .new }}<a href="{{.href}}" class="aside-create{{ if .active }} active{{ end }}">{{.label}}</a>{{ end }}
-  {{ with .follow }}{{ if not .hidden }}<a href="{{.href}}" class="aside-create{{ if .active }} active{{ end }}">{{.label}}</a>{{ end }}{{ end }}
-  {{ with .import }}{{ if not .hidden }}<a href="{{.href}}" class="aside-create{{ if .active }} active{{ end }}">{{.label}}</a>{{ end }}{{ end }}
+  {{/* The actions follow every item, as on mail's rail. */}}
+  {{ range tuple .new (and .groups .groups.new) .follow .import }}{{ if and . (not .hidden) }}<a href="{{.href}}" class="aside-create{{ if .active }} active{{ end }}">{{.label}}</a>{{ end }}{{ end }}
+  <a href="{{url "auth.login"}}?add=1" class="aside-create rail-mobile rail-add-account">{{.g.T "nav.addaccount"}}</a>
   <div class="rail-mobile rail-mobile-footer">
     <a href="{{url "settings.profile"}}"{{ if eq (index .g.GlobalData.Path 0) "settings" }} class="active" aria-current="page"{{ end }}>{{.g.T "nav.settings"}}</a>
   </div>
@@ -103,9 +109,9 @@
 </ul>
 {{ end }}
 
-{{/* dict: key label open rows (each Label Href Active) [new]. */}}
+{{/* dict: key label open rows (each Label Href Active) [new, drawn among the rail's actions]. */}}
 {{ define "rail-filter-list" }}
-{{ if or .rows .new }}
+{{ if .rows }}
 <ul class="rail-views">
   <li class="folder-li">
     <details class="folder-branch" data-rail-key="{{.key}}"{{ if .open }} open{{ end }}>
@@ -115,7 +121,6 @@
         {{ range .rows }}
         <li{{ if .Active }} class="active"{{ end }}><a href="{{.Href}}" dir="auto">{{.Label}}</a>{{ with .Edit }}<a class="filter-edit icon-button" href="{{.}}" title="{{$d.editlabel}}" aria-label="{{$d.editlabel}}">{{ template "icon" "edit" }}</a>{{ end }}</li>
         {{ end }}
-        {{ with .new }}<li><a class="aside-create" href="{{.href}}">{{.label}}</a></li>{{ end }}
       </ul>
     </details>
   </li>

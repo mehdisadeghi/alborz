@@ -29,6 +29,10 @@
   keep the previous form page's margins.
 - Align mobile list stars and dates, including undated tasks and contacts;
   keep quick-add controls at 32px and sidebar addresses on one line.
+- Every sidebar shows All accounts and each account with its own Starred, as
+  mail does, and lists its actions after all items; on touch the account
+  chevron is a target of its own. Header icons share one spacing, form actions
+  sit on one row or stack together, and account pickers read left to right.
 - Dates and counts filled into translated labels use the reader's digits.
 - Sidebar and page links keep a folder name that holds a slash.
 - Recipient suggestions come from every signed-in account's address books, not

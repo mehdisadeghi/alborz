@@ -57,7 +57,7 @@
   <span>{{.label}}</span>
   <select name="{{ or .name "account" }}">
     {{ range .accounts }}
-    <option value="{{.Username}}"{{ if eq .Username $.current }} selected{{ end }}>{{.Username}}</option>
+    <option value="{{.Username}}" dir="ltr"{{ if eq .Username $.current }} selected{{ end }}>{{.Username}}</option>
     {{ end }}
   </select>
 </label>

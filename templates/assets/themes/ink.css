@@ -2,6 +2,11 @@
 :root:root {
   color-scheme: light;
 
+  /* A serif theme reads as naskh in Persian; Georgia has no Persian glyphs. */
+  --font-latin: Georgia, "Times New Roman", serif;
+  --font-fa: "Noto Naskh Arabic", Amiri, "Scheherazade New", "Geeza Pro",
+    "Vazirmatn", Sahel;
+
   --fg: #000;
   --fg-dim: #1a1a1a;
   --fg-muted: #4a4a4a;
@@ -126,13 +131,6 @@
   --warn-bg: #000;
   --warn-border: #fff;
   --alert-border: #fff;
-}
-
-/* A serif theme reads as naskh in Persian; Georgia has no Persian glyphs. */
-:root:root {
-  --font-latin: Georgia, "Times New Roman", serif;
-  --font-fa: "Noto Naskh Arabic", Amiri, "Scheherazade New", "Geeza Pro",
-    "Vazirmatn", Sahel;
 }
 
 input[type="text"],

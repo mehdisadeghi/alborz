@@ -581,6 +581,18 @@ header nav .nav-utilities .icon {
     min-height: 44px;
   }
 }
+/* Icons only: the lock and the scheme are spaced as the sections are. */
+:root:not([data-phone="bar"]) header nav.is-icons > .nav-utilities { display: contents; }
+:root:not([data-phone="bar"]) header nav.is-icons :is(.nav-session-lock, .scheme-toggle) {
+  flex: 1 1 0;
+  min-width: 0;
+  align-self: stretch;
+}
+:root:not([data-phone="bar"]) header nav.is-icons .nav-utilities .icon-button {
+  width: 100%;
+  min-width: 0;
+  height: auto;
+}
 
 /* With no script the root names no scheme, and none shows. */
 :root:not([data-theme="system"]) .scheme-toggle [data-scheme="system"],
@@ -1814,17 +1826,29 @@ main.event .details th {
   margin-inline-start: 1rem;
 }
 
+/* One row while every action fits, else all stacked full width; never a split row (the Holy Albatross). */
 .form-actions {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
   gap: var(--space-2);
   margin-top: var(--space-4);
 }
 
-.form-actions > * {
+.form-actions > :is(button, .button, .button-link) {
+  flex: 0 0 calc((26rem - 100%) * 999);
+  min-width: fit-content;
   max-width: 100%;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+}
+
+/* A long body scrolls under the actions on wide screens; on a phone they would cover the keyboard's field. */
+@media (width > 600px) {
+  main.create-update .form-actions {
+    position: sticky;
+    inset-block-end: 0;
+    padding-block: var(--space-2);
+    background: var(--bg);
+  }
 }
 
 .actions h3 {
@@ -4063,11 +4087,13 @@ button,
   main.login :is(button, .button, .button-link),
   .list-item > form > button,
   .invitation-actions > button,
-  .note-box > button,
-  .form-actions > :is(button, .button, .button-link) {
+  .note-box > button {
     min-height: 2.75rem;
     min-width: 2.75rem;
   }
+
+  /* Their width is the label's, wider than the target. */
+  .form-actions > * { min-height: 2.75rem; }
 }
 
 .button:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover,
@@ -4699,6 +4725,17 @@ aside details.acct-folders > summary::before {
   aside a.rail-account-empty { min-height: 2.75rem; }
 }
 
+/* On touch the chevron is a target of its own, at the row's end and clear of the link. */
+@media (pointer: coarse) {
+  aside details:is(.acct-folders, .folder-branch) > summary::before {
+    order: 1;
+    width: 2.75rem;
+    justify-content: center;
+  }
+  aside details:is(.acct-folders, .folder-branch) > summary { padding-inline-end: 0; }
+  aside a.rail-account-empty { padding-inline-start: var(--space-2); }
+}
+
 aside details.acct-folders li {
   padding-inline-start: 1rem;
 }
@@ -4726,7 +4763,7 @@ aside a.aside-create {
 
 aside a.aside-create:hover { color: var(--fg); }
 
-aside ul.merged-roles {
+aside details.aggregate-folders > ul:last-child {
   border-bottom: 1px solid var(--border-light);
   padding-bottom: 0.3rem;
   margin-bottom: 0.3rem;
@@ -5601,7 +5638,7 @@ section.actions > .phone-up { display: none; }
   :root[data-phone="bar"]:has(#action-checkbox-all) { --phone-edge: calc(var(--space-2) + 0.75rem); }
 
   /* The sections live in the bar; the header names the one in force, or the app where none is. */
-  :root[data-phone="bar"] header nav > a:not(.active):not(.nav-session-lock) { display: none; }
+  :root[data-phone="bar"] header nav > a:not(.active) { display: none; }
   :root[data-phone="bar"] header nav:not(:has(> a.active)) .header-brand { display: flex; }
 
   /* The drawer's button stays put on every page; the ☰ glyph draws 0.15em inside its advance. */
@@ -5767,6 +5804,4 @@ section.actions > .phone-up { display: none; }
 
   /* The primary control is filled with the ring's colour, and stands clear of the viewport's edge. */
   :root[data-phone="bar"] section.actions [data-key="c"].tour-target { outline-offset: 2px; }
-
-  :root[data-phone="bar"] header nav > .scheme-toggle .icon-button { width: var(--tap); height: var(--tap); }
 }

@@ -74,25 +74,28 @@ func Mount(g *web.Group, st *store.Store) error {
 		return p.Remember(ctx.Request().Context(), sender, ctx.T("contacts.previous"), to, false)
 	})
 
+	// Every signed-in account's books, since the From field can name any of them.
 	srv.Suggest = append(srv.Suggest, func(ctx *web.Context) []string {
-		c, addressBooks, err := p.Open(ctx.Request().Context(), ctx.Login)
-		if err != nil {
-			// Suggestions are a convenience: a missing or silent address book must not block compose.
-			if err != contacts.ErrNoAddressBook {
-				ctx.Logger().Printf("carddav: no suggestions for compose: %v", err)
+		results := dav.Across(ctx.Request().Context(), ctx.Logins(), (*alborz.Login).Username, func(reqCtx context.Context, s *alborz.Login) ([]*netmail.Address, error) {
+			c, books, err := p.Open(reqCtx, s)
+			if err != nil {
+				return nil, err
 			}
-			return nil
-		}
-		addrs, err := contacts.Emails(ctx.Request().Context(), c, addressBooks)
-		if err != nil {
-			ctx.Logger().Printf("carddav: no suggestions from one book: %v", err)
-		}
-		// Written as a recipient is, name before address, since it is inserted verbatim.
-		entries := make([]string, len(addrs))
-		for i, a := range addrs {
-			entries[i] = a.Address
-			if a.Name != "" {
-				entries[i] = a.String()
+			return contacts.Emails(reqCtx, c, books)
+		})
+		var entries []string
+		for _, result := range results {
+			// Suggestions are a convenience: a missing or silent address book must not block compose.
+			if result.Err != nil && !errors.Is(result.Err, contacts.ErrNoAddressBook) {
+				ctx.Logger().Printf("carddav: suggestions from %s: %v", result.Site.Username(), result.Err)
+			}
+			// Written as a recipient is, name before address, since it is inserted verbatim.
+			for _, a := range result.Value {
+				entry := a.Address
+				if a.Name != "" {
+					entry = a.String()
+				}
+				entries = append(entries, entry)
 			}
 		}
 		return entries

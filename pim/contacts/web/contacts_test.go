@@ -61,6 +61,23 @@ func TestSendingKeepsNewRecipientsInPreviousRecipients(t *testing.T) {
 	}
 }
 
+// The From field can name any signed-in account, so compose offers every account's contacts.
+func TestComposeSuggestsEveryAccountsContacts(t *testing.T) {
+	_, c := SignedIn(t, User)
+	c.SignIn(t, User2)
+	if resp := c.Post(t, "contacts.books.create", url.Values{"account": {User2}, "place": {"here"}, "name": {"People"}}); resp.StatusCode != http.StatusFound {
+		t.Fatalf("creating the second account's book answered %s", resp.Status)
+	}
+	form := url.Values{"address": {"Parvin Etesami <parvin@example.org>"}, "addressbook": {User2 + "|" + Here + BooksOf(User2) + "people/"}}
+	if resp := c.Post(t, "contacts.add", form); resp.StatusCode != http.StatusFound {
+		t.Fatalf("adding the contact answered %s", resp.Status)
+	}
+	datalist := Between(c.Page(t, "mail.compose", url.Values{"account": {User}}), `<datalist id="emails">`, "</datalist>")
+	if !strings.Contains(datalist, "parvin@example.org") {
+		t.Errorf("compose for %s does not suggest %s's contact:\n%s", User, User2, datalist)
+	}
+}
+
 func TestAddToContactsWritesTheChosenBook(t *testing.T) {
 	a, c := SignedIn(t, User)
 	c.CreateBook(t, "People")

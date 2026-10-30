@@ -251,6 +251,27 @@ func TestFoldersAreMadeAndRemoved(t *testing.T) {
 	}
 }
 
+// A subfolder's name holds the delimiter; its pager must keep it escaped.
+func TestASubfolderPages(t *testing.T) {
+	c := Alborz(t).SignIn(t, User)
+	uids := MessageUIDs(c.Page(t, "mail.mailbox", "INBOX"))
+	if len(uids) < 3 {
+		t.Fatalf("need three seeded messages, found %d", len(uids))
+	}
+	if resp := c.Post(t, "mail.mailbox.create", url.Values{"name": {"Archive/2024"}, "location": {"0"}}); resp.StatusCode != http.StatusFound {
+		t.Fatalf("new subfolder: %s", resp.Status)
+	}
+	c.Post(t, "mail.messages.move", url.Values{"uids": uids[:3], "to": {"Archive/2024"}}, "INBOX")
+	body := c.Page(t, "mail.mailbox", "Archive/2024", url.Values{"ipp": {"1"}, "page": {"1"}})
+	links := PagerLinks(body)
+	if len(links) != 2 {
+		t.Fatalf("the middle page offers %d steps, want 2", len(links))
+	}
+	for _, link := range links {
+		c.Follow(t, link)
+	}
+}
+
 func TestNextStaysOnTheSite(t *testing.T) {
 	a := Alborz(t)
 	c := a.SignIn(t, User)

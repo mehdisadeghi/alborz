@@ -71,7 +71,7 @@ func pageHref(at *url.URL, n int) string {
 	if n > 0 {
 		q.Set("page", strconv.Itoa(n))
 	}
-	return QueryPath(at.Path, q)
+	return QueryPath(at.EscapedPath(), q)
 }
 
 const MaxMessagesPerPage = 100

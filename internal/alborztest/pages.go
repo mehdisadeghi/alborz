@@ -118,14 +118,23 @@ func MessageUIDs(page string) []string {
 
 var pagerLink = regexp.MustCompile(`<a href="([^"]+)" class="icon-button"`)
 
+// PagerLinks are the pager's links.
+func PagerLinks(page string) []string {
+	var links []string
+	for _, m := range pagerLink.FindAllStringSubmatch(Between(page, `class="actions-pagination"`, "</div>"), -1) {
+		links = append(links, html.UnescapeString(m[1]))
+	}
+	return links
+}
+
 // PagerSteps are the page parameters the pager's links name, the first page's being empty.
 func PagerSteps(t *testing.T, page string) []string {
 	t.Helper()
 	var steps []string
-	for _, m := range pagerLink.FindAllStringSubmatch(Between(page, `class="actions-pagination"`, "</div>"), -1) {
-		u, err := url.Parse(html.UnescapeString(m[1]))
+	for _, link := range PagerLinks(page) {
+		u, err := url.Parse(link)
 		if err != nil {
-			t.Fatalf("pager link %q: %v", m[1], err)
+			t.Fatalf("pager link %q: %v", link, err)
 		}
 		steps = append(steps, u.Query().Get("page"))
 	}

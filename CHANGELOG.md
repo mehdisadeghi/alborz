@@ -18,6 +18,7 @@
 
 ### Fixed
 
+- Page links in mail subfolders keep the folder path.
 - Align mobile list stars and dates, including undated tasks and contacts;
   keep quick-add controls at 32px and sidebar addresses on one line.
 

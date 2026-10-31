@@ -244,7 +244,7 @@ func (p *plugin) monthView(ctx *web.Context) (monthView, error) {
 		loc:       loc,
 		start:     start,
 		now:       now,
-		view:     view,
+		view:      view,
 		group:     group,
 		thisMonth: thisMonth,
 		page:      cal.Page(start),

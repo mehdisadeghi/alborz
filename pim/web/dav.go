@@ -125,7 +125,7 @@ func Cards(p *dav.Provider, title string, abilities func(dav.Advertised) []web.A
 
 func card(ctx *web.Context, p *dav.Provider, servers *web.Servers, title string, src dav.Source, abilities func(dav.Advertised) []web.Ability) web.ServerCard {
 	host := src.URL.Host
-	card :=web.ServerCard{Group: web.ServerDAV, Title: ctx.T(title), Host: host, Source: src.Origin, Record: src.Record}
+	card := web.ServerCard{Group: web.ServerDAV, Title: ctx.T(title), Host: host, Source: src.Origin, Record: src.Record}
 	if servers.Showing == web.ServerDAV {
 		endpoint, _ := url.Parse(src.Endpoint())
 		found, err := dav.Describe(ctx.Request().Context(), p.HTTPClient(ctx.Request().Context(), ctx.Login), endpoint)

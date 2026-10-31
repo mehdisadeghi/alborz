@@ -91,7 +91,7 @@ type Provider struct {
 	address   string
 	announced sync.Map
 	local     http.Handler
-	Store *store.Store
+	Store     *store.Store
 	// troubles holds, per account, what its servers answered when last asked for homes, when not a home.
 	troubles sync.Map
 	// found per username; see Collections.
@@ -424,7 +424,7 @@ func (p *Provider) peers(ctx context.Context, login *alborz.Login, sources []Sou
 	}
 	for _, raw := range listed[:min(len(listed), maxPeers)] {
 		u, err := url.Parse(raw)
-		if err != nil || u.Host == "" || u.Scheme != "https" && !(p.private && u.Scheme == "http") {
+		if err != nil || u.Host == "" || u.Scheme != "https" && (!p.private || u.Scheme != "http") {
 			continue
 		}
 		taken := slices.ContainsFunc(sources, func(s Source) bool { return s.URL.Host == u.Host })

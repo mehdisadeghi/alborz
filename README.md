@@ -65,9 +65,7 @@ In addition to the protocols above:
 | 6350, 6186 | vCard, SRV service discovery |
 | WebAuthn | Passkey lock/unlock for an existing session |
 
-These are scoped implementations, not complete RFC certification. See the
-[RFC audit](docs/audits/2026-10-23-rfc-audit.md) for evidence, limitations and
-required dependency updates for the audited repairs.
+These are scoped implementations, not complete RFC certification.
 
 ## Install
 

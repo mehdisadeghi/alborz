@@ -20,11 +20,7 @@ type DayAnnotation struct {
 
 type CalendarRenderData struct {
 	CalendarPageRenderData
-	Now time.Time
-	// Since is the first day the agenda lists: today in the current month, else the first.
-	Since time.Time
-	// Span is "month" when the agenda was asked for the whole month.
-	Span               string
+	Now                time.Time
 	ThisMonth          bool
 	Dates              []time.Time
 	DayAnnotations     []DayAnnotation
@@ -48,9 +44,7 @@ type CalendarRenderData struct {
 type monthView struct {
 	loc       *time.Location
 	start     time.Time
-	since     time.Time
 	now       time.Time
-	span      string
 	view      string
 	group     string
 	thisMonth bool
@@ -71,7 +65,7 @@ type monthView struct {
 func (mv monthView) shown() []calendar.Occurrence {
 	var out []calendar.Occurrence
 	for _, date := range mv.dates {
-		if mv.view != "" && (date.Month() != mv.start.Month() || date.Before(mv.since)) {
+		if mv.view != "" && date.Month() != mv.start.Month() {
 			continue
 		}
 		out = append(out, mv.on[mv.day(date)]...)
@@ -101,8 +95,6 @@ func (p *plugin) month(ctx *web.Context) error {
 	data := &CalendarRenderData{
 		CalendarPageRenderData: calendarPageData(ctx, ctx.T("nav.calendar")+": "+ctx.Dates().MonthYear(mv.start), mv.calendars, pimweb.NewCollectionLabels(p.DAV, ctx.Login.Username(), collection, href), mv.view, "", calendarFilters(ctx), agendaRows(ctx, mv), selectForm, invitations, monthQuery(ctx, mv), mv.start),
 		Now:                    mv.now,
-		Since:                  mv.since,
-		Span:                   mv.span,
 		ThisMonth:              mv.thisMonth,
 		Dates:                  mv.dates,
 		Events:                 mv.events,
@@ -165,23 +157,12 @@ func (p *plugin) monthView(ctx *web.Context) (monthView, error) {
 	queryStart := start.AddDate(0, 0, -7)
 	queryEnd := monthEnd.AddDate(0, 0, 7)
 
-	// In the current month the agenda starts today; span=month asks for all of it.
-	span := ctx.QueryParam("span")
-	if span != "" && span != "month" {
-		return monthView{}, web.NewError(http.StatusBadRequest, "invalid span")
-	}
 	group := ctx.QueryParam("group")
 	if group != "" && group != "day" {
 		return monthView{}, web.NewError(http.StatusBadRequest, "invalid group")
 	}
-	since := start
-	thisMonth := false
-	if now := time.Now().In(loc); !now.Before(start) && now.Before(monthEnd) {
-		thisMonth = true
-		if span != "month" {
-			since = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
-		}
-	}
+	now := time.Now().In(loc)
+	thisMonth := !now.Before(start) && now.Before(monthEnd)
 
 	offset := (int(start.Weekday()) - int(firstDayOfWeek) + 7) % 7
 	gridStart := start.AddDate(0, 0, -offset)
@@ -262,10 +243,8 @@ func (p *plugin) monthView(ctx *web.Context) (monthView, error) {
 	return monthView{
 		loc:       loc,
 		start:     start,
-		since:     since,
-		now:       time.Now().In(loc),
-		span:      span,
-		view:      view,
+		now:       now,
+		view:     view,
 		group:     group,
 		thisMonth: thisMonth,
 		page:      cal.Page(start),
@@ -287,18 +266,12 @@ func agendaRows(ctx *web.Context, mv monthView) []web.FilterRow {
 	if mv.view == "" {
 		return nil
 	}
-	var rows []web.FilterRow
-	if mv.thisMonth {
-		rows = append(rows,
-			web.FilterRow{Label: ctx.T("calendar.fromtoday"), Href: ctx.WithParam("span", ""), Current: mv.span != "month"},
-			web.FilterRow{Label: ctx.T("calendar.wholemonth"), Href: ctx.WithParam("span", "month"), Current: mv.span == "month"})
-	}
 	star := mv.view
 	if star == "list" {
 		star = ""
 	}
 	// Cleared of its star the agenda is still the agenda.
-	return append(rows, web.ViewRows(ctx, star, false, ctx.WithParam("view", "list"))...)
+	return web.ViewRows(ctx, star, false, ctx.WithParam("view", "list"))
 }
 
 func groupRows(ctx *web.Context, mv monthView) []web.FilterRow {

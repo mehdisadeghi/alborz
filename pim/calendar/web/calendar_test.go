@@ -415,7 +415,7 @@ func TestACalendarWithAnUnreadableObjectStillShowsTheRest(t *testing.T) {
 				shows string
 			}{
 				{"calendar.month", url.Values{"month": {"2026-09"}}, "Standup"},
-				{"calendar.month", url.Values{"month": {"2026-09"}, "view": {"list"}, "span": {"month"}}, "Standup"},
+				{"calendar.month", url.Values{"month": {"2026-09"}, "view": {"list"}}, "Standup"},
 				{"calendar.day", url.Values{"date": {"2026-09-15"}}, "Standup"},
 				{"calendar.tasks", url.Values{"view": {"all"}}, "Water the ferns"},
 			} {

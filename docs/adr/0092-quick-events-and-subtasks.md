@@ -13,7 +13,8 @@ RFC 5545 3.8.4.5).
 
 ### Quick events
 
-1. Calendar quick-add selects its destination collection by the same
+1. Calendar quick-add sits on the list and day views; the month grid
+   MUST NOT show it. It selects its destination collection by the same
    rule as task quick-add: a single visible writable collection is used
    directly; otherwise a collection picker is shown. Persistently hidden
    collections (`VisibleCalendars`, ADR 80) are excluded; temporary list
@@ -65,4 +66,5 @@ RFC 5545 3.8.4.5).
 - `pim/calendar/web/quick.go`, `pim/calendar/web/subtasks.go`,
   `pim/calendar/subtasks.go`, `pim/calendar/caldav.go`,
   `templates/pages/tasks/task-edit.html`,
+  `templates/partials/calendar/quick.html`,
   `templates/partials/calendar/toolbar.html`

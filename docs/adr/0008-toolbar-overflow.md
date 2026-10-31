@@ -44,6 +44,11 @@ overlap and controls returning after they had left.
    lists) render the same end-group controls, disabling any that do not
    apply so the end group stays aligned across views. Select-all appears
    only where rows have checkboxes.
+9. A toolbar MAY put its title on a row of its own above the controls
+   (`toolbar-head` with `titlerow`); the calendar month, list and day
+   views do. That title is outside the measured row and takes its short
+   form by a container query on its own width, never by a viewport
+   breakpoint.
 
 ## Consequences
 
@@ -57,4 +62,5 @@ overlap and controls returning after they had left.
 - `templates/assets/helpers.js` (priority-plus toolbar),
   `templates/partials/toolbar.html`,
   `templates/partials/calendar/toolbar.html`,
+  `templates/pages/calendar/day.html`,
   `templates/assets/style.css`

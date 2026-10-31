@@ -3129,8 +3129,31 @@ select[multiple] {
   flex-shrink: 0;
 }
 
+/* A title on a row of its own (titlerow) has no control to yield to; its own width picks the short form (ADR 8). */
+:root section.actions:has(> .toolbar-title) {
+  flex-wrap: wrap;
+}
+
+/* No basis, or a row wider than the line drops below the select-all box; a floor, or it shares the title's line at no width. */
+section.actions:has(> .toolbar-title) > .actions-wrap {
+  flex-basis: 0;
+  min-width: var(--title-floor);
+}
+
+.toolbar-title {
+  display: flex;
+  flex: 1 0 100%;
+  container-type: inline-size;
+  padding-block: var(--space-1);
+}
+
+@container (width < 20rem) {
+  .toolbar-title .title-long { display: none; }
+  .toolbar-title .title-short { display: inline; }
+}
+
 /* No width of its own, so the row's minimum holds the title's floor and not its length (ADR 8); the basis keeps its length. */
-.actions-message h1 {
+:is(.actions-message, .toolbar-title) h1 {
   margin: 0;
   flex-grow: 1;
   flex-basis: max-content;

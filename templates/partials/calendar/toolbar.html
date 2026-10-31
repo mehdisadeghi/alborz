@@ -2,8 +2,7 @@
 {{$scope := ""}}{{with .Scope}}{{$scope = printf "&%s" .}}{{end}}
 {{$suffix := $scope}}
 {{with .View}}{{$suffix = printf "%s&view=%s" $suffix .}}{{end}}
-{{if and .View (eq .Span "month")}}{{$suffix = printf "%s&span=month" $suffix}}{{end}}
-{{ template "toolbar-head" (dict "g" . "class" "month-actions" "title" ($.GlobalData.MonthYear .Time) "shorttitle" ($.GlobalData.MonthYearShort .Time) "subtitle" ($.SecondaryMonthYear .Time) "selectall" (ne .SelectForm "") "newhref" (url "calendar.event.create") "back" .GlobalData.URL.RequestURI "newlabel" ($.T "calendar.new")) }}
+{{ template "toolbar-head" (dict "g" . "class" "month-actions" "title" ($.GlobalData.MonthYear .Time) "shorttitle" ($.GlobalData.MonthYearShort .Time) "subtitle" ($.SecondaryMonthYear .Time) "titlerow" true "selectall" (ne .SelectForm "") "newhref" (url "calendar.event.create") "back" .GlobalData.URL.RequestURI "newlabel" ($.T "calendar.new")) }}
 <span class="icon-group">
   {{ template "action-icon" (dict "icon" "trash" "label" ($.T "common.delete") "class" "icon-danger" "form" .SelectForm "formaction" (and .SelectForm (url "calendar.events.delete")) "priority" 11) }}
   <a hx-boost="false" class="icon-button" href="{{url "calendar.month.export"}}{{ with $.GlobalData.URL.RawQuery }}?{{.}}{{ end }}" title="{{$.T "common.download"}}" aria-label="{{$.T "common.download"}}" data-priority="10">{{ template "icon" "download" }}<span class="label">{{$.T "common.download"}}</span></a>

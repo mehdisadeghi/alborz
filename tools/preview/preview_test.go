@@ -38,7 +38,7 @@ func TestPreview(t *testing.T) {
 	d := DAV(t, Calendar(DAVHome+"work/", "Work"), Book(DAVBooks+"team/", "Team"))
 	a, c := SignedIn(t, User, WithDAV(d), WithSieve(Sieve(t)))
 	calendar, tasks, journal, book := c.CreateCalendar(t, "Plans", ""), c.CreateCalendar(t, "Tasks", "tasks"), c.CreateCalendar(t, "Journal", "journal"), c.CreateBook(t, "People")
-	// The event falls today: in the current month the agenda lists from today.
+	// The event falls today, so the current month's pages always show it.
 	today := time.Now().UTC()
 	a.Put(t, calendar+"record.ics", "text/calendar", "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\nBEGIN:VEVENT\r\nUID:event\r\nDTSTAMP:20261027T080000Z\r\nDTSTART:"+today.Format("20060102")+"T120000Z\r\nDTEND:"+today.Format("20060102")+"T130000Z\r\nSUMMARY:Review a long product design proposal\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n")
 	for i := range 6 {

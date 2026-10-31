@@ -1,5 +1,5 @@
 {{ define "rail" }}
-  {{ $keep := printf "&month=%s" .Page }}{{ if eq .Span "month" }}{{ $keep = printf "%s&span=month" $keep }}{{ end }}
+  {{ $keep := printf "&month=%s" .Page }}
   {{ template "calendar-rail" (dict "g" $ "keep" $keep "path" (printf "%s?%s" (url "calendar.month") (slice $keep 1)) "action" (url "calendar.month") "views" (dict "path" (printf "%s?month=%s" (url "calendar.month") .Page) "view" .StarView "account" .GlobalData.URLAccount)) }}
 {{ end }}
 
@@ -10,12 +10,10 @@
 {{ define "main-class" }} class="calendar"{{ end }}
 
 {{ define "main" }}
-  {{ $keep := printf "&month=%s" .Page }}{{ if eq .Span "month" }}{{ $keep = printf "%s&span=month" $keep }}{{ end }}
+  {{ $keep := printf "&month=%s" .Page }}
         {{ template "calendar-toolbar" . }}
 
       {{ template "section-crumb" (dict "g" $ "section" ($.T "nav.calendar") "home" (url "calendar.month") "field" "cal" "items" .Collections "keep" $keep) }}
-
-      {{ template "event-quick-add" . }}
 
       {{ range .DayAnnotations }}
       <div hidden hx-get="{{ localhref .URL }}" hx-trigger="load, every 3600s" hx-swap="none" hx-headers='{"Alborz-Unasked":"1"}'></div>

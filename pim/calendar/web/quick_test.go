@@ -14,7 +14,7 @@ func TestQuickEventDestinationMatchesTaskScope(t *testing.T) {
 	_, c := SignedIn(t, User)
 	first := Here + c.CreateCalendar(t, "First", "")
 	quick := func(params url.Values) string {
-		return html.UnescapeString(Between(c.Page(t, "calendar.month", params), `id="quick-add">`, `</form>`))
+		return html.UnescapeString(Between(c.Page(t, "calendar.day", params), `id="quick-add">`, `</form>`))
 	}
 	single := func(form string) {
 		t.Helper()
@@ -38,7 +38,7 @@ func TestQuickEventCreatesInChosenCalendarAndKeepsInvalidInput(t *testing.T) {
 	c.CreateCalendar(t, "First", "")
 	cal := c.CreateCalendar(t, "Chosen", "")
 	c.Post(t, "settings.profile", url.Values{"timezone": {"Europe/Berlin"}})
-	form := url.Values{"quick": {"event"}, "summary": {"Review 2026-11-03 14:00-15:30"}, "calendar": {User + "|" + Here + cal}, "next": {a.Path("calendar.month") + "#quick-add"}}
+	form := url.Values{"quick": {"event"}, "summary": {"Review 2026-11-03 14:00-15:30"}, "calendar": {User + "|" + Here + cal}, "next": {a.Path("calendar.month", url.Values{"view": {"list"}}) + "#quick-add"}}
 	if resp := c.Post(t, "calendar.event.create", form); resp.StatusCode != http.StatusFound || resp.Header.Get("Location") != form.Get("next") {
 		t.Fatalf("quick create: %s\n%s", resp.Status, resp.Text)
 	}

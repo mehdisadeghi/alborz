@@ -16,7 +16,7 @@ import (
 	"github.com/emersion/go-ical"
 )
 
-var eventListParams = []string{"account", "cal", "month", "date", "view", "span", "query"}
+var eventListParams = []string{"account", "cal", "month", "date", "view", "query"}
 
 type EventRenderData struct {
 	CalendarObjectRenderData
@@ -89,7 +89,7 @@ func dayQuery(ctx *web.Context, start time.Time) string {
 }
 
 func monthQuery(ctx *web.Context, mv monthView) string {
-	q := web.ReadListState(ctx).Keep("account", "cal", "span", "group")
+	q := web.ReadListState(ctx).Keep("account", "cal", "group")
 	q.Set("month", mv.page)
 	if mv.view != "" {
 		q.Set("view", mv.view)

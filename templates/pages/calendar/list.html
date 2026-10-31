@@ -1,6 +1,6 @@
 {{ define "rail" }}
   {{/* A collection leaves a star view, which is a place of its own (ADR 35). */}}
-  {{ $keep := printf "&month=%s" .Page }}{{ if not .StarView }}{{ $keep = printf "%s&view=list" $keep }}{{ end }}{{ if eq .Span "month" }}{{ $keep = printf "%s&span=month" $keep }}{{ end }}
+  {{ $keep := printf "&month=%s" .Page }}{{ if not .StarView }}{{ $keep = printf "%s&view=list" $keep }}{{ end }}
   {{ template "calendar-rail" (dict "g" $ "keep" $keep "path" (printf "%s?%s" (url "calendar.month") (slice $keep 1)) "action" (url "calendar.month") "views" (dict "path" (printf "%s?month=%s" (url "calendar.month") .Page) "view" .StarView "account" .GlobalData.URLAccount)) }}
 {{ end }}
 
@@ -10,7 +10,7 @@
 
 
 {{ define "main" }}
-  {{ $keep := printf "&month=%s" .Page }}{{ if not .StarView }}{{ $keep = printf "%s&view=list" $keep }}{{ end }}{{ if eq .Span "month" }}{{ $keep = printf "%s&span=month" $keep }}{{ end }}
+  {{ $keep := printf "&month=%s" .Page }}{{ if not .StarView }}{{ $keep = printf "%s&view=list" $keep }}{{ end }}
         {{ template "calendar-toolbar" . }}
 
       {{ template "pim-list-head" (dict "crumb" (dict "g" $ "section" ($.T "nav.calendar") "home" (url "calendar.month") "field" "cal" "items" .Collections "keep" $keep) "filters" (dict "filters" .Filters "remove" ($.T "filter.remove"))) }}
@@ -24,7 +24,7 @@
         <div class="event-grid list-grid{{ if .SelectForm }} event-grid-select{{ end }}{{ if $grouped }} event-grid-grouped{{ end }}" role="table">
           {{ template "event-grid-header" (dict "starred" ($.T "sort.starred") "form" .SelectForm "date" (and (not $grouped) ($.T "sort.date")) "time" ($.T "calendar.time") "event" ($.T "calendar.event") "calendar" ($.T "common.calendar")) }}
           {{range .Dates}}
-          {{if and ($base.SameMonth . $base.Time) (not (.Before $base.Since))}}
+          {{if $base.SameMonth . $base.Time}}
           {{$events := call $base.EventsForDate .}}
           {{if $events}}
           {{$any = true}}
@@ -35,7 +35,7 @@
           {{end}}
         </div>
         {{if not $any}}
-        <p class="empty-list">{{if and .ThisMonth (ne .Span "month")}}{{$.T "calendar.noupcoming"}}{{else}}{{$.T "calendar.noevents"}}{{end}}</p>
+        <p class="empty-list">{{$.T "calendar.noevents"}}</p>
         {{end}}
       </section>
 {{ end }}

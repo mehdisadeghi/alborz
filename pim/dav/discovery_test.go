@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -22,6 +23,91 @@ import (
 type discoveryTransport func(*http.Request) (*http.Response, error)
 
 func (f discoveryTransport) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+func TestPeersAnnouncedAndRead(t *testing.T) {
+	imap := IMAP(t, Metadata())
+	a, _ := SignedIn(t, User, NoCache(), WithIMAP(imap))
+	login := a.Server.Logins()[0]
+	options := *a.Server.Options
+	options.DataDir, options.CacheDir, options.PublicURL = t.TempDir(), t.TempDir(), "https://alborz.example.test"
+	srv, err := alborz.New(a.Server.Logger(), options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(srv.Close)
+	// alias.example.test is this alborz by another name.
+	fake := discoveryTransport(func(r *http.Request) (*http.Response, error) {
+		header := http.Header{}
+		if r.URL.Host == "alias.example.test" {
+			header.Set(alborz.InstanceHeader, srv.Instance)
+		}
+		return &http.Response{StatusCode: http.StatusNotFound, Header: header, Body: http.NoBody, Request: r}, nil
+	})
+	srv.Outgoing.Trusted, srv.Outgoing.Guarded = fake, fake
+	db, err := bolt.Open(filepath.Join(t.TempDir(), "collections.db"), time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	st := store.New(db, srv.LoginKey, srv.Keys)
+	p, err := dav.NewProvider(srv, st, dav.Kind{
+		Name: "caldav", Label: "calendar",
+		Schemes:  [2]string{"caldavs", "caldav+insecure"},
+		Discover: func(context.Context, string) (string, error) { return "", errors.New("no SRV records") },
+		Own:      func(dav.Services) string { return "" },
+		FindHome: func(_ context.Context, _ *http.Client, endpoint string) (string, error) { return endpoint, nil },
+		List: func(context.Context, *http.Client, *url.URL, []dav.Home) ([]dav.Collection, []error) {
+			return nil, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	here := "https://alborz.example.test/alborz/dav/"
+	other := "https://other.example.test/alborz/dav/"
+	if err := login.Store().Put(ctx, dav.PeersKey, []string{other, "https://alias.example.test/alborz/dav/", "http://plain.example.test/alborz/dav/"}); err != nil {
+		t.Fatal(err)
+	}
+	listed := func() []string {
+		var peers []string
+		if err := login.Store().Get(ctx, dav.PeersKey, &peers); err != nil {
+			t.Fatal(err)
+		}
+		return peers
+	}
+	collections := func() {
+		if _, err := p.Collections(ctx, login); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	c, err := st.Create(store.Collection{Owner: User, Kind: store.Calendar, Name: "Here"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	collections()
+	if got := listed(); len(got) != 4 || got[0] != here {
+		t.Fatalf("keeping a calendar here listed %q", got)
+	}
+	var peers []string
+	for _, s := range p.Sources(ctx, login) {
+		if s.ID == dav.SourcePeer {
+			peers = append(peers, s.URL.String())
+		}
+	}
+	if len(peers) != 1 || peers[0] != other {
+		t.Errorf("peer sources %q, want only %s", peers, other)
+	}
+
+	if err := st.Delete(c.Ref()); err != nil {
+		t.Fatal(err)
+	}
+	collections()
+	if got := listed(); len(got) != 3 || slices.Contains(got, here) {
+		t.Errorf("keeping nothing here left %q", got)
+	}
+}
 
 func TestFirstDAVReadWaitsForMailHostDiscovery(t *testing.T) {
 	for _, upstream := range []string{Domain + "=", ""} {

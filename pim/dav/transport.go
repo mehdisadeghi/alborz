@@ -343,7 +343,7 @@ func ServerRefused(err error) bool {
 // The login goes to the source's host only, TLS is never left, and a 401 from any hop is a refusal.
 func (r sourceRouter) send(req *http.Request, src Source) (*http.Response, error) {
 	upstream := r.trusted
-	if src.ID == SourceOwn {
+	if src.ID == SourceOwn || src.ID == SourcePeer {
 		upstream = r.named
 	}
 	req = req.Clone(req.Context())

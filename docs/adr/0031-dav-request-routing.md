@@ -1,7 +1,8 @@
 # ADR 31: Per-source DAV request routing
 
-Status: accepted. Amends ADR 22 (servers are checked at dial time,
-not only when saved) and ADR 28 (which credentials each source takes).
+Status: accepted, amended by ADR 104 (the `peer` source is dialled as
+`own`). Amends ADR 22 (servers are checked at dial time, not only when
+saved) and ADR 28 (which credentials each source takes).
 
 ## Context
 
@@ -23,7 +24,8 @@ follow the source, at every hop, including hrefs inside request bodies
    the mail login.
 2. Credentials MUST be sent only to the source's own host. A hop to
    another host is sent without `Authorization`.
-3. **Dialling.** The `own` source MUST be dialled through
+3. **Dialling.** The `own` and `peer` sources, and the probe asking
+   whether either is this alborz, MUST be dialled through
    `Outgoing.Guarded`, which refuses non-public addresses at connect
    time (`refuseLocal`, `publicAddr`), covering redirects and DNS
    rebinding. `-private-services` lifts this, as it lifts the check
@@ -50,7 +52,7 @@ follow the source, at every hop, including hrefs inside request bodies
 ## References
 
 - RFC 4918, RFC 4791 7.9, RFC 6352 8.7, RFC 9110 15.4 (3xx), RFC 6598
-- ADR 5, ADR 22, ADR 28
+- ADR 5, ADR 22, ADR 28, ADR 104
 - `pim/dav/transport.go` (`sourceRouter`, `send`, `unmarked`,
   `marked`, `maxRedirects`, `RefusedError`), `pim/dav/provider.go`
   (`Sources`, `Source.Named`, `route`), `remote.go` (`Outgoing`,

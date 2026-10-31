@@ -20,7 +20,7 @@ var serviceRefusals = map[error]string{
 	alborz.ErrServicePrivate:  "settings.serverprivate",
 }
 
-var placeIDs = []string{"domain", "host", "own", "here"}
+var placeIDs = []string{"domain", "host", "own", "peer", "here"}
 
 // ServerRenderData is the DAV servers' page, with the servers the account names for itself.
 type ServerRenderData struct {

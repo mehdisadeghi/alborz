@@ -1,7 +1,7 @@
 # ADR 28: Multiple DAV sources per account
 
 Status: accepted, amended by ADR 31 (per-source transport and
-credentials).
+credentials), amended by ADR 104 (the `peer` source).
 
 ## Context
 
@@ -23,6 +23,8 @@ alone, and two servers can hold the same path.
      5), HTTPS only at every redirect, when its host differs from the
      domain's. The server is where the redirects end, which MAY be
      another host;
+   - `peer`: another alborz the account's settings list (ADR 104), one
+     per instance;
    - `here`: this alborz.
 2. Discovery MUST NOT replace one source by another; each found is
    listed. An `own` server equal to the domain's or mail host's is
@@ -79,7 +81,7 @@ alone, and two servers can hold the same path.
 ## References
 
 - RFC 4791, RFC 6352, RFC 6764
-- ADR 22, ADR 24, ADR 31, ADR 35, ADR 53
+- ADR 22, ADR 24, ADR 31, ADR 35, ADR 53, ADR 104
 - `pim/dav/provider.go` (`Source`, `Sources`, `SourceOf`, `route`,
   `marker`, `hereSource`, `isHere`), `pim/dav/collection.go`
   (`ListCollections`, `ByPlace`), `pim/pooled.go` (`Visible`),

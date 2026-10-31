@@ -83,7 +83,7 @@ func ListCollections(ctx context.Context, homes []Home, list func(ctx context.Co
 
 // ByPlace orders collections by their source, in the order Sources lists them.
 func ByPlace(a, b Collection) int {
-	order := []string{SourceOwn, SourceDomain, SourceHost, SourceHere}
+	order := []string{SourceOwn, SourceDomain, SourceHost, SourcePeer, SourceHere}
 	return cmp.Compare(slices.Index(order, a.Source), slices.Index(order, b.Source))
 }
 

@@ -433,6 +433,18 @@ func (s *Store) Delete(ref Ref) error {
 	})
 }
 
+// Keeps says whether owner has a collection of any kind here.
+func (s *Store) Keeps(owner string) (bool, error) {
+	kept := false
+	err := s.db.View(func(tx kv.Tx) error {
+		return tx.Scan(s.collectionsOf(owner), func(string, []byte) error {
+			kept = true
+			return nil
+		})
+	})
+	return kept, err
+}
+
 // Visible are the collections of one kind an account sees, with what it may do.
 func (s *Store) Visible(account string, kind Kind, now time.Time) ([]Seen, error) {
 	account = strings.ToLower(account)

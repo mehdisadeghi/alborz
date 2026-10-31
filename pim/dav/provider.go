@@ -81,12 +81,16 @@ type Provider struct {
 	selves   sync.Map
 	// mirror is nil with caching off.
 	mirror *Mirror
-	// trusted reaches the servers the deployment names or finds; named reaches the one an account names,
-	// which without -private-services stays on the public internet at every hop.
+	// trusted reaches the servers the deployment names or finds; named reaches the ones an account's settings
+	// name, which without -private-services (private) stay on the public internet at every hop.
 	trusted, named http.RoundTripper
-	// here is this alborz as a source, which local answers in-process.
-	here  Source
-	local http.Handler
+	private        bool
+	// here is this alborz as a source, which local answers in-process; announced is here's address with
+	// -public-url set, and holds per account whether it was last listed in PeersKey (ADR 104).
+	here      Source
+	address   string
+	announced sync.Map
+	local     http.Handler
 	Store *store.Store
 	// troubles holds, per account, what its servers answered when last asked for homes, when not a home.
 	troubles sync.Map
@@ -148,11 +152,14 @@ func NewProvider(srv *alborz.Server, st *store.Store, kind Kind) (*Provider, err
 	p = &Provider{Kind: kind, urls: urls, found: found, hosts: hosts, mirror: mirror,
 		discovery:   make(map[string]<-chan struct{}, len(domains)),
 		collections: memo.NewBackground[[]Collection](srv.Options.CacheFor(discoveryTTL))}
-	p.trusted, p.named = srv.Outgoing.Trusted, srv.Outgoing.Trusted
-	if !srv.Options.PrivateServices {
+	p.trusted, p.named, p.private = srv.Outgoing.Trusted, srv.Outgoing.Trusted, srv.Options.PrivateServices
+	if !p.private {
 		p.named = srv.Outgoing.Guarded
 	}
 	p.here, p.local, p.Store = here, st.Handler(), st
+	if srv.PublicURL != nil {
+		p.address = here.URL.String()
+	}
 	st.OnChange(func(accounts []string) {
 		for _, account := range accounts {
 			p.Forget(account)
@@ -245,8 +252,19 @@ const (
 	SourceDomain = "domain"
 	SourceHost   = "host"
 	SourceOwn    = "own"
+	SourcePeer   = "peer"
 	SourceHere   = "here"
 )
+
+// PeersKey is the account's setting listing the DAV addresses of the alborz instances that keep its
+// collections, at most maxPeers, newest first (ADR 104).
+const (
+	PeersKey = "dav.peers"
+	maxPeers = 8
+)
+
+// errUnchanged leaves PeersKey unwritten when it lists this alborz as it should.
+var errUnchanged = errors.New("dav: peers unchanged")
 
 // Source is one DAV server an account's collections can be on.
 type Source struct {
@@ -322,20 +340,29 @@ func (p *Provider) SourceOf(ctx context.Context, login *alborz.Login, held strin
 	return src, err
 }
 
-// isHere says whether the server at u is this alborz. It is asked once, on first use rather than at
-// start: a request is being served by then, so this alborz answers.
-func (p *Provider) isHere(u *url.URL) bool {
-	once, _ := p.selves.LoadOrStore(u.String(), sync.OnceValue(func() bool { return answersAs(p.trusted, u, p.instance) }))
+// isHere says whether the server at u, reached as an account-named one when named, is this alborz. It is
+// asked once, on first use rather than at start: a request is being served by then, so this alborz answers.
+func (p *Provider) isHere(named bool, u *url.URL) bool {
+	rt := p.trusted
+	if named {
+		rt = p.named
+	}
+	key := struct {
+		named bool
+		u     string
+	}{named, u.String()}
+	once, _ := p.selves.LoadOrStore(key, sync.OnceValue(func() bool { return answersAs(rt, u, p.instance) }))
 	return once.(func() bool)()
 }
 
-// Sources are the account's DAV servers, each once: its own, its domain's, its mail host's and this alborz.
+// Sources are the account's DAV servers, each once: its own, its domain's, its mail host's, other alborz
+// instances it keeps collections on, and this alborz.
 func (p *Provider) Sources(ctx context.Context, login *alborz.Login) []Source {
 	var out []Source
 	if services, err := LoadServices(ctx, login.Store()); err == nil {
 		if own := p.Kind.Own(services); own != "" {
 			// Named on another instance, it may be this alborz, which is here already.
-			if u, err := url.Parse(own); err == nil && !p.isHere(u) {
+			if u, err := url.Parse(own); err == nil && !p.isHere(true, u) {
 				out = append(out, Source{ID: SourceOwn, URL: u, Origin: "servers.fromaccount", Named: true})
 			}
 		}
@@ -349,7 +376,7 @@ func (p *Provider) Sources(ctx context.Context, login *alborz.Login) []Source {
 	}
 	record := p.found[domain]
 	p.sourcesMu.Unlock()
-	if ok && !p.isHere(u) {
+	if ok && !p.isHere(false, u) {
 		origin := "servers.fromconfig"
 		if record != "" {
 			origin = "servers.fromsrv"
@@ -385,7 +412,63 @@ func (p *Provider) Sources(ctx context.Context, login *alborz.Login) []Source {
 			out[i].Named = out[i].ID == SourceDomain
 		}
 	}
-	return append(out, p.here)
+	return append(p.peers(ctx, login, out), p.here)
+}
+
+// peers adds to sources the other alborz instances the account's setting lists, held to an account-named
+// server's rules (ADR 22), each once and on a host none of sources is on.
+func (p *Provider) peers(ctx context.Context, login *alborz.Login, sources []Source) []Source {
+	var listed []string
+	if err := login.Store().Get(ctx, PeersKey, &listed); err != nil {
+		return sources
+	}
+	for _, raw := range listed[:min(len(listed), maxPeers)] {
+		u, err := url.Parse(raw)
+		if err != nil || u.Host == "" || u.Scheme != "https" && !(p.private && u.Scheme == "http") {
+			continue
+		}
+		taken := slices.ContainsFunc(sources, func(s Source) bool { return s.URL.Host == u.Host })
+		if taken || u.Host == p.here.URL.Host || p.isHere(true, u) {
+			continue
+		}
+		sources = append(sources, Source{ID: SourcePeer, URL: u, Origin: "servers.frompeer"})
+	}
+	return sources
+}
+
+// announce lists this alborz in the account's PeersKey while the account keeps a collection here, and
+// takes it out when it keeps none; each change is written once per process (ADR 104).
+func (p *Provider) announce(ctx context.Context, login *alborz.Login) {
+	// Kept off the mail server, the list would reach no other instance.
+	if settings, ok := login.Store().(alborz.Settings); p.address == "" || !ok || !settings.OnServer() {
+		return
+	}
+	keeps, err := p.Store.Keeps(login.Username())
+	if err != nil {
+		p.log.Printf("%s: announce %s: %v", p.Kind.Name, login.Username(), err)
+		return
+	}
+	account := strings.ToLower(login.Username())
+	if was, ok := p.announced.Load(account); ok && was == keeps {
+		return
+	}
+	var listed []string
+	err = login.Update(ctx, PeersKey, &listed, func() error {
+		if slices.Contains(listed, p.address) == keeps {
+			return errUnchanged
+		}
+		listed = slices.DeleteFunc(listed, func(a string) bool { return a == p.address })
+		if keeps {
+			listed = slices.Insert(listed, 0, p.address)
+			listed = listed[:min(len(listed), maxPeers)]
+		}
+		return nil
+	})
+	if err != nil && err != errUnchanged {
+		p.log.Printf("%s: announce %s: %v", p.Kind.Name, login.Username(), err)
+		return
+	}
+	p.announced.Store(account, keeps)
 }
 
 // Home is one place an account's collections of the kind are listed.
@@ -425,6 +508,7 @@ func (p *Provider) Collections(ctx context.Context, login *alborz.Login) ([]Coll
 		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), discoveryTimeout)
 		defer cancel()
 
+		p.announce(ctx, login)
 		homes := p.homes(ctx, login)
 		infos, failed := p.Kind.List(ctx, p.HTTPClient(ctx, login), Base(), homes)
 		if err := p.Settle(login.Username(), homes, failed); err != nil {

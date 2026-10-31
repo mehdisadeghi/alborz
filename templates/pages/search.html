@@ -7,7 +7,7 @@
             {{ template "filter-menu" (dict "id" "menu-filter" "icon" "list-filter" "title" ($.T "filter.menu") "rows" .FilterRows "priority" 25 "class" "filter-overflow") }}
         {{ template "toolbar-foot" }}
 
-      {{ template "section-crumb" (dict "g" $ "section" ($.T "search.title") "home" (url "core.search") "field" "" "collection" "" "path" "" "heading" true) }}
+      {{ template "section-crumb" (dict "g" $ "section" ($.T "search.title") "home" (url "core.search") "heading" true) }}
 
       {{ template "filter-chips" (dict "filters" .Filters "remove" ($.T "filter.remove")) }}
 

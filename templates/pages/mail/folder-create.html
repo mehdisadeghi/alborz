@@ -3,7 +3,7 @@
 {{ define "main" }}
       <form method="POST">
         {{ $acct := .GlobalData.AccountQuery }}
-        {{ template "mail-crumb" $ }}
+        {{ template "mail-crumb" (dict "g" $ "chooses" true) }}
         <h1>{{$.T "folder.create"}}</h1>
         {{ template "folder-location" $ }}
         {{ template "field" (dict "label" ($.T "folder.name") "name" "name" "value" .Name "dir" "auto" "required" true "autofocus" true) }}

@@ -22,6 +22,7 @@ func (p *plugin) collectionPage() pimweb.Page {
 	return pimweb.Page{
 		Collection: "calendar.collection",
 		List:       "calendar.month",
+		Section:    "nav.calendar",
 		Ext:        ".ics",
 		Forget:     p.DAV.Forget,
 		Show:       calendar.Show,

@@ -55,23 +55,6 @@ func TestLanguageMenu(t *testing.T) {
 	}
 }
 
-// General belongs to the person: the header marks no scope there and its sections name no account.
-func TestGeneralIsInNoScope(t *testing.T) {
-	a := Alborz(t)
-	c := a.SignIn(t, User)
-	c.SignIn(t, User2)
-	menu := regexp.MustCompile(`(?s)id="menu-accounts".*?</div>`)
-	for _, q := range []url.Values{{}, {"account": {User}}} {
-		page := c.Page(t, "settings.profile", q)
-		if m := menu.FindString(page); m == "" || strings.Contains(m, `aria-current="true"`) {
-			t.Errorf("%v: the person menu marks a scope: %s", q, m)
-		}
-		if strings.Contains(page, a.Path("mail.mailbox", "INBOX")+"?account=") {
-			t.Errorf("%v: the sections name an account", q)
-		}
-	}
-}
-
 // Two browsers that read the profile before either saved each change their own choice and keep the other's.
 func TestProfileSavesFromTwoBrowsersBothStay(t *testing.T) {
 	a := Alborz(t)

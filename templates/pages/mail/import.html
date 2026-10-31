@@ -5,7 +5,7 @@
            folder is settled before the file begins. */}}
       <form method="POST" enctype="multipart/form-data" hx-boost="false">
         {{ $acct := .GlobalData.AccountQuery }}
-        {{ template "mail-crumb" $ }}
+        {{ template "mail-crumb" (dict "g" $ "chooses" true) }}
         <h1>{{$.T "folder.import"}}</h1>
         {{ template "folder-location" $ }}
         {{ template "import-fields" (dict "g" $ "name" ($.T "folder.name") "namevalue" .Name "namehint" ($.T "folder.importname") "file" ($.T "folder.importfile") "accept" ".mbox,.eml,application/mbox,message/rfc822" "hint" ($.T "folder.importhint") "go" ($.T "folder.importgo") "cancel" (printf "%s%s" (url "mail.mailbox" "INBOX") $acct)) }}

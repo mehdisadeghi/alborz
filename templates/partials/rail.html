@@ -1,11 +1,12 @@
 {{ define "scope-rail" }}
   <div class="rail-brand">{{ template "brand" (dict "g" .g "build" .g.GlobalData.Revision) }}</div>
   {{ with .homes }}{{ template "rail-rows" . }}{{ end }}
-  {{ $merged := or (not .urlaccount) (eq (len .accounts) 1) }}{{ if eq .kind "dav" }}{{ range $.data.items }}{{ if .Only }}{{ $merged = false }}{{ end }}{{ end }}{{ end }}
+  {{ $narrowed := false }}{{ if eq .kind "dav" }}{{ range $.data.items }}{{ if .Only }}{{ $narrowed = true }}{{ end }}{{ end }}{{ end }}
+  {{ $merged := and (or (not .urlaccount) (eq (len .accounts) 1)) (not $narrowed) }}
   {{ if gt (len .accounts) 1 }}
   {{ if eq .kind "mail" }}
   {{ template "rail-mail-merged" .data }}
-  {{ else if and .all .views }}
+  {{ else if .views }}
   {{/* As mail's: the merged views under All accounts, each account's under its own. */}}
   <details id="rail-all" class="acct-folders aggregate-folders" data-rail-key="__merged" open{{ if $.g.GlobalData.Swap }} hx-swap-oob="true"{{ end }}>
     <summary class="aside-account{{ if $merged }} active{{ end }}"><a href="{{$.path}}"{{ if $merged }} aria-current="true"{{ end }}>{{$.g.T "nav.allaccounts"}}</a></summary>
@@ -18,8 +19,8 @@
     <summary class="aside-account{{ if $on }} active{{ end }}"><a href="{{ (index .allrows 0).Href }}"{{ if $on }} aria-current="true"{{ end }}>{{$.g.T "nav.allaccounts"}}</a></summary>
     {{ template "rail-rows" .allrows }}
   </details>
-  {{ else }}
-  {{ with .all }}<a id="rail-all" class="aside-account aside-all{{ if $merged }} active{{ end }}" href="{{$.path}}"{{ if $merged }} aria-current="true"{{ end }}{{ if $.g.GlobalData.Swap }} hx-swap-oob="true"{{ end }}>{{ if eq $.kind "dav" }}{{$.g.T "nav.allaccounts"}}{{ else }}{{.}}{{ end }}</a>{{ end }}
+  {{ else if eq .kind "dav" }}
+  <a id="rail-all" class="aside-account{{ if $merged }} active{{ end }}" href="{{$.path}}"{{ if $merged }} aria-current="true"{{ end }}{{ if $.g.GlobalData.Swap }} hx-swap-oob="true"{{ end }}>{{$.g.T "nav.allaccounts"}}</a>
   {{ end }}
   {{ range .accounts }}
   {{ $acct := .Username }}
@@ -27,12 +28,14 @@
   {{ if eq $.kind "rows" }}{{ $has = index $.data.rows $acct }}{{ end }}
   {{ if eq $.kind "dav" }}{{ range $.data.items }}{{ if eq .Account $acct }}{{ $has = true }}{{ break }}{{ end }}{{ end }}{{ end }}
   {{ if $has }}
+  {{/* A DAV account's heading is its whole set of collections: it is current only while no single collection is open. */}}
+  {{ $on := and (eq $acct $.urlaccount) (not $narrowed) }}{{ if ne $.kind "dav" }}{{ $on = eq $acct $.urlaccount }}{{ end }}
   <details class="acct-folders" data-rail-key="{{$acct}}"{{ if eq $acct $.urlaccount }} open{{ end }}>
-    <summary class="aside-account{{ if eq $acct $.urlaccount }} active{{ end }}">{{ template "account-legend" (dict "g" $.g "account" $acct) }}<a href="{{$.path}}{{ account (qsep $.path) $acct }}" title="{{$acct}}" dir="ltr"{{ if eq $acct $.urlaccount }} aria-current="true"{{ end }}>{{ template "ltr" $acct }}</a></summary>
+    <summary id="rail-head-{{$acct}}" class="aside-account{{ if $on }} active{{ end }}"{{ if and (eq $.kind "dav") $.g.GlobalData.Swap }} hx-swap-oob="true"{{ end }}>{{ template "account-legend" (dict "g" $.g "account" $acct) }}<a href="{{$.path}}{{ account (qsep $.path) $acct }}" title="{{$acct}}" dir="ltr"{{ if $on }} aria-current="true"{{ end }}>{{ template "ltr" $acct }}</a></summary>
     {{ if eq $.kind "mail" }}
     {{ template "rail-mail-account" (dict "account" $acct "data" $.data) }}
     {{ else if eq $.kind "dav" }}
-    {{ template "rail-dav-account" (dict "account" $acct "data" $.data "g" $.g "all" $.all "path" $.path "urlaccount" $.urlaccount) }}
+    {{ template "rail-dav-account" (dict "account" $acct "data" $.data "g" $.g) }}
     {{ with $.views }}{{ $view := "" }}{{ if eq $acct $.urlaccount }}{{ $view = .view }}{{ end }}{{ template "rail-colors" (dict "g" $.g "path" .path "view" $view "account" $acct) }}{{ end }}
     {{ else }}
     {{ template "rail-rows" (index $.data.rows $acct) }}
@@ -43,13 +46,20 @@
   {{ end }}
   {{ end }}
   {{ else }}
-  {{ range .accounts }}<a class="aside-account rail-mobile rail-account-settings" href="{{url "mail.account"}}{{ account "?" .Username }}" title="{{$.g.T "settings.account"}}: {{.Username}}" dir="ltr">{{ template "account-legend" (dict "g" $.g "account" .Username) }}{{ template "ltr" .Username }}</a>{{ end }}
+  {{ $davrows := and (eq .kind "dav") .data.items }}
+  {{ range .accounts }}
+  {{ if $davrows }}
+  {{/* The heading opens every collection, as an account heading does among several (ADR 35). */}}
+  <a id="rail-head-{{.Username}}" class="aside-account rail-account-empty{{ if $merged }} active{{ end }}" href="{{$.path}}" title="{{.Username}}"{{ if $merged }} aria-current="true"{{ end }}{{ if $.g.GlobalData.Swap }} hx-swap-oob="true"{{ end }}>{{ template "account-legend" (dict "g" $.g "account" .Username) }}{{ template "ltr" .Username }}</a>
+  {{ else }}
+  <a class="aside-account rail-mobile rail-account-settings" href="{{url "mail.account"}}{{ account "?" .Username }}" title="{{$.g.T "settings.account"}}: {{.Username}}" dir="ltr">{{ template "account-legend" (dict "g" $.g "account" .Username) }}{{ template "ltr" .Username }}</a>
+  {{ end }}
+  {{ end }}
   {{ if eq .kind "mail" }}
   {{ template "rail-mail-single" .data }}
   {{ else if and (eq .kind "rows") .accounts }}
   {{ template "rail-rows" (index .data.rows (index .accounts 0).Username) }}
-  {{ else if and (eq .kind "dav") .data.items }}
-  {{ with .all }}<a id="rail-all" class="aside-account aside-all{{ if $merged }} active{{ end }}" href="{{$.path}}"{{ if $.g.GlobalData.Swap }} hx-swap-oob="true"{{ end }}>{{.}}</a>{{ end }}
+  {{ else if $davrows }}
   {{ template "rail-dav-account" (dict "account" (index .accounts 0).Username "data" .data "single" true "g" .g) }}
   {{ end }}
   {{ with .views }}{{ template "rail-colors" (dict "g" $.g "path" .path "view" .view "account" .account) }}{{ end }}
@@ -138,18 +148,12 @@
 
 {{ define "rail-dav-account" }}
 {{ $d := .data }}
-{{ $narrowed := false }}{{ range $d.items }}{{ if .Only }}{{ $narrowed = true }}{{ end }}{{ end }}
 {{/* A tick redraws the list and these rows in place; the address follows without a step in history, which the links inside still take (ADR 35).
      A second tick replaces the first's request: queued, it would go after the first's answer redrew the rows, with their old ticks. */}}
 <form id="rail-{{.account}}" method="post" action="{{$d.action}}{{ account "?" .account }}" class="aside-filter" hx-post="{{$d.action}}{{ account "?" .account }}" hx-target="#main" hx-swap="innerHTML show:none" hx-replace-url="true" hx-sync="this:replace" hx-disinherit="hx-replace-url hx-sync"{{ if $.g.GlobalData.Swap }} hx-swap-oob="innerHTML"{{ end }}>
 <input type="hidden" name="next" value="{{$d.next}}">
-{{ with .all }}
-{{ $on := and (eq $.account $.urlaccount) (not $narrowed) }}
-<div class="filter-row nested{{ if $on }} active{{ end }}">
-  <a class="filter-name" href="{{ localhref (printf "%s%s" $.path (account (qsep $.path) $.account)) }}"{{ if $on }} aria-current="true"{{ end }}><span>{{.}}</span></a>
-</div>
-{{ end }}
 {{ range $d.items }}{{ if eq .Account $.account }}
+{{ if .Heads }}<div class="filter-row{{ if not $.single }} nested{{ end }} rail-group">{{ with .Host }}{{ template "ltr" . }}{{ else }}{{ $.g.T (printf "place.%s" .Source) }}{{ end }}</div>{{ end }}
 {{ template "dav-filter-item" (dict "item" . "field" $d.field "itemclass" $d.itemclass "action" $d.action "shown" $d.shown "keep" $d.keep "nested" (not $.single) "edit" $d.edit "editlabel" $d.editlabel "g" $.g) }}
 {{ end }}{{ end }}
 <button>{{$d.apply}}</button>
@@ -173,6 +177,9 @@
   </label>
 </div>
 {{ end }}
+
+{{/* Where a collection is kept (ADR 28). dict: g id host. */}}
+{{ define "place" }}{{ .g.T (printf "place.%s" .id) }}{{ with .host }} · {{ template "ltr" . }}{{ end }}{{ end }}
 
 {{/* dict: g c. */}}
 {{ define "collection-mark" }}{{ $g := .g }}{{ with .c }}
@@ -356,6 +363,6 @@
 {{ define "pim-rail" }}
 {{/* A swap into main takes the marked rows out of this rail by their ids; htmx drops the rest. */}}
 {{ if .g.GlobalData.Swap }}<template>{{ else }}<aside>{{ end }}
-  {{ template "scope-rail" (dict "g" .g "kind" "dav" "path" .path "urlaccount" .urlaccount "accounts" .g.GlobalData.Accounts "all" (.g.T "aside.all") "new" .new "follow" .follow "import" .import "data" (dict "keep" .keep "items" .items "field" .field "itemclass" .itemclass "action" .action "apply" (.g.T "common.apply") "shown" (.g.T "common.shown") "edit" .edit "editlabel" (.g.T "common.edit") "next" .g.GlobalData.URL.RequestURI) "views" .views "groups" .groups "categories" .categories "invitations" .invitations) }}
+  {{ template "scope-rail" (dict "g" .g "kind" "dav" "path" .path "urlaccount" .urlaccount "accounts" .g.GlobalData.Accounts "new" .new "follow" .follow "import" .import "data" (dict "keep" .keep "items" .items "field" .field "itemclass" .itemclass "action" .action "apply" (.g.T "common.apply") "shown" (.g.T "common.shown") "edit" .edit "editlabel" (.g.T "common.edit") "next" .g.GlobalData.URL.RequestURI) "views" .views "groups" .groups "categories" .categories "invitations" .invitations) }}
 {{ if .g.GlobalData.Swap }}</template>{{ else }}</aside>{{ end }}
 {{ end }}

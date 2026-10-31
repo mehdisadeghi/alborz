@@ -2,7 +2,7 @@
 
 {{ define "main" }}
       <form method="post" enctype="multipart/form-data" hx-boost="false" id="compose-form" data-upload="{{url "mail.attachment.add"}}" data-local-image="{{.LocalImage}}"{{ if .Reply }} data-reply{{ end }}>
-        {{ template "mail-crumb" $ }}
+        {{ template "mail-crumb" (dict "g" $ "chooses" true) }}
         <h1 class="visually-hidden">{{$.T "aside.compose"}}</h1>
         {{/* Enter in a field presses the form's first submit button: Send, never the signature's Apply. */}}
         <button type="submit" class="visually-hidden" id="send-default" tabindex="-1" aria-hidden="true">{{$.T "compose.send"}}</button>

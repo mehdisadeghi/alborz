@@ -61,7 +61,7 @@ func Present[C, R any](p *dav.Provider, results []dav.Result[Site[C], R]) []dav.
 	})
 }
 
-// Visible returns every collection for the rail and the visible ones in scope as sites.
+// Visible returns every collection for the rail, each account's grouped by place, and the visible ones in scope as sites.
 func Visible[C any](accounts []Account[C], scope string, only map[string]bool, chosen func(Account[C]) (colls []dav.Collection, filter bool, paths []string, err error)) ([]dav.Collection, []Site[C], error) {
 	var infos []dav.Collection
 	var sites []Site[C]
@@ -74,7 +74,9 @@ func Visible[C any](accounts []Account[C], scope string, only map[string]bool, c
 		for _, path := range paths {
 			visible[dav.CanonicalCollectionPath(path)] = true
 		}
-		for _, coll := range colls {
+		colls = slices.SortedStableFunc(slices.Values(colls), dav.ByPlace)
+		for i, coll := range colls {
+			coll.Heads = i == 0 || colls[i-1].Source != coll.Source
 			coll.Visible = !filter || visible[coll.Path]
 			coll.Shown = coll.Visible
 			if only != nil {

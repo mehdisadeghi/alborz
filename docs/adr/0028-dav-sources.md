@@ -52,14 +52,21 @@ alone, and two servers can hold the same path.
 
 ### Use
 
-9. The collections of every source form one list, grouped by source. A
-   source that does not answer says so in its group; the others are
-   listed.
+9. The collections of every source form one list, grouped by source in
+   the order of rule 1, each group named by its place (`place.<id>`)
+   and, for a remote source, its host (ADR 35): the host a redirect
+   during discovery ended on, else the address's own. Paths keep the
+   address's host (rule 3). Collections kept here,
+   shared by another account or filled from a subscribed feed among
+   them, are in `here`'s group. A source that does not answer is left
+   out and a notice names its account; the others are listed.
 10. Writes go to the object's source. New collections and imports go
     to the source the reader picks; the account's default
     (`Services.Default`, set on the servers page) is preselected, else
     the first source.
 11. `/alborz/dav/` remains the address DAV clients use.
+12. A collection's page MUST show its place as a read-only value
+    (`collection.storagewhere`).
 
 ## Consequences
 
@@ -72,9 +79,12 @@ alone, and two servers can hold the same path.
 ## References
 
 - RFC 4791, RFC 6352, RFC 6764
-- ADR 22, ADR 24, ADR 31, ADR 53
-- `pim/dav/provider.go` (`Source`, `Sources`, `route`, `marker`,
-  `hereSource`, `isHere`), `pim/dav/discover.go` (`OnMailHost`,
+- ADR 22, ADR 24, ADR 31, ADR 35, ADR 53
+- `pim/dav/provider.go` (`Source`, `Sources`, `SourceOf`, `route`,
+  `marker`, `hereSource`, `isHere`), `pim/dav/collection.go`
+  (`ListCollections`, `ByPlace`), `pim/pooled.go` (`Visible`),
+  `pim/web/pages.go`, `templates/pages/pim/collection.html`,
+  `templates/partials/rail.html` (`place`), `pim/dav/discover.go` (`OnMailHost`,
   `answersAs`), `pim/dav/transport.go`, `pim/dav/services.go`
   (`Services.Default`), `pim/web/owndav.go`, `server.go`
   (`InstanceHeader`), `data.go` (`dataMeta.Instance`)

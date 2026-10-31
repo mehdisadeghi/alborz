@@ -1,5 +1,5 @@
 {{ define "main-class" }} class="create-update"{{ end }}
 
 {{ define "main" }}
-      {{ template "confirm-form" (dict "g" $ "title" ($.Tf "folder.emptyask" .Mailbox.Name) "message" ($.GlobalData.Tf "folder.emptycount" .Count) "submit" ($.T "folder.emptydo") "cancel" (url "mail.mailbox" .Mailbox.Name)) }}
+      {{ template "confirm-form" (dict "g" $ "crumb" (dict "g" $ "section" ($.T "nav.email") "home" (url "mail.mailbox" "INBOX") "steps" .Crumb) "title" ($.Tf "folder.emptyask" .Mailbox.Label) "message" ($.GlobalData.Tf "folder.emptycount" .Count) "submit" ($.T "folder.emptydo") "cancel" (printf "%s%s" (url "mail.mailbox" .Mailbox.Name) $.GlobalData.AccountQuery)) }}
 {{ end }}

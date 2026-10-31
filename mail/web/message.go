@@ -47,8 +47,6 @@ type MessageRenderData struct {
 	// ThreadSupported says the server can group the folder into conversations.
 	ThreadSupported bool
 
-	// Crumb is the path to the folder this message is in, account first.
-	Crumb []CrumbLink
 	// PreferHTML is the account's choice of which part the tabs open.
 	PreferHTML bool
 
@@ -266,7 +264,6 @@ func (p *plugin) handleGetPart(ctx *web.Context) error {
 		InReplyTo:          shown.InReplyTo,
 		Answers:            shown.Answers,
 		ThreadSupported:    shown.ThreadAlgorithm != "",
-		Crumb:              mailboxCrumb(shown.Rail.Mailboxes, mboxName, ctx.Login.Username(), func(name string) string { return ctx.Path("mail.mailbox", name) }),
 		PreferHTML:         ctx.Reading().PreferHTML,
 		Unsubscribe:        unsubscribeHref(ctx, shown.Unsubscribe, msg),
 		List: listLinks{

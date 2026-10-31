@@ -1,5 +1,5 @@
-{{/* dict: g object id acct list new newlabel edit ext readonly section home field collection path [copy move].
-     An event's, task's or contact's toolbar and crumb; a page adds its own actions through the object-actions block. */}}
+{{/* dict: g object id acct list new newlabel edit ext readonly [copy move].
+     An event's, task's or contact's toolbar; a page adds its own actions through the object-actions block. */}}
 {{ define "object-toolbar" }}
 {{ $g := .g }}
         {{ template "toolbar-head" (dict "g" $g "newhref" (printf "%s%s" .new .acct) "back" .list "up" .list "newlabel" .newlabel) }}
@@ -31,12 +31,11 @@
         {{ template "toolbar-end" }}
         {{ template "object-nav" (dict "g" $g "n" $g.Neighbours) }}
         {{ template "toolbar-foot" }}
-
-      {{ template "section-crumb" (dict "g" $g "section" .section "home" .home "field" .field "collection" .collection "path" .path) }}
 {{ end }}
 
-{{/* dict: g title form action current [class readonly]. */}}
+{{/* dict: g crumb title form action current [class readonly]; crumb is a section-crumb dict. The card's crumb, then its title and star. */}}
 {{ define "object-title" }}
+        {{ template "section-crumb" .crumb }}
         <div class="subject-row">
           <h1{{ with .class }} class="{{.}}"{{ end }}>{{.title}}</h1>
           {{ if not .readonly }}
@@ -56,7 +55,7 @@
 {{ $g := .g }}
 {{ $coll := "" }}{{ $path := "" }}{{ if .editing }}{{ $coll = .collection.Name }}{{ $path = .collection.Path }}{{ end }}
         {{ with .editing }}<input type="hidden" name="etag" value="{{.ETag}}">{{ end }}
-        {{ template "section-crumb" (dict "g" $g "section" .section "home" .home "field" .field "collection" $coll "path" $path "chooses" (and (not .editing) (gt (len $g.GlobalData.Accounts) 1))) }}
+        {{ template "section-crumb" (dict "g" $g "section" .section "home" .home "field" .field "collection" $coll "path" $path "chooses" (not .editing)) }}
         <h1>
           {{.title}}
         </h1>

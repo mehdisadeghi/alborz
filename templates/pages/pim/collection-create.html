@@ -3,7 +3,7 @@
 {{ define "main" }}
       <form method="post">
         <input type="hidden" name="next" value="{{.Next}}">
-        {{ template "section-crumb" (dict "g" $ "section" .BackLabel "home" .ListHref "field" "" "collection" "" "path" "" "chooses" (gt (len .Accounts) 1)) }}
+        {{ template "section-crumb" (dict "g" $ "section" .BackLabel "home" .ListHref "chooses" true) }}
         <h1>{{.Title}}</h1>
 
 

@@ -20,7 +20,7 @@
                "filter" (dict "id" "menu-filter" "icon" "list-filter" "title" ($.T "filter.menu") "rows" .FilterRows "priority" 25 "class" "filter-overflow")) }}
         {{ template "toolbar-foot" }}
 
-      {{ template "pim-list-head" (dict "crumb" (dict "g" $ "section" ($.T "nav.calendar") "home" (url "calendar.month") "field" "cal" "items" .Collections "collection" "" "path" "") "filters" (dict "filters" .Filters "remove" ($.T "filter.remove"))) }}
+      {{ template "pim-list-head" (dict "crumb" (dict "g" $ "section" ($.T "nav.calendar") "home" (url "calendar.month") "field" "cal" "items" .Collections) "filters" (dict "filters" .Filters "remove" ($.T "filter.remove"))) }}
 
       <section class="events">
         <div class="event-grid list-grid event-grid-select" role="table">

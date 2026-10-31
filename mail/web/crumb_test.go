@@ -17,9 +17,8 @@ func TestMailboxCrumbNamesEachStep(t *testing.T) {
 	boxes[1].Attrs = []imap.MailboxAttr{imap.MailboxAttrNoSelect}
 
 	folder := func(name string) string { return "/mailbox/" + url.PathEscape(name) }
-	crumb := mailboxCrumb(boxes, "INBOX/Lists/Unix", "someone@example.org", folder)
+	crumb := mailboxCrumb(boxes, "INBOX/Lists/Unix", folder)
 	want := []CrumbLink{
-		{Label: "someone@example.org", URL: "/mailbox/INBOX", Address: true},
 		{Label: "Inbox", URL: "/mailbox/INBOX"},
 		{Label: "Lists"},
 		{Label: "Unix", URL: "/mailbox/INBOX%2FLists%2FUnix"},

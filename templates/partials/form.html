@@ -38,10 +38,10 @@
   {{ if .cancel }}<a class="button-link button-quiet" href="{{.cancel}}">{{.cancelLabel}}</a>{{ end }}</div>
 {{ end }}
 
-{{/* dict: g title message submit cancel. */}}
+{{/* dict: g crumb title message submit cancel; crumb is a section-crumb dict. */}}
 {{ define "confirm-form" }}
 <form method="POST">
-  {{ template "mail-crumb" .g }}
+  {{ template "section-crumb" .crumb }}
   <h1>{{.title}}</h1>
   <div class="alert" role="alert">{{.message}}</div>
   <div class="form-actions">

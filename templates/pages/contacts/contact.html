@@ -4,15 +4,11 @@
       {{ $acct := .GlobalData.AccountQuery }}
       {{ template "next-form" (dict "id" "contact-color-form" "next" $.GlobalData.URL.RequestURI) }}
       {{ template "object-toolbar" (dict "g" $ "object" "contacts.contact" "id" .AddressObject.Path "acct" $acct "list" .List "new" (url "contacts.contact.create") "newlabel" ($.T "contacts.new") "edit" "edit" "ext" ".vcf" "readonly" (not .Collection.Writable)
-         "copy" (printf "%s%s" (url "contacts.contact.copy" .AddressObject.Path) $acct) "move" (printf "%s%s" (url "contacts.contact.move" .AddressObject.Path) $acct)
-         "section" ($.T "nav.contacts") "home" (url "contacts.list") "field" "book" "collection" .Collection.Name "path" .Collection.Path) }}
+         "copy" (printf "%s%s" (url "contacts.contact.copy" .AddressObject.Path) $acct) "move" (printf "%s%s" (url "contacts.contact.move" .AddressObject.Path) $acct)) }}
 
       <section class="details">
-        {{$photo := .AddressObject.PhotoURL}}
-        {{if $photo}}
-        <img class="contact-photo" src="{{photodatauri $photo}}" alt="">
-        {{end}}
-        {{ template "object-title" (dict "g" $ "title" .AddressObject.DisplayName "form" "contact-color-form" "action" (printf "%s%s" (url "contacts.contact.color" .AddressObject.Path) $acct) "current" .AddressObject.Color "readonly" (not .Collection.Writable)) }}
+        {{ template "object-title" (dict "g" $ "crumb" (dict "g" $ "section" ($.T "nav.contacts") "home" (url "contacts.list") "field" "book" "collection" .Collection.Name "path" .Collection.Path) "title" .AddressObject.DisplayName "form" "contact-color-form" "action" (printf "%s%s" (url "contacts.contact.color" .AddressObject.Path) $acct) "current" .AddressObject.Color "readonly" (not .Collection.Writable)) }}
+        {{ with .AddressObject.PhotoURL }}<img class="contact-photo" src="{{photodatauri .}}" alt="">{{ end }}
         <dl>
           {{with .AddressObject.Card.PreferredValue "NICKNAME"}}
           <dt>{{$.T "contacts.nickname"}}</dt>

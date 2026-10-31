@@ -24,7 +24,7 @@ import (
 )
 
 var (
-	routes = flag.String("route", "mail", "comma-separated route names (mail, tasks, journal, contacts, calendar, day, settings, filters) or paths")
+	routes = flag.String("route", "mail", "comma-separated route names (mail, tasks, journal, contacts, calendar, day, settings, filters, collection) or paths")
 	widths = flag.String("width", "1280,390", "comma-separated viewport widths; below 600 emulates a phone")
 	height = flag.Int("height", 900, "viewport height")
 	out    = flag.String("out", filepath.Join(os.TempDir(), "alborz-preview"), "directory for <route>-<width>.png")
@@ -34,9 +34,13 @@ var (
 )
 
 func TestPreview(t *testing.T) {
-	a, c := SignedIn(t, User, WithDAVHere(), WithSieve(Sieve(t)))
+	// The domain's DAV server is another, so the rails show collections in both places.
+	d := DAV(t, Calendar(DAVHome+"work/", "Work"), Book(DAVBooks+"team/", "Team"))
+	a, c := SignedIn(t, User, WithDAV(d), WithSieve(Sieve(t)))
 	calendar, tasks, journal, book := c.CreateCalendar(t, "Plans", ""), c.CreateCalendar(t, "Tasks", "tasks"), c.CreateCalendar(t, "Journal", "journal"), c.CreateBook(t, "People")
-	a.Put(t, calendar+"record.ics", "text/calendar", "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\nBEGIN:VEVENT\r\nUID:event\r\nDTSTAMP:20261027T080000Z\r\nDTSTART:20261027T100000Z\r\nDTEND:20261027T110000Z\r\nSUMMARY:Review a long product design proposal\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n")
+	// The event falls today: in the current month the agenda lists from today.
+	today := time.Now().UTC()
+	a.Put(t, calendar+"record.ics", "text/calendar", "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\nBEGIN:VEVENT\r\nUID:event\r\nDTSTAMP:20261027T080000Z\r\nDTSTART:"+today.Format("20060102")+"T120000Z\r\nDTEND:"+today.Format("20060102")+"T130000Z\r\nSUMMARY:Review a long product design proposal\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n")
 	for i := range 6 {
 		a.Put(t, tasks+fmt.Sprintf("t%d.ics", i), "text/calendar", fmt.Sprintf("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\nBEGIN:VTODO\r\nUID:task%d\r\nDTSTAMP:20261027T080000Z\r\nCREATED:20261020T080000Z\r\nSUMMARY:Review a very long product design proposal with many words in its summary number %d\r\nDUE;VALUE=DATE:20261028\r\nEND:VTODO\r\nEND:VCALENDAR\r\n", i, i))
 	}
@@ -49,8 +53,9 @@ func TestPreview(t *testing.T) {
 	c.SignIn(t, User2)
 	named := map[string]string{
 		"mail": a.Path("mail.mailbox", "INBOX"), "tasks": a.Path("calendar.tasks"), "journal": a.Path("calendar.journal"),
-		"contacts": a.Path("contacts.list"), "calendar": a.Path("calendar.month"), "day": a.Path("calendar.day", url.Values{"date": {"2026-10-27"}}),
+		"contacts": a.Path("contacts.list"), "calendar": a.Path("calendar.month"), "day": a.Path("calendar.day", url.Values{"date": {today.Format(time.DateOnly)}}),
 		"settings": a.Path("settings.profile"), "filters": a.Path("filters.list"),
+		"collection": a.Path("calendar.collection", d.At()+DAVHome+"work/", url.Values{"account": {User}}),
 	}
 	var js string
 	if *script != "" {
@@ -145,6 +150,9 @@ func (b browser) shot(t *testing.T, base, path string, cookie *http.Cookie, widt
 	cdp := devtools{ws: ws}
 	phone := width < 600
 	cdp.call(t, "Network.setCookie", map[string]any{"name": cookie.Name, "value": cookie.Value, "url": base, "path": "/"})
+	// A browser signs in through a page whose helpers.js writes its zone; signed in by cookie, the tab writes it here.
+	zone, _ := cdp.eval(t, "Intl.DateTimeFormat().resolvedOptions().timeZone").(string)
+	cdp.call(t, "Network.setCookie", map[string]any{"name": "alborz_tz", "value": zone, "url": base, "path": "/"})
 	cdp.call(t, "Emulation.setDeviceMetricsOverride", map[string]any{"width": width, "height": *height, "deviceScaleFactor": 1, "mobile": phone})
 	cdp.call(t, "Emulation.setTouchEmulationEnabled", map[string]any{"enabled": phone, "maxTouchPoints": 1})
 	cdp.call(t, "Page.navigate", map[string]any{"url": base + path})

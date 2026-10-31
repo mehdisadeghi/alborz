@@ -16,7 +16,7 @@
 {{ define "main" }}
         {{ template "contacts-toolbar" . }}
 
-      {{ template "pim-list-head" (dict "crumb" (dict "g" $ "section" ($.T "nav.contacts") "home" (url "contacts.list") "field" "book" "items" .Collections "collection" "" "path" "" "heading" true) "filters" (dict "filters" .Filters "remove" ($.T "filter.remove"))) }}
+      {{ template "pim-list-head" (dict "crumb" (dict "g" $ "section" ($.T "nav.contacts") "home" (url "contacts.list") "field" "book" "items" .Collections "heading" true) "filters" (dict "filters" .Filters "remove" ($.T "filter.remove"))) }}
 
       <section class="contacts">
         <div {{ template "contact-grid" }}>

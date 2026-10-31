@@ -3,7 +3,7 @@
 {{ define "main" }}
       <form method="post">
         {{ template "next-field" .Next }}
-        {{ template "section-crumb" (dict "g" $ "section" ($.T "nav.calendar") "home" (url "calendar.month") "field" "" "collection" "" "path" "" "chooses" (gt (len .Accounts) 1)) }}
+        {{ template "section-crumb" (dict "g" $ "section" ($.T "nav.calendar") "home" (url "calendar.month") "chooses" true) }}
         <h1>{{$.T "calendar.subscribe"}}</h1>
 
 

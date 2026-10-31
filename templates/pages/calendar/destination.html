@@ -2,7 +2,7 @@
 
 {{ define "main" }}
       <form method="POST"{{ with .Action }} action="{{.}}"{{ end }} hx-boost="false">
-        {{ template "section-crumb" (dict "g" $ "section" .Section "home" .Home "field" "" "collection" "" "path" "" "chooses" true) }}
+        {{ template "section-crumb" (dict "g" $ "section" .Section "home" .Home "chooses" true) }}
         <h1>{{.Title}}</h1>
         <p dir="auto">{{.Lead}}</p>
         {{ range .Paths }}<input type="hidden" name="paths" value="{{.}}">{{ end }}

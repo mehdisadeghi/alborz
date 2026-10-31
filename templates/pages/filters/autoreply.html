@@ -3,9 +3,9 @@
 
 {{ define "main" }}
   {{ $aq := .GlobalData.AccountQuery }}
-        {{ template "list-toolbar" (dict "g" $ "title" ($.T "filters.autoreply") "newhref" (printf "%s%s" (url "filters.autoreply.create") $aq) "newlabel" ($.T "filters.replynew")) }}
+        {{ template "list-toolbar" (dict "g" $ "newhref" (printf "%s%s" (url "filters.autoreply.create") $aq) "newlabel" ($.T "filters.replynew")) }}
 
-      {{ template "filters-crumb" (dict "g" $ "collection" ($.T "filters.autoreply") "path" (url "filters.autoreply")) }}
+      {{ template "filters-crumb" (dict "g" $ "collection" ($.T "filters.autoreply") "path" (url "filters.autoreply") "heading" true) }}
 
       {{ template "filters-status" (dict "g" $ "CanWire" .CanWire "ByHand" .ByHand "Script" .Script "aq" $aq) }}
 

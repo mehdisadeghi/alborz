@@ -4,7 +4,7 @@
       <form method="POST" action="{{url "mail.messages.export" .Mailbox.Name}}{{ if not (or .UIDs .Everything) }}?all=1{{ with .Query }}&query={{ . | qv }}{{ end }}{{ with .ListView }}&view={{ . }}{{ end }}{{ account "&" $.GlobalData.URLAccount }}{{ else }}{{ $.GlobalData.AccountQuery }}{{ end }}" data-download hx-boost="false">
         {{ range .UIDs }}<input type="hidden" name="uids" value="{{.}}">{{ end }}
         {{ with .Everything }}<input type="hidden" name="everything" value="1"><input type="hidden" name="next" value="{{.}}">{{ end }}
-        {{ template "mail-crumb" $ }}
+        {{ template "mail-crumb" (dict "g" $ "steps" .Crumb) }}
         <h1>{{ if or .UIDs .Everything }}{{ $.GlobalData.Tf "folder.exportselectedask" .Count }}{{ else if .Query }}{{ $.Tf "folder.exportresultsask" .Query }}{{ else if .ViewName }}{{ $.Tf "folder.exportviewask" .ViewName }}{{ else }}{{ $.Tf "folder.exportask" .Mailbox.Label }}{{ end }}</h1>
         <p>{{ $.GlobalData.Tf "folder.exportcount" .Count }}{{ if .Size }} {{ $.Tf "folder.exportsize" (humansize .Size) }}{{ end }}</p>
         <div class="action-group">

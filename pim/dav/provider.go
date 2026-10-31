@@ -72,7 +72,7 @@ type Provider struct {
 	found map[string]string
 	// hosts is, per domain, a DAV server on the mail host that is not the domain's own (ADR 28).
 	// Startup probes fill it after NewProvider returns; sourcesMu guards the writes.
-	hosts     map[string]*url.URL
+	hosts     map[string]Source
 	sourcesMu sync.Mutex
 	// discovery closes when the domain's bounded mail-host probe has finished.
 	discovery map[string]<-chan struct{}
@@ -101,7 +101,7 @@ type Provider struct {
 func NewProvider(srv *alborz.Server, st *store.Store, kind Kind) (*Provider, error) {
 	urls := make(map[string]*url.URL)
 	found := make(map[string]string)
-	hosts := make(map[string]*url.URL)
+	hosts := make(map[string]Source)
 	// Each lookup can wait out a resolver's timeout, so all run at once.
 	domains := srv.Domains()
 	type result struct {
@@ -203,12 +203,12 @@ func NewProvider(srv *alborz.Server, st *store.Store, kind Kind) (*Provider, err
 			if srv.ServiceDisabled(domain, kind.Name) {
 				return
 			}
-			if h, ok := OnMailHost(srv.Outgoing.Trusted, srv.UpstreamsFor(domain).IMAP, kind.Name, srv.Instance); ok && (u == nil || h.Host != u.Host) {
+			if h, reached, ok := OnMailHost(srv.Outgoing.Trusted, srv.UpstreamsFor(domain).IMAP, kind.Name, srv.Instance); ok && (u == nil || h.Host != u.Host) {
 				if srv.Options.Debug {
 					srv.Logger().Printf("Domain %q: %s server on the mail host: %v", domain, kind.Label, h)
 				}
 				p.sourcesMu.Lock()
-				p.hosts[domain] = h
+				p.hosts[domain] = Source{ID: SourceHost, URL: h, Origin: "servers.frommailhost", Record: h.String(), Reached: reached}
 				p.sourcesMu.Unlock()
 			}
 		}()
@@ -256,6 +256,16 @@ type Source struct {
 	Origin, Record string
 	// Named is the source that takes the account's own server credentials (ADR 5, 22); the rest take the mail login.
 	Named bool
+	// Reached is the host the address redirected to, empty when none; paths keep the address's host.
+	Reached string
+}
+
+// Place is the host the reader knows the source by: where it answers, not where alborz found it.
+func (s Source) Place() string {
+	if s.Reached != "" {
+		return s.Reached
+	}
+	return s.URL.Host
 }
 
 // Endpoint is where a client for the source starts.
@@ -362,7 +372,7 @@ func (p *Provider) Sources(ctx context.Context, login *alborz.Login) []Source {
 	}
 	p.sourcesMu.Unlock()
 	if ok {
-		out = append(out, Source{ID: SourceHost, URL: h, Origin: "servers.frommailhost", Record: h.String()})
+		out = append(out, h)
 	}
 	// A named server that is the domain's or mail host's is that source; one host may serve two servers under two paths.
 	same := func(own, other Source) bool {

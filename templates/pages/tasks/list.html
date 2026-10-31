@@ -32,7 +32,7 @@
                (tuple ($.T "tasks.duedate") "due")))) }}
         {{ template "toolbar-foot" }}
 
-      {{ template "pim-list-head" (dict "crumb" (dict "g" $ "section" ($.T "nav.tasks") "home" (url "calendar.tasks") "field" "cal" "items" .Collections "collection" "" "path" "" "heading" true) "filters" (dict "filters" .Filters "remove" ($.T "filter.remove"))) }}
+      {{ template "pim-list-head" (dict "crumb" (dict "g" $ "section" ($.T "nav.tasks") "home" (url "calendar.tasks") "field" "cal" "items" .Collections "heading" true) "filters" (dict "filters" .Filters "remove" ($.T "filter.remove"))) }}
 
       {{ with .Quick }}
       <form method="post" action="{{url "calendar.task.create"}}" class="quick-add" hx-boost="false" data-tour="tasks">

@@ -4,12 +4,11 @@
       {{ $acct := .GlobalData.AccountQuery }}
       {{ template "object-toolbar" (dict "g" $ "object" "calendar.entry" "id" .Path "acct" $acct "list" .List "new" (url "calendar.entry.create") "newlabel" ($.T "journal.new") "edit" "edit" "ext" ".ics" "readonly" (not .Collection.Writable)
          "copy" (printf "%s%s" (url "calendar.entry.copy" .Path) $acct)
-         "move" (printf "%s%s" (url "calendar.entry.move" .Path) $acct)
-         "section" ($.T "nav.journal") "home" (url "calendar.journal") "field" "cal" "collection" .Collection.Name "path" .Collection.Path) }}
+         "move" (printf "%s%s" (url "calendar.entry.move" .Path) $acct)) }}
 
       {{ if .Collection.Writable }}{{ template "next-form" (dict "id" "entry-color-form" "next" $.GlobalData.URL.RequestURI) }}{{ end }}
       <section class="details">
-        {{ template "object-title" (dict "g" $ "title" .Summary "form" "entry-color-form" "action" (printf "%s%s" (url "calendar.entry.color" .Path) $acct) "current" .Star "readonly" (not .Collection.Writable)) }}
+        {{ template "object-title" (dict "g" $ "crumb" (dict "g" $ "section" ($.T "nav.journal") "home" (url "calendar.journal") "field" "cal" "collection" .Collection.Name "path" .Collection.Path) "title" .Summary "form" "entry-color-form" "action" (printf "%s%s" (url "calendar.entry.color" .Path) $acct) "current" .Star "readonly" (not .Collection.Writable)) }}
         <dl>
           {{ if not .Date.IsZero }}
           <dt>{{$.T "journal.date"}}</dt>

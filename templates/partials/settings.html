@@ -1,11 +1,12 @@
-{{/* dict: g title path [collection object chooses newhref newlabel]; collection defaults to the title. */}}
+{{/* dict: g title path [parent newhref newlabel]; the crumb is the title row, parent a step above the title. */}}
 {{ define "settings-head" }}
-        {{ template "list-toolbar" (dict "g" .g "title" .title "newhref" .newhref "newlabel" .newlabel) }}
-      {{ template "settings-crumb" (dict "g" .g "collection" (or .collection .title) "path" .path "object" .object "chooses" .chooses) }}
+        {{ with .newhref }}{{ template "list-toolbar" (dict "g" $.g "newhref" . "newlabel" $.newlabel) }}{{ end }}
+      {{ $steps := tuple (dict "Label" .title "URL" .path) }}{{ with .parent }}{{ $steps = tuple . (index $steps 0) }}{{ end }}
+      {{ template "settings-crumb" (dict "g" .g "steps" $steps "heading" true) }}
 {{ end }}
 
-{{/* dict: g collection path [object chooses]. */}}
-{{ define "settings-crumb" }}{{ template "section-crumb" (dict "g" .g "section" (.g.T "nav.settings") "home" (url "settings.profile") "noroot" true "chooses" .chooses "field" "" "collection" .collection "path" .path "object" .object) }}{{ end }}
+{{/* dict: g [collection path steps chooses heading]. */}}
+{{ define "settings-crumb" }}{{ template "section-crumb" (dict "g" .g "section" (.g.T "nav.settings") "home" (url "settings.profile") "collection" .collection "path" .path "steps" .steps "chooses" .chooses "heading" .heading) }}{{ end }}
 
 {{/* dict: g ua. A browser and its system as its User-Agent names them. */}}
 {{ define "device-name" }}{{ $d := devicename .ua }}{{ if and $d.Browser $d.System }}{{ .g.Tf "sessions.device" $d.Browser $d.System }}{{ else if or $d.Browser $d.System }}{{ or $d.Browser $d.System }}{{ else }}{{.g.T "sessions.unknown"}}{{ end }}{{ end }}

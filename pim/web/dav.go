@@ -12,7 +12,7 @@ import (
 // placeHost is the host a reader knows a source by; alborz knows its own from -public-url, else from the request.
 func placeHost(ctx *web.Context, src dav.Source) string {
 	if src.ID != dav.SourceHere {
-		return src.URL.Host
+		return src.Place()
 	}
 	_, host, _ := strings.Cut(ctx.Origin(), "://")
 	return host
@@ -124,8 +124,8 @@ func Cards(p *dav.Provider, title string, abilities func(dav.Advertised) []web.A
 }
 
 func card(ctx *web.Context, p *dav.Provider, servers *web.Servers, title string, src dav.Source, abilities func(dav.Advertised) []web.Ability) web.ServerCard {
-	host := src.URL.Host
-	card := web.ServerCard{Group: web.ServerDAV, Title: ctx.T(title), Host: host, Source: src.Origin, Record: src.Record}
+	host := src.Place()
+	card :=web.ServerCard{Group: web.ServerDAV, Title: ctx.T(title), Host: host, Source: src.Origin, Record: src.Record}
 	if servers.Showing == web.ServerDAV {
 		endpoint, _ := url.Parse(src.Endpoint())
 		found, err := dav.Describe(ctx.Request().Context(), p.HTTPClient(ctx.Request().Context(), ctx.Login), endpoint)

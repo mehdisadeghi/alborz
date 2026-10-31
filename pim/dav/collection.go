@@ -1,6 +1,7 @@
 package dav
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -25,8 +26,10 @@ type Collection struct {
 	RScales []string
 	// Account owns the collection, set only where accounts are pooled.
 	Account string
-	// Source is the ID of the source the collection is on (ADR 28).
-	Source string
+	// Source is the ID of the source the collection is on (ADR 28); Host is that server's, empty for this alborz.
+	Source, Host string
+	// Heads marks the first of its account's collections on its source, under which the rail names the place.
+	Heads bool
 	// Visible is the reader's standing choice; Shown is what this page shows, which "only" narrows.
 	Visible, Shown bool
 	// Only marks the sole collection a URL is narrowed to, so pressing its link again widens back.
@@ -60,6 +63,9 @@ func ListCollections(ctx context.Context, homes []Home, list func(ctx context.Co
 				c.Name = nameFromPath(c.Path)
 			}
 			c.Source = r.Site.Source.ID
+			if c.Source != SourceHere {
+				c.Host = r.Site.Source.Place()
+			}
 			if ref, home, here := r.Site.Source.held(c.Path); here {
 				c.Here = true
 				if ref.Owner != home {
@@ -73,6 +79,12 @@ func ListCollections(ctx context.Context, homes []Home, list func(ctx context.Co
 		return strings.ToLower(out[i].Name) < strings.ToLower(out[j].Name)
 	})
 	return out, failed
+}
+
+// ByPlace orders collections by their source, in the order Sources lists them.
+func ByPlace(a, b Collection) int {
+	order := []string{SourceOwn, SourceDomain, SourceHost, SourceHere}
+	return cmp.Compare(slices.Index(order, a.Source), slices.Index(order, b.Source))
 }
 
 func nameFromPath(p string) string {

@@ -82,6 +82,7 @@ func (p *plugin) collectionPage() pimweb.Page {
 	return pimweb.Page{
 		Collection: "contacts.book",
 		List:       "contacts.list",
+		Section:    "nav.contacts",
 		Ext:        ".vcf",
 		Forget:     p.DAV.Forget,
 		Show:       contacts.Show,

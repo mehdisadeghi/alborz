@@ -15,7 +15,7 @@
         {{ template "pagination" (dict "prev" (dict "href" (printf "%s?date=%s%s" (url "calendar.day") .PrevPage $scope) "label" ($.T "calendar.prev")) "next" (dict "href" (printf "%s?date=%s%s" (url "calendar.day") .NextPage $scope) "label" ($.T "calendar.next"))) }}
         {{ template "toolbar-foot" }}
 
-      {{ template "section-crumb" (dict "g" $ "section" ($.T "nav.calendar") "home" (url "calendar.month") "field" "cal" "items" .Collections "at" (url "calendar.day") "keep" (printf "&date=%s" (.Time.Format "2006-01-02")) "collection" "" "path" "") }}
+      {{ template "section-crumb" (dict "g" $ "section" ($.T "nav.calendar") "home" (url "calendar.month") "field" "cal" "items" .Collections "at" (url "calendar.day") "keep" (printf "&date=%s" (.Time.Format "2006-01-02"))) }}
 
       {{ template "event-quick-add" . }}
 

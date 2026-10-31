@@ -2,7 +2,7 @@
 
 {{ define "main" }}
       <form method="POST">
-        {{ template "mail-crumb" $ }}
+        {{ template "mail-crumb" (dict "g" $ "steps" .Crumb) }}
         <h1>{{$.Tf "folder.renametitle" .Mailbox.Label}}</h1>
         {{ template "field" (dict "label" ($.T "folder.name") "name" "name" "value" .Name "dir" "auto" "required" true "autofocus" true "hint" ($.T "folder.renamehint")) }}
         {{ template "form-actions" (dict "save" ($.T "folder.renamedo") "cancel" (localhref (url "mail.mailbox" .Mailbox.Name)) "cancelLabel" ($.T "common.cancel")) }}

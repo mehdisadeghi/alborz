@@ -5,13 +5,13 @@
 {{ $import := false }}{{ if .import }}{{ $import = dict "href" (printf "%s%s" (url "filters.import") $aq) "label" (.g.T "filters.import") "active" .importactive }}{{ end }}
 {{ if not .g.GlobalData.Swap }}
 <aside>
-  {{ template "scope-rail" (dict "g" .g "kind" "rows" "path" (url "filters.list") "urlaccount" .g.GlobalData.URLAccount "accounts" .g.GlobalData.Accounts "data" (dict "rows" .g.Rail) "all" (.g.T "nav.allaccounts") "new" $new "import" $import) }}
+  {{ template "scope-rail" (dict "g" .g "kind" "rows" "path" (url "filters.list") "urlaccount" .g.GlobalData.URLAccount "accounts" .g.GlobalData.Accounts "data" (dict "rows" .g.Rail) "allrows" (index .g.Rail "*") "new" $new "import" $import) }}
 </aside>
 {{ end }}
 {{ end }}
 
 {{/* dict: g [collection path chooses heading]. */}}
-{{ define "filters-crumb" }}{{ template "section-crumb" (dict "g" .g "section" (.g.T "nav.filters") "home" (url "filters.list") "field" "" "collection" (or .collection "") "path" (or .path "") "chooses" .chooses "heading" .heading) }}{{ end }}
+{{ define "filters-crumb" }}{{ template "section-crumb" (dict "g" .g "section" (.g.T "nav.filters") "home" (url "filters.list") "collection" .collection "path" .path "chooses" .chooses "heading" .heading) }}{{ end }}
 
 {{/* dict: action fields button [class]. Each field is a dict with name and value. */}}
 {{ define "filter-action" }}

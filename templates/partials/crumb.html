@@ -1,37 +1,28 @@
-{{/* dict: g home steps class [noroot]. */}}
-{{ define "crumb-label" }}{{ if .Address }}{{ template "ltr" .Label }}{{ else }}{{ .Label }}{{ end }}{{ end }}
-
-{{ define "crumb" }}
-{{ $account := .g.GlobalData.URLAccount }}
-{{ $several := gt (len .g.GlobalData.Accounts) 1 }}
-<div class="context-crumb">
-  {{- $sep := false }}
-  {{- if and $several (not .noroot) }}<a href="{{ .home }}">{{ .g.T "nav.allaccounts" }}</a>{{ $sep = true }}{{ end }}
-  {{- $up := -1 }}{{ range $i, $s := .steps }}{{ if and $s.Label $s.URL (or $several (not $s.Address)) }}{{ $up = $i }}{{ end }}{{ end }}
-  {{- $last := -1 }}{{ range $i, $s := .steps }}{{ if and $s.Label (or $several (not $s.Address)) }}{{ $last = $i }}{{ end }}{{ end }}
-  {{- range $i, $step := .steps }}{{ if and $step.Label (or $several (not $step.Address)) }}
-    {{- if $sep }} › {{ end }}{{ $sep = true }}
-    {{- if and $.heading (eq $i $last) }}<h1>{{ if $step.URL }}<a href="{{ $step.URL }}{{ account (qsep $step.URL) $account }}"{{ if eq $i $up }} data-key="u"{{ end }}>{{ template "crumb-label" $step }}</a>{{ else }}{{ template "crumb-label" $step }}{{ end }}{{ with $.gloss }} <span class="crumb-gloss">{{.}}</span>{{ end }}</h1>
-    {{- else if $step.URL }}<a href="{{ $step.URL }}{{ account (qsep $step.URL) $account }}"{{ if eq $i $up }} data-key="u"{{ end }}>{{ template "crumb-label" $step }}</a>
-    {{- else }}{{ template "crumb-label" $step }}{{ end }}
-  {{- end }}{{ end }}
-</div>
-{{ end }}
-
-{{/* dict: g section home field collection path [noroot chooses items at keep]. */}}
+{{/* dict: g section home [collection path field items at keep | steps] [chooses heading].
+     The one crumb: a root, the section, then the collection or the folder chain; ancestors only. */}}
 {{ define "section-crumb" }}
-{{ $account := .g.GlobalData.URLAccount }}
-{{ if .chooses }}{{ $account = "" }}{{ end }}
-{{ $collection := .collection }}{{ $path := .path }}
+{{ $g := .g }}{{ $account := $g.GlobalData.URLAccount }}
+{{ $steps := .steps }}
+{{ if not $steps }}
+{{ $collection := or .collection "" }}{{ $path := or .path "" }}
 {{ range .items }}{{ if .Only }}{{ $collection = .Name }}{{ $path = .Path }}{{ end }}{{ end }}
 {{ if eq $collection .section }}{{ $collection = "" }}{{ end }}
 {{ $url := $path }}{{ if .field }}{{ $url = printf "%s?%s=%s%s" (or .at .home) .field ($path | qv) (or .keep "") }}{{ end }}
-{{ template "crumb" (dict "g" .g "home" .home "noroot" .noroot "heading" .heading "gloss" .gloss "steps" (tuple
-   (dict "Label" $account "URL" .home "Address" true)
-   (dict "Label" .section "URL" .home)
-   (dict "Label" $collection "URL" $url)
-   (dict "Label" .object))) }}
+{{ $steps = tuple (dict "Label" $collection "URL" $url) }}
 {{ end }}
+{{ $last := -1 }}{{ $up := -1 }}{{ range $i, $s := $steps }}{{ if $s.Label }}{{ $last = $i }}{{ if $s.URL }}{{ $up = $i }}{{ end }}{{ end }}{{ end }}
+<div class="context-crumb">
+  {{- if and (gt (len $g.GlobalData.Accounts) 1) (not .chooses) (not $g.GlobalData.Personal) }}
+    {{- with $account }}<a href="{{ $.home }}{{ account (qsep $.home) . }}">{{ template "ltr" . }}</a>{{ else }}<a href="{{ $.home }}">{{ $g.T "nav.allaccounts" }}</a>{{ end }} › {{ end }}
+  {{- template "crumb-step" (dict "s" (dict "Label" .section "URL" .home) "account" $account "up" (lt $up 0) "heading" (and .heading (lt $last 0))) }}
+  {{- range $i, $s := $steps }}{{ if $s.Label }} › {{ template "crumb-step" (dict "s" $s "account" $account "up" (eq $i $up) "heading" (and $.heading (eq $i $last))) }}{{ end }}{{ end }}
+</div>
+{{ end }}
+
+{{ define "crumb-step" }}{{ if .heading }}<h1>{{ end }}{{ if .s.URL }}<a href="{{ .s.URL }}{{ account (qsep .s.URL) .account }}"{{ if .up }} data-key="u"{{ end }}>{{ .s.Label }}</a>{{ else }}{{ .s.Label }}{{ end }}{{ if .heading }}</h1>{{ end }}{{ end }}
+
+{{/* dict: g [steps chooses heading]; steps are the folder chain. */}}
+{{ define "mail-crumb" }}{{ template "section-crumb" (dict "g" .g "section" (.g.T "nav.email") "home" (url "mail.mailbox" "INBOX") "steps" .steps "chooses" .chooses "heading" .heading) }}{{ end }}
 
 {{/* dict: filters clear. */}}
 {{ define "filter-chips" }}
@@ -48,5 +39,3 @@
 </div>
 {{ end }}
 {{ end }}
-
-{{ define "mail-crumb" }}{{ template "section-crumb" (dict "g" . "section" (.T "nav.email") "home" (url "mail.mailbox" "INBOX") "field" "" "collection" "" "path" "") }}{{ end }}

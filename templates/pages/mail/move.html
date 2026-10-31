@@ -2,7 +2,7 @@
 
 {{ define "main" }}
       <form method="POST" action="{{url "mail.messages.move" .Mailbox.Name}}{{ $.GlobalData.AccountQuery }}" hx-boost="false">
-        {{ template "mail-crumb" $ }}
+        {{ template "mail-crumb" (dict "g" $) }}
         <h1>{{$.T "folder.moveask"}}</h1>
         <p>{{ $.GlobalData.Tf "folder.movecount" (len .UIDs) }}</p>
         {{ range .UIDs }}<input type="hidden" name="uids" value="{{.}}">{{ end }}

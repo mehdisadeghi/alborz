@@ -23,7 +23,8 @@ func sievePage(ctx *web.Context, title, script string) sievePageData {
 // rail reads extensions from the warmed connection's greeting: no round trip.
 func rail(ctx *web.Context) map[string][]web.RailRow {
 	path := ctx.Request().URL.Path
-	rows := map[string][]web.RailRow{}
+	// Under All accounts, as settings' merged lists: the scripts of every account.
+	rows := map[string][]web.RailRow{web.MergedRows: {{Label: ctx.T("filters.title"), Href: ctx.Path("filters.list"), Active: ctx.URLAccount() == ""}}}
 	var down []string
 	for _, account := range sieveAccounts(ctx) {
 		login := ctx.LoginFor(account.Username)

@@ -55,6 +55,8 @@ type IMAPBaseRenderData struct {
 	Subscriptions        map[string]*mail.MailboxStatus
 	// ListView is the rail row a non-folder page answers to; not "View", which the message page uses.
 	ListView string
+	// Crumb is the folder chain the page's crumb names under Email.
+	Crumb []CrumbLink
 
 	// SidebarAccounts is every account's folder tree; empty with a single account.
 	SidebarAccounts []AccountSidebar
@@ -172,6 +174,7 @@ func assembleIMAPBase(ctx *web.Context, base *web.BaseRenderData, mboxName strin
 		Mailbox:              sb.Active,
 		Subscriptions:        sb.Statuses,
 		ListView:             view,
+		Crumb:                mailboxCrumb(sb.Mailboxes, mboxName, func(name string) string { return ctx.Path("mail.mailbox", name) }),
 	}
 }
 
@@ -201,17 +204,16 @@ func (p *plugin) newIMAPBaseRenderData(ctx *web.Context,
 
 // CrumbLink is one step of the path a page shows above itself.
 type CrumbLink struct {
-	Label   string
-	URL     string
-	Address bool // reads left to right whatever the page does
+	Label string
+	URL   string
 }
 
 // Steps are named by path segment: a custom folder's Label is its whole wire name. folder is a folder's address.
-func mailboxCrumb(mailboxes []mail.MailboxInfo, name, account string, folder func(string) string) []CrumbLink {
-	crumb := []CrumbLink{{Label: account, URL: folder("INBOX"), Address: true}}
+func mailboxCrumb(mailboxes []mail.MailboxInfo, name string, folder func(string) string) []CrumbLink {
 	if name == "" {
-		return crumb
+		return nil
 	}
+	var crumb []CrumbLink
 
 	byName := make(map[string]*mail.MailboxInfo, len(mailboxes))
 	delim := rune(0)

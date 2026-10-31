@@ -26,36 +26,39 @@ func options(rt http.RoundTripper, u *url.URL, timeout time.Duration, redirect f
 }
 
 // OnMailHost finds DAV at the mail host's /.well-known/<service> (RFC 6764 5), HTTPS only since the password goes there;
-// an answer naming instance is this alborz, not a second server.
-func OnMailHost(rt http.RoundTripper, host, service, instance string) (*url.URL, bool) {
+// an answer naming instance is this alborz, not a second server. reached is the host a redirect ended on, else empty.
+func OnMailHost(rt http.RoundTripper, host, service, instance string) (u *url.URL, reached string, ok bool) {
 	hostname, _, err := net.SplitHostPort(host)
 	if err != nil {
 		hostname = host
 	}
-	u := &url.URL{Scheme: "https", Host: hostname, Path: "/.well-known/" + service}
+	u = &url.URL{Scheme: "https", Host: hostname, Path: "/.well-known/" + service}
 	redirected := false
 	resp, err := options(rt, u, wellKnownWait, func(*http.Request, []*http.Request) error {
 		redirected = true
 		return nil
 	})
 	if err != nil {
-		return nil, false
+		return nil, "", false
 	}
 	resp.Body.Close()
 	if resp.Header.Get(alborz.InstanceHeader) == instance {
-		return nil, false
+		return nil, "", false
+	}
+	if redirected && resp.Request.URL.Host != u.Host {
+		reached = resp.Request.URL.Host
 	}
 	for _, v := range resp.Header.Values("DAV") {
 		for feature := range strings.SplitSeq(v, ",") {
 			if strings.TrimSpace(feature) == davFeature[service] {
-				return u, true
+				return u, reached, true
 			}
 		}
 	}
 	if redirected && (resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusMultiStatus) {
-		return u, true
+		return u, reached, true
 	}
-	return nil, false
+	return nil, "", false
 }
 
 // answersAs says whether the server at u names instance in its answer (alborz.InstanceHeader).

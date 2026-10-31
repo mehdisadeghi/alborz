@@ -26,7 +26,7 @@
                (tuple ($.T "journal.date") "date") (tuple ($.T "common.added") "added")))) }}
         {{ template "toolbar-foot" }}
 
-      {{ template "pim-list-head" (dict "crumb" (dict "g" $ "section" ($.T "nav.journal") "home" (url "calendar.journal") "field" "cal" "items" .Collections "collection" "" "path" "" "heading" true) "filters" (dict "filters" .Filters "remove" ($.T "filter.remove"))) }}
+      {{ template "pim-list-head" (dict "crumb" (dict "g" $ "section" ($.T "nav.journal") "home" (url "calendar.journal") "field" "cal" "items" .Collections "heading" true) "filters" (dict "filters" .Filters "remove" ($.T "filter.remove"))) }}
 
       <section class="journal">
         <div {{ template "journal-grid" $ }}>

@@ -193,11 +193,11 @@ func (pg Page) HandleCreate(p *dav.Provider, form func(*web.Context) (CreateForm
 // Page is what a collection's own page needs from its kind; Collection is its route.
 type Page struct {
 	Collection string
-	// List is the route of the section's list, where an answered invitation lands.
-	List   string
-	Ext    string
-	Lookup func(ctx *web.Context, path string) (info dav.Collection, count func() int, list, label string, err error)
-	Forget func(username string)
+	// List is the route of the section's list, where an answered invitation lands; Section is its name's locale key.
+	List, Section string
+	Ext           string
+	Lookup        func(ctx *web.Context, path string) (info dav.Collection, count func() int, list, label string, err error)
+	Forget        func(username string)
 	// Show ticks a just-accepted collection among those the account sees.
 	Show func(ctx context.Context, l *alborz.Login, path string) error
 	// Import writes an uploaded file's objects and counts them; Export renders the collection, or Range, as one file.
@@ -240,7 +240,7 @@ func (pg Page) Handle(p *dav.Provider) func(*web.Context) error {
 			}
 			return ctx.Render(http.StatusOK, "pim/collection", &CollectionRenderData{
 				PageData: *web.NewPageData(ctx, offer.Name, rail),
-				Name:     offer.Name, Collection: pg.Collection, ListHref: ctx.Path(pg.List),
+				Name:     offer.Name, Collection: pg.Collection, ListHref: ctx.Path(pg.List), BackLabel: ctx.T(pg.Section),
 				Account: ctx.Login.Username(), Offer: offer,
 			})
 		}

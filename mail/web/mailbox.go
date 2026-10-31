@@ -40,8 +40,6 @@ type MailboxRenderData struct {
 	SortSupported bool
 	// ThreadSupported says the server can group a folder into conversations.
 	ThreadSupported bool
-	// Crumb is the path to this folder, account first.
-	Crumb []CrumbLink
 	// PreferHTML is the reader's choice of which part a row opens.
 	PreferHTML bool
 	// Threaded says the rows carry a depth and the pager counts conversations.
@@ -185,7 +183,6 @@ func (p *plugin) handleGetMailbox(ctx *web.Context) error {
 
 	data := listPage(ctx, ask, list)
 	data.IMAPBaseRenderData = *ibase
-	data.Crumb = mailboxCrumb(sb.Mailboxes, mboxName, ctx.Login.Username(), func(name string) string { return ctx.Path("mail.mailbox", name) })
 	data.Outgoing = mail.Outgoing(sb.Mailboxes, mboxName)
 	data.ThreadSupported = list.ThreadAlgorithm != ""
 	data.Threaded = ask.Sort == mail.SortThread && list.ThreadAlgorithm != ""

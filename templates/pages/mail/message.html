@@ -161,8 +161,8 @@
       </dialog>
       {{ end }}
 
-      {{ template "crumb" (dict "g" $ "home" (url "mail.mailbox" "INBOX") "steps" .Crumb) }}
       <div class="message-header">
+        {{ template "mail-crumb" (dict "g" $ "steps" .Crumb) }}
         <table>
           <tbody>
           <tr>

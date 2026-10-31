@@ -71,6 +71,7 @@ func registerRoutes(p *plugin, g *web.Group) {
 	GET, POST, Page, download := pimweb.GuardedRoutes(g, guard)
 	upload := pimweb.GuardedUpload(g, guard)
 	POST("month", "/calendar", pimweb.HandleChoose(p.DAV, "calendar.month", "cal", calendar.Choose(calendar.EventVisibility)))
+	POST("day", "/calendar/date", pimweb.HandleChoose(p.DAV, "calendar.day", "cal", calendar.Choose(calendar.EventVisibility)))
 	POST("tasks", "/tasks", pimweb.HandleChoose(p.DAV, "calendar.tasks", "cal", calendar.Choose(calendar.TaskVisibility)))
 	POST("refresh", "/calendar/refresh", p.refresh)
 	POST("tasks.refresh", "/tasks/refresh", pimweb.HandleRefresh(p.DAV, "calendar.tasks"))

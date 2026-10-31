@@ -26,39 +26,41 @@ func options(rt http.RoundTripper, u *url.URL, timeout time.Duration, redirect f
 }
 
 // OnMailHost finds DAV at the mail host's /.well-known/<service> (RFC 6764 5), HTTPS only since the password goes there;
-// an answer naming instance is this alborz, not a second server. reached is the host a redirect ended on, else empty.
-func OnMailHost(rt http.RoundTripper, host, service, instance string) (u *url.URL, reached string, ok bool) {
+// an answer naming instance is this alborz, not a second server. The server is where the redirects end, which may be
+// another host.
+func OnMailHost(rt http.RoundTripper, host, service, instance string) (*url.URL, bool) {
 	hostname, _, err := net.SplitHostPort(host)
 	if err != nil {
 		hostname = host
 	}
-	u = &url.URL{Scheme: "https", Host: hostname, Path: "/.well-known/" + service}
+	u := &url.URL{Scheme: "https", Host: hostname, Path: "/.well-known/" + service}
 	redirected := false
-	resp, err := options(rt, u, wellKnownWait, func(*http.Request, []*http.Request) error {
+	resp, err := options(rt, u, wellKnownWait, func(req *http.Request, _ []*http.Request) error {
+		if req.URL.Scheme != "https" {
+			return fmt.Errorf("dav: %s redirects to %s", u, req.URL)
+		}
 		redirected = true
 		return nil
 	})
 	if err != nil {
-		return nil, "", false
+		return nil, false
 	}
 	resp.Body.Close()
 	if resp.Header.Get(alborz.InstanceHeader) == instance {
-		return nil, "", false
+		return nil, false
 	}
-	if redirected && resp.Request.URL.Host != u.Host {
-		reached = resp.Request.URL.Host
-	}
+	server := &url.URL{Scheme: "https", Host: resp.Request.URL.Host, Path: resp.Request.URL.Path}
 	for _, v := range resp.Header.Values("DAV") {
 		for feature := range strings.SplitSeq(v, ",") {
 			if strings.TrimSpace(feature) == davFeature[service] {
-				return u, reached, true
+				return server, true
 			}
 		}
 	}
 	if redirected && (resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusMultiStatus) {
-		return u, reached, true
+		return server, true
 	}
-	return nil, "", false
+	return nil, false
 }
 
 // answersAs says whether the server at u names instance in its answer (alborz.InstanceHeader).

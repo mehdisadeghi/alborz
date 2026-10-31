@@ -20,7 +20,9 @@ alone, and two servers can hold the same path.
    - `own`: the server the account names (ADR 22);
    - `domain`: the operator's upstream or the domain's SRV record;
    - `host`: DAV at the mail host's `/.well-known/<service>` (RFC 6764
-     5), HTTPS only, when its host differs from the domain's;
+     5), HTTPS only at every redirect, when its host differs from the
+     domain's. The server is where the redirects end, which MAY be
+     another host;
    - `here`: this alborz.
 2. Discovery MUST NOT replace one source by another; each found is
    listed. An `own` server equal to the domain's or mail host's is
@@ -54,9 +56,7 @@ alone, and two servers can hold the same path.
 
 9. The collections of every source form one list, grouped by source in
    the order of rule 1, each group named by its place (`place.<id>`)
-   and, for a remote source, its host (ADR 35): the host a redirect
-   during discovery ended on, else the address's own. Paths keep the
-   address's host (rule 3). Collections kept here,
+   and, for a remote source, its host (ADR 35). Collections kept here,
    shared by another account or filled from a subscribed feed among
    them, are in `here`'s group. A source that does not answer is left
    out and a notice names its account; the others are listed.

@@ -64,7 +64,7 @@ func ListCollections(ctx context.Context, homes []Home, list func(ctx context.Co
 			}
 			c.Source = r.Site.Source.ID
 			if c.Source != SourceHere {
-				c.Host = r.Site.Source.Place()
+				c.Host = r.Site.Source.URL.Host
 			}
 			if ref, home, here := r.Site.Source.held(c.Path); here {
 				c.Here = true

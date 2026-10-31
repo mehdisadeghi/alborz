@@ -23,8 +23,7 @@ drawn as if in the merged scope.
    is unsupported, an `@supports` rule MUST place it under the header's
    inline end; `helpers.js` MAY place it by hand.
 3. At `<= 600px` the language and person menus MUST NOT show; the
-   drawer holds the accounts, Settings and Sign out of all accounts
-   (ADR 94).
+   drawer holds the accounts, Settings and Sign out of all accounts.
 
 ### Person menu
 
@@ -77,7 +76,7 @@ drawn as if in the merged scope.
 
 - WHATWG HTML (the `popover` attribute), CSS Anchor Positioning Module
   Level 1, BCP 47
-- ADR 1, ADR 25, ADR 50, ADR 76, ADR 94, ADR 95, ADR 102
+- ADR 1, ADR 25, ADR 50, ADR 76, ADR 95, ADR 102
 - `templates/partials/nav.html` (`person-menu`, `language-menu`,
   `signout-all`), `templates/pages/login.html`,
   `templates/pages/settings/sessions.html`, `templates/assets/style.css`

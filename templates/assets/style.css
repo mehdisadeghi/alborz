@@ -5498,7 +5498,7 @@ aside .rail-invitation-answer button { padding: var(--space-1) var(--space-2); }
 
 .rail-mark .icon { width: 0.9em; height: 0.9em; }
 
-/* ADR 94: the phone bar and the toolbar's way up exist only on a phone. */
+/* The phone bar and the toolbar's way up exist only on a phone. */
 .phone-bar-shell,
 section.actions > .phone-up { display: none; }
 

@@ -64,7 +64,7 @@ main.login > section {
   -webkit-backdrop-filter: blur(18px) saturate(1.6);
 }
 
-/* ADR 94: a filter on the toolbar would hold the bar's primary control inside it, so a layer under it blurs instead. */
+/* A filter on the toolbar would hold the bar's primary control inside it, so a layer under it blurs instead. */
 @media (width <= 600px) {
   :root[data-phone="bar"] section.actions { backdrop-filter: none; -webkit-backdrop-filter: none; }
 

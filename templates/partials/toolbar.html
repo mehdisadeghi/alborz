@@ -1,6 +1,6 @@
 {{/* dict: g [class title shorttitle subtitle selectall newhref newlabel newicon back up]; closed by toolbar-end and toolbar-foot.
      newhref keeps the account in view unless it names one.
-     With the phone bar an object's row opens with the way up, the list it came from (ADR 94). */}}
+     With the phone bar an object's row opens with the way up, the list it came from. */}}
 {{ define "toolbar-head" }}
 <section class="actions{{ with .class }} {{.}}{{ end }}" data-tour="toolbar" aria-label="{{.g.T "a11y.toolbar"}}">
 {{ if .g.GlobalData.PhoneBar }}{{ with .up }}<a class="icon-button phone-up" href="{{ localhref . }}" title="{{$.g.T "nav.back"}}" aria-label="{{$.g.T "nav.back"}}">{{ template "icon" "prev" }}</a>{{ end }}{{ end }}
@@ -67,7 +67,7 @@
 {{/* An action posted from the list redraws it where the reader is, without a step in history (ADR 13); without script the form posts whole. */}}
 {{ define "swap-main" }} hx-post="{{.}}" hx-target="#main" hx-swap="innerHTML show:none"{{ end }}
 
-{{/* dict: target href. A refinement redraws its list in place and takes no step in history (ADR 96). */}}
+{{/* dict: target href. A refinement redraws its list in place and takes no step in history (ADR 13). */}}
 {{ define "swaps" }}{{ with .target }} hx-get="{{$.href}}" hx-target="#{{.}}" hx-swap="innerHTML show:window:top"{{ end }} hx-replace-url="true"{{ end }}
 
 {{/* dict: id icon title rows [target priority class disabled name]; with name the rows submit their Value under it. */}}

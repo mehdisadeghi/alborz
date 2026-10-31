@@ -26,6 +26,6 @@ rest.
 
 ## References
 
-- ADR 1, ADR 36, ADR 61, ADR 85
+- ADR 1, ADR 36, ADR 61
 - `web/liststate.go`, `pim/web/sort.go`,
   `pim/calendar/web/tasks.go`, `pim/contacts/web/contacts.go`

@@ -326,7 +326,7 @@ const enhance = () => {
 		if (own().length === 0) {
 			continue;
 		}
-		// A phone with the bar (ADR 94) takes its own order where an element declares one; a step with no rank is never taken.
+		// A phone with the bar takes its own order where an element declares one; a step with no rank is never taken.
 		const rank = el => Number((phoneBar() && el.dataset.phonePriority) || el.dataset.priority || Infinity);
 		const ownItems = menu.children.length;
 		// Held at full size while measuring: a flex-shrunk title spills unseen by scrollWidth.

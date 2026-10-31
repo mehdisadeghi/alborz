@@ -1,7 +1,6 @@
 # ADR 13: htmx as progressive enhancement
 
-Status: accepted, amended by ADR 96 (refinements and actions take no
-history step).
+Status: accepted.
 
 ## Context
 
@@ -23,8 +22,11 @@ must continue working without JavaScript.
 4. `hx-on:` and `js:` values MUST NOT be used. `allowEval` is `false`
    (`htmx-config` meta), so the Content-Security-Policy needs no
    `unsafe-eval`.
-5. Navigation is boosted by `hx-boost="true"` on `body`, with history
-   push/replace governed by ADR 96. `historyCacheSize` is `0` so mail is
+5. Navigation is boosted by `hx-boost="true"` on `body`. A navigation
+   to another page MUST push a history entry; a refinement that redraws
+   the current page in place (filter, sort, page or view step) MUST
+   declare `hx-replace-url="true"`; an action MUST NOT add an entry.
+   `historyCacheSize` is `0` so mail is
    never written to `sessionStorage`; the page keeps up to 10 left pages
    in memory for instant Back rendering before revalidation.
 6. Forms MUST NOT be boosted (`hx-boost="false"`) when:
@@ -54,8 +56,9 @@ must continue working without JavaScript.
 ## References
 
 - CSP Level 3 (`unsafe-eval`); Media Queries Level 5 (`scripting`)
-- ADR 8, ADR 14, ADR 41, ADR 96
+- ADR 8, ADR 14, ADR 41
 - `templates/layout.html`, `templates/assets/helpers.js`,
+  `templates/partials/toolbar.html` (`swaps`, `swap-main`),
   `web/htmx.go` (`Partial`,
   `PartialFor`), `web/renderer.go`, `web/server.go` (`Relocate`,
   `Redraw`), `web/middleware.go` (CSP)

@@ -79,7 +79,7 @@
 </header>
 {{ if .GlobalData.LoggedIn }}
 {{ if .GlobalData.PhoneBar }}
-{{/* ADR 94: the middle track reserves room for the page's primary control. */}}
+{{/* The middle track reserves room for the page's primary control. */}}
 <div class="phone-bar-shell">
 <nav class="phone-bar" aria-label="{{$.T "a11y.sections"}}">
   {{ template "nav-section" (dict "href" (printf "%s%s" (url "mail.mailbox" "INBOX") $q) "active" (eq $section "mailbox") "icon" "mail" "label" ($.T "nav.email")) }}

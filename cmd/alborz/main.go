@@ -179,19 +179,21 @@ upstreams are given as repeated domain=url arguments, e.g.:
 	if err != nil {
 		return err
 	}
+	host, port, err := net.SplitHostPort(ln.Addr().String())
+	if err != nil {
+		ln.Close()
+		return err
+	}
+	if ip := net.ParseIP(host); ip != nil && ip.IsUnspecified() {
+		host = "localhost"
+	}
+	base := "http://" + net.JoinHostPort(host, port)
 	fmt.Fprint(stdout, alborz.Prologue)
 	if s.NeedsSetup() {
-		host, port, err := net.SplitHostPort(ln.Addr().String())
-		if err != nil {
-			ln.Close()
-			return err
-		}
-		if ip := net.ParseIP(host); ip != nil && ip.IsUnspecified() {
-			host = "localhost"
-		}
-		fmt.Fprintf(stdout, "First-run setup: http://%s/setup\nOwner setup code: %s\nKeep this code private: it authorizes the instance's initial configuration.\n",
-			net.JoinHostPort(host, port), s.SetupCode())
+		fmt.Fprintf(stdout, "First-run setup: %s/setup\nOwner setup code: %s\nKeep this code private: it authorizes the instance's initial configuration.\n",
+			base, s.SetupCode())
 	}
+	fmt.Fprintf(stdout, "Listening on %s\n", base)
 
 	server := &http.Server{Handler: handler}
 	server.RegisterOnShutdown(s.Changes.Close)

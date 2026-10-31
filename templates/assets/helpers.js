@@ -591,8 +591,12 @@ const railPlace = href => {
 };
 // A swap that keeps the place, as a page or a sort does, keeps the mark the server drew.
 let placeBefore = "";
-document.addEventListener("htmx:beforeRequest", () => {
+// Asked before the swap: a DAV rail redraws its rows out of band, taking the tapped link out of the aside.
+let fromRail = false;
+document.addEventListener("htmx:beforeRequest", ev => {
 	placeBefore = railPlace(location.href);
+	const elt = ev.detail && ev.detail.elt;
+	fromRail = !!(elt && elt.matches && elt.matches("aside a"));
 });
 document.addEventListener("htmx:afterSwap", ev => {
 	if (!ev.target || ev.target.id !== "main") {
@@ -605,9 +609,8 @@ document.addEventListener("htmx:afterSwap", ev => {
 		mark.remove();
 	}
 	// On a phone the list is under the drawer; a rail link's tap is for the page.
-	const from = ev.detail && ev.detail.requestConfig && ev.detail.requestConfig.elt;
 	const drawer = document.getElementById("sidebar");
-	if (drawer && from && from.matches && from.matches("aside a")) {
+	if (drawer && fromRail) {
 		drawer.checked = false;
 	}
 	const here = railPlace(location.href);

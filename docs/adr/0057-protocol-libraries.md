@@ -44,4 +44,4 @@ Current libraries:
 
 - RFC 4791, RFC 5464, RFC 5545, RFC 5546, RFC 6350, RFC 6578, RFC 7529
 - ADR 49, ADR 58
-- `go.mod` (`replace` directives and comments), `local/forks/`
+- `go.mod` (`replace` directives and comments)

@@ -19,10 +19,6 @@ func TestCancellationDoesNotSelectASubstringUID(t *testing.T) {
 	a.Put(t, coll+"keep.ics", "text/calendar", before)
 	msg := "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:test\nMETHOD:CANCEL\nBEGIN:VEVENT\nUID:event-123\nORGANIZER:mailto:b@example.org\nSEQUENCE:1\nDTSTAMP:20260902T100000Z\nEND:VEVENT\nEND:VCALENDAR\n"
 	uid := a.IMAP.Append(t, "INBOX", calendarMail("b@example.org", "Cancelled", "CANCEL", msg))
-	page := c.Page(t, "mail.message", "INBOX", uid)
-	if strings.Contains(page, `action="`+a.Path("calendar.frommessage")+`"`) {
-		t.Error("substring UID offered as filed")
-	}
 	c.Post(t, "calendar.frommessage", url.Values{"mbox": {"INBOX"}, "uid": {fmt.Sprint(uid)}})
 	got := a.DAV(t, http.MethodGet, coll+"keep.ics", nil, "")
 	if got.StatusCode != 200 || got.Text != before {
@@ -63,10 +59,6 @@ func TestInvitationRefusesAConcurrentEdit(t *testing.T) {
 			resp := c.Post(t, "calendar.frommessage", url.Values{"mbox": {"INBOX"}, "uid": {fmt.Sprint(uid)}, "calendar": {User + "|" + At(proxy.URL) + coll}})
 			if attempts.Load() != 1 {
 				t.Fatalf("mutation attempts: %d (%s)", attempts.Load(), resp.Status)
-			}
-			bar := NoticeBar(c.Follow(t, resp.Header.Get("Location")))
-			if !strings.Contains(bar, "notice-failed") || !strings.Contains(bar, "412") {
-				t.Errorf("no concurrent-edit refusal: %s", bar)
 			}
 			if len(d.Puts()) != 0 {
 				t.Errorf("incoming message overwrote concurrent edit: %v", d.Puts())

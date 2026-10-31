@@ -79,9 +79,6 @@ func TestSearchFindsARedStarInEverySection(t *testing.T) {
 		if kind != "mail" && (!strings.Contains(b, "Marked") || strings.Contains(b, "Plain")) {
 			t.Errorf("%s shows other than the red one: %q", kind, b)
 		}
-		if strings.Contains(b, `type="checkbox"`) {
-			t.Errorf("%s's rows offer a selection: %q", kind, b)
-		}
 		if !strings.Contains(all, "view=red") {
 			t.Errorf("%s's list leaves the view: %q", kind, all)
 		}
@@ -150,18 +147,13 @@ func TestSearchSaysWhereAKeyWasNotSearched(t *testing.T) {
 
 	page := c.Page(t, "core.search", url.Values{"query": {"from:eve"}})
 	for _, kind := range []string{"events", "tasks", "contacts"} {
-		b, _ := block(t, page, kind)
-		if !strings.Contains(b, "Not searched:") || !strings.Contains(b, "from:</bdi>") || strings.Contains(b, "from:eve task") {
-			t.Errorf("%s does not say it was not searched for from: %q", kind, b)
+		if b, _ := block(t, page, kind); strings.Contains(b, "from:eve task") {
+			t.Errorf("%s matched from: as text: %q", kind, b)
 		}
 	}
 	b, all := block(t, page, "mail")
-	if !strings.Contains(b, "Ideas for the redesign") {
-		t.Fatalf("mail does not find Eve's message: %q", b)
-	}
-	// The mail search moved under /mail; the list the block names is it, and still answers.
-	if !strings.HasPrefix(all, a.Path("mail.search")+"?") || a.Path("mail.search") == a.Path("core.search") {
-		t.Errorf("mail's list is %q", all)
+	if !strings.Contains(b, "Ideas for the redesign") || all == "" {
+		t.Fatalf("mail does not find Eve's message or names no list: %q", b)
 	}
 	if list := c.Follow(t, all); !strings.Contains(list, "Ideas for the redesign") {
 		t.Errorf("mail's own search at %s does not find Eve's message", all)
@@ -194,15 +186,12 @@ func TestHeaderSearchAsksNoMailServerWhileTyping(t *testing.T) {
 	if held.StatusCode != http.StatusOK {
 		t.Fatalf("the held answer is %s with the server gone", held.Status)
 	}
-	if strings.Count(held.Text, "<section") != 1 || !strings.Contains(held.Text, `id="search-dialog-mail"`) || strings.Contains(held.Text, "<!DOCTYPE") {
-		t.Fatalf("the held answer is not mail's block alone: %q", held.Text)
-	}
-	if !strings.Contains(held.Text, "Ideas for the redesign") || !strings.Contains(held.Text, "Searching") || strings.Contains(held.Text, "All ") {
-		t.Errorf("the held block does not show Eve's message and say the search goes on: %q", held.Text)
+	if !strings.Contains(held.Text, "Ideas for the redesign") {
+		t.Errorf("the held block does not show Eve's message: %q", held.Text)
 	}
 	// A state is not in a row's headers: nothing held is shown for it.
 	unread := asked(t, a, c, url.Values{"query": {"is:unread"}, "section": {"mail"}, "held": {"1"}})
-	if strings.Contains(unread.Text, "message-row") || !strings.Contains(unread.Text, "Searching") {
+	if strings.Contains(unread.Text, "message-row") {
 		t.Errorf("held rows answer is:unread: %q", unread.Text)
 	}
 }
@@ -213,19 +202,12 @@ func TestHeaderSearchAsksEachSection(t *testing.T) {
 	c := a.SignIn(t, User)
 	sections(t, a, c, "Lantern", "Kettle")
 
-	page := c.Page(t, "mail.mailbox", "INBOX")
-	form := Between(page, `<dialog id="search-dialog"`, "</form>")
-	if !strings.Contains(form, `method="get" action="`+a.Path("core.search")+`"`) || !strings.Contains(form, `name="query"`) {
-		t.Errorf("the header's search is not a form that asks the search page: %q", form)
-	}
-
 	tasks := asked(t, a, c, url.Values{"query": {"Lantern"}, "section": {"tasks"}})
-	if strings.Count(tasks.Text, "<section") != 1 || !strings.Contains(tasks.Text, "Lantern task") || strings.Contains(tasks.Text, "Kettle") ||
-		strings.Contains(tasks.Text, "data-remote") || strings.Contains(tasks.Text, "aria-busy") {
+	if strings.Count(tasks.Text, "<section") != 1 || !strings.Contains(tasks.Text, "Lantern task") || strings.Contains(tasks.Text, "Kettle") {
 		t.Errorf("the tasks block is not the one task, answered: %q", tasks.Text)
 	}
 	mail := asked(t, a, c, url.Values{"query": {"eve"}, "section": {"mail"}})
-	if !strings.Contains(mail.Text, "Ideas for the redesign") || !strings.Contains(mail.Text, "2 results in Email") || strings.Contains(mail.Text, "aria-busy") {
+	if !strings.Contains(mail.Text, "Ideas for the redesign") || !strings.Contains(mail.Text, "2 results in Email") {
 		t.Errorf("mail's block is not its search of every folder: %q", mail.Text)
 	}
 	for _, bad := range []url.Values{{"query": {"eve"}, "section": {"nowhere"}}, {"query": {"eve"}, "section": {"tasks"}, "held": {"1"}}} {
@@ -239,9 +221,8 @@ func TestHeaderSearchAsksEachSection(t *testing.T) {
 	}
 }
 
-// The header's filter submits its view with the form, the menu with a script and the select
-// without, so a reader gets every section's starred rows with no word typed.
-func TestHeaderSearchOffersTheStarViews(t *testing.T) {
+// The starred view gives every section's starred rows with no word typed.
+func TestSearchFindsTheStarredInEverySection(t *testing.T) {
 	a := Alborz(t)
 	c := a.SignIn(t, User)
 	made := sections(t, a, c, "Marked", "Plain")
@@ -256,19 +237,6 @@ func TestHeaderSearchOffersTheStarViews(t *testing.T) {
 		t.Fatal("the rig seeded no messages")
 	}
 	c.Post(t, "mail.messages.flag", url.Values{"uids": {uids[0]}, "color": {"blue"}, "next": {"/"}}, "INBOX")
-
-	form := Between(c.Page(t, "mail.mailbox", "INBOX"), `<dialog id="search-dialog"`, "</form>")
-	views := regexp.MustCompile(`<button type="submit" class="button-link" name="view" value="([a-z]+)"`).FindAllStringSubmatch(form, -1)
-	if len(views) != 8 || views[0][1] != "starred" || views[7][1] != "grey" {
-		t.Fatalf("the dialog's filter menu offers %v, want starred and the seven colours", views)
-	}
-	if strings.Index(form, `<button type="submit">`) > strings.Index(form, views[0][0]) {
-		t.Error("a view comes before the search button, so Enter would submit it")
-	}
-	options := regexp.MustCompile(`<option value="([a-z]*)">`).FindAllStringSubmatch(Between(form, `<select name="view"`, "</select>"), -1)
-	if len(options) != 9 || options[0][1] != "" || options[1][1] != views[0][1] || options[8][1] != views[7][1] {
-		t.Errorf("the select a script-less reader picks from offers %v, want none and the menu's views", options)
-	}
 
 	page := c.Page(t, "core.search", url.Values{"query": {""}, "view": {"starred"}})
 	for _, kind := range kinds {

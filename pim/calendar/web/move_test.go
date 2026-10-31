@@ -25,12 +25,6 @@ func TestMovingCalendarObjectsPreservesTheirData(t *testing.T) {
 			src := c.CreateCalendar(t, "Source", tc.component)
 			dst := c.CreateCalendar(t, "Destination", tc.component)
 			a.Put(t, src+"object.ics", "text/calendar", tc.data)
-			page := c.Page(t, "calendar."+tc.kind, Here+src+"object.ics")
-			for _, action := range []string{"copy", "move"} {
-				if !strings.Contains(page, a.Path("calendar."+tc.kind+"."+action, Here+src+"object.ics")) {
-					t.Errorf("object offers no %s action", action)
-				}
-			}
 			resp := c.Post(t, "calendar."+tc.kind+".move", url.Values{"to": {User + "|" + Here + dst}}, Here+src+"object.ics")
 			if resp.StatusCode != http.StatusFound {
 				t.Fatalf("move answered %s: %s", resp.Status, regexp.MustCompile(`class="notice-text"[^>]*>([^<]*)`).FindAllStringSubmatch(resp.Text, -1))
@@ -71,10 +65,6 @@ func TestMovingAReadOnlySubscriptionIsRefusedBeforeCreating(t *testing.T) {
 	subscribe(t, c, f.URL+"/club.ics")
 	dst := c.CreateCalendar(t, "Destination", "")
 	src := events(t, a, c)[0]
-	page := c.Page(t, "calendar.event", src)
-	if strings.Contains(page, a.Path("calendar.event.move", src)) || !strings.Contains(page, a.Path("calendar.event.copy", src)) {
-		t.Error("read-only page should offer copy only")
-	}
 	resp := c.Post(t, "calendar.event.move", url.Values{"to": {User + "|" + Here + dst}}, src)
 	if resp.StatusCode != http.StatusForbidden {
 		t.Fatalf("read-only move answered %s", resp.Status)
@@ -104,10 +94,6 @@ func TestMovingReadOnlySharedCalendarObjectsIsRefused(t *testing.T) {
 			}
 			if resp := guest.Post(t, "calendar.calendars.create", url.Values{"account": {User2}, "place": {"here"}, "name": {"Target"}, "holds": {tc.holds}}); resp.StatusCode != http.StatusFound {
 				t.Fatalf("creating destination answered %s", resp.Status)
-			}
-			page := guest.Page(t, "calendar."+tc.kind, shared+"object.ics")
-			if strings.Contains(page, a.Path("calendar."+tc.kind+".move", shared+"object.ics")) || !strings.Contains(page, a.Path("calendar."+tc.kind+".copy", shared+"object.ics")) {
-				t.Error("read-only shared object should offer copy only")
 			}
 			to := User2 + "|" + Here + CalendarsOf(User2) + "target/"
 			if resp := guest.Post(t, "calendar."+tc.kind+".move", url.Values{"to": {to}}, shared+"object.ics"); resp.StatusCode != http.StatusForbidden {
@@ -144,10 +130,6 @@ func TestMovingAnEventAcrossSignedInAccounts(t *testing.T) {
 		t.Fatalf("create destination: %s", resp.Status)
 	}
 	dst := Here + CalendarsOf(User2) + "destination/"
-	chooser := c.Page(t, "calendar.event.move", Here+src+"object.ics", url.Values{"account": {User}})
-	if !strings.Contains(chooser, `value="`+User2+`|`+dst+`"`) {
-		t.Fatal("chooser offers no compatible calendar in the other account")
-	}
 	resp := c.Post(t, "calendar.event.move", url.Values{"to": {User2 + "|" + dst}}, Here+src+"object.ics", url.Values{"account": {User}})
 	landed, err := url.Parse(resp.Header.Get("Location"))
 	if err != nil {

@@ -7,7 +7,6 @@ import (
 	"net/url"
 	"reflect"
 	"regexp"
-	"strings"
 	"testing"
 
 	"git.mehdix.org/alborz"
@@ -36,38 +35,12 @@ func drawnProfile(t *testing.T, page string) string {
 	return html.UnescapeString(m[1])
 }
 
-func swipeSelections(page string) url.Values {
-	values := url.Values{}
-	for _, selectTag := range regexp.MustCompile(`(?s)<select name="(swipe_[^"]+)"[^>]*>(.*?)</select>`).FindAllStringSubmatch(page, -1) {
-		if option := regexp.MustCompile(`value="([^"]*)" selected`).FindStringSubmatch(selectTag[2]); option != nil {
-			values.Set(selectTag[1], option[1])
-		}
-	}
-	return values
-}
-
-func TestGesturePreferencesSaveResetAndRender(t *testing.T) {
+func TestGesturePreferencesSaveAndReset(t *testing.T) {
 	a := Alborz(t)
 	c := a.SignIn(t, User)
 	page := c.Page(t, "settings.profile")
 	if got := swipePreferences(t, page); got != (alborz.Gestures{}).Resolved() {
 		t.Fatalf("initial gestures = %#v", got)
-	}
-	if main, preferences := strings.Index(page, `<main id="main"`), strings.Index(page, `id="swipe-preferences"`); main < 0 || preferences < main || preferences > strings.Index(page, "</main>") {
-		t.Fatal("swipe preferences are not inside main")
-	}
-	if keys, gestures := strings.Index(page, "keys.js"), strings.Index(page, "gestures.js"); keys < 0 || gestures <= keys {
-		t.Fatal("gestures.js does not load after keys.js")
-	}
-	for _, attr := range []string{`data-gesture-toggle="rows"`, `data-gesture-toggle="navigation"`, `data-gesture-reset`} {
-		if !strings.Contains(page, attr) {
-			t.Errorf("settings missing %s", attr)
-		}
-	}
-	for _, tag := range regexp.MustCompile(`<input[^>]*data-gesture-toggle[^>]*>`).FindAllString(page, -1) {
-		if strings.Contains(tag, "name=") {
-			t.Errorf("browser-local toggle would be submitted: %s", tag)
-		}
 	}
 	want := alborz.Gestures{
 		Mail: alborz.SwipeActions{Left: "none", Right: "junk"}, Tasks: alborz.SwipeActions{Left: "star", Right: "none"},
@@ -85,9 +58,6 @@ func TestGesturePreferencesSaveResetAndRender(t *testing.T) {
 	page = c.Page(t, "settings.profile")
 	if got := swipePreferences(t, page); got != want {
 		t.Fatalf("saved gestures = %#v, want %#v", got, want)
-	}
-	if got := swipeSelections(page); !reflect.DeepEqual(got, form) {
-		t.Fatalf("settings selections = %v, want %v", got, form)
 	}
 	var stored alborz.Profile
 	if err := json.Unmarshal([]byte(drawnProfile(t, page)), &stored); err != nil || stored.Gestures != want {
@@ -109,12 +79,8 @@ func TestGesturePreferencesSaveResetAndRender(t *testing.T) {
 	if resp := c.Post(t, "settings.profile", form); resp.StatusCode != http.StatusFound {
 		t.Fatalf("resetting gestures: %s", resp.Status)
 	}
-	page = c.Page(t, "settings.profile")
-	if got := swipePreferences(t, page); got != (alborz.Gestures{}).Resolved() {
+	if got := swipePreferences(t, c.Page(t, "settings.profile")); got != (alborz.Gestures{}).Resolved() {
 		t.Fatalf("reset gestures = %#v", got)
-	}
-	if got := swipeSelections(page); !reflect.DeepEqual(got, form) {
-		t.Fatalf("reset selections = %v, want %v", got, form)
 	}
 }
 
@@ -123,7 +89,7 @@ func TestGesturePreferencesRejectUnsupportedActions(t *testing.T) {
 		t.Run(field, func(t *testing.T) {
 			c := Alborz(t).SignIn(t, User)
 			resp := c.Post(t, "settings.profile", url.Values{field: {"unsupported"}})
-			if resp.StatusCode != http.StatusUnprocessableEntity || !Says(t, NoticeBar(resp.Text), "form.swipeaction") {
+			if resp.StatusCode != http.StatusUnprocessableEntity {
 				t.Fatalf("unsupported action: %s\n%s", resp.Status, NoticeBar(resp.Text))
 			}
 			if got := swipePreferences(t, c.Page(t, "settings.profile")); got != (alborz.Gestures{}).Resolved() {

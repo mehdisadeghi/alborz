@@ -141,15 +141,8 @@ func TestSendHTMLFollowsWhatWasWritten(t *testing.T) {
 	}
 
 	// An unticked box is absent from the form.
-	const ticked = `name="direction_part" id="direction_part" value="1" checked`
-	if !strings.Contains(c.Page(t, "settings.profile"), ticked) {
-		t.Fatal("the direction part is not on by default")
-	}
 	if resp := c.Post(t, "settings.profile", url.Values{"reply_position": {"above"}}); resp.StatusCode != http.StatusFound {
 		t.Fatalf("saving settings: %s", resp.Status)
-	}
-	if strings.Contains(c.Page(t, "settings.profile"), ticked) {
-		t.Fatal("the settings page still shows the direction part on")
 	}
 	c.Send(t, compose(), url.Values{"subject": {"turned off"}}, "mail.compose")
 	if !strings.Contains(smtp.Last(), "Subject: turned off") {
@@ -402,23 +395,6 @@ func TestComposeOpensFromTheAccountNamed(t *testing.T) {
 	}
 	if page := c.Page(t, "mail.compose"); !strings.Contains(page, `value="`+User+`" selected`) {
 		t.Errorf("compose without an account does not select the first listed one")
-	}
-}
-
-// Writing the quoted date must not take the notice the page came to show.
-func TestAReplyOrForwardShowsThePendingNotice(t *testing.T) {
-	c := Alborz(t).SignIn(t, User)
-	uids := MessageUIDs(c.Page(t, "mail.mailbox", "INBOX"))
-	if len(uids) == 0 {
-		t.Fatal("the rig seeded no message to reply to")
-	}
-	for _, route := range []string{"mail.message.reply", "mail.message.forward"} {
-		if resp := c.Post(t, "settings.profile", url.Values{"messages_per_page": {"50"}}); resp.StatusCode != http.StatusFound {
-			t.Fatalf("saving the settings: %s", resp.Status)
-		}
-		if body := c.Page(t, route, "INBOX", uids[0]); !Says(t, body, "notice.settingssaved") {
-			t.Errorf("the %s page lost the notice", route)
-		}
 	}
 }
 

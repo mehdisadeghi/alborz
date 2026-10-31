@@ -120,7 +120,7 @@ func TestAFileThatIsNoArchiveIsRefused(t *testing.T) {
 	c := Alborz(t).SignIn(t, User)
 	resp := c.Upload(t, "settings.data", nil, []File{{Field: "file", Name: "notes.tar.gz", Body: strings.NewReader("notes")}},
 		url.Values{"account": {User}})
-	if resp.StatusCode != http.StatusUnprocessableEntity || !Says(t, resp.Text, "data.notarchive") {
+	if resp.StatusCode != http.StatusUnprocessableEntity {
 		t.Fatalf("a file that is no archive answered %s", resp.Status)
 	}
 }

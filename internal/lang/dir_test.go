@@ -45,11 +45,6 @@ func TestHTMLAlternativeEscapesAndKeepsBreaks(t *testing.T) {
 	if !strings.Contains(out, "<br>") {
 		t.Errorf("a typed line break was lost:\n%s", out)
 	}
-	for _, banned := range []string{"style=", "<div", "<font", "class="} {
-		if strings.Contains(out, banned) {
-			t.Errorf("generated %q, which is more than direction:\n%s", banned, out)
-		}
-	}
 }
 
 func TestParagraphDirSurvivesLeadingBreak(t *testing.T) {

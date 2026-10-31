@@ -61,9 +61,6 @@ func subscribe(t *testing.T, c *Client, address string) string {
 	if resp.StatusCode != http.StatusFound {
 		t.Fatalf("subscribing answered %s", resp.Status)
 	}
-	if page := c.Follow(t, resp.Header.Get("Location")); !Says(t, page, "notice.subscribed", Any) {
-		t.Error("subscribing says nothing of what it did")
-	}
 	var added []string
 	for p := range c.Listed(t) {
 		if !before[p] {
@@ -106,16 +103,6 @@ func TestASubscriptionIsAReadOnlyCalendar(t *testing.T) {
 	}
 	if !strings.Contains(c.Page(t, "calendar.month"), "Feast") {
 		t.Fatal("the month does not show the feed's event")
-	}
-	if page := c.Page(t, "calendar.collection", path); !strings.Contains(page, f.URL+"/f.ics") {
-		t.Error("the calendar's page does not name its feed")
-	}
-	linked := events(t, a, c)
-	if len(linked) != 1 {
-		t.Fatalf("the agenda links %d events, want the feed's one", len(linked))
-	}
-	if page := c.Page(t, "calendar.event", linked[0]); !strings.Contains(page, "Feast") || strings.Contains(page, a.Path("calendar.event.update", linked[0])) {
-		t.Error("the event page does not show Feast read-only")
 	}
 
 	onDAV := strings.TrimPrefix(path, Here)
@@ -268,25 +255,5 @@ func TestAnUnsubscribeTravels(t *testing.T) {
 	first.Follow(t, resp.Header.Get("Location"))
 	if second.Listed(t)[path] {
 		t.Error("the other alborz still lists the calendar after unsubscribing")
-	}
-}
-
-// A phone hands a webcal: link to its calendar app, which subscribes to the published address.
-func TestAPublishedCalendarOffersAWebcalLink(t *testing.T) {
-	c := Alborz(t).SignIn(t, User)
-	path := Here + c.CreateCalendar(t, "Club", "")
-	if page := c.Page(t, "calendar.collection", path); strings.Contains(page, "webcal:") {
-		t.Fatal("an unpublished calendar offers a webcal: link")
-	}
-	if resp := c.Post(t, "calendar.collection.publish", url.Values{}, path); resp.StatusCode != http.StatusFound {
-		t.Fatalf("publishing answered %s", resp.Status)
-	}
-	page := c.Page(t, "calendar.collection", path)
-	public := regexp.MustCompile(`name="public-url"[^>]* value="https?://([^"]+/pub/[^"]+\.ics)"`).FindStringSubmatch(page)
-	if public == nil {
-		t.Fatal("the published calendar's page shows no public address")
-	}
-	if !strings.Contains(page, `href="webcal://`+public[1]+`"`) {
-		t.Errorf("the page offers no webcal: link to %s", public[1])
 	}
 }

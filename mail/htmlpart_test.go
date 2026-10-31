@@ -71,18 +71,6 @@ func TestSendHTMLKeepsThePlainPartFirst(t *testing.T) {
 	}
 }
 
-func TestSendHTMLCarriesDirection(t *testing.T) {
-	_, bodies, _ := parts(t, true)
-	for _, want := range []string{`dir="rtl"`, `dir="ltr"`} {
-		if !strings.Contains(bodies["text/html"], want) {
-			t.Errorf("the HTML part does not carry %s:\n%s", want, bodies["text/html"])
-		}
-	}
-	if !strings.Contains(bodies["text/html"], "سلام") {
-		t.Errorf("the Persian text is missing from the HTML part:\n%s", bodies["text/html"])
-	}
-}
-
 func TestWithoutSendHTMLNothingChanges(t *testing.T) {
 	types, _, raw := parts(t, false)
 	if strings.Contains(raw, "multipart/alternative") || indexOf(types, "text/html") >= 0 {

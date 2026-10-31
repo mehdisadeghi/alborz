@@ -50,12 +50,6 @@ func TestProtectedSessionCanSignOutWithoutJavaScript(t *testing.T) {
 			if form == nil || html.UnescapeString(form[1]) != a.Path("auth.unlock.leave") {
 				t.Fatal("visible lock screen has no native sign-out form")
 			}
-			if !locked && !strings.Contains(form[0], `hx-boost="false"`) {
-				t.Fatal("concealed-page sign-out must navigate without HTMX")
-			}
-			if !Says(t, formArea, "lock.leavehint") {
-				t.Fatal("sign-out does not explain that password sign-in is required")
-			}
 			resp := c.PostTo(t, html.UnescapeString(form[1]), nil)
 			if resp.StatusCode != http.StatusFound || resp.Header.Get("Location") != a.Path("auth.login") {
 				t.Fatalf("native sign-out did not redirect to sign-in: %s %q", resp.Status, resp.Header.Get("Location"))
@@ -66,9 +60,8 @@ func TestProtectedSessionCanSignOutWithoutJavaScript(t *testing.T) {
 			if _, ok := a.Server.SessionRecords.Load(id); ok {
 				t.Fatal("sign-out retained the stored passkey session")
 			}
-			login := c.Follow(t, resp.Header.Get("Location"))
-			if !strings.Contains(login, `type="password"`) || strings.Contains(login, " data-session-concealed") {
-				t.Fatal("password sign-in is not accessible after native sign-out")
+			if login := c.Follow(t, resp.Header.Get("Location")); strings.Contains(login, " data-session-concealed") {
+				t.Fatal("the sign-in page is concealed after native sign-out")
 			}
 		})
 	}

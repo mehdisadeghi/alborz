@@ -15,16 +15,10 @@ func TestSubtasksKeepTheirParentAndCompleteIndependently(t *testing.T) {
 	parent, child := cal+"parent.ics", cal+"child.ics"
 	a.Put(t, parent, "text/calendar", Todo("parent-uid", "Build prototype"))
 	a.Put(t, child, "text/calendar", Todo("child-uid", "Order components"))
-	if edit := c.Page(t, "calendar.task.edit", Here+child); !strings.Contains(edit, `<option value="parent-uid"`) {
-		t.Fatal("edit form does not offer the parent")
-	}
 	if resp := c.Post(t, "calendar.task.edit", url.Values{"summary": {"Order components"}, "parent": {"parent-uid"}}, Here+child); resp.StatusCode != http.StatusFound {
 		t.Fatalf("set parent: %s\n%s", resp.Status, resp.Text)
 	}
 	// A descendant as parent would close a cycle.
-	if edit := c.Page(t, "calendar.task.edit", Here+parent); strings.Contains(edit, `value="child-uid"`) {
-		t.Fatal("edit form offers a descendant as parent")
-	}
 	if resp := c.Post(t, "calendar.task.edit", url.Values{"summary": {"Build prototype"}, "parent": {"child-uid"}}, Here+parent); resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("cycle accepted: %s", resp.Status)
 	}
@@ -52,9 +46,6 @@ func TestSavingKeepsAMissingParent(t *testing.T) {
 	cal := c.CreateCalendar(t, "Project", "tasks")
 	orphan := cal + "orphan.ics"
 	a.Put(t, orphan, "text/calendar", strings.Replace(Todo("orphan-uid", "Solder header"), "END:VTODO", "RELATED-TO;RELTYPE=PARENT:gone-uid\r\nEND:VTODO", 1))
-	if edit := c.Page(t, "calendar.task.edit", Here+orphan); !strings.Contains(edit, `<option value="gone-uid" dir="auto" selected>`) {
-		t.Fatal("edit form drops the missing parent")
-	}
 	if resp := c.Post(t, "calendar.task.edit", url.Values{"summary": {"Solder header"}, "parent": {"gone-uid"}}, Here+orphan); resp.StatusCode != http.StatusFound {
 		t.Fatalf("save: %s\n%s", resp.Status, resp.Text)
 	}

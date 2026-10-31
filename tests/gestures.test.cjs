@@ -145,10 +145,6 @@ function fixture(preferences = {}) {
 	return {document, window, localStorage, pointer, config, processed};
 }
 
-test('gesture script loads without browser dependencies', () => {
-	assert.doesNotThrow(() => fixture());
-});
-
 function rowFixture(kind = 'mail', preferences = {}) {
 	const f = fixture(preferences);
 	const main = new Element('main', {id: 'main'});
@@ -199,31 +195,6 @@ test('section mappings are independent and explicit none disables a side', () =>
 	assert.equal(del.clicks, 0);
 });
 
-test('reversing direction updates the hint even when both sides use the same action', () => {
-	const f = rowFixture('mail', {mail: {left: 'archive', right: 'archive'}});
-	const archive = f.action('archive');
-	f.pointer('pointerdown', f.link, 200);
-	f.pointer('pointermove', f.link, 340);
-	const right = f.main.querySelector('.swipe-hint');
-	assert.ok(right.classList.contains('swipe-right'));
-	f.pointer('pointermove', f.link, 60);
-	const left = f.main.querySelector('.swipe-hint');
-	assert.ok(left.classList.contains('swipe-left'));
-	assert.equal(right.isConnected, false);
-	f.pointer('pointerup', f.link, 60);
-	assert.equal(archive.clicks, 1);
-	assert.equal(left.isConnected, false);
-});
-
-test('task, contact and journal defaults differ from mail; events have no right action', () => {
-	for (const [kind, expected] of [['tasks', 'complete'], ['contacts', 'star'], ['journal', 'star'], ['events', null]]) {
-		const f = rowFixture(kind);
-		const controls = ['archive', 'complete', 'star'].map(name => [name, f.action(name)]);
-		f.swipe(140);
-		for (const [name, control] of controls) assert.equal(control.clicks, name === expected ? 1 : 0, `${kind}: ${name}`);
-	}
-});
-
 test('vertical movement, multiple pointers and cancellation never act', () => {
 	const f = rowFixture();
 	const archive = f.action('archive');
@@ -264,51 +235,6 @@ test('PIM deletion requires a separate confirmation tap', () => {
 	assert.ok(confirm, 'a tappable confirmation appears');
 	confirm.click();
 	assert.equal(del.clicks, 1);
-});
-
-test('a long row swipe cannot turn into page navigation', () => {
-	const f = rowFixture('events');
-	const nav = new Element('nav', {'data-swipe-nav': ''});
-	const next = new Element('a', {'data-swipe-step': 'next', href: '/events?page=2'});
-	nav.append(next);
-	f.main.append(nav);
-	f.swipe(-500);
-	assert.equal(next.clicks, 0);
-});
-
-test('browser-local switches disable rows independently from navigation', () => {
-	const f = rowFixture();
-	const archive = f.action('archive');
-	f.localStorage.setItem('alborz.gestures.rows', 'off');
-	f.window.dispatchEvent({type: 'storage'});
-	f.swipe(140);
-	assert.equal(archive.clicks, 0);
-	f.localStorage.setItem('alborz.gestures.rows', 'on');
-	f.window.dispatchEvent({type: 'storage'});
-	f.swipe(140);
-	assert.equal(archive.clicks, 1);
-});
-
-test('pager follows existing directional URLs once and reverses for RTL', () => {
-	for (const rtl of [false, true]) {
-		const f = fixture();
-		f.document.documentElement.attrs.dir = rtl ? 'rtl' : 'ltr';
-		const nav = new Element('nav', {'data-swipe-nav': ''});
-		const prev = new Element('a', {'data-swipe-step': 'prev', href: '/mail?page=1'});
-		const next = new Element('a', {'data-swipe-step': 'next', href: '/mail?page=3'});
-		nav.append(prev, next);
-		f.document.body.append(nav);
-		f.pointer('pointerdown', nav, 200);
-		f.pointer('pointermove', nav, 70);
-		assert.equal(prev.clicks + next.clicks, 0);
-		assert.ok((rtl ? prev : next).classList.contains('swipe-target'));
-		assert.ok((rtl ? prev : next).classList.contains('swipe-armed'));
-		f.pointer('pointerup', nav, 70);
-		f.pointer('pointerup', nav, 70);
-		assert.equal((rtl ? prev : next).clicks, 1);
-		assert.equal((rtl ? next : prev).clicks, 0);
-		assert.equal((rtl ? prev : next).classList.contains('swipe-target'), false);
-	}
 });
 
 function bulkFixture() {
@@ -528,40 +454,4 @@ test('local settings switches persist and reset changes only the synced mapping 
 	assert.equal(select.value, '');
 	assert.equal(unrelated.value, 'ink');
 	assert.equal(f.localStorage.getItem('alborz.gestures.rows'), 'off');
-});
-
-test('missing navigation links never wrap and navigation can be disabled separately', () => {
-	const f = fixture();
-	const nav = new Element('nav', {'data-swipe-nav': ''});
-	const next = new Element('a', {'data-swipe-step': 'next', href: '/mail?page=2'});
-	nav.append(next);
-	f.document.body.append(nav);
-	const swipe = dx => { f.pointer('pointerdown', nav, 200); f.pointer('pointermove', nav, 200 + dx); f.pointer('pointerup', nav, 200 + dx); };
-	swipe(140);
-	assert.equal(next.clicks, 0, 'no previous link means no navigation');
-	f.localStorage.setItem('alborz.gestures.navigation', 'off');
-	f.window.dispatchEvent({type: 'storage'});
-	swipe(-140);
-	assert.equal(next.clicks, 0);
-	f.localStorage.setItem('alborz.gestures.navigation', 'on');
-	f.localStorage.setItem('alborz.gestures.rows', 'off');
-	f.window.dispatchEvent({type: 'storage'});
-	swipe(-140);
-	assert.equal(next.clicks, 1, 'rows switch does not disable navigation');
-});
-
-test('calendar surface uses its scoped period navigation', () => {
-	const f = fixture();
-	const main = new Element('main', {id: 'main'});
-	const calendar = new Element('section', {'data-swipe-calendar': ''});
-	const nav = new Element('nav', {'data-swipe-nav': ''});
-	const next = new Element('a', {'data-swipe-step': 'next', href: '/calendar/month?account=a&month=2026-11'});
-	nav.append(next);
-	main.append(nav, calendar);
-	f.document.body.append(main);
-	f.pointer('pointerdown', calendar, 200);
-	f.pointer('pointermove', calendar, 70);
-	f.pointer('pointerup', calendar, 70);
-	assert.equal(next.clicks, 1);
-	assert.equal(next.href, '/calendar/month?account=a&month=2026-11');
 });

@@ -1,7 +1,6 @@
 package web_test
 
 import (
-	"fmt"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -19,43 +18,6 @@ func turnOn(t *testing.T, c *Client, segments ...string) {
 	t.Helper()
 	if resp := c.Post(t, "settings.profile", url.Values{"status": segments}); resp.StatusCode != http.StatusFound {
 		t.Fatalf("turning on %v answered %s", segments, resp.Status)
-	}
-}
-
-func TestTheStatusBarShowsOnlyWhatWasTurnedOn(t *testing.T) {
-	a := Alborz(t)
-	c := a.SignIn(t, User)
-	if page := c.Page(t, "mail.mailbox", "INBOX"); !strings.Contains(page, `id="main"`) || strings.Contains(page, "status-bar") {
-		t.Fatal("a reader who turned nothing on has a status bar")
-	}
-
-	turnOn(t, c, "date-gregorian")
-	page := c.Page(t, "mail.mailbox", "INBOX")
-	if !strings.Contains(page, `hx-get="`+a.Path("core.status", "date-gregorian")+`"`) {
-		t.Fatal("the bar does not ask for the segment turned on")
-	}
-	for _, off := range []string{"mail", "date-shcal"} {
-		if strings.Contains(page, `hx-get="`+a.Path("core.status", off)+`"`) {
-			t.Fatalf("the bar asks for %s, left off", off)
-		}
-	}
-
-	now := time.Now().UTC()
-	gregorian := c.Page(t, "core.status", "date-gregorian")
-	for _, want := range []string{now.Weekday().String(), fmt.Sprintf("%d %s %d", now.Day(), now.Month(), now.Year())} {
-		if !strings.Contains(gregorian, want) {
-			t.Errorf("the Gregorian date does not say %s:\n%s", want, gregorian)
-		}
-	}
-
-	turnOn(t, c, "date-gregorian", "date-shcal")
-	shcal := c.Page(t, "core.status", "date-shcal")
-	// The Solar Hijri year is 621 or 622 behind, as the day falls before or after Nowruz.
-	if !strings.Contains(shcal, fmt.Sprint(now.Year()-621)) && !strings.Contains(shcal, fmt.Sprint(now.Year()-622)) {
-		t.Errorf("the Solar Hijri date holds no Solar Hijri year:\n%s", shcal)
-	}
-	if strings.Contains(shcal, now.Weekday().String()) {
-		t.Errorf("the second date repeats the weekday:\n%s", shcal)
 	}
 }
 

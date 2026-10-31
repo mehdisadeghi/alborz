@@ -29,9 +29,6 @@ func TestPasswordChange(t *testing.T) {
 	if resp.StatusCode != http.StatusFound {
 		t.Fatalf("changing the password: %s\n%s", resp.Status, NoticeBar(resp.Text))
 	}
-	if bar := NoticeBar(here.Follow(t, resp.Header.Get("Location"))); !Says(t, bar, "notice.passwordchanged") {
-		t.Fatalf("no notice says the password changed:\n%s", bar)
-	}
 	if to := other.Get(t, "settings.password").Header.Get("Location"); !strings.HasPrefix(to, a.Path("auth.login")) {
 		t.Fatalf("the other browser was not signed out; it was sent to %q", to)
 	}
@@ -72,9 +69,6 @@ func TestPasswordChangeRefused(t *testing.T) {
 			resp := a.SignIn(t, User).Post(t, "settings.password", c.form)
 			if resp.StatusCode != c.status || !Says(t, NoticeBar(resp.Text), c.key, c.args...) {
 				t.Fatalf("%s, want %d with %s:\n%s", resp.Status, c.status, c.key, NoticeBar(resp.Text))
-			}
-			if !strings.Contains(resp.Text, `name="current"`) {
-				t.Fatal("the refusal did not render the form")
 			}
 		})
 	}

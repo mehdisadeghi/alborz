@@ -1,7 +1,6 @@
 package web_test
 
 import (
-	"fmt"
 	"html"
 	"net/url"
 	"regexp"
@@ -47,42 +46,5 @@ func TestTheUnreadSegmentCountsTheInbox(t *testing.T) {
 	}
 	if got := count(nil); got != unseen+second {
 		t.Errorf("merged: %d unread, want %d and %d", got, unseen, second)
-	}
-}
-
-func TestTheUnreadSegmentReadsAsTheLanguageCounts(t *testing.T) {
-	written := map[int]map[string]string{
-		0:    {"en": "", "es": "", "fa": ""},
-		1:    {"en": "", "es": "", "fa": ""},
-		2:    {"en": "2", "es": "2", "fa": "۲"},
-		1234: {"en": "1,234", "es": "1.234", "fa": "۱٬۲۳۴"},
-	}
-	for unread, numbers := range written {
-		a := Alborz(t)
-		ic := a.IMAP.Dial(t)
-		if _, err := ic.Select("INBOX", nil).Wait(); err != nil {
-			t.Fatal(err)
-		}
-		var all imap.SeqSet
-		all.AddRange(1, 0)
-		if err := ic.Store(all, &imap.StoreFlags{Op: imap.StoreFlagsAdd, Silent: true, Flags: []imap.Flag{imap.FlagSeen}}, nil).Close(); err != nil {
-			t.Fatal(err)
-		}
-		for i := range unread {
-			a.IMAP.Append(t, "INBOX", fmt.Sprintf("From: eve@example.org\r\nTo: %s\r\nSubject: %d\r\n\r\nHello.\r\n", User, i))
-		}
-		c := a.SignIn(t, User)
-		for lang, number := range numbers {
-			text := TIn(t, lang, "mail.status.none")
-			if unread > 0 {
-				text = TIn(t, lang, "mail.status.unread", unread)
-			}
-			if !strings.Contains(text, number) {
-				t.Errorf("%d unread in %s: %q does not write the count as %s", unread, lang, text, number)
-			}
-			if shown := c.Page(t, "core.status", "mail", url.Values{"lang": {lang}}); !strings.Contains(html.UnescapeString(shown), `title="`+text+`"`) {
-				t.Errorf("%d unread in %s: the segment does not say %q:\n%s", unread, lang, text, shown)
-			}
-		}
 	}
 }

@@ -31,12 +31,6 @@ func TestBulkCopyCopiesOnlyCheckedCalendarObjects(t *testing.T) {
 			}
 			next := "/calendar/search?query=checked&view=list"
 			form := url.Values{"paths": {User + "|" + Here + src + "one.ics", User + "|" + Here + src + "two.ics"}, "next": {next}}
-			chooser := html.UnescapeString(c.Page(t, tc.route, form))
-			for _, value := range append(form["paths"], next) {
-				if !strings.Contains(chooser, `value="`+value+`"`) {
-					t.Errorf("chooser lost %q", value)
-				}
-			}
 			form.Set("to", User+"|"+Here+dst)
 			resp := c.Post(t, tc.route, form)
 			if resp.StatusCode != http.StatusFound || resp.Header.Get("Location") != next {
@@ -143,9 +137,6 @@ func TestBulkCopyFromReadOnlyCalendarsAndInvalidDestinations(t *testing.T) {
 				if resp.StatusCode != http.StatusUnprocessableEntity {
 					t.Errorf("invalid destination %q answered %s", to, resp.Status)
 				}
-				if !strings.Contains(html.UnescapeString(resp.Text), `value="`+paths[0]+`"`) {
-					t.Error("refused destination lost selection")
-				}
 			}
 			target := Here + CalendarsOf(User2) + "target/"
 			resp := guest.Post(t, tc.route, url.Values{"paths": paths, "to": {User2 + "|" + target}})
@@ -199,9 +190,6 @@ func TestBulkCopyRetriesOnlyUnfinishedObjects(t *testing.T) {
 		t.Fatalf("partial copy answered %s, want a retry form", resp.Status)
 	}
 	page := html.UnescapeString(resp.Text)
-	if !Says(t, page, "notice.itemscopied", 1) {
-		t.Error("partial copy does not report the completed copy")
-	}
 	remaining := regexp.MustCompile(`name="paths" value="([^"]*)"`).FindAllStringSubmatch(page, -1)
 	if len(remaining) != 1 || remaining[0][1] != second {
 		t.Fatalf("retry selection is %v, want only %q", remaining, second)

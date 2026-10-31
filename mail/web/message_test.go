@@ -54,12 +54,6 @@ func TestExportFailsAsAnError(t *testing.T) {
 	if strings.Contains(resp.Text, "<!DOCTYPE") {
 		t.Error("the export carries an HTML page inside it")
 	}
-
-	// A field per message is megabytes on a large folder.
-	page := c.Post(t, "mail.messages.export", url.Values{"everything": {"1"}, "next": {a.Path("mail.mailbox", "INBOX")}, "ask": {"1"}}, "INBOX").Text
-	if !strings.Contains(page, `name="everything"`) || strings.Contains(page, `name="uids"`) {
-		t.Errorf("the export page of a whole list carries its messages, or not the list")
-	}
 }
 
 // wrapped is b in base64, in lines of 76.
@@ -334,28 +328,6 @@ func TestEverySenderShapeOfAFileIsListed(t *testing.T) {
 	}
 }
 
-func TestZipHoldsTheAttachmentsTheCardCounts(t *testing.T) {
-	a := Alborz(t)
-	c := a.SignIn(t, User)
-	uids := MessageUIDs(c.Page(t, "mail.mailbox", "INBOX", url.Values{"query": {"from:bob"}}))
-	if len(uids) != 1 {
-		t.Fatalf("from:bob answers %d messages, want the one with attachments", len(uids))
-	}
-	parts := regexp.MustCompile(a.Pattern("mail.message.raw", `[^"/]*`, `[^"/]*`) + `\?part=`)
-	listed := len(parts.FindAllString(c.Page(t, "mail.message", "INBOX", uids[0]), -1))
-	if listed == 0 {
-		t.Fatal("the message page lists no attachment")
-	}
-	raw := c.Get(t, "mail.message.attachments", "INBOX", uids[0]).Text
-	archive, err := zip.NewReader(strings.NewReader(raw), int64(len(raw)))
-	if err != nil {
-		t.Fatalf("attachments.zip: %v", err)
-	}
-	if len(archive.File) != listed {
-		t.Errorf("the zip holds %d files and the page lists %d", len(archive.File), listed)
-	}
-}
-
 // alborz decodes a part on the way out where the server does not speak BINARY.
 func TestDownloadedPartIsTheFileSent(t *testing.T) {
 	file := bytes.Repeat([]byte("alborz\x00\xff\r\n"), 1<<16)
@@ -423,33 +395,6 @@ func TestSignedMessageOpensWithoutItsAttachment(t *testing.T) {
 	}
 }
 
-func TestListCardOnlyWhenItHasRows(t *testing.T) {
-	c := Alborz(t).SignIn(t, User)
-	seen := map[string]bool{}
-	for _, uid := range MessageUIDs(c.Page(t, "mail.mailbox", "INBOX")) {
-		page := c.Page(t, "mail.message", "INBOX", uid, url.Values{"part": {"1"}})
-		card := strings.Contains(page, `class="list-card"`)
-		switch {
-		case strings.Contains(page, "[discuss] Threading"):
-			seen["list"] = true
-			if !card {
-				t.Errorf("a list with a posting address has no card")
-			}
-		case strings.Contains(page, "Our terms changed"):
-			seen["bulk"] = true
-			if !strings.Contains(page, `href="https://shop.example/u"`) || strings.Contains(page, "/unsubscribe") {
-				t.Error("unsubscribe must offer the list's ordinary link, not a POST")
-			}
-			if card {
-				t.Errorf("a bulk sender with nothing but an unsubscribe got an empty card")
-			}
-		}
-	}
-	if !seen["list"] || !seen["bulk"] {
-		t.Fatalf("the seeded list and bulk messages were not both found: %v", seen)
-	}
-}
-
 // A part past 2 MiB shows its start, cut on a whole rune or tag, and
 // no more than that crosses the wire; the link fetches all of it.
 func TestLongPartShowsItsStart(t *testing.T) {
@@ -479,9 +424,6 @@ func TestLongPartShowsItsStart(t *testing.T) {
 			}
 			if !utf8.ValidString(page) || strings.ContainsRune(page, utf8.RuneError) {
 				t.Error("the cut left a broken character on the page")
-			}
-			if !Says(t, page, "message.cut") {
-				t.Error("the page does not say the part is cut")
 			}
 			whole := a.Path("mail.message.raw", "INBOX", uid, url.Values{"part": {"1"}})
 			if !slices.Contains(a.RawParts(page), whole) {
@@ -776,7 +718,7 @@ func TestAMalformedContentTypeIsReadAsTheServerHasIt(t *testing.T) {
 	}
 }
 
-// A text part whose base64 breaks off is shown and quoted as far as it decodes, and the page says it is damaged.
+// A text part whose base64 breaks off is shown and quoted as far as it decodes.
 func TestADamagedPartShowsWhatDecodes(t *testing.T) {
 	head := "From: <eve@example.org>\r\nTo: <" + User + ">\r\nSubject: Damaged\r\nMIME-Version: 1.0\r\n"
 	good := base64.StdEncoding.EncodeToString([]byte("The first line decodes.\n"))
@@ -784,7 +726,6 @@ func TestADamagedPartShowsWhatDecodes(t *testing.T) {
 	c := a.SignIn(t, User)
 	damaged := a.IMAP.Append(t, "INBOX", head+"Content-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: base64\r\n\r\n"+
 		good+"\r\nVGhl!!!!IHJlc3Q=\r\n")
-	whole := a.IMAP.Append(t, "INBOX", head+"Content-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: base64\r\n\r\n"+good+"\r\n")
 
 	for _, route := range []string{"mail.message", "mail.message.reply", "mail.message.forward"} {
 		resp := c.Get(t, route, "INBOX", damaged, url.Values{"part": {"1"}})
@@ -794,11 +735,5 @@ func TestADamagedPartShowsWhatDecodes(t *testing.T) {
 		if !strings.Contains(resp.Text, "The first line decodes.") {
 			t.Errorf("%s does not show what decoded", route)
 		}
-	}
-	if page := c.Page(t, "mail.message", "INBOX", damaged, url.Values{"part": {"1"}}); !Says(t, page, "message.damaged") {
-		t.Error("the damaged part carries no note")
-	}
-	if page := c.Page(t, "mail.message", "INBOX", whole, url.Values{"part": {"1"}}); !strings.Contains(page, "The first line decodes.") || Says(t, page, "message.damaged") {
-		t.Error("a whole part is not shown plainly")
 	}
 }

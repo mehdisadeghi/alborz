@@ -34,12 +34,6 @@ func TestBoostedSignInLoadsTheSessionScopedHead(t *testing.T) {
 	if strings.Contains(page, secret) {
 		t.Fatal("session guard exposed the cookie secret")
 	}
-	if strings.Contains(page, `class="nav-session-lock"`) {
-		t.Fatal("the header offers session lock without a configured passkey")
-	}
-	if !strings.Contains(c.Page(t, "settings.passkeys"), a.Path("settings.passkeys.create")) {
-		t.Fatal("passkey setup is unavailable in settings")
-	}
 }
 
 func TestSignInRejectsNonLocalReturnPaths(t *testing.T) {

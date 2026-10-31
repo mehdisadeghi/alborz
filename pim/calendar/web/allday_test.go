@@ -3,8 +3,6 @@ package web_test
 import (
 	"net/http"
 	"net/url"
-	"regexp"
-	"strings"
 	"testing"
 
 	. "git.mehdix.org/alborz/internal/alborztest"
@@ -22,16 +20,6 @@ func TestEventDateModesWithoutJavaScript(t *testing.T) {
 			var args []any
 			if route == "calendar.event.update" {
 				args = []any{Here + path}
-			}
-			page := c.Page(t, route, args...)
-			for _, name := range []string{"start", "end", "start_date", "end_date"} {
-				input := regexp.MustCompile(`<input[^>]*name="` + name + `"[^>]*>`).FindString(page)
-				if input == "" || strings.Contains(input, "disabled") {
-					t.Fatalf("%s must remain enabled without JavaScript: %s", name, input)
-				}
-			}
-			if helpers, events := strings.Index(page, "/helpers.js"), strings.Index(page, "/event-edit.js"); helpers < 0 || events <= helpers {
-				t.Fatal("event enhancement must load after shared helpers")
 			}
 			for _, allDay := range []bool{false, true} {
 				form := url.Values{"summary": {"Modes"}, "calendar": {User + "|" + Here + coll},

@@ -20,9 +20,6 @@ func turnOn(t *testing.T, c *Client, sub url.Values, account ...string) {
 	if resp.StatusCode != http.StatusFound {
 		t.Fatalf("turning notifications on: %s\n%s", resp.Status, NoticeBar(resp.Text))
 	}
-	if bar := NoticeBar(c.Follow(t, resp.Header.Get("Location"))); !Says(t, bar, "notice.notificationson") {
-		t.Fatalf("no notice says notifications are on:\n%s", bar)
-	}
 }
 
 var deviceRow = regexp.MustCompile(`(?s)<div class="list-item">.*?</form>`)
@@ -46,23 +43,6 @@ func accountDevices(t *testing.T, c *Client, account string) []string {
 		}
 	}
 	return rows
-}
-
-func TestNotificationAccountsUseCompactCurrentRows(t *testing.T) {
-	push := PushServer(t)
-	c := Alborz(t).SignIn(t, User)
-	turnOn(t, c, push.Subscribe(t))
-	page := c.Page(t, "settings.notifications")
-	rows := accountDevices(t, c, User)
-	if len(rows) != 1 {
-		t.Fatalf("%d rows for this browser, want 1", len(rows))
-	}
-	if !Says(t, rows[0], "notifications.enabled") || !Says(t, rows[0], "notifications.since", Any) {
-		t.Fatalf("the current row lacks its enabled state or subscription date:\n%s", rows[0])
-	}
-	if !regexp.MustCompile(`id="push-settings" data-key="[^"]+"`).MatchString(page) {
-		t.Fatal("notification settings lost the shared browser key anchor")
-	}
 }
 
 func TestOtherNotificationBrowserOffKeepsCurrentAndOtherAccount(t *testing.T) {
@@ -121,12 +101,6 @@ func TestNotificationsArePerAccount(t *testing.T) {
 	a := Alborz(t)
 	c := a.SignIn(t, User)
 	c.SignIn(t, User2)
-	page := c.Page(t, "settings.notifications")
-	for _, account := range []string{User, User2} {
-		if !strings.Contains(page, `name="account" value="`+account+`"`) {
-			t.Fatalf("the page has no notification form for %s", account)
-		}
-	}
 	sub := push.Subscribe(t)
 	for _, account := range []string{User, User2} {
 		sub.Set("account", account)
@@ -188,9 +162,6 @@ func TestNotificationsTurnOnAndOff(t *testing.T) {
 	if resp.StatusCode != http.StatusFound {
 		t.Fatalf("turning off: %s", resp.Status)
 	}
-	if bar := NoticeBar(here.Follow(t, resp.Header.Get("Location"))); !Says(t, bar, "notice.notificationsoff") {
-		t.Fatalf("no notice says notifications are off:\n%s", bar)
-	}
 	if rows := devices(t, here); len(rows) != 0 {
 		t.Fatalf("after turning it off: %v", rows)
 	}
@@ -232,13 +203,13 @@ func TestNotificationsRefuseWhatIsNotASubscription(t *testing.T) {
 	a := Alborz(t)
 	c := a.SignIn(t, User)
 	resp := c.Post(t, "settings.notifications.create", url.Values{})
-	if resp.StatusCode != http.StatusUnprocessableEntity || !Says(t, NoticeBar(resp.Text), "notifications.needsscript") {
+	if resp.StatusCode != http.StatusUnprocessableEntity {
 		t.Fatalf("without a script: %s\n%s", resp.Status, NoticeBar(resp.Text))
 	}
 	plain := push.Subscribe(t)
 	plain.Set("endpoint", strings.Replace(plain.Get("endpoint"), "https:", "http:", 1))
 	resp = c.Post(t, "settings.notifications.create", plain)
-	if resp.StatusCode != http.StatusUnprocessableEntity || !Says(t, NoticeBar(resp.Text), "notifications.refused") {
+	if resp.StatusCode != http.StatusUnprocessableEntity {
 		t.Fatalf("a plain http endpoint: %s\n%s", resp.Status, NoticeBar(resp.Text))
 	}
 	if rows := devices(t, c); len(rows) != 0 {

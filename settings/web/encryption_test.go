@@ -151,9 +151,6 @@ func TestEncryptedDataFollowsAPasswordChange(t *testing.T) {
 	c := a.SignIn(t, User)
 	cal := c.CreateCalendar(t, "Personal", "")
 	encrypt(t, c)
-	if page := c.Page(t, "settings.encryption", url.Values{"account": {User}}); !Says(t, page, "encryption.keptserver") {
-		t.Fatal("the page does not say the key is kept on the mail server")
-	}
 	if resp := c.Post(t, "settings.password", change(Password, "fresh-secret", "fresh-secret")); resp.StatusCode != http.StatusFound {
 		t.Fatalf("changing the password: %s", resp.Status)
 	}

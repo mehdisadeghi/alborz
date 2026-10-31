@@ -35,6 +35,7 @@ func TestDeleteChecksBothConditionsAtomically(t *testing.T) {
 				{"stale match", `"stale"`, `"other"`, false, http.StatusPreconditionFailed},
 				{"weak match", `W/"held"`, `"other"`, false, http.StatusPreconditionFailed},
 				{"weak exclusion", `"held"`, `W/"held"`, false, http.StatusPreconditionFailed},
+				{"malformed exclusion", `"stale"`, `malformed`, false, http.StatusPreconditionFailed},
 				{"both pass", `"held"`, `"other"`, false, http.StatusNoContent},
 				{"match changed", `"held"`, `"other"`, true, http.StatusPreconditionFailed},
 				{"exclusion changed", `*`, `W/"changed"`, true, http.StatusPreconditionFailed},
@@ -78,6 +79,12 @@ func TestDeleteChecksBothConditionsAtomically(t *testing.T) {
 						if string(o.Data) != want {
 							t.Fatalf("object = %q, want %q", o.Data, want)
 						}
+						s.db.View(func(tx kv.Tx) error {
+							if string(tx.Get(s.uidKey(ref, "item"))) != "item" {
+								t.Error("rejected delete changed the UID index")
+							}
+							return nil
+						})
 					}
 				})
 			}

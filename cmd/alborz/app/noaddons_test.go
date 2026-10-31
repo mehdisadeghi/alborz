@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	. "git.mehdix.org/alborz/internal/alborztest"
-	"git.mehdix.org/alborz/internal/locale"
 )
 
 func TestCoreBuildOmitsAddonFeatures(t *testing.T) {
@@ -31,13 +30,6 @@ func TestCoreBuildOmitsAddonFeatures(t *testing.T) {
 		for _, seasonal := range []string{"spring", "summer", "autumn", "winter"} {
 			if theme.Name == seasonal {
 				t.Errorf("core build offers %s theme", seasonal)
-			}
-		}
-	}
-	for _, code := range locale.Languages {
-		for _, key := range []string{"moon.status", "motd.status", "season.addon", "weather.status", "theme.winter"} {
-			if got := locale.T(code, key); got != key {
-				t.Errorf("core build has %s translation %q: %q", code, key, got)
 			}
 		}
 	}

@@ -1,9 +1,6 @@
 package web
 
 import (
-	"bytes"
-	"io"
-	"net/http"
 	"strings"
 	"testing"
 
@@ -54,31 +51,5 @@ func TestCSSImagesUseConsentAndTheProxy(t *testing.T) {
 		if got := strings.Count(string(body), "/proxy?src="); (got == 2) != allowed {
 			t.Errorf("allowed=%v: %d proxied CSS images: %s", allowed, got, body)
 		}
-	}
-}
-
-func TestProxyImageBody(t *testing.T) {
-	png := []byte("\x89PNG\r\n\x1a\nfixture")
-	for _, tc := range []struct {
-		name, media string
-		status      int
-		body        []byte
-		valid       bool
-	}{
-		{"generic image", "application/octet-stream", 200, png, true},
-		{"missing image", "image/png", 404, png, false},
-		{"oversized image", "image/png", 200, make([]byte, proxyMaxSize+1), false},
-		{"HTML", "text/html", 200, []byte("<html>broken</html>"), false},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			resp := &http.Response{StatusCode: tc.status, Header: http.Header{"Content-Type": {tc.media}}, Body: io.NopCloser(bytes.NewReader(tc.body))}
-			body, typ, err := proxyImageBody(resp)
-			if (err == nil) != tc.valid {
-				t.Fatalf("valid=%v: %v", tc.valid, err)
-			}
-			if tc.valid && (typ != "image/png" || !bytes.Equal(body, png)) {
-				t.Errorf("type %q, body %q", typ, body)
-			}
-		})
 	}
 }

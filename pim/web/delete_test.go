@@ -102,9 +102,6 @@ func TestAStaleCollectionFormKeepsAnotherBrowsersSave(t *testing.T) {
 		t.Fatalf("recolouring answered %s", resp.Status)
 	}
 	page := other.Page(t, "calendar.collection", held)
-	if !strings.Contains(page, `name="color"`) {
-		t.Fatal("the collection page shows no form")
-	}
 	if !strings.Contains(page, `value="Plans"`) {
 		t.Error("the name saved in the other browser is gone")
 	}

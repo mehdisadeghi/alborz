@@ -334,7 +334,8 @@ func (p *Provider) Sources(ctx context.Context, login *alborz.Login) []Source {
 	var out []Source
 	if services, err := LoadServices(ctx, login.Store()); err == nil {
 		if own := p.Kind.Own(services); own != "" {
-			if u, err := url.Parse(own); err == nil {
+			// Named on another instance, it may be this alborz, which is here already.
+			if u, err := url.Parse(own); err == nil && !p.isHere(u) {
 				out = append(out, Source{ID: SourceOwn, URL: u, Origin: "servers.fromaccount", Named: true})
 			}
 		}

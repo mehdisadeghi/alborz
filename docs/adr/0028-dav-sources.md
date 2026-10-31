@@ -48,8 +48,8 @@ alone, and two servers can hold the same path.
 7. Every answer under `/alborz/dav/` carries `Alborz-Instance`, a
    random name kept in `alborz.meta`, shared by every process of one
    deployment.
-8. A mail-host or domain server whose answer carries this instance's
-   name is `here`, not another source. The domain's server is asked
+8. A mail-host, domain or account-named server whose answer carries
+   this instance's name is `here`, not another source. The domain's server is asked
    once, on first use, not at start.
 
 ### Use

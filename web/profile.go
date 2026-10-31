@@ -347,35 +347,46 @@ func selectedLabels[T any](g GlobalRenderData, offered []T, selected []string, n
 	return strings.Join(on, " · ")
 }
 
-// SettingsRail is the settings pages' rail: what this browser keeps, then each account's pages.
+// SettingsRail is the settings pages' rail: what this browser keeps, the lists merged over every account
+// under MergedRows, then each account's pages.
 func SettingsRail(ctx *Context) map[string][]RailRow {
 	path := ctx.Request().URL.Path
 	// Under no account: what this browser keeps.
 	rows := map[string][]RailRow{"": {
 		{Label: ctx.T("settings.general"), Href: ctx.Path("settings.profile"), Active: path == ctx.Path("settings.profile")},
 		{Label: ctx.T("passkeys.title"), Href: ctx.Path("settings.passkeys"), Active: strings.HasPrefix(path, ctx.Path("settings.passkeys"))},
-		{Label: ctx.T("notifications.title"), Href: ctx.Path("settings.notifications"), Active: path == ctx.Path("settings.notifications")},
 	}}
 	for _, s := range ctx.Server.Status {
 		if s.Page != "" {
 			rows[""] = append(rows[""], RailRow{Label: ctx.T(s.Name + ".status"), Href: ctx.Path(s.Page), Active: path == ctx.Path(s.Page)})
 		}
 	}
-	for _, account := range ctx.Accounts() {
-		scoped := ctx.Login != nil && account.Username == ctx.Login.Username()
-		q := AccountQuery(account.Username)
-		rows[account.Username] = []RailRow{
-			{Label: ctx.T("settings.account"), Href: ctx.Path("mail.account") + q, Active: scoped && path == ctx.Path("mail.account")},
-			{Label: ctx.T("settings.signatures"), Href: ctx.Path("mail.signatures") + q, Active: scoped && strings.HasPrefix(path, ctx.Path("mail.signatures"))},
-			{Label: ctx.T("settings.servers"), Href: ctx.Path("settings.servers") + q, Active: scoped && strings.HasPrefix(path, ctx.Path("settings.servers"))},
-			{Label: ctx.T("sessions.title"), Href: ctx.Path("settings.sessions") + q, Active: scoped && path == ctx.Path("settings.sessions")},
-			{Label: ctx.T("settings.password"), Href: ctx.Path("settings.password") + q, Active: scoped && path == ctx.Path("settings.password")},
-			{Label: ctx.T("settings.data"), Href: ctx.Path("settings.data") + q, Active: scoped && path == ctx.Path("settings.data")},
-			{Label: ctx.T("settings.encryption"), Href: ctx.Path("settings.encryption") + q, Active: scoped && path == ctx.Path("settings.encryption")},
+	lists := []struct{ label, route string }{
+		{"settings.signatures", "mail.signatures"}, {"settings.servers", "settings.servers"},
+		{"sessions.title", "settings.sessions"}, {"notifications.title", "settings.notifications"},
+	}
+	list := func(on bool, q string) []RailRow {
+		var out []RailRow
+		for _, l := range lists {
+			out = append(out, RailRow{Label: ctx.T(l.label), Href: ctx.Path(l.route) + q, Active: on && strings.HasPrefix(path, ctx.Path(l.route))})
 		}
+		return out
+	}
+	rows[MergedRows] = list(ctx.Unified, "")
+	for _, account := range ctx.Accounts() {
+		scoped := !ctx.Unified && ctx.Login != nil && account.Username == ctx.Login.Username()
+		q := AccountQuery(account.Username)
+		form := func(label, route string) RailRow {
+			return RailRow{Label: ctx.T(label), Href: ctx.Path(route) + q, Active: scoped && path == ctx.Path(route)}
+		}
+		rows[account.Username] = append(append([]RailRow{form("settings.account", "mail.account")}, list(scoped, q)...),
+			form("settings.password", "settings.password"), form("settings.data", "settings.data"), form("settings.encryption", "settings.encryption"))
 	}
 	return rows
 }
+
+// MergedRows keys a rail's rows under All accounts (settings, filters); no address is this.
+const MergedRows = "*"
 
 // KeepChanges sets on stored each field mine changed from base, and a list by the names added and taken
 // away, so a field the save did not change stays as another save left it.

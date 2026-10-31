@@ -9,24 +9,31 @@ import (
 // SessionsRenderData renders sessions.html.
 type SessionsRenderData struct {
 	web.PageData[map[string][]web.RailRow]
-	Signed []web.Signed
+	Signed []SignedRow
+}
+
+// SignedRow is a session as the list shows it, with the account signed in there.
+type SignedRow struct {
+	web.Signed
+	Account string
 }
 
 func handleSessions(ctx *web.Context) error {
-	account := ctx.Login.Username()
 	if ctx.Request().Method == http.MethodPost {
-		id := ctx.FormValue("session")
-		if err := ctx.Server.Sessions.SignOut(id, account); err != nil {
+		if err := ctx.Server.Sessions.SignOut(ctx.FormValue("session"), ctx.Login.Username()); err != nil {
 			return err
 		}
-		return ctx.NoticeRedirect(ctx.T("notice.signedout"), ctx.URL("settings.sessions"))
+		return ctx.NoticeRedirect(ctx.T("notice.signedout"), ctx.NextOr(ctx.URL("settings.sessions")))
 	}
-	signed, err := ctx.Server.Sessions.SignedIn(account, ctx.Session().ID)
-	if err != nil {
-		return err
+	data := &SessionsRenderData{PageData: *web.NewSettingsPageData(ctx, ctx.T("sessions.title"))}
+	for _, login := range ctx.InScope() {
+		signed, err := ctx.Server.Sessions.SignedIn(login.Username(), ctx.Session().ID)
+		if err != nil {
+			return err
+		}
+		for _, s := range signed {
+			data.Signed = append(data.Signed, SignedRow{Signed: s, Account: login.Username()})
+		}
 	}
-	return ctx.Render(http.StatusOK, "settings/sessions", &SessionsRenderData{
-		PageData: *web.NewSettingsPageData(ctx, ctx.T("sessions.title")),
-		Signed:   signed,
-	})
+	return ctx.Render(http.StatusOK, "settings/sessions", data)
 }

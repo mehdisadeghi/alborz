@@ -11,12 +11,11 @@
           <p class="hint">{{$.T "data.exporthint"}}</p>
           <p class="hint">{{$.T "data.plain"}}</p>
         </div>
-        {{ template "settings-submit" ($.T "data.download") }}
+        {{ template "form-actions" (dict "save" ($.T "data.download")) }}
       </form>
 
       <form method="post" enctype="multipart/form-data" hx-boost="false" action="{{url "settings.data"}}{{$aq}}">
         <h2>{{$.T "data.import"}}</h2>
-        {{ template "import-fields" (dict "g" $ "file" ($.T "data.importfile") "accept" ".tar.gz,.tgz,application/gzip" "hint" ($.T "data.importhint")) }}
-        {{ template "settings-submit" ($.T "data.importgo") }}
+        {{ template "import-fields" (dict "g" $ "file" ($.T "data.importfile") "accept" ".tar.gz,.tgz,application/gzip" "hint" ($.T "data.importhint") "go" ($.T "data.importgo")) }}
       </form>
 {{ end }}

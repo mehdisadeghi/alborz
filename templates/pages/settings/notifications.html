@@ -1,27 +1,25 @@
 
 {{ define "main" }}
+  {{ $here := .GlobalData.URL.RequestURI }}
       {{ template "settings-head" (dict "g" $ "title" ($.T "notifications.title") "path" (url "settings.notifications")) }}
-      <div id="push-settings" data-key="{{.Key}}" data-unsupported="{{$.T "notifications.unsupported"}}"
+      <section class="list-items" id="push-settings" data-key="{{.Key}}" data-unsupported="{{$.T "notifications.unsupported"}}"
            data-homescreen="{{$.GlobalData.Tf "notifications.homescreen" $.GlobalData.Brand}}"
            data-denied="{{$.T "notifications.denied"}}" data-failed="{{$.T "notifications.failed"}}">
-      {{ range .Accounts }}
-      {{ $account := .Account }}
-      <section class="list-items" data-account="{{$account}}">
+        {{ range .Rows }}
+        {{ $fields := tuple (dict "name" "account" "value" .Account) (dict "name" "next" "value" $here) }}
         <div class="list-item">
           <div class="list-content">
-            <strong>{{ template "ltr" $account }}</strong>
-            <span class="list-detail">{{ if .Current }}{{$.T "notifications.enabled"}}{{ else }}{{$.T "notifications.disabled"}}{{ end }}</span>
-            {{ with .Current }}<span class="list-detail">{{ $.Tf "notifications.since" ($.GlobalData.ShortDate .Created) }}</span>{{ end }}
+            <div class="record-label">
+              {{ template "device-summary" (dict "g" $ "device" .Device) }}
+              {{ template "record-account" (dict "g" $ "account" .Account) }}
+            </div>
+            <span class="list-detail">{{ if .Current }}{{ if .ID }}{{$.T "notifications.enabled"}} · {{ else }}{{$.T "notifications.disabled"}}{{ end }}{{ end }}{{ if .ID }}{{ $.Tf "notifications.since" ($.GlobalData.ShortDate .Created) }}{{ end }}{{ if .Gone }} · {{$.T "notifications.gone"}}{{ end }}</span>
           </div>
-          {{ if .Current }}
-          <form method="post" action="{{url "settings.notifications.off"}}">
-            <input type="hidden" name="account" value="{{$account}}">
-            <input type="hidden" name="device" value="{{.Current.ID}}">
-            <button>{{$.T "notifications.off"}}</button>
-          </form>
+          {{ if .ID }}
+          {{ template "filter-action" (dict "g" $ "action" (url "settings.notifications.off") "fields" (tuple (index $fields 0) (index $fields 1) (dict "name" "device" "value" .ID)) "button" "notifications.off" "class" (and (not .Current) "button-danger")) }}
           {{ else }}
           <form method="post" action="{{url "settings.notifications.create"}}" class="push-form" hx-boost="false">
-            <input type="hidden" name="account" value="{{$account}}">
+            {{ range $fields }}{{ template "hidden-field" . }}{{ end }}
             <input type="hidden" name="endpoint">
             <input type="hidden" name="p256dh">
             <input type="hidden" name="auth">
@@ -29,27 +27,8 @@
           </form>
           {{ end }}
         </div>
-        {{ with .Other }}
-        <details>
-          <summary>{{$.T "notifications.otherbrowsers"}}</summary>
-        {{ range . }}
-        <div class="list-item">
-          <div class="list-content">
-            {{ template "device-summary" (dict "g" $ "device" .Device) }}
-            <span class="list-detail">{{ $.Tf "notifications.since" ($.GlobalData.ShortDate .Created) }}{{ if .Current }} · {{$.T "sessions.current"}}{{ end }}{{ if .Gone }} · {{$.T "notifications.gone"}}{{ end }}</span>
-          </div>
-          <form method="post" action="{{url "settings.notifications.off"}}">
-            <input type="hidden" name="account" value="{{$account}}">
-            <input type="hidden" name="device" value="{{.ID}}">
-            <button class="button-danger">{{$.T "notifications.off"}}</button>
-          </form>
-        </div>
-        {{ end }}
-        </details>
         {{ end }}
       </section>
-      {{ end }}
-      </div>
       {{ template "hint-list" (dict "items" (list ($.T "notifications.what") ($.T "notifications.kept") ($.GlobalData.Tf "notifications.keptfor" .Days .Minutes) ($.T "notifications.privacy"))) }}
 {{ end }}
 

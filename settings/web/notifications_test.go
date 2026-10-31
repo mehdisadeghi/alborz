@@ -32,25 +32,20 @@ func devices(t *testing.T, c *Client) []string {
 	return accountDevices(t, c, User)
 }
 
+// accountDevices are the account's rows of browsers with notifications, from the merged page.
 func accountDevices(t *testing.T, c *Client, account string) []string {
 	t.Helper()
-	section := notificationSection(t, c.Page(t, "settings.notifications"), account)
+	page := c.Page(t, "settings.notifications")
+	if !strings.Contains(page, `name="account" value="`+account+`"`) {
+		t.Fatalf("no notification controls for %s", account)
+	}
 	var rows []string
-	for _, row := range deviceRow.FindAllString(section, -1) {
-		if strings.Contains(row, `name="device"`) {
+	for _, row := range deviceRow.FindAllString(page, -1) {
+		if strings.Contains(row, `name="account" value="`+account+`"`) && strings.Contains(row, `name="device"`) {
 			rows = append(rows, row)
 		}
 	}
 	return rows
-}
-
-func notificationSection(t *testing.T, page, account string) string {
-	t.Helper()
-	section := regexp.MustCompile(`(?s)<section class="list-items" data-account="` + regexp.QuoteMeta(account) + `">(.*?)</section>`).FindStringSubmatch(page)
-	if section == nil {
-		t.Fatalf("no notification controls for %s", account)
-	}
-	return section[1]
 }
 
 func TestNotificationAccountsUseCompactCurrentRows(t *testing.T) {
@@ -58,9 +53,9 @@ func TestNotificationAccountsUseCompactCurrentRows(t *testing.T) {
 	c := Alborz(t).SignIn(t, User)
 	turnOn(t, c, push.Subscribe(t))
 	page := c.Page(t, "settings.notifications")
-	rows := deviceRow.FindAllString(notificationSection(t, page, User), -1)
-	if len(rows) != 1 || !strings.Contains(rows[0], "<strong>") || !strings.Contains(rows[0], User) {
-		t.Fatal("the current notification row does not name its account")
+	rows := accountDevices(t, c, User)
+	if len(rows) != 1 {
+		t.Fatalf("%d rows for this browser, want 1", len(rows))
 	}
 	if !Says(t, rows[0], "notifications.enabled") || !Says(t, rows[0], "notifications.since", Any) {
 		t.Fatalf("the current row lacks its enabled state or subscription date:\n%s", rows[0])
@@ -81,17 +76,17 @@ func TestOtherNotificationBrowserOffKeepsCurrentAndOtherAccount(t *testing.T) {
 		turnOn(t, here, current, account)
 		turnOn(t, there, remote, account)
 	}
-	section := notificationSection(t, here.Page(t, "settings.notifications"), User)
-	details := regexp.MustCompile(`(?s)<details([^>]*)>(.*?)</details>`).FindStringSubmatch(section)
-	if details == nil || strings.Contains(details[1], "open") || !Says(t, details[2], "notifications.otherbrowsers") {
-		t.Fatal("other browsers are not in a collapsed disclosure")
+	var others []string
+	for _, row := range accountDevices(t, here, User) {
+		if !Says(t, row, "notifications.enabled") {
+			others = append(others, row)
+		}
 	}
-	rows := deviceRow.FindAllString(details[2], -1)
-	if len(rows) != 1 {
-		t.Fatalf("other-browser disclosure has %d remote controls, want 1", len(rows))
+	if len(others) != 1 {
+		t.Fatalf("%d rows of other browsers, want 1", len(others))
 	}
 	fields := url.Values{}
-	for _, field := range regexp.MustCompile(`name="(account|device)" value="([^"]+)"`).FindAllStringSubmatch(rows[0], -1) {
+	for _, field := range regexp.MustCompile(`name="(account|device)" value="([^"]+)"`).FindAllStringSubmatch(others[0], -1) {
 		fields.Set(field[1], field[2])
 	}
 	if fields.Get("account") != User || fields.Get("device") == "" {

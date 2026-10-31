@@ -69,7 +69,7 @@ func TestAccountsScopeAndSignOut(t *testing.T) {
 		t.Errorf("the merged view has no merged entry in the rail")
 	}
 	scoped := c.Page(t, "mail.mailbox", "INBOX", url.Values{"account": {User2}})
-	if !strings.Contains(scoped, `<span class="label" dir="ltr"><bdi class="ltr">`+User2) {
+	if !strings.Contains(scoped, `aria-label="`+T(t, "nav.accounts")+": "+User2+`"`) {
 		t.Errorf("a page scoped to %s does not say so in the nav", User2)
 	}
 	if !strings.Contains(scoped, `class="acct-folders aggregate-folders"`) {
@@ -84,6 +84,23 @@ func TestAccountsScopeAndSignOut(t *testing.T) {
 	resp := c.Post(t, "mail.mailbox", nil, "INBOX")
 	if resp.StatusCode != http.StatusFound || !strings.HasPrefix(resp.Header.Get("Location"), a.Path("auth.login")) {
 		t.Errorf("after signing out of every account a page still answered %s to %s", resp.Status, resp.Header.Get("Location"))
+	}
+}
+
+func TestSignOutOfAllAccounts(t *testing.T) {
+	a := Alborz(t)
+	c := a.SignIn(t, User)
+	c.SignIn(t, User2)
+	resp := c.Post(t, "auth.logout", url.Values{"all": {"1"}})
+	if resp.StatusCode != http.StatusFound || resp.Header.Get("Location") != a.Path("auth.login") {
+		t.Fatalf("signing out of all accounts answered %s to %s", resp.Status, resp.Header.Get("Location"))
+	}
+	if got := len(a.Server.Logins()); got != 0 {
+		t.Errorf("%d logins remain", got)
+	}
+	resp = c.Get(t, "mail.mailbox", "INBOX")
+	if resp.StatusCode != http.StatusFound || !strings.HasPrefix(resp.Header.Get("Location"), a.Path("auth.login")) {
+		t.Errorf("after signing out of all accounts a page answered %s to %s", resp.Status, resp.Header.Get("Location"))
 	}
 }
 

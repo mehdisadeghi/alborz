@@ -2,6 +2,7 @@
 {{ define "main-class" }} class="login"{{ end }}
 {{ define "main" }}
   <section>
+    {{ template "language-menu" $ }}
     {{ $title := $.GlobalData.Tf "login.welcome" $.GlobalData.Brand }}{{ if .Add }}{{ $title = $.T "login.add" }}{{ end }}
     {{ template "login-head" (dict "g" $ "title" $title) }}
     {{ template "notices" (dict "g" $) }}

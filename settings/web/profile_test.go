@@ -35,13 +35,50 @@ func TestProfileReachesEveryAccount(t *testing.T) {
 	}
 }
 
+// The header's language menu sets the language alone and returns to the page it was chosen on.
+func TestLanguageMenu(t *testing.T) {
+	a := Alborz(t)
+	c := a.SignIn(t, User)
+	if resp := c.Post(t, "settings.profile", url.Values{"messages_per_page": {"17"}}); resp.StatusCode != http.StatusFound {
+		t.Fatalf("saving the profile: %s", resp.Status)
+	}
+	// The URL's language would outrank the one chosen, so the way back drops it.
+	resp := c.Post(t, "settings.language", url.Values{"language": {"de"}, "next": {a.Path("settings.sessions") + "?lang=fr"}})
+	if want := a.Path("settings.sessions"); resp.StatusCode != http.StatusFound || resp.Header.Get("Location") != want {
+		t.Fatalf("choosing the language: %s to %q, want %q", resp.Status, resp.Header.Get("Location"), want)
+	}
+	if page := c.Follow(t, resp.Header.Get("Location")); !strings.Contains(page, `<html lang="de"`) {
+		t.Error("the next page is not in the language chosen")
+	}
+	if got := perPage(t, c); got != "17" {
+		t.Errorf("choosing the language left a page size of %s, want 17", got)
+	}
+}
+
+// General belongs to the person: the header marks no scope there and its sections name no account.
+func TestGeneralIsInNoScope(t *testing.T) {
+	a := Alborz(t)
+	c := a.SignIn(t, User)
+	c.SignIn(t, User2)
+	menu := regexp.MustCompile(`(?s)id="menu-accounts".*?</div>`)
+	for _, q := range []url.Values{{}, {"account": {User}}} {
+		page := c.Page(t, "settings.profile", q)
+		if m := menu.FindString(page); m == "" || strings.Contains(m, `aria-current="true"`) {
+			t.Errorf("%v: the person menu marks a scope: %s", q, m)
+		}
+		if strings.Contains(page, a.Path("mail.mailbox", "INBOX")+"?account=") {
+			t.Errorf("%v: the sections name an account", q)
+		}
+	}
+}
+
 // Two browsers that read the profile before either saved each change their own choice and keep the other's.
 func TestProfileSavesFromTwoBrowsersBothStay(t *testing.T) {
 	a := Alborz(t)
 	language, theme := a.SignIn(t, User), a.SignIn(t, User)
 	var wg sync.WaitGroup
 	wg.Go(func() {
-		if resp := language.Post(t, "settings.language", url.Values{"language": {"de"}}); resp.StatusCode != http.StatusFound {
+		if resp := language.Post(t, "settings.profile", url.Values{"language": {"de"}}); resp.StatusCode != http.StatusFound {
 			t.Errorf("choosing the language: %s", resp.Status)
 		}
 	})

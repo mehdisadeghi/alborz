@@ -11,6 +11,13 @@
     <summary class="aside-account{{ if $merged }} active{{ end }}"><a href="{{$.path}}"{{ if $merged }} aria-current="true"{{ end }}>{{$.g.T "nav.allaccounts"}}</a></summary>
     {{ template "rail-colors" (dict "g" $.g "path" .views.path "view" (or (and $merged .views.view) "") "account" "") }}
   </details>
+  {{ else if .allrows }}
+  {{/* As an account's rows: the lists that merge every account. */}}
+  {{ $on := false }}{{ range .allrows }}{{ if .Active }}{{ $on = true }}{{ end }}{{ end }}
+  <details id="rail-all" class="acct-folders aggregate-folders" data-rail-key="__merged"{{ if $on }} open{{ end }}>
+    <summary class="aside-account{{ if $on }} active{{ end }}"><a href="{{ (index .allrows 0).Href }}"{{ if $on }} aria-current="true"{{ end }}>{{$.g.T "nav.allaccounts"}}</a></summary>
+    {{ template "rail-rows" .allrows }}
+  </details>
   {{ else }}
   {{ with .all }}<a id="rail-all" class="aside-account aside-all{{ if $merged }} active{{ end }}" href="{{$.path}}"{{ if $merged }} aria-current="true"{{ end }}{{ if $.g.GlobalData.Swap }} hx-swap-oob="true"{{ end }}>{{ if eq $.kind "dav" }}{{$.g.T "nav.allaccounts"}}{{ else }}{{.}}{{ end }}</a>{{ end }}
   {{ end }}
@@ -81,6 +88,7 @@
   <a href="{{url "auth.login"}}?add=1" class="aside-create rail-mobile rail-add-account">{{.g.T "nav.addaccount"}}</a>
   <div class="rail-mobile rail-mobile-footer">
     <a href="{{url "settings.profile"}}"{{ if eq (index .g.GlobalData.Path 0) "settings" }} class="active" aria-current="page"{{ end }}>{{.g.T "nav.settings"}}</a>
+    {{ template "signout-all" .g }}
   </div>
 {{ end }}
 
@@ -202,7 +210,7 @@
 {{ define "settings-rail" }}
 {{ if not .GlobalData.Swap }}
 <aside>
-  {{ template "scope-rail" (dict "g" . "kind" "rows" "path" (url "mail.account") "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "data" (dict "rows" .Rail) "homes" (index .Rail "")) }}
+  {{ template "scope-rail" (dict "g" . "kind" "rows" "path" (url "mail.account") "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "data" (dict "rows" .Rail) "homes" (index .Rail "") "allrows" (index .Rail "*")) }}
 </aside>
 {{ end }}
 {{ end }}

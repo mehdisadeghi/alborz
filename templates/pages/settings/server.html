@@ -37,9 +37,7 @@
           </label>
           {{ end }}
         </div>
-        <div class="action-group">
-          {{ template "settings-submit" ($.T "common.save") }}
-        </div>
+        {{ template "form-actions" (dict "save" ($.T "common.save")) }}
       </form>
       {{ end }}
 {{ end }}

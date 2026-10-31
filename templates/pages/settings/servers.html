@@ -5,7 +5,10 @@
         {{ range .Rows }}
         <div class="list-item">
           <div class="list-content">
-            {{ if .Href }}<a href="{{.Href}}" class="list-summary">{{.Title}}</a>{{ else }}<span class="list-summary">{{.Title}}</span>{{ end }}
+            <div class="record-label">
+              {{ if .Href }}<a href="{{.Href}}" class="list-summary">{{.Title}}</a>{{ else }}<span class="list-summary">{{.Title}}</span>{{ end }}
+              {{ template "record-account" (dict "g" $ "account" .Account) }}
+            </div>
             <span class="list-detail">{{ with .Hosts }}{{ template "ltr" . }}{{ else }}{{ $.GlobalData.Brand }}{{ end }}{{ with .Source }} · {{.}}{{ end }}</span>
           </div>
         </div>

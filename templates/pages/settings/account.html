@@ -6,42 +6,14 @@
 
       <form method="post">
         {{ template "shown-field" .Shown }}
-        <div class="action-group">
-          <label for="from">{{$.T "settings.fullname"}}</label>
-          <input
-            type="text"
-            name="from"
-            id="from"
-            dir="auto"
-            value="{{.Settings.From}}"
-          />
-        </div>
-
-        <div class="action-group">
-          <label for="identities">{{$.T "settings.identities"}}</label>
-          <textarea
-            name="identities"
-            id="identities"
-            rows="3"
-            dir="auto"
-            placeholder="{{$.T "settings.identitiesph"}}"
-          >{{range .Settings.Identities}}{{.}}
-{{end}}</textarea>
-          {{ template "hint" (dict "text" ($.T "help.identities") "example" ($.T "help.identitiesexample")) }}
-        </div>
-
-        <div class="action-group">
-          <label for="trusted_authserv">{{$.T "settings.authserv"}}</label>
-          <input type="text" name="trusted_authserv" id="trusted_authserv"
-                 value="{{.Settings.TrustedAuthServ}}" dir="ltr" spellcheck="false"
-                 {{ with .AuthServGuess }}list="authserv-guess" placeholder="{{.}}"{{ end }}>
-          {{ with .AuthServGuess }}
-          <datalist id="authserv-guess"><option value="{{.}}"></datalist>
-          {{ template "hint" (dict "text" ($.GlobalData.Tf "help.authservguess" .)) }}
-          {{ else }}
-          {{ template "hint" (dict "text" ($.T "help.authserv") "example" "mail.example.org") }}
-          {{ end }}
-        </div>
+        {{ template "field" (dict "label" ($.T "settings.fullname") "name" "from" "dir" "auto" "value" .Settings.From) }}
+        {{ template "field" (dict "label" ($.T "settings.identities") "name" "identities" "rows" 3 "dir" "auto" "value" (join .Settings.Identities "\n") "placeholder" ($.T "settings.identitiesph") "hint" ($.T "help.identities") "example" ($.T "help.identitiesexample")) }}
+        {{ with .AuthServGuess }}
+        {{ template "field" (dict "label" ($.T "settings.authserv") "name" "trusted_authserv" "dir" "ltr" "value" $.Settings.TrustedAuthServ "list" "authserv-guess" "placeholder" . "hint" ($.GlobalData.Tf "help.authservguess" .)) }}
+        <datalist id="authserv-guess"><option value="{{.}}"></datalist>
+        {{ else }}
+        {{ template "field" (dict "label" ($.T "settings.authserv") "name" "trusted_authserv" "dir" "ltr" "value" .Settings.TrustedAuthServ "hint" ($.T "help.authserv") "example" "mail.example.org") }}
+        {{ end }}
 
         <div class="action-group">
           <label for="indexed_search" class="checkbox">
@@ -51,7 +23,7 @@
           {{ template "hint" (dict "text" ($.T "settings.indexedsearchhint")) }}
         </div>
 
-        <div class="action-group">
+        <div class="field">
           <label for="subscriptions">{{$.T "settings.subs"}}</label>
           <select name="subscriptions" id="subscriptions" multiple>
             {{ $subs := .Subscriptions }}
@@ -68,7 +40,7 @@
           </select>
         </div>
 
-        {{ template "settings-submit" ($.T "settings.save") }}
+        {{ template "form-actions" (dict "save" ($.T "settings.save")) }}
       </form>
 
       {{ if .Storage.Host }}
@@ -90,7 +62,4 @@
         {{ end }}
       </details>
       {{ end }}
-      <form method="post" action="{{url "auth.logout"}}" class="account-signout">
-        <button type="submit" name="account" value="{{.GlobalData.Username}}">{{$.T "nav.signout"}}</button>
-      </form>
 {{ end }}

@@ -106,6 +106,33 @@ func TestComposeEntryLinksKeepAccountScope(t *testing.T) {
 	}
 }
 
+// The merged list shows every account's signatures, each acting on its own account; one made there
+// goes to the account picked and returns to the merged list.
+func TestMergedSignaturesListEveryAccount(t *testing.T) {
+	a := Alborz(t)
+	c := a.SignIn(t, User)
+	c.SignIn(t, User2)
+	if r := c.Post(t, "mail.signatures", url.Values{"name": {"Work"}, "text": {"Regards"}}, url.Values{"account": {User}}); r.StatusCode != http.StatusFound {
+		t.Fatal(r.Status)
+	}
+	r := c.Post(t, "mail.signatures", url.Values{"account": {User2}, "name": {"Home"}, "text": {"Cheers"}})
+	if r.StatusCode != http.StatusFound || r.Header.Get("Location") != a.Path("mail.signatures") {
+		t.Fatalf("a signature made on the merged list: %s to %q", r.Status, r.Header.Get("Location"))
+	}
+	r = c.Get(t, "mail.signatures")
+	if r.StatusCode != http.StatusOK {
+		t.Fatalf("the merged list answers %s", r.Status)
+	}
+	for _, want := range []string{"Regards", "Cheers", `value="Work"`, `value="Home"`, "account=" + User + `"`, "account=" + User2 + `"`} {
+		if !strings.Contains(r.Text, want) {
+			t.Errorf("the merged list lacks %s", want)
+		}
+	}
+	if r := c.Get(t, "mail.signatures", url.Values{"account": {User}}); r.StatusCode != http.StatusOK || strings.Contains(r.Text, "Cheers") {
+		t.Fatalf("one account's list: %s, shows another's signature: %v", r.Status, strings.Contains(r.Text, "Cheers"))
+	}
+}
+
 func TestPooledSignaturesKeepTheirAccountAndDefaults(t *testing.T) {
 	c := Alborz(t).SignIn(t, User)
 	c.SignIn(t, User2)

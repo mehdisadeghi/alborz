@@ -1,6 +1,7 @@
 # ADR 76: Feature tour
 
-Status: accepted. Amends ADR 52 (`Profile.Toured`).
+Status: accepted, amended by ADR 103 (header menus). Amends ADR 52
+(`Profile.Toured`).
 
 ## Context
 
@@ -43,8 +44,10 @@ text directions, on narrow viewports, and with or without JavaScript.
 9. `Profile.Toured` (ADR 52) is stored across all signed-in accounts.
    Sign-in opens `?tour=welcome` when `Toured` is false and sets
    `Toured` to true in the same request.
-10. "Take the tour" in the account menu opens `?tour=welcome` on the
-    current page at any time.
+10. "Take the tour" in the header person menu (ADR 103) opens `?tour=welcome` on
+    the current page at any time. The tour is desktop only: `tour.js`
+    hides it at `<= 600px` or on a coarse pointer, and the phone drawer
+    MUST NOT offer it.
 
 ### Presentation
 
@@ -62,15 +65,17 @@ text directions, on narrow viewports, and with or without JavaScript.
 ## Consequences
 
 - The tour is offered automatically once per profile on first sign-in
-  and remains available on demand from the account menu.
+  and remains available on demand from the person menu; phones never
+  show it.
 - Removing a `data-tour` mark from a template centres that stop rather
   than failing rendering; route renames are caught by the tour walk
   test.
 
 ## References
 
-- ADR 13, ADR 23, ADR 41, ADR 52, ADR 55
+- ADR 13, ADR 23, ADR 41, ADR 52, ADR 55, ADR 103
 - `web/tour.go`, `templates/partials/tour.html`,
   `templates/assets/tour.js`, `templates/assets/style.css` (`.tour`),
+  `templates/partials/nav.html` (`person-menu`),
   `auth/web/login.go` (`loginRedirect`), `profile.go` (`Toured`),
   `locales/*.toml` (`tour.*`)

@@ -64,10 +64,17 @@ func (s Subscriptions) Has(sub string) bool {
 	return slices.Contains(s, sub)
 }
 
-// SignaturesRenderData is the signature list.
+// SignaturesRenderData is the signature list, of every account on a merged page.
 type SignaturesRenderData struct {
 	web.PageData[map[string][]web.RailRow]
-	Settings *mail.Settings
+	Rows []SignatureRow
+}
+
+// SignatureRow is a signature as the list shows it, with the account holding it.
+type SignatureRow struct {
+	mail.Signature
+	Account string
+	Default bool
 }
 
 // SignatureRenderData is one signature's form, new or existing.
@@ -89,25 +96,28 @@ func loadAccountSettings(ctx *web.Context) (*mail.Settings, error) {
 }
 
 func handleSignatures(ctx *web.Context) error {
-	settings, err := loadAccountSettings(ctx)
-	if err != nil {
-		return err
+	data := &SignaturesRenderData{PageData: *web.NewSettingsPageData(ctx, ctx.T("settings.signatures"))}
+	for _, login := range ctx.InScope() {
+		settings, err := mail.LoadSettings(ctx.Request().Context(), login.Store())
+		if err != nil {
+			return fmt.Errorf("failed to load settings: %w", err)
+		}
+		for _, s := range settings.Signatures {
+			data.Rows = append(data.Rows, SignatureRow{Signature: s, Account: login.Username(), Default: s.Name == settings.DefaultSignature})
+		}
 	}
-	return ctx.Render(http.StatusOK, "settings/signatures", &SignaturesRenderData{
-		PageData: *web.NewSettingsPageData(ctx, ctx.T("settings.signatures")),
-		Settings: settings,
-	})
+	return ctx.Render(http.StatusOK, "settings/signatures", data)
 }
 
 func handleSignatureForm(ctx *web.Context) error {
-	settings, err := loadAccountSettings(ctx)
-	if err != nil {
-		return err
-	}
 	data := &SignatureRenderData{
 		PageData: *web.NewSettingsPageData(ctx, ctx.T("settings.signatures")),
 	}
 	if name := ctx.Param("name"); name != "" {
+		settings, err := loadAccountSettings(ctx)
+		if err != nil {
+			return err
+		}
 		found, ok := settings.SignatureNamed(name)
 		if !ok {
 			return alborz.NotFound("notfound.signature", name)
@@ -126,6 +136,12 @@ func handleSignatureSave(ctx *web.Context) error {
 	text := strings.TrimRight(ctx.FormValue("text"), "\r\n")
 	was := ctx.FormValue("was")
 	editing := mail.Signature{Name: name, Text: text}
+	// A new signature names its account in the form, as a new filter does; the view it returns to stays the URL's.
+	if account := ctx.FormValue("account"); account != "" {
+		if ctx.Login = ctx.LoginFor(account); ctx.Login == nil {
+			return web.NewError(http.StatusBadRequest, ctx.Tf("account.notsignedin", account))
+		}
+	}
 	render := func(message string) error {
 		return ctx.Render(http.StatusUnprocessableEntity, "settings/signature-edit", &SignatureRenderData{
 			PageData: *web.NewSettingsPageData(ctx, ctx.T("settings.signatures")).WithRefused(message),
@@ -152,7 +168,7 @@ func handleSignatureSave(ctx *web.Context) error {
 	refusal, replaced := "", false
 	err := mail.UpdateSettings(ctx.Request().Context(), ctx.Login, func(settings *mail.Settings) error {
 		if len(settings.Signatures) >= mail.MaxSignatures && was == "" {
-			refusal = fmt.Sprintf(ctx.T("form.signaturecount"), mail.MaxSignatures)
+			refusal = ctx.Tf("form.signaturecount", mail.MaxSignatures)
 			return errors.New(refusal)
 		}
 		// A rename keeps the entry's place in the list and its default status.
@@ -179,7 +195,7 @@ func handleSignatureSave(ctx *web.Context) error {
 			settings.Signatures = append(settings.Signatures, editing)
 		}
 		if key, limit := settings.Check(); key != "" {
-			refusal = fmt.Sprintf(ctx.T(key), limit)
+			refusal = ctx.Tf(key, limit)
 			return errors.New(refusal)
 		}
 		return nil
@@ -192,10 +208,10 @@ func handleSignatureSave(ctx *web.Context) error {
 	}
 	if !replaced {
 		ctx.Made(ctx.T("notice.signaturecreated"), name,
-			ctx.URL("mail.signature", name),
+			web.AccountURL(ctx.Path("mail.signature", name), ctx.Login.Username()),
 			ctx.URL("mail.signatures.create"))
 	}
-	return ctx.FoundRedirect(ctx.URL("mail.signatures"))
+	return ctx.FoundRedirect(ctx.NextOr(ctx.URL("mail.signatures")))
 }
 
 func updateSettingsRedirect(ctx *web.Context, to string, edit func(*mail.Settings) error) error {
@@ -207,7 +223,7 @@ func updateSettingsRedirect(ctx *web.Context, to string, edit func(*mail.Setting
 
 func handleSignatureDelete(ctx *web.Context) error {
 	name := ctx.FormValue("name")
-	return updateSettingsRedirect(ctx, ctx.URL("mail.signatures"), func(settings *mail.Settings) error {
+	return updateSettingsRedirect(ctx, ctx.NextOr(ctx.URL("mail.signatures")), func(settings *mail.Settings) error {
 		kept := settings.Signatures[:0]
 		for _, sig := range settings.Signatures {
 			if sig.Name != name {
@@ -223,7 +239,7 @@ func handleSignatureDelete(ctx *web.Context) error {
 }
 
 func handleSignatureDefault(ctx *web.Context) error {
-	return updateSettingsRedirect(ctx, ctx.URL("mail.signatures"), func(settings *mail.Settings) error {
+	return updateSettingsRedirect(ctx, ctx.NextOr(ctx.URL("mail.signatures")), func(settings *mail.Settings) error {
 		// An empty name clears the default.
 		chosen := ctx.FormValue("name")
 		if _, ok := settings.SignatureNamed(chosen); !ok {
@@ -287,7 +303,7 @@ func (p *plugin) handleSettings(ctx *web.Context) error {
 			settings = s
 			web.KeepChanges(reflect.ValueOf(s).Elem(), reflect.ValueOf(drawn), reflect.ValueOf(mine))
 			if key, limit := settings.Check(); key != "" {
-				refusal = fmt.Sprintf(ctx.T(key), limit)
+				refusal = ctx.Tf(key, limit)
 				return errors.New(refusal)
 			}
 			return nil

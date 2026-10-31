@@ -7,7 +7,17 @@
         {{ template "shown-field" .Shown }}
         <section class="settings-section" aria-labelledby="appearance">
           <h2 id="appearance">{{$.T "settings.appearance"}}</h2>
-          <div class="action-group">
+          <div class="field">
+            <label for="settings-language">{{$.T "settings.language"}}</label>
+            <select name="language" id="settings-language">
+              <option value=""{{ if eq .GlobalData.Language "" }} selected{{ end }}>{{$.T "settings.langauto"}}</option>
+              {{ range .GlobalData.LanguageChoices }}
+              <option value="{{.Code}}" lang="{{.Code}}"{{ if eq .Code $.GlobalData.Language }} selected{{ end }}>{{.Name}}</option>
+              {{ end }}
+            </select>
+          </div>
+
+          <div class="field">
             <label for="start_page">{{$.T "settings.startpage"}}</label>
             <select name="start_page" id="start_page">
               <option value="mail"{{if or (eq .Reading.StartPage "") (eq .Reading.StartPage "mail")}} selected{{end}}>{{$.T "nav.email"}}</option>
@@ -18,7 +28,7 @@
             </select>
           </div>
 
-          <div class="action-group">
+          <div class="field">
             <label for="theme">{{$.T "settings.theme"}}</label>
             <select name="theme" id="theme">
               <option value="" {{if eq .Theme ""}}selected{{end}}>{{$.T "settings.themedefault"}}</option>
@@ -28,7 +38,7 @@
             </select>
           </div>
 
-          <div class="action-group">
+          <div class="field">
             <label for="text_size">{{$.T "settings.textsize"}}</label>
             <select name="text_size" id="text_size">
               <option value="" {{if eq .TextSize ""}}selected{{end}}>{{$.T "settings.textdefault"}}</option>
@@ -67,17 +77,7 @@
 
         <section class="settings-section" aria-labelledby="reading">
           <h2 id="reading">{{$.T "settings.reading"}}</h2>
-          <div class="action-group">
-            <label for="messages_per_page">{{$.T "settings.perpage"}}</label>
-            <input
-              type="number"
-              name="messages_per_page"
-              id="messages_per_page"
-              value="{{.Reading.MessagesPerPage}}"
-              min="1"
-              max="{{.MaxPerPage}}"
-              required />
-          </div>
+          {{ template "field" (dict "label" ($.T "settings.perpage") "name" "messages_per_page" "type" "number" "value" .Reading.MessagesPerPage "min" 1 "max" .MaxPerPage "required" true) }}
 
           <div class="action-group">
             <label for="prefer_html" class="checkbox">
@@ -91,7 +91,7 @@
           <h2 id="writing">{{$.T "settings.writing"}}</h2>
           <input type="hidden" name="writing_preferences" value="1">
 
-          <div class="action-group">
+          <div class="field">
             <label for="reply_position">{{$.T "settings.replyposition"}}</label>
             <select name="reply_position" id="reply_position">
               <option value="above" {{if not .Writing.ReplyBelowQuote}}selected{{end}}>{{$.T "settings.replytop"}}</option>
@@ -117,19 +117,9 @@
 
         <section class="settings-section" aria-labelledby="datetime">
           <h2 id="datetime">{{$.T "settings.datetime"}}</h2>
-          <div class="action-group">
-            <label for="timezone">{{$.T "settings.timezone"}}</label>
-            <input
-              type="text"
-              name="timezone"
-              id="timezone"
-              dir="ltr"
-              value="{{.Reading.Timezone}}"
-              placeholder="{{$.T "settings.tzauto"}}" />
-            {{ template "hint" (dict "text" ($.T "settings.tzhint")) }}
-          </div>
+          {{ template "field" (dict "label" ($.T "settings.timezone") "name" "timezone" "dir" "ltr" "value" .Reading.Timezone "placeholder" ($.T "settings.tzauto") "hint" ($.T "settings.tzhint")) }}
 
-          <div class="action-group">
+          <div class="field">
             <label for="first_day_of_week">{{$.T "settings.firstday"}}</label>
             <select name="first_day_of_week" id="first_day_of_week">
               <option value="1" {{if eq .Reading.FirstDayOfWeek 1}}selected{{end}}>{{$.T "settings.monday"}}</option>
@@ -138,7 +128,7 @@
             </select>
           </div>
 
-          <div class="action-group">
+          <div class="field">
             <label for="calendar">{{$.T "settings.calendar"}}</label>
             <select name="calendar" id="calendar">
               <option value="gregorian" {{if ne .Reading.Primary "shcal"}}selected{{end}}>{{$.T "settings.gregorian"}}</option>
@@ -146,7 +136,7 @@
             </select>
           </div>
 
-          <div class="action-group">
+          <div class="field">
             <label for="secondary">{{$.T "settings.secondary"}}</label>
             <select name="secondary" id="secondary" data-excludes="calendar">
               <option value="" {{if eq .Reading.Secondary ""}}selected{{end}}>{{$.T "settings.secondarynone"}}</option>
@@ -207,11 +197,7 @@
         {{ with .LockMinutes }}
           <section class="settings-section" aria-labelledby="security">
             <h2 id="security">{{$.T "settings.security"}}</h2>
-            <div class="action-group">
-              <label for="lock_minutes">{{$.T "settings.lockminutes"}}</label>
-              <input type="number" name="lock_minutes" id="lock_minutes" value="{{.}}" min="1" required>
-              {{ template "hint" (dict "text" ($.T "settings.lockminuteshint")) }}
-            </div>
+            {{ template "field" (dict "label" ($.T "settings.lockminutes") "name" "lock_minutes" "type" "number" "value" . "min" 1 "required" true "hint" ($.T "settings.lockminuteshint")) }}
           </section>
         {{ end }}
 
@@ -226,32 +212,8 @@
           <p class="hint" id="register-mailto-refused" hidden>{{$.T "settings.mailtorefused"}}</p>
         </section>
 
-        <div class="settings-save">{{ template "settings-submit" ($.T "settings.save") }}</div>
+        {{ template "form-actions" (dict "save" ($.T "settings.save")) }}
       </form>
-      <div class="settings-profile settings-support">
-        <section class="settings-section" aria-labelledby="language-title">
-          <h2 id="language-title">{{$.T "settings.language"}}</h2>
-          <form method="post" action="{{url "settings.language"}}" hx-boost="false">
-            <input type="hidden" name="next" value="{{url "settings.profile"}}">
-            <div class="action-group">
-              <select name="language" id="settings-language" aria-labelledby="language-title">
-                <option value=""{{ if eq .GlobalData.Language "" }} selected{{ end }}>{{$.T "settings.langauto"}}</option>
-                {{ range .GlobalData.LanguageChoices }}
-                <option value="{{.Code}}"{{ if eq .Code $.GlobalData.Language }} selected{{ end }}>{{.Name}}</option>
-                {{ end }}
-              </select>
-            </div>
-            <button type="submit">{{$.T "common.apply"}}</button>
-          </form>
-        </section>
-        <section class="settings-section" aria-labelledby="settings-help">
-          <h2 id="settings-help">{{$.T "list.help"}}</h2>
-          <div class="settings-buttons">
-            <button type="button" class="keys-open" commandfor="keys-help" command="show-modal">{{$.T "keys.title"}}</button>
-            <a href="{{ localhref .GlobalData.TourStart }}">{{$.T "tour.take"}}</a>
-          </div>
-        </section>
-      </div>
 {{ end }}
 
 {{ define "gesture-select" }}

@@ -27,7 +27,7 @@ const celsius = 273.15
 
 // Mount offers the weather at the start of the bar and the page that sets the place.
 func Mount(g *web.Group, w *weather.Service) {
-	g.GET("place", "/weather", func(ctx *web.Context) error { return handlePlace(ctx, w) })
+	g.Group("", "", web.Personal).GET("place", "/weather", func(ctx *web.Context) error { return handlePlace(ctx, w) })
 	g.GET("calendar", "/weather/calendar", func(ctx *web.Context) error { return handleCalendar(ctx, w) })
 	g.POST("place", "/weather", handleChoose)
 	s := g.Server()

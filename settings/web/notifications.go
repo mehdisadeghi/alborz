@@ -1,7 +1,6 @@
 package web
 
 import (
-	"fmt"
 	"net/http"
 	"time"
 
@@ -13,23 +12,17 @@ import (
 // NotificationsRenderData renders notifications.html.
 type NotificationsRenderData struct {
 	web.PageData[map[string][]web.RailRow]
-	Accounts []AccountNotifications
-	Key      string
+	// Rows are, per account in view, this browser first and then the others.
+	Rows []NotifiedDevice
+	Key  string
 	// Days and Minutes are how long a login is kept for notifications, remembered and not.
 	Days, Minutes int
 }
 
-// AccountNotifications is one account's state for this browser and its other devices.
-type AccountNotifications struct {
-	Account string
-	Current *NotifiedDevice
-	Other   []NotifiedDevice
-}
-
-// NotifiedDevice is a device as the list shows it.
+// NotifiedDevice is a device as the list shows it; this browser without notifications has no ID.
 type NotifiedDevice struct {
-	ID, Device string
-	Created    time.Time
+	Account, ID, Device string
+	Created             time.Time
 	// Current is this browser; Gone a browser signed out of the account, which is sent nothing.
 	Current, Gone bool
 }
@@ -42,25 +35,25 @@ func notificationData(ctx *web.Context) (*NotificationsRenderData, error) {
 		Days:     int(alborz.CredentialCookieLife() / (24 * time.Hour)),
 		Minutes:  int(ctx.Server.Options.LoginIdle / time.Minute),
 	}
-	for _, login := range ctx.Logins() {
+	for _, login := range ctx.InScope() {
 		account := login.Username()
 		devices, err := ctx.Server.Pushes.Devices(account)
 		if err != nil {
 			return nil, err
 		}
-		row := AccountNotifications{Account: account}
+		here := NotifiedDevice{Account: account, Device: ctx.Request().UserAgent(), Current: true}
+		var others []NotifiedDevice
 		for _, d := range devices {
-			shown := NotifiedDevice{ID: ctx.Server.Pushes.ID(d), Device: d.Device, Created: d.Created,
+			shown := NotifiedDevice{Account: account, ID: ctx.Server.Pushes.ID(d), Device: d.Device, Created: d.Created,
 				Current: d.Session == session, Gone: !ctx.Server.Sessions.Holds(d.Session, account)}
-			if shown.Current {
-				if row.Current == nil {
-					row.Current = &shown
-				}
-			} else {
-				row.Other = append(row.Other, shown)
+			switch {
+			case !shown.Current:
+				others = append(others, shown)
+			case here.ID == "":
+				here = shown
 			}
 		}
-		data.Accounts = append(data.Accounts, row)
+		data.Rows = append(append(data.Rows, here), others...)
 	}
 	return data, nil
 }
@@ -82,7 +75,7 @@ func notificationAccount(ctx *web.Context) (*alborz.Login, error) {
 	if login := ctx.LoginFor(account); login != nil {
 		return login, nil
 	}
-	return nil, web.NewError(http.StatusBadRequest, fmt.Errorf(ctx.T("account.notsignedin"), account))
+	return nil, web.NewError(http.StatusBadRequest, ctx.Tf("account.notsignedin", account))
 }
 
 // handleNotificationCreate keeps the shared subscription for the account the reader turned on.
@@ -120,7 +113,7 @@ func handleNotificationCreate(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	return ctx.NoticeRedirect(ctx.T("notice.notificationson"), ctx.Path("settings.notifications"))
+	return ctx.NoticeRedirect(ctx.T("notice.notificationson"), ctx.NextOr(ctx.Path("settings.notifications")))
 }
 
 func handleNotificationOff(ctx *web.Context) error {
@@ -150,5 +143,5 @@ func handleNotificationOff(ctx *web.Context) error {
 		return err
 	}
 	ctx.Server.Recheck(login.Username())
-	return ctx.NoticeRedirect(ctx.T("notice.notificationsoff"), ctx.Path("settings.notifications"))
+	return ctx.NoticeRedirect(ctx.T("notice.notificationsoff"), ctx.NextOr(ctx.Path("settings.notifications")))
 }

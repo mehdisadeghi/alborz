@@ -99,10 +99,8 @@ select {
   /* One box for cell, header, chips and crumb, so their text shares a baseline and an edge. */
   --row-pad: 0.4rem var(--space-2);
   --pager-label: 6rem;
-  /* A typical address whole; a longer one ends in an ellipsis instead of turning the sections to icons. */
-  --nav-label: 16rem;
-  --sidebar-width: clamp(10rem, 15vw, 13rem);
-  --rail-chevron-track: 0.75rem;
+  --sidebar-width: clamp(12rem, 18vw, 18rem);
+  --rail-chevron-track: 1.5rem;
   --drawer-width: 15rem;
   --content-list: 90rem;
   --content-form: 46rem;
@@ -528,32 +526,10 @@ header nav > div {
   gap: var(--space-4);
 }
 
-/* One row, or the menus wrap before the row folds into the drawer. The
-   names keep their width, so the sections turn to icons first; only then
-   does the account's name yield. */
-.nav-menus {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-}
 .rail-mobile { display: none; }
-header nav.is-icons > div,
-header nav.is-icons .nav-menus,
-header nav.is-icons .accounts:not(.lang-menu) { min-width: 0; }
-header nav > div > :not(.nav-menus),
-.nav-menus > :not(.accounts) { flex-shrink: 0; }
-header nav .accounts { display: inline-block; position: relative; }
-header nav .accounts > summary::-webkit-details-marker { display: none; }
-header nav .accounts > summary::marker { content: ""; }
-header nav .accounts[open] > summary .icon { transform: rotate(180deg); }
-header nav .accounts-button .label {
-  max-width: var(--nav-label);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 header nav .nav-utilities,
 header nav .nav-session-lock,
+header nav :is(.nav-language, .nav-person),
 header nav .scheme-toggle {
   display: flex;
   align-items: center;
@@ -581,9 +557,9 @@ header nav .nav-utilities .icon {
     min-height: 44px;
   }
 }
-/* Icons only: the lock and the scheme are spaced as the sections are. */
+/* Icons only: the menus, the lock and the scheme are spaced as the sections are. */
 :root:not([data-phone="bar"]) header nav.is-icons > .nav-utilities { display: contents; }
-:root:not([data-phone="bar"]) header nav.is-icons :is(.nav-session-lock, .scheme-toggle) {
+:root:not([data-phone="bar"]) header nav.is-icons :is(.nav-session-lock, .scheme-toggle, .nav-language, .nav-person) {
   flex: 1 1 0;
   min-width: 0;
   align-self: stretch;
@@ -599,71 +575,23 @@ header nav .nav-utilities .icon {
 :root:not([data-theme="light"]) .scheme-toggle [data-scheme="light"],
 :root:not([data-theme="dark"]) .scheme-toggle [data-scheme="dark"] { display: none; }
 
-header nav .accounts-button {
-  display: inline-flex;
-  max-width: 100%;
-  align-items: center;
-  gap: 0.1rem;
-  min-height: 0;
-  min-width: 0;
-  padding: 0;
+:root:not([data-phone="bar"]) header nav.is-icons .nav-language > .overflow { display: flex; flex: 1 1 0; }
+/* The drawer holds the accounts and the settings on a phone. */
+@media (width <= 600px) { header nav :is(.nav-language, .nav-person) { display: none; } }
+/* A touch screen has no keyboard to take shortcuts from. */
+@media (pointer: coarse) { .keys-open { display: none; } }
+.overflow-menu > hr {
+  margin: var(--space-1) 0;
   border: 0;
-  border-radius: 0;
-  background: none;
-  font: inherit;
-  cursor: pointer;
-  color: var(--fg-muted);
+  border-block-start: 1px solid var(--border);
 }
-/* The guards repeat the generic button hover's, which would otherwise outweigh this. */
-header nav .accounts-button:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover,
-header nav .accounts[open] > .accounts-button {
-  background: none;
-  border: 0;
-  color: var(--fg);
+/* Without anchor positioning a menu off the header hangs under its far end; with a script, helpers.js places it. */
+@supports not (position-area: block-end) {
+  header .overflow-menu[popover] {
+    inset-block-start: var(--toolbar-height);
+    inset-inline: auto var(--space-2);
+  }
 }
-header nav .accounts-menu {
-  display: none;
-  flex-direction: column;
-  align-items: stretch;
-  gap: var(--space-1);
-}
-header nav .accounts-menu .active {
-  font-weight: 500;
-  color: var(--fg);
-  cursor: default;
-}
-header nav .accounts-menu .active::before { content: "\2713 "; }
-header nav .accounts-menu button {
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--link);
-  text-align: start;
-  cursor: pointer;
-}
-header nav .account-menu-row {
-  display: grid;
-  grid-template-columns: minmax(9rem, 1fr) auto;
-  align-items: center;
-  gap: var(--space-3);
-}
-header nav .account-menu-row > form { margin: 0; }
-
-/* The address wraps inside its column; the sign-out control keeps its own width. */
-header nav .account-menu-row > a {
-  display: block;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-header nav .account-menu-row:dir(rtl) > a { text-align: right; }
-header nav .account-menu-row > form:first-child { grid-column: 1; }
-header nav .account-menu-row .account-signout { grid-column: 2; }
-header nav .account-menu-row .account-signout button {
-  color: var(--fg-muted);
-  font-size: var(--text-sm);
-  white-space: nowrap;
-}
-header nav .account-menu-row .account-signout button:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover { color: var(--alert-fg); }
 header a.active {
   font-weight: 650;
   color: var(--fg);
@@ -1167,6 +1095,7 @@ main.login .notice { width: 100%; margin-block-end: var(--space-4); animation: n
 main.setup details { margin-block-end: var(--space-4); }
 
 main.login > section {
+  position: relative;
   align-self: center;
   background: var(--bg);
   width: min(26rem, 100%);
@@ -1185,12 +1114,17 @@ main.login .login-head {
   text-align: center;
 }
 
-main.login button {
+main.login button:not(.nav-language *) {
   width: 100%;
   padding-block: 0.6rem;
   font-weight: bold;
 }
 
+main.login .nav-language {
+  position: absolute;
+  inset-block-start: var(--space-3);
+  inset-inline-end: var(--space-3);
+}
 main.login .notice-dismiss { margin-inline-start: auto; flex-shrink: 0; }
 main.login .notice-dismiss button { width: auto; padding: 0; }
 
@@ -1297,8 +1231,7 @@ main.create-update > form > label > span {
 main.create-update form .field > input,
 main.create-update form .field > select,
 main.create-update form .field > textarea,
-main.settings form .field > input,
-main.settings form .field > select,
+main.settings form .field > :is(input, select, textarea),
 main.create-update > form > label > input,
 main.create-update > form > label > select,
 main.create-update > form > label > textarea {
@@ -1476,7 +1409,6 @@ body main .focus-write:is(:target, :has(:target)) {
 }
 
 body main .focus-write:is(:target, :has(:target)) :is(textarea, .editor) { flex: 1; resize: none; }
-.focus-toggle { color: var(--fg-dim); font-size: var(--text-sm); }
 .field.focus-write > .focus-toggle { float: inline-end; align-self: flex-end; }
 .editor-toolbar > .focus-toggle { margin-inline-start: auto; }
 .focus-write:is(:target, :has(:target)) .focus-enter,
@@ -1689,11 +1621,12 @@ aside details.acct-folders[open] > summary::before { transform: rotate(90deg); }
 :root:dir(rtl) details.info-card > summary::before,
 :root:dir(rtl) aside details.folder-branch summary::before,
 :root:dir(rtl) aside details.acct-folders > summary::before { transform: rotate(180deg); }
+/* Measured in Chrome: right to left, rotate(90deg) draws the glyph pointing up. */
 :root:dir(rtl) main.message .message-header .parts[open] > summary::before,
 :root:dir(rtl) .info-explain[open] > summary::before,
 :root:dir(rtl) details.info-card[open] > summary::before,
 :root:dir(rtl) aside details.folder-branch[open] > summary::before,
-:root:dir(rtl) aside details.acct-folders[open] > summary::before { transform: rotate(90deg); }
+:root:dir(rtl) aside details.acct-folders[open] > summary::before { transform: rotate(-90deg); }
 
 main.message .message-header .parts > summary::before {
   flex: none;
@@ -2698,8 +2631,8 @@ aside .filter-edit .icon { width: 100%; height: 100%; }
 aside li > .filter-edit,
 aside li > .filter-tick,
 aside details.folder-branch summary > .filter-tick { margin-inline-start: var(--space-1); }
-/* After the branch's chevron, so every tick in the account sits on one edge. */
-aside details.folder-branch summary > .filter-tick { order: 2; }
+/* After the branch's chevron, inset as a row's, so every tick in the account sits on one edge. */
+aside details.folder-branch summary > .filter-tick { order: 2; margin-inline-end: var(--space-2); }
 
 aside .filter-row:hover .filter-edit,
 aside .filter-edit:focus-visible { opacity: 1; }
@@ -3099,8 +3032,7 @@ main.calendar .actions {
 
 .action-group label,
 .action-group input,
-.action-group textarea,
-.action-group select[multiple] {
+.action-group textarea {
   display: block;
   width: 100%;
 }
@@ -3162,7 +3094,9 @@ main.calendar .actions {
   min-width: 0;
 }
 
-.action-group select[multiple] {
+select[multiple] {
+  display: block;
+  width: 100%;
   height: 10rem;
 }
 
@@ -3291,7 +3225,7 @@ main.calendar .actions {
 }
 
 .record-label > a,
-.record-label > a.list-summary,
+.record-label > :is(a, span).list-summary,
 .record-label > span[dir] {
   display: block;
   flex: none;
@@ -3455,27 +3389,19 @@ aside details.folder-branch summary {
   display: flex;
   min-height: 2rem;
   align-items: center;
-  padding: var(--space-1) var(--space-1);
+  padding: var(--space-1) 0;
   padding-inline-start: var(--space-2);
   gap: var(--space-1);
   border-inline-start: 2px solid transparent;
 }
 aside details.folder-branch summary a { flex-grow: 1; }
-aside details.folder-branch summary::-webkit-details-marker { display: none; }
-aside details.folder-branch summary::before {
-  flex: none;
-  width: var(--rail-chevron-track);
-  align-self: stretch;
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-start;
-  color: var(--fg-muted);
-}
-aside details.folder-branch > ul > li,
-aside details.folder-branch > ul li.folder-li > details > summary {
+/* Depth is the row's indent; a branch's own li stays flush so its summary carries it. */
+aside details.folder-branch > ul > li:not(.folder-li),
+aside details.folder-branch > ul > li > details > summary {
   padding-inline-start: 1.3rem;
 }
-aside details.folder-branch details.folder-branch > ul > li {
+aside details.folder-branch details.folder-branch > ul > li:not(.folder-li),
+aside details.folder-branch details.folder-branch > ul > li > details > summary {
   padding-inline-start: 2.1rem;
 }
 
@@ -3983,8 +3909,7 @@ aside .aside-filter { display: flex; flex-direction: column; overflow-anchor: no
 }
 
 main.settings form,
-main.settings > .info-card,
-main.settings > .settings-support {
+main.settings > .info-card {
   width: min(calc(100% - 2 * var(--space-4)), var(--content-form));
   margin: var(--space-4);
   padding: var(--space-4);
@@ -3994,14 +3919,7 @@ main.settings > .settings-support {
   box-shadow: var(--shadow-raised);
 }
 
-main.settings .settings-support form {
-  width: auto;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
-}
+main.settings form .field > button { margin-block-start: var(--space-2); }
 
 .settings-profile > .settings-section {
   min-inline-size: 0;
@@ -4024,7 +3942,7 @@ main.settings .settings-support form {
   color: var(--fg);
 }
 .settings-section:not([open]) > summary { margin-block-end: 0; }
-.settings-section > .action-group:last-child { margin-block-end: 0; }
+.settings-section > :is(.action-group, .field):last-child { margin-block-end: 0; }
 .settings-section-body { padding-block-start: var(--space-2); }
 .gesture-setting {
   min-inline-size: 0;
@@ -4045,7 +3963,6 @@ main.settings .settings-support form {
 .gesture-directions .action-group { min-width: 0; margin: 0; }
 .gesture-directions select { max-width: 100%; width: 100%; }
 .settings-buttons { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-.settings-save { padding-block-start: var(--space-4); border-block-start: 1px solid var(--border-light); }
 
 @media (width <= 360px) {
   .gesture-directions { grid-template-columns: minmax(0, 1fr); }
@@ -4174,36 +4091,6 @@ div.overflow {
   overflow-y: auto;
   overflow-wrap: anywhere;
   color: inherit;
-}
-
-/* A long account list ends at the viewport and scrolls, or its last rows are out of reach. */
-@media (width > 600px) {
-  header nav .accounts-menu {
-    position: absolute;
-    z-index: 30;
-    inset-block-start: 100%;
-    inset-inline-end: 0;
-    margin-block-start: 2px;
-    padding: var(--space-2);
-    inline-size: max-content;
-    max-inline-size: min(24rem, calc(100vw - 2 * var(--space-2)));
-    overflow-wrap: anywhere;
-    color: inherit;
-    background-color: var(--surface-raised);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    box-shadow: var(--shadow-raised);
-    max-block-size: calc(100dvh - var(--toolbar-height));
-    overflow-y: auto;
-  }
-  header nav .accounts-menu > * { min-block-size: var(--control-height); }
-  header nav .accounts-menu > :is(a, button, form) {
-    display: flex;
-    align-items: center;
-  }
-}
-header nav .accounts[open] > .accounts-menu {
-  display: flex;
 }
 
 .icon-sprite {
@@ -4460,8 +4347,9 @@ main.message .actions-end {
 
 .actions .ipp-overflow { display: inline-block; }
 
-/* Named, not linked, in the same box: bolding it would change its width. */
-.overflow-menu .is-current {
+/* Named, not linked, in the same box: bolding it would change its width. A row that submits is marked too. */
+.overflow-menu .is-current,
+.overflow-menu button.is-current:not(.icon-button) {
   color: var(--fg);
   background: var(--bg-active);
   border-color: var(--border-strong);
@@ -4605,6 +4493,11 @@ button:active,
   min-width: 0;
 }
 
+/* One track from the viewport, not the row, so every row's detail starts on one edge. */
+.list-content > .record-label {
+  flex: 0 0 clamp(9rem, 25vw, 18rem);
+}
+
 .list-content .list-summary {
   flex: 1 1 0;
   overflow: hidden;
@@ -4658,7 +4551,7 @@ aside .filter-row.nested {
 aside details.acct-folders > summary.aside-account {
   cursor: pointer;
   list-style: none;
-  padding: 0.4rem var(--space-1) 0.2rem;
+  padding: 0.4rem 0 0.2rem;
   padding-inline-start: var(--space-2);
   border-inline-start: 2px solid transparent;
   display: flex;
@@ -4700,22 +4593,23 @@ aside a.rail-account-empty {
   align-items: center;
   gap: var(--space-1);
   margin: 0;
-  padding-inline-start: calc(var(--space-2) + var(--rail-chevron-track) + var(--space-1));
+  padding-inline-start: var(--space-2);
 }
 aside .rail-account-empty bdi { overflow: hidden; text-overflow: ellipsis; }
 aside a.rail-account-empty:not(.active) { color: var(--fg-muted); }
 
-aside details.acct-folders > summary::-webkit-details-marker {
-  display: none;
-}
+aside details:is(.acct-folders, .folder-branch) > summary::-webkit-details-marker { display: none; }
 
-aside details.acct-folders > summary::before {
+/* The chevron is a target of its own at the row's end, clear of the link; ticks follow it. */
+aside details:is(.acct-folders, .folder-branch) > summary::before {
+  order: 1;
   flex: none;
   width: var(--rail-chevron-track);
+  margin-inline-start: auto;
   align-self: stretch;
   display: inline-flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: center;
   color: var(--fg-muted);
 }
 
@@ -4724,16 +4618,8 @@ aside details.acct-folders > summary::before {
   aside details.acct-folders > summary.aside-account,
   aside a.rail-account-empty { min-height: 2.75rem; }
 }
-
-/* On touch the chevron is a target of its own, at the row's end and clear of the link. */
 @media (pointer: coarse) {
-  aside details:is(.acct-folders, .folder-branch) > summary::before {
-    order: 1;
-    width: 2.75rem;
-    justify-content: center;
-  }
-  aside details:is(.acct-folders, .folder-branch) > summary { padding-inline-end: 0; }
-  aside a.rail-account-empty { padding-inline-start: var(--space-2); }
+  :root { --rail-chevron-track: 2.75rem; }
 }
 
 aside details.acct-folders li {
@@ -4748,11 +4634,13 @@ aside details.acct-folders li.folder-li > details > summary {
   padding-inline-start: 1rem;
 }
 
-aside details.acct-folders details.folder-branch > ul > li {
+aside details.acct-folders details.folder-branch > ul > li:not(.folder-li),
+aside details.acct-folders details.folder-branch > ul > li > details > summary {
   padding-inline-start: 1.8rem;
 }
 
-aside details.acct-folders details.folder-branch details.folder-branch > ul > li {
+aside details.acct-folders details.folder-branch details.folder-branch > ul > li:not(.folder-li),
+aside details.acct-folders details.folder-branch details.folder-branch > ul > li > details > summary {
   padding-inline-start: 2.6rem;
 }
 
@@ -5083,13 +4971,18 @@ h1.no-word .title-short {
     margin-inline: var(--space-2);
     border-block-start: 1px solid var(--border);
   }
-  aside .rail-mobile-footer > a {
+  aside .rail-mobile-footer > a,
+  aside .rail-mobile-footer button {
     display: flex;
     align-items: center;
     gap: var(--space-2);
     min-height: 2.75rem;
     width: 100%;
     padding: var(--space-1) var(--space-2);
+    border: 0;
+    background: none;
+    font: inherit;
+    text-align: start;
     color: var(--fg);
     text-decoration: none;
   }

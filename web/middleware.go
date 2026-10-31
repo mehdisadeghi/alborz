@@ -73,7 +73,7 @@ func Prepare(next HandlerFunc) HandlerFunc {
 		ctx.installTiming()
 		ctx.SetRequest(ctx.Request().WithContext(alborz.WithStoreMemo(ctx.Request().Context())))
 		// A language in the URL is kept, so the next click does not fall back to the old one.
-		if lang := queryLanguage(ctx); lang != "" {
+		if lang, ok := queryLanguage(ctx); ok {
 			if err := ctx.SetLanguage(lang); err != nil {
 				ctx.Logger().Printf("profile: keeping the language: %v", err)
 			}
@@ -192,7 +192,7 @@ func (ctx *Context) signIn(next HandlerFunc, required bool) error {
 	if acct := ctx.QueryParam("account"); acct != "" {
 		login := ctx.LoginFor(acct)
 		if login == nil {
-			return renderInfo(ctx, http.StatusOK, fmt.Sprintf(ctx.T("account.notsignedin"), acct))
+			return renderInfo(ctx, http.StatusOK, ctx.Tf("account.notsignedin", acct))
 		}
 		ctx.Login = login
 		ctx.urlAccount = acct

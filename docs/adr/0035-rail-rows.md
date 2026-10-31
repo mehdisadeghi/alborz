@@ -29,6 +29,11 @@ ticked set and left no way to open a single collection.
 5. Views, groups and categories are place links in their own rail
    branches. Active view or query filters display a removable filter
    chip (`filter-chips`) above the list.
+6. A branch (`details` account or folder heading) MUST draw its
+   disclosure chevron at the row's inline end, after the count and
+   before any member checkbox, at every width; depth is shown by the
+   row's indent. The label stays a link; the rest of the `summary`
+   toggles the branch without script.
 
 ## Consequences
 
@@ -41,4 +46,5 @@ ticked set and left no way to open a single collection.
 
 - ADR 1, ADR 64, ADR 80
 - `templates/partials/rail.html`, `templates/partials/crumb.html`
-  (`filter-chips`), `pim/web/pooled.go`, `mail/web/sidebar.go`
+  (`filter-chips`), `templates/assets/style.css`, `pim/web/pooled.go`,
+  `mail/web/sidebar.go`

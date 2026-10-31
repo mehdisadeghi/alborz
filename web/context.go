@@ -43,6 +43,8 @@ type Context struct {
 	timing *alborz.Timing
 
 	urlAccount string
+	// personal marks a page of the person, which no account scopes (Personal).
+	personal bool
 
 	// form is the multipart form read, whose files go with the request.
 	form *Form

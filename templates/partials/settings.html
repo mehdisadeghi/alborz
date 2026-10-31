@@ -6,7 +6,6 @@
 
 {{/* dict: g collection path [object chooses]. */}}
 {{ define "settings-crumb" }}{{ template "section-crumb" (dict "g" .g "section" (.g.T "nav.settings") "home" (url "settings.profile") "noroot" true "chooses" .chooses "field" "" "collection" .collection "path" .path "object" .object) }}{{ end }}
-{{ define "settings-submit" }}<button type="submit" class="button-primary">{{.}}</button>{{ end }}
 
 {{/* dict: g ua. A browser and its system as its User-Agent names them. */}}
 {{ define "device-name" }}{{ $d := devicename .ua }}{{ if and $d.Browser $d.System }}{{ .g.Tf "sessions.device" $d.Browser $d.System }}{{ else if or $d.Browser $d.System }}{{ or $d.Browser $d.System }}{{ else }}{{.g.T "sessions.unknown"}}{{ end }}{{ end }}

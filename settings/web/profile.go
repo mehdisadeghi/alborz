@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"reflect"
 	"slices"
 	"time"
@@ -55,9 +56,17 @@ type GestureOption struct {
 	Selected     bool
 }
 
+// handleLanguage sets the language alone and returns to the page it was chosen on, without the URL's
+// language, which would outrank the new one.
 func handleLanguage(ctx *web.Context) error {
-	to := ctx.NextOr(ctx.Path("mail.home"))
-	return ctx.SaveQuietRedirect(ctx.SetLanguage(ctx.FormValue("language")), to)
+	to, err := url.Parse(ctx.NextOr(ctx.Path("mail.home")))
+	if err != nil {
+		return err
+	}
+	q := to.Query()
+	q.Del("lang")
+	to.RawQuery = web.Query(q)
+	return ctx.SaveQuietRedirect(ctx.SetLanguage(ctx.FormValue("language")), to.String())
 }
 
 func handleProfile(ctx *web.Context) error {
@@ -173,6 +182,12 @@ func handleProfile(ctx *web.Context) error {
 		p.Display.Theme = ""
 		if slices.ContainsFunc(ctx.Themes(), func(t web.Theme) bool { return t.Name == v }) {
 			p.Display.Theme = v
+		}
+	}
+	if v, ok := given("language"); ok {
+		p.Display.Language = ""
+		if locale.Supported(v) {
+			p.Display.Language = v
 		}
 	}
 	if v, ok := given("text_size"); ok {

@@ -1,8 +1,9 @@
 # ADR 1: Account scope
 
 Status: accepted, amended by ADR 37 (an object's page keeps the scope
-of the list it was opened from) and ADR 80 (choosing which accounts
-feed a merged mail folder).
+of the list it was opened from), ADR 80 (choosing which accounts
+feed a merged mail folder), ADR 102 (merged settings lists) and ADR 103
+(pages of the person).
 
 ## Context
 
@@ -18,7 +19,8 @@ standing preferences and per-browser state must not be mixed.
    URL disagree, the URL wins.
 3. No cookie pins a current account or a merged mode. Without
    `account` and with more than one account signed in, a page is the
-   merged view over every account of the session. An `account` not
+   merged view over every account of the session; a page of the person
+   is in no scope (ADR 103). An `account` not
    signed in to the session is refused with `account.notsignedin`.
 4. The set of signed-in accounts is per browser session.
 5. Which calendars, task lists, journals, address books and role
@@ -27,8 +29,8 @@ standing preferences and per-browser state must not be mixed.
    unioned at render time. No account is primary.
 6. An account that fails MUST NOT fail a merged page: it contributes
    nothing, is logged, and is named in a notice.
-7. Settings are per account: a merged GET of a settings page redirects
-   to name an account.
+7. A settings form is per account: a merged GET of it redirects to
+   name an account. Settings lists merge (ADR 102).
 
 ## Consequences
 
@@ -37,9 +39,9 @@ standing preferences and per-browser state must not be mixed.
 
 ## References
 
-- ADR 37, ADR 80
+- ADR 37, ADR 80, ADR 102, ADR 103
 - `web/middleware.go` (account resolution, `ctx.Unified`),
-  `web/accounts.go` (`Scoped`, `AccountPath`), `web/session.go`
+  `web/accounts.go` (`Scoped`, `Personal`, `InScope`, `AccountPath`), `web/session.go`
   (`Session.Accounts`)
 - `pim/pooled.go` (`Visible`), `pim/web/pooled.go` (`Pooled`),
   `pim/calendar/settings.go`, `pim/contacts/settings.go`,

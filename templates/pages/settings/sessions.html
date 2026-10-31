@@ -1,18 +1,19 @@
 
 {{ define "main" }}
-  {{ $aq := .GlobalData.AccountQuery }}
+  {{ $here := .GlobalData.URL.RequestURI }}
       {{ template "settings-head" (dict "g" $ "title" ($.T "sessions.title") "path" (url "settings.sessions")) }}
       <section class="list-items">
         {{ range .Signed }}
+        {{ $gq := account "?" .Account }}
         <div class="list-item">
           <div class="list-content">
-            {{ template "device-summary" (dict "g" $ "device" .Device) }}
+            <div class="record-label">
+              {{ template "device-summary" (dict "g" $ "device" .Device) }}
+              {{ template "record-account" (dict "g" $ "account" .Account) }}
+            </div>
             <span class="list-detail">{{ $.Tf "sessions.lastused" (printf "%s %s" ($.GlobalData.ShortDate .Seen) ($.GlobalData.FormatTime .Seen)) }} · {{ $.Tf "sessions.since" ($.GlobalData.ShortDate .Created) }}{{ with .Address }} · {{ template "ltr" . }}{{ end }}{{ if .Current }} · {{$.T "sessions.current"}}{{ end }}</span>
           </div>
-          <form method="post" action="{{ if .Current }}{{url "auth.logout"}}{{ else }}{{url "settings.sessions"}}{{ end }}{{$aq}}">
-            <input type="hidden" name="session" value="{{.ID}}">
-            <button class="button-danger">{{$.T "nav.signout"}}</button>
-          </form>
+          {{ template "filter-action" (dict "g" $ "action" (printf "%s%s" (or (and .Current (url "auth.logout")) (url "settings.sessions")) $gq) "fields" (tuple (dict "name" "session" "value" .ID) (dict "name" "next" "value" $here)) "button" "nav.signout" "class" "button-danger") }}
         </div>
         {{ end }}
       </section>

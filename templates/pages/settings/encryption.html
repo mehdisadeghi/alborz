@@ -31,7 +31,7 @@
           <ul><li>{{$.T "encryption.locked"}}</li></ul>
         </details>
         {{ template "field" (dict "label" ($.T "encryption.recovery") "name" "recovery" "dir" "ltr" "required" true "hint" ($.T "encryption.recoveryenter")) }}
-        {{ template "settings-submit" ($.T "encryption.open") }}
+        {{ template "form-actions" (dict "save" ($.T "encryption.open")) }}
       </form>
 
       <form method="post" action="{{url "settings.encryption.startover"}}{{$aq}}">
@@ -54,7 +54,7 @@
           {{ if not .OnServer }}<p class="hint">{{$.T "encryption.offline"}}</p>{{ end }}
         </div>
         {{ template "field" (dict "label" ($.T "encryption.password") "name" "password" "type" "password" "dir" "ltr" "required" true) }}
-        {{ if .On }}{{ template "settings-submit" ($.T "encryption.turnoff") }}{{ else }}{{ template "settings-submit" ($.T "encryption.turnon") }}{{ end }}
+        {{ template "form-actions" (dict "save" (or (and .On ($.T "encryption.turnoff")) ($.T "encryption.turnon"))) }}
       </form>
       {{ end }}
 {{ end }}

@@ -47,6 +47,8 @@ type CollectionRenderData struct {
 	Sharing  *Sharing
 	// Offer is this account's share as invitee: the whole page while unanswered, a line once accepted.
 	Offer *Offer
+	// Place is the source the collection is kept on (ADR 28), Host the server's name; empty when unknown.
+	Place, Host string
 }
 
 // NewCollectionRenderData renders create-collection.html; only a calendar offers Holds.
@@ -170,7 +172,7 @@ func (pg Page) HandleCreate(p *dav.Provider, form func(*web.Context) (CreateForm
 		if err != nil {
 			message := err.Error()
 			if errors.Is(err, dav.ErrNameTaken) {
-				message = fmt.Sprintf(ctx.T("form.nametaken"), data.Name)
+				message = ctx.Tf("form.nametaken", data.Name)
 			} else if errors.Is(err, dav.ErrPlaceDown) {
 				message = ctx.T("form.placedown")
 			}
@@ -305,7 +307,13 @@ func (pg Page) data(ctx *web.Context, p *dav.Provider, collPath string) (*Collec
 	if err != nil {
 		return nil, err
 	}
+	var place, host string
+	if src, err := p.SourceOf(ctx.Request().Context(), ctx.Login, info.Path); err == nil {
+		place, host = src.ID, placeHost(ctx, src)
+	}
 	return &CollectionRenderData{
+		Place:       place,
+		Host:        host,
 		PageData:    *web.NewPageData(ctx, info.Name, rail),
 		Name:        info.Name,
 		Color:       info.Color,

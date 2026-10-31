@@ -73,8 +73,8 @@ func (p *plugin) registerRoutes(g *web.Group) {
 	g.POST("messages.flag", "/message/{mbox}/flag", p.handleSetFlags)
 
 	scoped := g.Group("", "", web.Scoped)
-	scoped.GET("signatures", "/settings/signatures", handleSignatures)
-	scoped.GET("signatures.create", "/settings/signatures/create", handleSignatureForm)
+	g.GET("signatures", "/settings/signatures", handleSignatures)
+	g.GET("signatures.create", "/settings/signatures/create", handleSignatureForm)
 	scoped.GET("signature", "/settings/signatures/{name}", handleSignatureForm)
 	g.POST("signatures", "/settings/signatures", handleSignatureSave)
 	g.POST("signatures.delete", "/settings/signatures/delete", handleSignatureDelete)

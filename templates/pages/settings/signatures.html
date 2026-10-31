@@ -1,36 +1,26 @@
 
 {{ define "main" }}
   {{ $aq := .GlobalData.AccountQuery }}
+  {{ $here := .GlobalData.URL.RequestURI }}
       {{ template "settings-head" (dict "g" $ "title" ($.T "settings.signatures") "path" (url "mail.signatures") "newhref" (printf "%s%s" (url "mail.signatures.create") $aq) "newlabel" ($.T "settings.signaturenew")) }}
 
-      <p class="help">{{ $.Tf "mail.signatureaccount" .GlobalData.Username }}</p>
-
       <section class="list-items">
-        {{ range .Settings.Signatures }}
+        {{ range .Rows }}
+        {{ $gq := account "?" .Account }}
+        {{ $next := dict "name" "next" "value" $here }}
         <div class="list-item">
           <div class="list-content">
-            <a href="{{url "mail.signature" .Name}}{{$aq}}" class="list-summary" dir="auto">{{.Name}}</a>
-            <span class="list-detail" dir="auto">{{.Text}}</span>
-            {{ if eq .Name $.Settings.DefaultSignature }}
-            <span class="list-meta">{{$.T "settings.signaturedefaultmark"}}</span>
-            {{ end }}
+            <div class="record-label">
+              <a href="{{ localhref (from (printf "%s%s" (url "mail.signature" .Name) $gq) $here) }}" class="list-summary" dir="auto">{{.Name}}</a>
+              {{ template "record-account" (dict "g" $ "account" .Account) }}
+            </div>
+            <span class="list-detail"><bdi>{{.Text}}</bdi>{{ if .Default }} · {{$.T "settings.signaturedefaultmark"}}{{ end }}</span>
           </div>
-          <form method="post" action="{{url "mail.signatures.default"}}{{$aq}}">
-            {{ if eq .Name $.Settings.DefaultSignature }}
-            <input type="hidden" name="name" value="">
-            <button>{{$.T "settings.signaturecleardefault"}}</button>
-            {{ else }}
-            <input type="hidden" name="name" value="{{.Name}}">
-            <button>{{$.T "settings.signaturemakedefault"}}</button>
-            {{ end }}
-          </form>
-          <form method="post" action="{{url "mail.signatures.delete"}}{{$aq}}">
-            <input type="hidden" name="name" value="{{.Name}}">
-            <button class="button-danger">{{$.T "common.delete"}}</button>
-          </form>
+          {{ template "filter-action" (dict "g" $ "action" (printf "%s%s" (url "mail.signatures.default") $gq) "fields" (tuple (dict "name" "name" "value" (or (and (not .Default) .Name) "")) $next) "button" (or (and .Default "settings.signaturecleardefault") "settings.signaturemakedefault")) }}
+          {{ template "filter-action" (dict "g" $ "action" (printf "%s%s" (url "mail.signatures.delete") $gq) "fields" (tuple (dict "name" "name" "value" .Name) $next) "button" "common.delete" "class" "button-danger") }}
         </div>
         {{ end }}
-        {{ if not .Settings.Signatures }}
+        {{ if not .Rows }}
         <p class="empty-list">{{$.T "settings.signaturesnone"}}</p>
         {{ end }}
       </section>

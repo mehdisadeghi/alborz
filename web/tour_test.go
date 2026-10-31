@@ -41,7 +41,7 @@ func TestTourWalk(t *testing.T) {
 	if got := shownStop(t, plain); got != "" {
 		t.Fatalf("a page asked for without the tour shows it at %s", got)
 	}
-	take := regexp.MustCompile(`<a href="([^"]+)">` + regexp.QuoteMeta(T(t, "tour.take")) + `</a>`).FindStringSubmatch(plain)
+	take := regexp.MustCompile(`<a class="button-link" href="([^"]+)">` + regexp.QuoteMeta(T(t, "tour.take")) + `</a>`).FindStringSubmatch(plain)
 	if take == nil {
 		t.Fatal("the accounts menu offers no tour")
 	}

@@ -1,6 +1,7 @@
 package web
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -62,7 +63,9 @@ type GlobalRenderData struct {
 	// Language is the explicit choice, empty while following the browser.
 	Language        string
 	LanguageChoices []locale.Choice
-	Year            int
+	// Languages are the header's language menu: Auto, then each language in its own name.
+	Languages []FilterRow
+	Year      int
 	// Primary is the calendar the page counts in, Secondary the one glossed beside it, empty for none.
 	Primary   string
 	Secondary string
@@ -86,6 +89,8 @@ type GlobalRenderData struct {
 	// Scope and Merged are the account the nav, switcher and rail follow, and whether it is all of them.
 	Scope  string
 	Merged bool
+	// Personal marks a page of the person, in no scope (Personal).
+	Personal bool
 	// Item says the page shows one object; Own is its URL without From (ADR 37).
 	Item bool
 	Own  string
@@ -280,8 +285,16 @@ func NewBaseRenderData(ctx *Context) *BaseRenderData {
 	// A person reads the brand in their own script; what a machine reads stays BrandName.
 	global.Brand = locale.T(lang, "brand.name")
 	global.ProjectURL = ctx.Server.projectURL
+	// The URL's language is in force, though the request still carries the cookie it replaces.
 	global.Language = ctx.language()
+	if v, ok := queryLanguage(ctx); ok {
+		global.Language = v
+	}
 	global.LanguageChoices = locale.Choices()
+	global.Languages = []FilterRow{{Label: locale.T(lang, "settings.langauto"), Current: global.Language == ""}}
+	for _, c := range global.LanguageChoices {
+		global.Languages = append(global.Languages, FilterRow{Label: c.Name, Value: c.Code, Lang: c.Code, Current: c.Code == global.Language})
+	}
 	global.Year = time.Now().Year()
 	global.Primary, global.Secondary, global.Timezone = reader.Primary, reader.Secondary, reader.Loc
 	global.Theme = ctx.Theme()
@@ -301,7 +314,7 @@ func NewBaseRenderData(ctx *Context) *BaseRenderData {
 	global.Scene = theme.Scene
 	global.URLAccount = ctx.urlAccount
 	global.From = ctx.From()
-	global.Scope, global.Merged = ctx.urlAccount, ctx.Unified
+	global.Scope, global.Merged, global.Personal = ctx.urlAccount, ctx.Unified, ctx.personal
 	// Values.Encode would escape the raw values again.
 	req := global.URL
 	kept := slices.DeleteFunc(strings.Split(req.RawQuery, "&"), func(p string) bool {
@@ -355,27 +368,19 @@ func (ctx *Context) PageLanguage() string {
 	return requestLanguage(ctx)
 }
 
-// LanguageName is the chosen language in its own name, empty while following the browser.
-func (g GlobalRenderData) LanguageName() string {
-	for _, c := range g.LanguageChoices {
-		if c.Code == g.Language {
-			return c.Name
-		}
+// The URL's language outranks the cookie, so a page can be handed to a reader of another language;
+// an empty one follows the browser.
+func queryLanguage(ctx *Context) (string, bool) {
+	q := ctx.Request().URL.Query()
+	if v := q.Get("lang"); q.Has("lang") && (v == "" || locale.Supported(v)) {
+		return v, true
 	}
-	return ""
-}
-
-// The URL's language outranks the cookie, so a page can be handed to a reader of another language.
-func queryLanguage(ctx *Context) string {
-	if v := ctx.QueryParam("lang"); locale.Supported(v) {
-		return v
-	}
-	return ""
+	return "", false
 }
 
 func requestLanguage(ctx *Context) string {
-	if v := queryLanguage(ctx); v != "" {
-		return v
+	if v, ok := queryLanguage(ctx); ok {
+		return cmp.Or(v, locale.Match(ctx.Request().Header.Get("Accept-Language")))
 	}
 	if v := ctx.language(); v != "" {
 		return v

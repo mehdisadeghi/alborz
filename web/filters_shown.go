@@ -31,6 +31,8 @@ type FilterRow struct {
 	Star string
 	// Value is what the row submits where its menu belongs to a form.
 	Value string
+	// Lang is the language the label is written in, when not the page's.
+	Lang string
 }
 
 // WithoutParam returns this page with one query parameter and the page number dropped.

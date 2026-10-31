@@ -90,7 +90,7 @@
 {{ end }}
 {{ end }}
 
-{{ define "filter-row" }}{{ with .Star }}<span class="flag-star flag-{{.}}">&#9733;</span> {{ end }}{{.Label}}{{ end }}
+{{ define "filter-row" }}{{ with .Star }}<span class="flag-star flag-{{.}}">&#9733;</span> {{ end }}{{ if .Lang }}<span lang="{{.Lang}}" dir="auto">{{.Label}}</span>{{ else }}{{.Label}}{{ end }}{{ end }}
 
 {{ define "sort-mark" }}{{ template "icon" "sort" }}<span class="label">{{.T "mailbox.sortby"}}</span>{{ end }}
 

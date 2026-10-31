@@ -1,6 +1,10 @@
 package web
 
-import "fmt"
+import (
+	"fmt"
+
+	"git.mehdix.org/alborz"
+)
 
 // Ability is one capability named for what it means to the reader.
 type Ability struct {
@@ -62,6 +66,13 @@ func (ctx *Context) Servers(showing string) (*Servers, error) {
 		}
 	}
 	return servers, nil
+}
+
+// ServersOf asks the features for login's servers: they read the request's account.
+func (ctx *Context) ServersOf(login *alborz.Login, showing string) (*Servers, error) {
+	defer func(anchor *alborz.Login) { ctx.Login = anchor }(ctx.Login)
+	ctx.Login = login
+	return ctx.Servers(showing)
 }
 
 // AddPlace offers a place once, however many features know it.

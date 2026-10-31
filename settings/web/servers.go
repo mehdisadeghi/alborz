@@ -72,27 +72,27 @@ func serverInfo(ctx *web.Context, agent string, abilities []web.Ability) ServerI
 type ServersRenderData struct {
 	web.PageData[map[string][]web.RailRow]
 	*web.Servers
-	// server is the address of a server group's own page.
-	server func(group string) string
+	// Rows are the list's, of every account on a merged page.
+	Rows []ServerRow
 }
 
 var serverOrder = []string{web.ServerMail, web.ServerSending, web.ServerFilters, web.ServerDAV}
 
 var serverPages = map[string]bool{web.ServerMail: true, web.ServerDAV: true}
 
-// ServerRow is one row of the list: a group of cards by its hosts.
+// ServerRow is one row of the list: a group of an account's cards by its hosts.
 type ServerRow struct {
-	Title, Hosts, Source, Href string
+	Title, Hosts, Source, Href, Account string
 }
 
-// Rows are the list's rows, one per group that has a card.
-func (d *ServersRenderData) Rows() []ServerRow {
+// serverRows are the list's rows of the request's account, one per group that has a card.
+func serverRows(ctx *web.Context, account string, servers *web.Servers) []ServerRow {
 	var rows []ServerRow
 	for _, group := range serverOrder {
-		row := ServerRow{Title: d.T("servers." + group)}
+		row := ServerRow{Title: ctx.T("servers." + group), Account: account}
 		var hosts []string
 		found := false
-		for _, c := range d.Cards {
+		for _, c := range servers.Cards {
 			if c.Group != group {
 				continue
 			}
@@ -101,7 +101,7 @@ func (d *ServersRenderData) Rows() []ServerRow {
 				hosts = append(hosts, c.Host)
 			}
 			if row.Source == "" && c.Source != "" {
-				row.Source = c.SourceText(d.T)
+				row.Source = c.SourceText(ctx.T)
 			}
 		}
 		if !found {
@@ -109,7 +109,7 @@ func (d *ServersRenderData) Rows() []ServerRow {
 		}
 		row.Hosts = strings.Join(hosts, ", ")
 		if serverPages[group] {
-			row.Href = d.server(group) + web.AccountQuery(d.GlobalData.URLAccount)
+			row.Href = ctx.Path("settings.server", group) + web.AccountQuery(account)
 		}
 		rows = append(rows, row)
 	}
@@ -168,15 +168,15 @@ func mailCards(ctx *web.Context, servers *web.Servers) error {
 }
 
 func handleServers(ctx *web.Context) error {
-	servers, err := ctx.Servers("")
-	if err != nil {
-		return err
+	data := &ServersRenderData{PageData: *web.NewSettingsPageData(ctx, ctx.T("settings.servers"))}
+	for _, login := range ctx.InScope() {
+		servers, err := ctx.ServersOf(login, "")
+		if err != nil {
+			return err
+		}
+		data.Rows = append(data.Rows, serverRows(ctx, login.Username(), servers)...)
 	}
-	return ctx.Render(http.StatusOK, "settings/servers", &ServersRenderData{
-		PageData: *web.NewSettingsPageData(ctx, ctx.T("settings.servers")),
-		Servers:  servers,
-		server:   func(group string) string { return ctx.Path("settings.server", group) },
-	})
+	return ctx.Render(http.StatusOK, "settings/servers", data)
 }
 
 func handleServer(ctx *web.Context) error {

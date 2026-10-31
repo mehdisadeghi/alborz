@@ -339,12 +339,29 @@ func (ctx *Context) RestoreRememberedAccounts() bool {
 	return true
 }
 
-// Scoped serves h per account: settings are per account, so a unified GET redirects to name its account.
+// InScope lists the accounts the page is about: every one on a merged page, else the one the URL names.
+func (ctx *Context) InScope() []*alborz.Login {
+	if ctx.Unified {
+		return ctx.Logins()
+	}
+	return []*alborz.Login{ctx.Login}
+}
+
+// Scoped serves h per account: a settings form is one account's, so a unified GET redirects to name its account.
 func Scoped(h HandlerFunc) HandlerFunc {
 	return func(ctx *Context) error {
 		if ctx.Unified && ctx.Request().Method == http.MethodGet {
 			return ctx.FoundRedirect(ctx.Request().URL.Path + AccountQuery(ctx.Login.Username()))
 		}
+		return h(ctx)
+	}
+}
+
+// Personal serves a page of the person, which every account shares (the profile, the browser's passkeys):
+// it is in no account's scope and in no merged one.
+func Personal(h HandlerFunc) HandlerFunc {
+	return func(ctx *Context) error {
+		ctx.Unified, ctx.urlAccount, ctx.personal = false, "", true
 		return h(ctx)
 	}
 }

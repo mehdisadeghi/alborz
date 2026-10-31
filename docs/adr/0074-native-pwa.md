@@ -1,8 +1,9 @@
 # ADR 74: Notifications, badge, share target and mailto
 
 Status: accepted, amended by ADR 90 (mail preview, calendar event title
-and notification actions) and ADR 97 (60-day remembered inactivity
-window). Amends ADR 14, ADR 19 and ADR 72.
+and notification actions), ADR 97 (60-day remembered inactivity
+window) and ADR 102 (merged settings lists). Amends ADR 14, ADR 19 and
+ADR 72.
 
 ## Context
 
@@ -40,9 +41,9 @@ requires keeping that login alive while a push device is active.
    the account's `alborz.push` key (instance key when encryption is off,
    account key when on, ADR 72). It stores endpoint, `p256dh`, `auth`,
    session ID, User-Agent, language, timezone, origin and creation time.
-6. `/settings/notifications` (`settings.notifications`) lists every
-   signed-in account with an on/off toggle for the current browser and
-   shows other browsers' devices per account. Enabling requires an
+6. `/settings/notifications` (`settings.notifications`) lists, for
+   each account in view (ADR 102), the current browser with an on/off
+   toggle and then the account's other browsers, one row each. Enabling requires an
    `https` endpoint, a valid P-256 `p256dh` point and a 16-octet `auth`
    secret. Re-enabling from the same browser replaces the record with
    the current session, language and timezone.
@@ -121,7 +122,8 @@ requires keeping that login alive while a push device is active.
 
 - RFC 8030, RFC 8188, RFC 8291, RFC 8292; RFC 5545 3.6.6, 3.8.6.3
 - W3C Push API, Notifications API, Badging API, Web Share Target
-- ADR 14, ADR 19, ADR 45, ADR 53, ADR 65, ADR 70, ADR 72, ADR 90, ADR 97
+- ADR 14, ADR 19, ADR 45, ADR 53, ADR 65, ADR 70, ADR 72, ADR 90, ADR 97,
+  ADR 102
 - `internal/webpush`, `push.go` (`Pushes`), `web/push.go` (`Push`,
   `keepLogin`), `web/serviceworker.go`, `web/routes.go`,
   `settings/web/notifications.go`, `templates/assets/push.js`,

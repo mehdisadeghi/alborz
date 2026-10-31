@@ -1,6 +1,7 @@
 package web
 
 import (
+	"cmp"
 	"fmt"
 	"net/http"
 
@@ -90,19 +91,26 @@ func loginRedirect(ctx *web.Context) error {
 	return ctx.QuietRedirect(to)
 }
 
+// handleLogout signs out the `account` sent, the request's own without one, or every account with `all`.
 func handleLogout(ctx *web.Context) error {
-	username := ctx.Login.Username()
-	if ctx.FormValue("account") != "" {
-		username = ctx.FormValue("account")
+	usernames := []string{cmp.Or(ctx.FormValue("account"), ctx.Login.Username())}
+	if ctx.FormValue("all") != "" {
+		usernames = nil
+		for _, a := range ctx.Accounts() {
+			usernames = append(usernames, a.Username)
+		}
 	}
-	target := ctx.LoginFor(username)
-	if target == nil {
-		return web.NewError(http.StatusBadRequest, "not signed in to that account")
-	}
-	ctx.Server.ForgetAccount(username)
 	ctx.Quiet()
+	var left *alborz.Login
+	for _, username := range usernames {
+		if ctx.LoginFor(username) == nil {
+			return web.NewError(http.StatusBadRequest, "not signed in to that account")
+		}
+		ctx.Server.ForgetAccount(username)
+		left = ctx.LogoutAccount(username)
+	}
 	to := ctx.Path("auth.login")
-	if ctx.LogoutAccount(username) != nil {
+	if left != nil {
 		to = ctx.Path("mail.mailbox", "INBOX")
 	}
 	if ctx.Partial() {

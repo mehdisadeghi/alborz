@@ -584,14 +584,6 @@ document.addEventListener("click", ev => {
 	}
 });
 
-document.addEventListener("click", ev => {
-	for (const menu of document.querySelectorAll(".nav-menus details.accounts[open]")) {
-		if (!menu.contains(ev.target)) {
-			menu.open = false;
-		}
-	}
-});
-
 // The rail stays; only its mark moves, matched by path, account and view.
 const railPlace = href => {
 	const u = new URL(href, location.href);

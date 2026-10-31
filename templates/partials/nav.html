@@ -20,19 +20,17 @@
     {{ template "nav-section" (dict "href" (printf "%s%s" (url "filters.list") $q) "go" "f" "active" (eq $page "filters") "icon" "filter" "label" ($.T "nav.filters")) }}
     {{ if .GlobalData.LoggedIn }}
     <button type="button" class="nav-search-open" data-tour="search" commandfor="search-dialog" command="show-modal" title="{{$.T "search.title"}}" aria-label="{{$.T "search.title"}}">{{ template "icon" "search" }}<span class="label">{{$.T "search.placeholder"}}</span><kbd aria-hidden="true">/</kbd></button>
-    <div>
-      {{ template "nav-menus" (dict "g" $ "page" $page) }}
-    </div>
-    {{ if or .GlobalData.LockSeconds (not .GlobalData.SchemePinned) }}
+    {{/* Icons of one width each, so nothing moves when the scope changes. */}}
     <div class="nav-utilities">
+      {{ template "language-menu" $ }}
+      {{ template "scheme-toggle" $ }}
       {{ if .GlobalData.LockSeconds }}
       <form method="post" action="{{url "auth.lock"}}" class="nav-session-lock" data-session-lock hx-boost="false">
         <button type="submit" class="icon-button" title="{{$.T "lock.now"}}" aria-label="{{$.T "lock.now"}}">{{ template "icon" "lock" }}</button>
       </form>
       {{ end }}
-      {{ template "scheme-toggle" $ }}
+      {{ template "person-menu" (dict "g" $ "page" $page) }}
     </div>
-    {{ end }}
     {{ end }}
   </nav>
   {{ if .GlobalData.LoggedIn }}{{ template "flag-colors-menu" (dict "id" "row-colors" "row" true "colors" (flagcolors $) "clear" ($.T "mailbox.flagnone")) }}{{ end }}
@@ -113,49 +111,51 @@
 <a href="{{.href}}"{{ with .go }} data-go="{{.}}"{{ end }}{{ with .tour }} data-tour="{{.}}"{{ end }}{{ if or .class .active }} class="{{ with .class }}{{.}}{{ if $.active }} {{ end }}{{ end }}{{ if .active }}active{{ end }}"{{ end }}{{ if .active }} aria-current="page"{{ end }} title="{{.label}}" aria-label="{{.label}}">{{ template "icon" .icon }}<span class="label">{{.label}}</span></a>
 {{ end }}
 
-{{/* dict: g page. Desktop account and language menus. */}}
-{{ define "nav-menus" }}
+{{/* dict: g page. The header's person menu: the accounts, then the person's own, then signing out. */}}
+{{ define "person-menu" }}
 {{ $g := .g }}{{ $page := .page }}
-<div class="nav-menus">
-  <details class="accounts" name="header-switchers"><summary class="accounts-button" data-tour="accounts settings"><span class="label"{{ if or $g.GlobalData.Scope (not $g.GlobalData.Merged) }} dir="ltr"{{ end }}>{{ if $g.GlobalData.Scope }}{{ template "ltr" $g.GlobalData.Scope }}{{ else if $g.GlobalData.Merged }}{{$g.T "nav.allaccounts"}}{{ else }}{{ template "ltr" $g.GlobalData.Username }}{{ end }}</span>{{ template "icon" "down" }}</summary>
-  <div class="accounts-menu">
+{{ $name := $g.T "nav.accounts" }}{{ $title := $name }}
+{{ if $g.GlobalData.Scope }}{{ $title = printf "%s: %s" $name $g.GlobalData.Scope }}{{ else if $g.GlobalData.Merged }}{{ $title = printf "%s: %s" $name ($g.T "nav.allaccounts") }}{{ else if not $g.GlobalData.Personal }}{{ $title = printf "%s: %s" $name $g.GlobalData.Username }}{{ end }}
+<div class="overflow nav-person">
+  <button type="button" class="icon-button" popovertarget="menu-accounts" title="{{$title}}" aria-label="{{$title}}" data-tour="accounts settings">{{ template "icon" "person" }}</button>
+  <div class="overflow-menu" popover id="menu-accounts">
     {{ $section := printf "/%s" $page }}
     {{ $merged := $section }}
     {{ if or (eq $page "mailbox") (eq $page "message") (eq $page "compose") }}{{ $section = url "mail.mailbox" "INBOX" }}{{ $merged = $section }}{{ end }}
-    {{ if eq $page "settings" }}{{ $section = url "mail.account" }}{{ $merged = url "settings.profile" }}{{ end }}
+    {{ if or (eq $page "settings") $g.GlobalData.Personal }}{{ $section = url "mail.account" }}{{ $merged = url "mail.signatures" }}{{ end }}
     {{ range $g.GlobalData.Accounts }}
-    <div class="account-menu-row">
     {{ $to := printf "%s%s" $section (account "?" .Username) }}{{ if and $g.GlobalData.Item (eq .Username $g.GlobalData.URLAccount) }}{{ $to = $g.GlobalData.Own }}{{ end }}
-    <a href="{{ localhref $to }}" dir="ltr"{{ if eq .Username $g.GlobalData.Scope }} class="active" aria-current="true"{{ end }}>{{ template "ltr" .Username }}</a>
-    <form method="post" action="{{url "auth.logout"}}" class="account-signout">
-      <button type="submit" name="account" value="{{.Username}}" title="{{$g.T "nav.signout"}} {{.Username}}">{{$g.T "nav.signout"}}</button>
-    </form>
-    </div>
+    {{ $on := eq .Username $g.GlobalData.Scope }}
+    <a class="button-link{{ if $on }} is-current{{ end }}" href="{{ localhref $to }}"{{ if $on }} aria-current="true"{{ end }}>{{ template "ltr" .Username }}</a>
     {{ end }}
     {{ if gt (len $g.GlobalData.Accounts) 1 }}
     {{ $all := $merged }}{{ if $g.GlobalData.Item }}{{ $all = from $g.GlobalData.Own $merged }}{{ end }}
-    <a href="{{ localhref $all }}"{{ if $g.GlobalData.Merged }} class="active" aria-current="true"{{ end }}>{{$g.T "nav.allaccounts"}}</a>
+    <a class="button-link{{ if $g.GlobalData.Merged }} is-current{{ end }}" href="{{ localhref $all }}"{{ if $g.GlobalData.Merged }} aria-current="true"{{ end }}>{{$g.T "nav.allaccounts"}}</a>
     {{ end }}
-    <a href="{{url "auth.login"}}?add=1">{{$g.T "nav.addaccount"}}</a>
-    <a href="{{url "settings.profile"}}"{{ if eq $page "settings" }} class="active" aria-current="page"{{ end }}>{{$g.T "nav.settings"}}</a>
+    <a class="button-link" href="{{url "auth.login"}}?add=1">{{$g.T "nav.addaccount"}}</a>
+    <hr>
+    <a class="button-link{{ if eq $page "settings" }} is-current{{ end }}" href="{{url "settings.profile"}}"{{ if eq $page "settings" }} aria-current="page"{{ end }}>{{$g.T "nav.settings"}}</a>
+    <button type="button" class="keys-open" commandfor="keys-help" command="show-modal">{{$g.T "keys.title"}}</button>
+    <a class="button-link" href="{{ localhref $g.GlobalData.TourStart }}">{{$g.T "tour.take"}}</a>
+    <hr>
+    {{ template "signout-all" $g }}
   </div>
-  </details>
-  <details class="accounts lang-menu" name="header-switchers"><summary class="accounts-button"><span class="label">{{ with $g.GlobalData.LanguageName }}{{.}}{{ else }}{{$g.T "settings.langauto"}}{{ end }}</span>{{ template "icon" "down" }}</summary>
-  <div class="accounts-menu">
-    {{/* A whole page: lang and dir live on the root, which a swap keeps. */}}
-    <form method="post" action="{{url "settings.language"}}" hx-boost="false">
-      <input type="hidden" name="next" value="{{$g.GlobalData.URL.RequestURI}}">
-      <button type="submit" name="language" value=""{{ if eq $g.GlobalData.Language "" }} class="active" disabled{{ end }}>{{$g.T "settings.langauto"}}</button>
-    </form>
-    {{ range $g.GlobalData.LanguageChoices }}
-    <form method="post" action="{{url "settings.language"}}" hx-boost="false">
-      <input type="hidden" name="next" value="{{$g.GlobalData.URL.RequestURI}}">
-      <button type="submit" name="language" value="{{.Code}}"{{ if eq .Code $g.GlobalData.Language }} class="active" disabled{{ end }}>{{.Name}}</button>
-    </form>
-    {{ end }}
-  </div>
-  </details>
 </div>
+{{ end }}
+
+{{/* The languages, each a whole page: lang and dir are the root's. Signed out the URL carries the choice (?lang=). */}}
+{{ define "language-menu" }}
+{{ $in := .GlobalData.LoggedIn }}
+<form{{ if $in }} method="post" action="{{url "settings.language"}}"{{ end }} hx-boost="false" class="nav-language">
+  {{ if $in }}<input type="hidden" name="next" value="{{.GlobalData.URL.RequestURI}}">{{ else }}{{ range $k, $vs := .GlobalData.URL.Query }}{{ if ne $k "lang" }}{{ range $vs }}<input type="hidden" name="{{$k}}" value="{{.}}">{{ end }}{{ end }}{{ end }}{{ end }}
+  {{ template "filter-menu" (dict "id" "menu-language" "icon" "globe" "title" (.T "settings.language") "rows" .GlobalData.Languages "name" (or (and $in "language") "lang")) }}
+</form>
+{{ end }}
+
+{{ define "signout-all" }}
+<form method="post" action="{{url "auth.logout"}}" class="signout-all">
+  <button type="submit" name="all" value="1">{{ if gt (len $.GlobalData.Accounts) 1 }}{{$.T "nav.signoutall"}}{{ else }}{{$.T "nav.signout"}}{{ end }}</button>
+</form>
 {{ end }}
 
 {{ define "scheme-toggle" }}

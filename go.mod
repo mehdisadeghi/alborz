@@ -33,7 +33,7 @@ require (
 	go.guido-berhoerster.org/managesieve v0.8.1
 	golang.org/x/crypto v0.58.0
 	golang.org/x/image v0.45.0
-	golang.org/x/net v0.60.0
+	golang.org/x/net v0.62.0
 	golang.org/x/sys v0.49.0
 	golang.org/x/text v0.43.0
 	jaytaylor.com/html2text v0.0.0-20230321000545-74c2419ad056

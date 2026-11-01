@@ -1,8 +1,8 @@
-# Cross-builds the binary for the machines alborz is actually run on:
-# a workstation or VPS (amd64), an ARM server or Apple-silicon VM
-# (arm64), and a Raspberry Pi or comparable board (armv7). Every push
-# leaves downloadable artifacts; a tag also attaches them to a release,
-# so a deploy never needs a Go toolchain on the target.
+# Every push and pull request is tested. A version tag (or a manual run)
+# also cross-builds the binary for the machines alborz is actually run
+# on: a workstation or VPS (amd64), an ARM server or Apple-silicon VM
+# (arm64), and a Raspberry Pi or comparable board (armv7); a tag
+# attaches them to a release and publishes the images.
 name: build
 
 on:
@@ -15,16 +15,14 @@ on:
 permissions:
   contents: write
 
+# A newer push to a branch supersedes the run still going; a tag's run always finishes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
 jobs:
   test:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - variant: full
-            build_tags: ""
-          - variant: minimal
-            build_tags: noaddons
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
@@ -32,19 +30,22 @@ jobs:
           go-version-file: go.mod
           cache: true
       - name: Check dependency vulnerabilities
-        if: matrix.variant == 'full'
         run: make vuln
-      - name: Vet and test ${{ matrix.variant }}
-        env:
-          BUILD_TAGS: ${{ matrix.build_tags }}
+      - name: Vet and test
         run: |
-          go vet -tags "$BUILD_TAGS" ./...
-          go test -tags "$BUILD_TAGS" ./...
-      - name: Test browser gestures
+          go vet ./...
+          go test ./...
+      # The minimal build differs only in what the add-ons wire in.
+      - name: Vet and test without add-ons
+        run: |
+          go vet -tags noaddons ./...
+          go test -tags noaddons ./cmd/alborz/app/ ./addons/...
+      - name: Test browser scripts
         run: make test-js
 
   build:
     needs: test
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -173,11 +174,11 @@ jobs:
           # writing them by hand duplicates what the history already says.
           generate_release_notes: true
 
-  # The complete image is latest; the noaddons image is minimal.
-  # Release tags publish both variants with the v prefix removed.
+  # The latest release is latest (complete) and minimal (noaddons);
+  # each release is also published as its version, v prefix removed.
   image:
     needs: test
-    if: github.event_name == 'push'
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -209,7 +210,7 @@ jobs:
           images: ghcr.io/${{ github.repository }}
           flavor: latest=false
           tags: |
-            type=raw,value=${{ matrix.channel_tag }},enable={{is_default_branch}}
+            type=raw,value=${{ matrix.channel_tag }}
             type=semver,pattern={{version}},suffix=${{ matrix.tag_suffix }}
       - uses: docker/build-push-action@v6
         with:

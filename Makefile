@@ -5,20 +5,9 @@ ADDR ?= localhost:1323
 # ARGS = example.org example.com=imaps://mail.example.com example.com=smtps://mail.example.com
 ARGS ?=
 
-.PHONY: build run watch fmt lint vuln test test-js login-key
+.PHONY: all build run watch fmt lint vuln test test-js login-key
 
-# Go's cache and temp files go where these name, e.g. inside the checkout
-# for a sandboxed agent; unset, Go's own defaults apply.
-export GOCACHE GOTMPDIR TMPDIR
-PACKAGES ?= ./...
-TESTDIR ?= .
-TESTFLAGS ?=
-.PHONY: test-local vet-local security-local
-test-local:
-	$(GO) -C $(TESTDIR) test $(TESTFLAGS) $(PACKAGES)
-vet-local:
-	$(GO) vet $(PACKAGES)
-security-local: vuln
+all: build
 
 build:
 	$(GO) build -o alborz ./cmd/alborz

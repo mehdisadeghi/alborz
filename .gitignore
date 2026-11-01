@@ -3,7 +3,6 @@
 *.mbox
 /GNUmakefile
 /local/
-/.local/
 *.db
 /tracker.db
 **/.DS_Store

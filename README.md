@@ -11,9 +11,9 @@ SummitPost.*
 Multi-account, RTL-ready mail user agent with calendars, contacts,
 tasks and sieve filters in a single binary.
 
-**Status: alpha.** Expect breaking changes before 1.0, and back up alborz.db.
+**Status: alpha.** Expect breaking changes before 1.0, and back up `alborz.db`.
 
-It works with your existing IMAP, SMTP, ManageSieve, CalDAV and
+Alborz works with your existing IMAP, SMTP, ManageSieve, CalDAV and
 CardDAV servers. Settings are stored on those servers where the
 protocol allows it; a local database holds remembered sign-ins and
 anything a server cannot store.
@@ -50,46 +50,36 @@ In addition to the protocols above:
 
 | RFC | Scope |
 |---|---|
-| 5546, 6047 | VEVENT REQUEST, REPLY, CANCEL and PUBLISH over iTIP/iMIP; claimed actor is not authenticated |
-| 3156, Autocrypt, WKD | PGP/MIME verification only; Autocrypt header extraction and WKD key lookup |
-| 8601 | Authentication-Results from the exact configured authserv-id; no ARC verification |
-| 2369, 2919 | List headers and ordinary unsubscribe links; one-click POST disabled pending verified DKIM coverage |
-| 2177, 2971, 5464, 5256, 6154, 4551 | IDLE, ID, METADATA, SORT/THREAD, special-use folders; HIGHESTMODSEQ cache freshness |
+| 5546, 6047 | iTIP and iMIP event requests, replies and cancellations |
+| 3156, Autocrypt, WKD | PGP/MIME signature verification; Autocrypt and WKD key lookup |
+| 8601 | Authentication-Results from the configured `authserv-id` |
+| 2369, 2919 | List headers and unsubscribe links |
+| 2177, 2971, 5464, 5256, 6154, 4551 | IDLE, ID, METADATA, SORT/THREAD, special-use folders, CONDSTORE |
 | 4315, 5819, 6851 | UIDPLUS, LIST-STATUS, MOVE |
 | 5228, 5804, 5230, 6609, 5260 | Sieve and ManageSieve: rules, forwarding and vacation replies |
-| 5545, 7986, 7529 | iCalendar recurrence, DISPLAY/AUDIO alarms, journals, COLOR; Gregorian/Persian RSCALE |
+| 5545, 7986, 7529 | iCalendar recurrence, alarms, journal entries, COLOR, RSCALE |
 | 4791, 6352, 6764 | CalDAV and CardDAV server, `.well-known` discovery |
-| 4918, 7232 | WebDAV dead properties and object ETag conditions |
-| 6578 | Remote calendar/address-book sync client; own server does not implement sync REPORT |
-| 3676, 5322 | format=flowed, References, Reply-To, signature delimiter |
+| 4918, 7232 | WebDAV dead properties and ETag preconditions |
+| 6578 | WebDAV collection sync (client) |
+| 3676, 5322 | `format=flowed`, References, Reply-To, signature delimiter |
 | 6350, 6186 | vCard, SRV service discovery |
-| WebAuthn | Passkey lock/unlock for an existing session |
-
-These are scoped implementations, not complete RFC certification.
+| WebAuthn | Passkey session lock |
 
 ## Install
 
-Release binaries for linux/amd64, arm64 and armv7 are attached to every
-[release]; see [INSTALLATION.md](INSTALLATION.md) for a systemd unit and
-for building from source.
+Linux binaries (`amd64`, `arm64`, `armv7`), both complete (`alborz`) and without
+add-ons (`alborz-minimal`), along with macOS and Windows desktop packages, are
+attached to every [release]. See [INSTALLATION.md](INSTALLATION.md) for a
+systemd unit, reverse-proxy setup and building from source.
 
-A container image is published at `ghcr.io/mehdisadeghi/alborz`. The complete
-app is `:latest` or a version such as `:0.18.0`; the build without add-ons is
-`:minimal` or `:0.18.0-minimal`:
+Container images are published at `ghcr.io/mehdisadeghi/alborz` as `:latest`
+(or `:0.18.0`) and `:minimal` (or `:0.18.0-minimal`):
 
-    docker run -p 1323:1323 -v alborz-data:/data -e LBRZ_CONFIG=/data/config.toml ghcr.io/mehdisadeghi/alborz
+    docker run -p 1323:1323 -v alborz-data:/data ghcr.io/mehdisadeghi/alborz
 
-On first start without upstream arguments, Alborz generates its login key in
-the owner-readable configuration file and prints a `/setup` URL and one-time
-setup code to the console. Open `/setup`, enter the code and an email address,
-review the discovered IMAP and SMTP servers (plus optional DAV/Sieve URLs), and
-add any further domains. Finishing verifies TLS connections, writes all domains
-to the configuration file, and opens sign-in. Reopening `/setup` before
-finishing discards unsaved domains. Keep the setup code private.
-Without the volume, alborz's data stays inside the container and goes with it.
-Keep the same volume, configuration file and login key across deployments to
-preserve encrypted data and remembered sign-ins (“Keep me signed in on this
-device” expires after 60 days of inactivity).
+`/data` holds both `config.toml` (including the generated login key) and
+`alborz.db`; keep the volume across deployments to preserve encrypted data and
+remembered sign-ins.
 
 ## Usage
 
@@ -97,16 +87,19 @@ Start without upstream arguments to configure a new instance in the browser:
 
     alborz
 
-Configuration defaults to `alborz/config.toml` inside the OS user configuration
-directory (`$XDG_CONFIG_HOME`, or `~/.config`, on Linux). Use `-config` or
-`LBRZ_CONFIG` to choose a file; `none` disables file loading. See the complete
-[example configuration](internal/config/config.example.toml) for keys and environment names.
-Precedence is environment, explicit CLI arguments, file, then defaults.
-Structured `[domains."example.org"]` tables name IMAP, SMTP, CalDAV, CardDAV,
-Sieve and password-change endpoints separately; `[provider]` instead accepts
-any email domain. Missing domain services use discovery; empty strings disable them.
-`LBRZ_LOGIN_KEY` supplies an externally managed key without writing it to the
-file. Setup preserves existing comments and refuses to overwrite concurrent edits.
+On first start, Alborz generates a login key in its configuration file and
+prints a `/setup` URL and one-time setup code to the console. Open `/setup` to
+discover and verify your mail, DAV and Sieve servers and save them to the
+configuration file.
+
+Configuration defaults to `alborz/config.toml` in the OS user configuration
+directory (`$XDG_CONFIG_HOME` or `~/.config` on Linux); override the path with
+`-config` or `LBRZ_CONFIG` (`none` disables file loading). Precedence is
+`LBRZ_*` environment variables, CLI flags, configuration file, then defaults.
+See the [example configuration](internal/config/config.example.toml) for all
+settings.
+
+You can also pass domains or upstream servers on the command line.
 
 With SRV DNS records set up (see [RFC 6186]):
 
@@ -116,19 +109,18 @@ With upstream servers named explicitly:
 
     alborz imaps://mail.example.org:993 smtps://mail.example.org:465
 
-Several mail domains, one argument per domain:
+Multiple mail domains:
 
     alborz example.org example.com=imaps://mail.example.com example.com=smtps://mail.example.com
 
-See `docs/cli.md` for every flag.
+See [docs/cli.md](docs/cli.md) for all flags and URL schemes.
 
 ## Contributing
 
-Run `make test` with the Go version in `go.mod` and Node.js 18 or newer.
-Both `make test` and `make lint` run `make vuln`: govulncheck fails on reachable
-vulnerabilities and reports module advisories, including unused packages.
-It needs network access for the latest checker and vulnerability database.
-`make test-js` runs the browser checks without npm dependencies.
+Run `make test` and `make lint` with the Go version in `go.mod` and Node.js.
+Both targets run `make vuln` (`govulncheck`), which requires network access to
+fetch the vulnerability database; `make test-js` runs the browser tests offline
+without npm dependencies.
 
 Report issues and send patches at [github.com/mehdisadeghi/alborz].
 

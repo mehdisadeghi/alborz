@@ -23,7 +23,7 @@ jobs:
         include:
           - variant: full
             build_tags: ""
-          - variant: core
+          - variant: minimal
             build_tags: noaddons
     steps:
       - uses: actions/checkout@v7
@@ -54,13 +54,13 @@ jobs:
             variant: alborz
             build_tags: ""
           - goarch: amd64
-            variant: alborz-core
+            variant: alborz-minimal
             build_tags: noaddons
           - goarch: arm64
             variant: alborz
             build_tags: ""
           - goarch: arm64
-            variant: alborz-core
+            variant: alborz-minimal
             build_tags: noaddons
           - goarch: arm
             goarm: "7"
@@ -68,7 +68,7 @@ jobs:
             build_tags: ""
           - goarch: arm
             goarm: "7"
-            variant: alborz-core
+            variant: alborz-minimal
             build_tags: noaddons
     steps:
       - uses: actions/checkout@v7
@@ -187,7 +187,7 @@ jobs:
             build_tags: ""
             channel_tag: latest
             tag_suffix: ""
-          - variant: core
+          - variant: minimal
             build_tags: noaddons
             channel_tag: minimal
             tag_suffix: -minimal

@@ -34,7 +34,7 @@ alone because startup checks every template's routes (ADR 55, ADR 66).
 ## Consequences
 
 - Default builds include all add-ons; `-tags noaddons` produces a
-  core-only binary (`alborz-core`).
+  core-only binary (`alborz-minimal`).
 - Startup template route verification works with any combination of
   add-on build tags.
 

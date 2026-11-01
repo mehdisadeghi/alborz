@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"strings"
 
@@ -39,6 +40,58 @@ type setupData struct {
 	CalDAV, CardDAV, Sieve string
 	ShowServers, Manual    bool
 	Domains                []string
+	// PublicURL is offered prefilled with PublicPrefill, or shown read-only when PublicFixed by the configuration.
+	PublicURL, PublicPrefill string
+	PublicFixed              bool
+	// Proxies are the configured trusted proxies; without them OfferProxy asks to trust a proxy on this machine.
+	Proxies                string
+	OfferProxy, TrustProxy bool
+}
+
+// localProxies are what "Trust the proxy on this machine" saves as -trusted-proxy.
+var localProxies = []string{"127.0.0.1", "::1"}
+
+// site reads the public address and the local proxy from the request: the browser's Origin
+// replaces a public address left at its prefill, and a loopback peer forwarding for another is a proxy here.
+// Only the review step carries public-url-prefill; any other request offers the defaults afresh.
+func (d *setupData) site(ctx *web.Context) {
+	r := ctx.Request()
+	prefill := ctx.FormValue("public-url-prefill")
+	reviewed := r.Method == http.MethodPost && r.PostForm.Has("public-url-prefill")
+	if ctx.Server.PublicURL != nil {
+		d.PublicURL, d.PublicFixed = ctx.Origin(), true
+	} else {
+		scheme := ctx.Scheme()
+		if forwarded := r.Header.Get("X-Forwarded-Proto"); forwarded == "https" || forwarded == "http" {
+			scheme = forwarded
+		}
+		d.PublicPrefill = scheme + "://" + r.Host
+		if origin := r.Header.Get("Origin"); origin != "" && origin != "null" {
+			d.PublicPrefill = origin
+		}
+		d.PublicURL = d.PublicPrefill
+		if typed := strings.TrimSpace(ctx.FormValue("public-url")); reviewed && typed != prefill {
+			d.PublicURL = typed
+		}
+	}
+	if d.Proxies = strings.Join(ctx.Server.TrustedProxies(), ", "); d.Proxies != "" {
+		return
+	}
+	peer, err := netip.ParseAddrPort(r.RemoteAddr)
+	d.OfferProxy = err == nil && peer.Addr().IsLoopback() && (r.Header.Get("X-Forwarded-For") != "" || r.Header.Get("Forwarded") != "")
+	d.TrustProxy = d.OfferProxy && (!reviewed || ctx.FormValue("trust-proxy") == "1")
+}
+
+// chosenSite is what finishing saves beside the domains.
+func (d *setupData) chosenSite() alborz.SetupSite {
+	var site alborz.SetupSite
+	if !d.PublicFixed {
+		site.PublicURL = d.PublicURL
+	}
+	if d.TrustProxy {
+		site.TrustedProxies = localProxies
+	}
+	return site
 }
 
 func handleSetup(ctx *web.Context) error {
@@ -52,6 +105,7 @@ func handleSetup(ctx *web.Context) error {
 		IMAP:           setupEndpoint{Port: "993", Security: "imaps"},
 		SMTP:           setupEndpoint{Port: "465", Security: "smtps"},
 	}
+	d.site(ctx)
 	render := func(status int) error {
 		d.Domains = ctx.Server.SetupDomains(d.Code)
 		return ctx.Render(status, "setup", &d)
@@ -125,12 +179,17 @@ func handleSetup(ctx *web.Context) error {
 			ctx.SetCookie(draftCookie)
 		}
 		if ctx.FormValue("action") != "add" {
-			if err := ctx.Server.FinishSetup(d.Code); err != nil {
+			site := d.chosenSite()
+			if err := ctx.Server.FinishSetup(d.Code, site); err != nil {
 				return refused(err)
 			}
 			draftCookie.MaxAge = -1
 			ctx.SetCookie(draftCookie)
-			ctx.Notify(web.Notice{Kind: web.NoticeDone, Text: ctx.T("setup.ready")})
+			text := ctx.T("setup.ready")
+			if site.PublicURL != "" || len(site.TrustedProxies) > 0 {
+				text += " " + ctx.T("setup.restartsite")
+			}
+			ctx.Notify(web.Notice{Kind: web.NoticeDone, Text: text})
 			if ctx.Partial() {
 				ctx.Quiet()
 				return ctx.Relocate(ctx.Path("auth.login"))

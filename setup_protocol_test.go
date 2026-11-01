@@ -49,7 +49,7 @@ func TestSetupChecksConnectionsWithoutAuthentication(t *testing.T) {
 			if !s.NeedsSetup() || len(s.Domains()) != 0 {
 				t.Fatal("connection checks published domains before finishing")
 			}
-			if err := s.FinishSetup(s.SetupCode()); err != nil {
+			if err := s.FinishSetup(s.SetupCode(), SetupSite{}); err != nil {
 				t.Fatal(err)
 			}
 			if s.NeedsSetup() {

@@ -53,6 +53,9 @@ DAV and Sieve URLs). “Add another domain” verifies TLS connections and queue
 the domain while you add another; “Finish setup” writes all domains to the
 configuration file and opens sign-in without asking for a mail password.
 Reopening `/setup` before finishing discards unsaved domains.
+Before finishing, setup also asks for the public address, saved as
+`public-url`, and, behind a proxy on the same machine, offers `trusted-proxy`;
+restart alborz to apply them.
 
 Keep the setup code private: it authorizes initial configuration, changes on
 restart, and stops working once setup finishes. Keep both the data directory
@@ -189,4 +192,4 @@ Behind nginx with TLS (certificates via certbot):
 Run alborz with `-trusted-proxy 127.0.0.1` behind it: `X-Forwarded-Proto` and
 `X-Forwarded-For` are believed only from a trusted proxy, and behind TLS
 alborz marks its cookies Secure only when that proxy says the request came
-over https.
+over https. First-run setup through the proxy offers to save this.

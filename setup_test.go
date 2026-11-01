@@ -18,7 +18,7 @@ func newSetupServer(t *testing.T, options Options) *Server {
 		options.DataDir = t.TempDir()
 	}
 	if options.SaveSetup == nil {
-		options.SaveSetup = func(map[string]DomainConfig) error { return nil }
+		options.SaveSetup = func(map[string]DomainConfig, SetupSite) error { return nil }
 	}
 	s, err := New(log.New(io.Discard, "", 0), options)
 	if err != nil {
@@ -34,7 +34,7 @@ func setupTestProvider(domain string) SetupProvider {
 
 func TestSetupFinishPersistsDomainsAndClosesSetup(t *testing.T) {
 	var saved map[string]DomainConfig
-	s := newSetupServer(t, Options{SaveSetup: func(domains map[string]DomainConfig) error { saved = domains; return nil }})
+	s := newSetupServer(t, Options{SaveSetup: func(domains map[string]DomainConfig, _ SetupSite) error { saved = domains; return nil }})
 	code := s.SetupCode()
 	p := setupTestProvider("example.org")
 	other := setupTestProvider("other.example")
@@ -46,7 +46,7 @@ func TestSetupFinishPersistsDomainsAndClosesSetup(t *testing.T) {
 	if saved != nil || !s.NeedsSetup() || len(s.Domains()) != 0 || !slices.Equal(s.SetupDomains(code), []string{p.Domain, other.Domain}) {
 		t.Fatal("staging saved or published domains")
 	}
-	if err := s.FinishSetup(code); err != nil {
+	if err := s.FinishSetup(code, SetupSite{}); err != nil {
 		t.Fatal(err)
 	}
 	if s.NeedsSetup() || s.SetupCode() != "" || !slices.Equal(s.Domains(), []string{p.Domain, other.Domain}) {
@@ -61,7 +61,7 @@ func TestSetupFinishPersistsDomainsAndClosesSetup(t *testing.T) {
 	if err := s.AddSetup(context.Background(), code, "me@example.org", p); !errors.Is(err, ErrSetupClosed) {
 		t.Fatalf("completed setup accepted another attempt: %v", err)
 	}
-	if err := s.FinishSetup(code); !errors.Is(err, ErrSetupClosed) {
+	if err := s.FinishSetup(code, SetupSite{}); !errors.Is(err, ErrSetupClosed) {
 		t.Fatalf("completed setup accepted another finish: %v", err)
 	}
 	if _, err := s.DiscoverSetup(context.Background(), code, "me@example.org"); !errors.Is(err, ErrSetupClosed) {
@@ -71,12 +71,12 @@ func TestSetupFinishPersistsDomainsAndClosesSetup(t *testing.T) {
 
 func TestSetupSaveFailureKeepsOwnerCodeAndDomainsUnchanged(t *testing.T) {
 	failure := errors.New("disk full")
-	s := newSetupServer(t, Options{SaveSetup: func(map[string]DomainConfig) error { return failure }})
+	s := newSetupServer(t, Options{SaveSetup: func(map[string]DomainConfig, SetupSite) error { return failure }})
 	code := s.SetupCode()
 	if err := s.stageSetup(code, setupTestProvider("example.org")); err != nil {
 		t.Fatal(err)
 	}
-	err := s.FinishSetup(code)
+	err := s.FinishSetup(code, SetupSite{})
 	if !errors.Is(err, failure) {
 		t.Fatalf("save failure lost: %v", err)
 	}
@@ -84,7 +84,7 @@ func TestSetupSaveFailureKeepsOwnerCodeAndDomainsUnchanged(t *testing.T) {
 		t.Fatal("failed save partially configured server")
 	}
 	failure = nil
-	if err := s.FinishSetup(code); err != nil {
+	if err := s.FinishSetup(code, SetupSite{}); err != nil {
 		t.Fatalf("retry lost pending domains: %v", err)
 	}
 	if !slices.Equal(s.Domains(), []string{"example.org"}) {
@@ -95,7 +95,7 @@ func TestSetupSaveFailureKeepsOwnerCodeAndDomainsUnchanged(t *testing.T) {
 func TestSetupConcurrentCompletionPublishesDomainsOnce(t *testing.T) {
 	var saved map[string]DomainConfig
 	var writes int
-	s := newSetupServer(t, Options{SaveSetup: func(domains map[string]DomainConfig) error { saved = domains; writes++; return nil }})
+	s := newSetupServer(t, Options{SaveSetup: func(domains map[string]DomainConfig, _ SetupSite) error { saved = domains; writes++; return nil }})
 	code := s.SetupCode()
 	domains := []string{"one.example", "two.example"}
 	for _, domain := range domains {
@@ -106,7 +106,7 @@ func TestSetupConcurrentCompletionPublishesDomainsOnce(t *testing.T) {
 	var wg sync.WaitGroup
 	errs := make(chan error, 2)
 	for range 2 {
-		wg.Go(func() { errs <- s.FinishSetup(code) })
+		wg.Go(func() { errs <- s.FinishSetup(code, SetupSite{}) })
 	}
 	wg.Wait()
 	close(errs)
@@ -133,7 +133,7 @@ func TestSetupChecksOwnerBeforeInspectingOrConnecting(t *testing.T) {
 	if err := s.AddSetup(context.Background(), "wrong", "not-an-email", SetupProvider{}); !errors.Is(err, ErrSetupCode) {
 		t.Fatalf("unauthorized setup returned %v", err)
 	}
-	if err := s.FinishSetup("wrong"); !errors.Is(err, ErrSetupCode) {
+	if err := s.FinishSetup("wrong", SetupSite{}); !errors.Is(err, ErrSetupCode) {
 		t.Fatalf("unauthorized finish returned %v", err)
 	}
 	if _, err := s.DiscoverSetup(context.Background(), "wrong", "not-an-email"); !errors.Is(err, ErrSetupCode) {

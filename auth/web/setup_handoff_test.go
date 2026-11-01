@@ -3,6 +3,7 @@ package web_test
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"flag"
 	"io"
 	"net"
 	"net/http"
@@ -10,21 +11,26 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	. "git.mehdix.org/alborz/internal/alborztest"
+	"git.mehdix.org/alborz/internal/config"
+	"github.com/BurntSushi/toml"
 )
 
-// Keep the fixture CA out of the other HTTP tests' process-wide trust store.
-func TestSetupRedirectsToLogin(t *testing.T) {
+// setupTrust re-runs the test alone, keeping the fixture CA out of the other HTTP tests' process-wide
+// trust store; it returns the CA's server config in that run, and nil in the caller, which then returns.
+func setupTrust(t *testing.T) *tls.Config {
+	t.Helper()
 	if os.Getenv("ALBORZ_SETUP_HTTP_TRUST_HELPER") != "1" {
-		cmd := exec.Command(os.Args[0], "-test.run=^TestSetupRedirectsToLogin$", "-test.v")
+		cmd := exec.Command(os.Args[0], "-test.run=^"+t.Name()+"$", "-test.v")
 		cmd.Env = append(os.Environ(), "ALBORZ_SETUP_HTTP_TRUST_HELPER=1")
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("HTTP setup handoff: %v\n%s", err, out)
 		}
-		return
+		return nil
 	}
 	certificate := httptest.NewTLSServer(http.NotFoundHandler())
 	pool := x509.NewCertPool()
@@ -34,7 +40,56 @@ func TestSetupRedirectsToLogin(t *testing.T) {
 	certificate.Close()
 	t.Setenv("GODEBUG", "x509usefallbackroots=1")
 	x509.SetFallbackRoots(pool)
+	return secure
+}
 
+func TestSetupSavesTheBrowserOriginAndTheLocalProxy(t *testing.T) {
+	secure := setupTrust(t)
+	if secure == nil {
+		return
+	}
+	path := filepath.Join(t.TempDir(), "config.toml")
+	fs := flag.NewFlagSet("alborz", flag.ContinueOnError)
+	fs.String("config", path, "")
+	cfg, err := config.Load(fs, func(string) (string, bool) { return "", false })
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := Alborz(t, Unconfigured(), SaveSetup(cfg.SaveSetup))
+	form := setupTLSForm(t, secure)
+	form.Set("setup-code", a.Server.SetupCode())
+	form.Set("trust-proxy", "1")
+	req, err := http.NewRequest(http.MethodPost, a.URL+a.Path("auth.setup"), strings.NewReader(form.Encode()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Origin", a.URL)
+	req.Header.Set("X-Forwarded-For", "203.0.113.7")
+	c := a.Client()
+	if resp := c.Do(t, req); resp.StatusCode != http.StatusFound {
+		t.Fatalf("setup answered %s: %s", resp.Status, NoticeBar(resp.Text))
+	}
+	if page := c.Get(t, "auth.login"); !Says(t, page.Text, "setup.restartsite") {
+		t.Fatalf("sign-in does not ask for a restart: %s", NoticeBar(page.Text))
+	}
+	var saved struct {
+		PublicURL    string `toml:"public-url"`
+		TrustedProxy string `toml:"trusted-proxy"`
+	}
+	if _, err := toml.DecodeFile(path, &saved); err != nil {
+		t.Fatal(err)
+	}
+	if saved.PublicURL != a.URL || saved.TrustedProxy != "127.0.0.1, ::1" {
+		t.Fatalf("saved public-url %q and trusted-proxy %q, want %q and the loopback addresses", saved.PublicURL, saved.TrustedProxy, a.URL)
+	}
+}
+
+func TestSetupRedirectsToLogin(t *testing.T) {
+	secure := setupTrust(t)
+	if secure == nil {
+		return
+	}
 	for _, partial := range []bool{false, true} {
 		form := setupTLSForm(t, secure)
 		a := Alborz(t, Unconfigured())

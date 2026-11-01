@@ -226,9 +226,23 @@ func (c *File) EnsureKey(options *alborz.Options) error {
 	return nil
 }
 
-func (c *File) SaveSetup(domains map[string]alborz.DomainConfig) error {
+func (c *File) SaveSetup(domains map[string]alborz.DomainConfig, site alborz.SetupSite) error {
+	values := map[string]any{"domains": domains}
+	if site.PublicURL != "" {
+		values["public-url"] = site.PublicURL
+	}
+	if len(site.TrustedProxies) > 0 {
+		values["trusted-proxy"] = strings.Join(site.TrustedProxies, ", ")
+	}
+	// A key the file names already wins, even empty; writing it twice is invalid TOML.
+	for name := range values {
+		if _, set := c.values[name]; set && name != "domains" {
+			delete(values, name)
+		}
+	}
+	// The encoder writes the bare keys before the [domains] tables, as TOML needs.
 	var section bytes.Buffer
-	if err := toml.NewEncoder(&section).Encode(map[string]any{"domains": domains}); err != nil {
+	if err := toml.NewEncoder(&section).Encode(values); err != nil {
 		return err
 	}
 	if c.path == "" {
@@ -244,7 +258,7 @@ func (c *File) SaveSetup(domains map[string]alborz.DomainConfig) error {
 	if err := c.write(append(append(bytes.Clone(base), '\n'), section.Bytes()...)); err != nil {
 		return err
 	}
-	c.values["domains"] = domains
+	maps.Copy(c.values, values)
 	return nil
 }
 

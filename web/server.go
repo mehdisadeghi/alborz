@@ -154,6 +154,18 @@ func (s *Server) Handler() (http.Handler, error) {
 	return s.routes.mux, nil
 }
 
+// TrustedProxies lists the proxies in front as configured, a lone address without its prefix length.
+func (s *Server) TrustedProxies() []string {
+	proxies := make([]string, len(s.trusted))
+	for i, p := range s.trusted {
+		proxies[i] = p.String()
+		if p.IsSingleIP() {
+			proxies[i] = p.Addr().String()
+		}
+	}
+	return proxies
+}
+
 func (s *Server) trusts(ip netip.Addr) bool {
 	for _, n := range s.trusted {
 		if n.Contains(ip.Unmap()) {

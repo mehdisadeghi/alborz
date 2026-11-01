@@ -53,8 +53,13 @@ type Option func(*config)
 func Unconfigured() Option {
 	return func(c *config) {
 		c.unconfigured = true
-		c.options.SaveSetup = func(map[string]alborz.DomainConfig) error { return nil }
+		c.options.SaveSetup = func(map[string]alborz.DomainConfig, alborz.SetupSite) error { return nil }
 	}
+}
+
+// SaveSetup has setup save with save, after Unconfigured.
+func SaveSetup(save func(map[string]alborz.DomainConfig, alborz.SetupSite) error) Option {
+	return func(c *config) { c.options.SaveSetup = save }
 }
 
 // WithIMAP serves Domain's mail from s; without it the domain has an IMAP of its own.

@@ -101,7 +101,7 @@ func TestSetupGeneratesAndReusesLoginKey(t *testing.T) {
 		"example.invalid": {"imap": "imaps://127.0.0.1:1", "smtp": "smtps://127.0.0.1:1"},
 		"other.invalid":   {"imap": "imaps://127.0.0.1:2", "smtp": "smtps://127.0.0.1:2"},
 	}
-	if err := cfg.SaveSetup(domains); err != nil {
+	if err := cfg.SaveSetup(domains, alborz.SetupSite{}); err != nil {
 		t.Fatal(err)
 	}
 	before, err = os.ReadFile(config)

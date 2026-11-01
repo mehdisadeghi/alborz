@@ -163,12 +163,9 @@ func New(log *log.Logger, options Options) (*Server, error) {
 		return nil, fmt.Errorf("invalid login key: %v", err)
 	}
 	if options.PublicURL != "" {
-		u, err := url.Parse(options.PublicURL)
-		// alborz answers at the root of its host only.
-		if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" || strings.Trim(u.Path, "/") != "" {
-			return nil, fmt.Errorf("invalid public URL %q: want scheme://host", options.PublicURL)
+		if s.PublicURL, err = ParsePublicURL(options.PublicURL); err != nil {
+			return nil, err
 		}
-		s.PublicURL = u
 	}
 
 	// Absolute, so messages name a path without guessing the working directory; empty is the working directory.
@@ -487,7 +484,7 @@ type Options struct {
 	Domains  map[string]DomainConfig
 	Provider DomainConfig
 	// SaveSetup persists verified first-run configuration before it becomes active.
-	SaveSetup func(map[string]DomainConfig) error
+	SaveSetup func(map[string]DomainConfig, SetupSite) error
 	// Debug logs more, and reads templates and assets from ./templates.
 	Debug bool
 	// LoginKey is the key, as base64 text, every key sealing what alborz keeps is derived from.

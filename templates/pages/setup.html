@@ -62,6 +62,30 @@
         </div>
         {{ end }}
       </details>
+      {{ end }}
+
+      {{/* The site fields belong to the review step only; public-url-prefill marks it. */}}
+      {{ if or .ShowServers .Domains }}
+      {{ template "hidden-field" (dict "name" "public-url-prefill" "value" .PublicPrefill) }}
+      {{ if .PublicFixed }}
+      {{ template "field" (dict "class" "action-group" "label" ($.T "setup.publicurl") "name" "public-url" "value" .PublicURL "dir" "ltr" "readonly" true "hint" ($.T "setup.configured")) }}
+      {{ else }}
+      {{ template "field" (dict "class" "action-group" "label" ($.T "setup.publicurl") "name" "public-url" "type" "url" "value" .PublicURL "dir" "ltr" "autocomplete" "off" "hint" ($.T "setup.publicurlhelp")) }}
+      {{ end }}
+      {{ if .Proxies }}
+      {{ template "field" (dict "class" "action-group" "label" ($.T "setup.trustedproxies") "name" "trusted-proxy" "value" .Proxies "dir" "ltr" "readonly" true "hint" ($.T "setup.configured")) }}
+      {{ else if .OfferProxy }}
+      <div class="action-group">
+        <label for="trust-proxy" class="checkbox">
+          <input type="checkbox" name="trust-proxy" id="trust-proxy" value="1"{{if .TrustProxy}} checked{{end}} aria-describedby="trust-proxy-help" />
+          {{$.T "setup.trustproxy"}}
+        </label>
+        <p class="hint" id="trust-proxy-help">{{$.T "setup.trustproxyhelp"}}</p>
+      </div>
+      {{ end }}
+      {{ end }}
+
+      {{ if .ShowServers }}
       {{/* The primary comes first: Enter submits the first button. */}}
       <div class="action-group">
         <button type="submit" name="action" value="finish" class="button-primary">{{$.T "setup.connect"}}</button>

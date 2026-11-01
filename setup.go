@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"net/mail"
+	"net/netip"
 	"net/url"
 	"slices"
 	"strconv"
@@ -42,6 +43,35 @@ func (p SetupProvider) Services() DomainConfig {
 		}
 	}
 	return services
+}
+
+// SetupSite is where readers reach alborz and the proxies in front, saved beside the domains; empty is unset.
+type SetupSite struct {
+	PublicURL      string
+	TrustedProxies []string
+}
+
+// ParsePublicURL reads scheme://host[:port]: alborz answers at the root of its host only.
+func ParsePublicURL(raw string) (*url.URL, error) {
+	u, err := url.Parse(raw)
+	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" || strings.Trim(u.Path, "/") != "" {
+		return nil, fmt.Errorf("invalid public URL %q: want scheme://host", raw)
+	}
+	return u, nil
+}
+
+// setupPublicURL is the origin of raw; plain http is for loopback and private hosts only.
+func setupPublicURL(raw string) (string, error) {
+	u, err := ParsePublicURL(raw)
+	if err != nil {
+		return "", &SetupError{"publicurl", err}
+	}
+	if u.Scheme == "http" && u.Hostname() != "localhost" {
+		if ip, err := netip.ParseAddr(u.Hostname()); err != nil || publicAddr(ip) {
+			return "", &SetupError{"publicurl", errors.New("use https for a public host")}
+		}
+	}
+	return u.Scheme + "://" + u.Host, nil
 }
 
 // SetupError identifies the field or service that needs attention.
@@ -187,8 +217,9 @@ func (s *Server) SetupDomains(code string) []string {
 	return domains
 }
 
-// FinishSetup saves all checked domains together; a failed save leaves setup open.
-func (s *Server) FinishSetup(code string) error {
+// FinishSetup saves all checked domains and site together; a failed save leaves setup open.
+// The site takes effect at the next start.
+func (s *Server) FinishSetup(code string, site SetupSite) error {
 	s.setupMu.Lock()
 	defer s.setupMu.Unlock()
 	if err := s.checkSetupLocked(code); err != nil {
@@ -197,6 +228,12 @@ func (s *Server) FinishSetup(code string) error {
 	if len(s.setupProviders) == 0 {
 		return &SetupError{"email", errors.New("add a mail domain first")}
 	}
+	if site.PublicURL != "" {
+		var err error
+		if site.PublicURL, err = setupPublicURL(site.PublicURL); err != nil {
+			return err
+		}
+	}
 	config := make(map[string]DomainConfig, len(s.setupProviders))
 	for domain, p := range s.setupProviders {
 		config[domain] = p.Services()
@@ -204,7 +241,7 @@ func (s *Server) FinishSetup(code string) error {
 	if s.Options.SaveSetup == nil {
 		return &SetupError{"storage", errors.New("no configuration file is available")}
 	}
-	if err := s.Options.SaveSetup(config); err != nil {
+	if err := s.Options.SaveSetup(config, site); err != nil {
 		return &SetupError{"storage", err}
 	}
 	domains := make(map[string]*domainUpstreams, len(s.setupProviders))

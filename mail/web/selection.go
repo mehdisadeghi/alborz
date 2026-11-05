@@ -1,6 +1,7 @@
 package web
 
 import (
+	"maps"
 	"net/http"
 	"net/url"
 
@@ -34,6 +35,16 @@ func wholeView(form url.Values) (query, view string, whole bool) {
 		view = ""
 	}
 	return next.Query().Get("query"), view, true
+}
+
+// wholeWhenNone reads a form with nothing ticked in field as the whole list its next URL names.
+func wholeWhenNone(form url.Values, field string) url.Values {
+	if len(form[field]) > 0 || form.Get("everything") != "" {
+		return form
+	}
+	form = maps.Clone(form)
+	form.Set("everything", "1")
+	return form
 }
 
 func selection(ctx *web.Context, mboxName string, form url.Values) ([]imap.UID, error) {

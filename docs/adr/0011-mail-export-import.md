@@ -13,10 +13,13 @@ job runner: the work lives inside one request.
 
 ### Export
 
-1. Export takes the selection, the whole mailbox, or all results of a
-   search or view. The selection downloads at once; a whole mailbox or
-   search goes through a confirmation page showing the message count
-   and, where the server has STATUS=SIZE, the total size.
+1. Export is one action. It takes the selection; with nothing selected
+   it takes the list as shown: the whole mailbox, or all results of a
+   search or view. It is offered whenever the list holds a message.
+   A single mailbox's export goes through a confirmation page showing
+   the message count and total size: STATUS=SIZE for a whole mailbox
+   where the server has it, else one `UID FETCH (RFC822.SIZE)`. A
+   merged list's export downloads at once.
 2. The mbox (mboxrd) is streamed per message on a transfer connection
    (ADR 18); nothing is held in memory beyond one message. Response
    headers are sent with the first message, so a failed first FETCH
@@ -61,5 +64,6 @@ job runner: the work lives inside one request.
 - ADR 18, ADR 39
 - `mail/mbox.go` (`ExportRun`, `withoutAttachments`, `ImportFile`,
   `DropFiles`, `ExportSize`, `importBound`), `mail/web/archive.go`
-  (`handleExportMbox`, `handleExportPage`, `handleImport`,
-  `handleDropImport`, `importMaxSize`)
+  (`handleExportMbox`, `exportPage`, `handleImport`,
+  `handleDropImport`, `importMaxSize`), `mail/web/selection.go`
+  (`wholeWhenNone`)

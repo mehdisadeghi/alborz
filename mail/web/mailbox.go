@@ -815,6 +815,10 @@ func (p *plugin) handleUnifiedAct(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
+	action := formOrQueryParam(ctx, "action")
+	if action == "export" {
+		params = wholeWhenNone(params, "refs")
+	}
 	refs, err := p.mergedSelection(ctx, role, params)
 	if err != nil {
 		return err
@@ -823,7 +827,6 @@ func (p *plugin) handleUnifiedAct(ctx *web.Context) error {
 	if len(refs) == 0 {
 		return nothingSelected(ctx, back)
 	}
-	action := formOrQueryParam(ctx, "action")
 	if action == "export" {
 		return streamMbox(ctx, refs, "messages", false)
 	}

@@ -24,27 +24,19 @@ func (p *plugin) handleExportMbox(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	strip := ctx.FormValue("strip") != ""
-	var uids []imap.UID
-	if ctx.FormValue("all") != "" {
-		state := web.ReadListState(ctx)
-		view, err := readViewValue(state.View)
-		if err != nil {
-			return err
-		}
-		if uids, err = mail.FolderView(ctx.Request().Context(), ctx.Login, mboxName, state.Query, view); err != nil {
-			return err
-		}
-	} else if uids, err = selection(ctx, mboxName, params); err != nil {
+	params = wholeWhenNone(params, "uids")
+	uids, err := selection(ctx, mboxName, params)
+	if err != nil {
 		return err
 	}
 	if len(uids) == 0 {
 		return web.NewError(http.StatusBadRequest, "no messages selected")
 	}
 	if ctx.FormValue("ask") != "" {
-		return p.exportPage(ctx, uids, params)
+		return p.exportPage(ctx, mboxName, uids, params)
 	}
 
+	strip := ctx.FormValue("strip") != ""
 	name := mboxName
 	if strip {
 		name += " " + ctx.T("mailbox.textonly")
@@ -120,44 +112,30 @@ type ExportRenderData struct {
 	// ViewName is the rail view being exported; empty for a whole folder or a search.
 	ViewName string
 	Count    int
-	Size     int64 // zero when the server does not say (STATUS=SIZE)
-	// UIDs are the messages picked in the list; empty for a whole folder or a search.
+	Size     int64
+	// UIDs are the messages picked in the list; empty when the list is exported whole.
 	UIDs []imap.UID
-	// Everything is the list's address when all of it was picked: a hidden field per message would weigh megabytes.
+	// Everything is the list's address when it is exported whole: a hidden field per message would weigh megabytes.
 	Everything string
 }
 
-func (p *plugin) exportPage(ctx *web.Context, uids []imap.UID, form url.Values) error {
+func (p *plugin) exportPage(ctx *web.Context, mboxName string, uids []imap.UID, form url.Values) error {
 	ibase, err := p.newIMAPBaseRenderData(ctx, web.NewBaseRenderData(ctx))
 	if err != nil {
 		return err
 	}
 	ibase.WithTitle(fmt.Sprintf(ctx.T("folder.exporttitle"), ibase.Mailbox.Label))
 	data := &ExportRenderData{IMAPBaseRenderData: *ibase, Count: len(uids), UIDs: uids}
-	if _, _, whole := wholeView(form); whole {
-		data.UIDs, data.Everything = nil, form.Get("next")
-	}
-	return ctx.Render(http.StatusOK, "mail/export", data)
-}
-
-func (p *plugin) handleExportPage(ctx *web.Context) error {
-	mboxName := mailboxRef(ctx)
-	ibase, err := p.newIMAPBaseRenderData(ctx, web.NewBaseRenderData(ctx))
-	if err != nil {
-		return err
-	}
-	ibase.WithTitle(fmt.Sprintf(ctx.T("folder.exporttitle"), mboxName))
-	data := &ExportRenderData{IMAPBaseRenderData: *ibase, Query: web.ReadListState(ctx).Query}
-	if ibase.ListView != "" {
-		data.ViewName = viewTitle(ctx, ibase.ListView)
-	}
-	settings, err := mail.LoadSettings(ctx.Request().Context(), ctx.Login.Store())
-	if err != nil {
-		return err
+	query, view, whole := wholeView(form)
+	if whole {
+		data.UIDs, data.Everything, data.Query = nil, form.Get("next"), query
+		if view != "" {
+			data.ViewName = viewTitle(ctx, view)
+		}
 	}
 	err = ctx.DoIMAPScan(func(c *imapclient.Client) error {
 		var err error
-		data.Count, data.Size, err = mail.ExportSize(c, settings, mboxName, data.Query, ibase.ListView)
+		data.Size, err = mail.ExportSize(c, mboxName, uids, whole && query == "" && view == "")
 		return err
 	})
 	if err != nil {

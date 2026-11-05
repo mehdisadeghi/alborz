@@ -44,7 +44,6 @@ func (p *plugin) registerRoutes(g *web.Group) {
 	g.GET("proxy", "/proxy", handleProxy)
 	g.POST("mailbox.refresh", "/mailbox/{mbox}/refresh", p.handleRefreshMailbox)
 	g.Stream("mailbox.import", "/mailbox/{mbox}/import", importMaxSize, p.handleDropImport)
-	g.GET("messages.export", "/message/{mbox}/export", p.handleExportPage)
 	g.POST("messages.export", "/message/{mbox}/export", p.handleExportMbox)
 
 	g.GET("compose", "/compose", p.handleComposeNew)

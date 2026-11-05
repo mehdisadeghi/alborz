@@ -62,9 +62,7 @@
     {{ if not .Merged }}
     {{ template "more-open" $ }}
         <button form="messages-form" formaction="{{url "mail.messages.forward" .Mailbox.Name}}{{$aq}}">{{$.T "message.forward"}}</button>
-        <button form="messages-form" formaction="{{url "mail.messages.export" .Mailbox.Name}}{{ or $aq "?" }}{{ if $aq }}&{{ end }}ask=1">{{$.T "mailbox.export"}}</button>
-        {{ $exportall := printf "%s%s" (url "mail.messages.export" .Mailbox.Name) $aq }}{{ with .Query }}{{ $exportall = printf "%s%squery=%s" $exportall (or (and $aq "&") "?") (. | qv) }}{{ else }}{{ with .ListView }}{{ $exportall = printf "%s%sview=%s" $exportall (or (and $aq "&") "?") . }}{{ end }}{{ end }}
-        <a class="button-link" href="{{ localhref $exportall }}"{{ if $empty }} aria-disabled="true"{{ end }}>{{ if .Query }}{{$.T "mailbox.exportresults"}}{{ else }}{{$.T "mailbox.exportfolder"}}{{ end }}</a>
+        <button form="messages-form" formaction="{{url "mail.messages.export" .Mailbox.Name}}{{ or $aq "?" }}{{ if $aq }}&{{ end }}ask=1"{{ if $empty }} disabled{{ end }}>{{$.T "mailbox.export"}}</button>
         <button form="refresh-form" title="{{$.T "mailbox.refreshhint"}}">{{$.T "common.forcerefresh"}}</button>
         {{ $read := print (url "mail.messages.flag" .Mailbox.Name) "?action=add&to=%5CSeen" (account "&" $.GlobalData.URLAccount) }}{{ $unread := print (url "mail.messages.flag" .Mailbox.Name) "?action=remove&to=%5CSeen" (account "&" $.GlobalData.URLAccount) }}
         {{ template "mail-read-actions" (dict "g" $ "read" $read "unread" $unread) }}
@@ -82,7 +80,7 @@
     {{ if .Merged }}
     {{ $path := $.GlobalData.URL.Path }}
     {{ template "more-open" $ }}
-        <button form="messages-form" formaction="{{$act}}?action=export" data-download>{{$.T "mailbox.export"}}</button>
+        <button form="messages-form" formaction="{{$act}}?action=export" data-download{{ if eq .Total 0 }} disabled{{ end }}>{{$.T "mailbox.exportnow"}}</button>
         <button form="refresh-form" title="{{$.T "mailbox.refreshhint"}}">{{$.T "common.forcerefresh"}}</button>
         {{ template "mail-read-actions" (dict "g" $ "read" (printf "%s?action=read" $act) "unread" (printf "%s?action=unread" $act)) }}
         {{ if or (eq $path (url "mail.mailbox" "Junk")) (eq $path (url "mail.mailbox" "Trash")) }}
@@ -95,7 +93,7 @@
   {{/* What the URL says, not what the page settled on. */}}
   {{ $q := $.GlobalData.URL.Query }}
   {{ $keep := dict "sort" ($q.Get "sort") "dir" ($q.Get "dir") "view" ($q.Get "view") "ipp" ($q.Get "ipp") "all" ($q.Get "all") }}
-  {{ template "toolbar-search" (dict "account" $.GlobalData.URLAccount "query" .Query "placeholder" ($.T "mailbox.searchph") "button" ($.T "mailbox.search") "disabled" $empty "target" "main" "keep" $keep) }}
+  {{ template "toolbar-search" (dict "account" $.GlobalData.URLAccount "query" .Query "placeholder" ($.T "mailbox.searchph") "button" ($.T "mailbox.search") "disabled" $empty "target" "main" "action" $.GlobalData.URL.EscapedPath "keep" $keep) }}
 
   {{ template "list-pager" (dict "g" $ "pager" .Pager) }}
 

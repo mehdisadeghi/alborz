@@ -359,28 +359,26 @@ func mboxMessages(r io.Reader) func() ([]byte, error) {
 	}
 }
 
-// ExportSize is how many messages a folder, or its narrowing, holds, and their size where the server says (STATUS=SIZE).
-func ExportSize(c *imapclient.Client, settings *Settings, mboxName, query, view string) (count int, size int64, err error) {
-	if criteria := listCriteria(c, settings, query, view); criteria != nil {
-		if err := ensureMailboxSelected(c, mboxName); err != nil {
-			return 0, 0, err
+// ExportSize is the messages' total size: the folder's STATUS=SIZE when they are all of it, else
+// the sum of their RFC822.SIZE, which the server keeps without reading a body.
+func ExportSize(c *imapclient.Client, mboxName string, uids []imap.UID, whole bool) (int64, error) {
+	if whole && c.Caps().Has(imap.CapStatusSize) {
+		st, err := c.Status(mboxName, &imap.StatusOptions{Size: true}).Wait()
+		if err != nil || st.Size == nil {
+			return 0, err
 		}
-		found, err := c.UIDSearch(criteria, nil).Wait()
-		if err != nil {
-			return 0, 0, err
-		}
-		return len(found.AllUIDs()), 0, nil
+		return *st.Size, nil
 	}
-	options := &imap.StatusOptions{NumMessages: true, Size: c.Caps().Has(imap.CapStatusSize)}
-	st, err := c.Status(mboxName, options).Wait()
+	if err := ensureMailboxSelected(c, mboxName); err != nil {
+		return 0, err
+	}
+	fetched, err := c.Fetch(imap.UIDSetNum(uids...), &imap.FetchOptions{RFC822Size: true}).Collect()
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
-	if st.NumMessages != nil {
-		count = int(*st.NumMessages)
+	var size int64
+	for _, msg := range fetched {
+		size += msg.RFC822Size
 	}
-	if st.Size != nil {
-		size = *st.Size
-	}
-	return count, size, nil
+	return size, nil
 }

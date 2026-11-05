@@ -62,6 +62,21 @@ func (ctx *Context) FilterOn(name, label string) (Filter, bool) {
 	return Filter{Label: label, Value: value, Href: ctx.WithoutParam(name)}, true
 }
 
+// QueryFilters returns a filter per term of the query, each dropping only its term; a key in labels
+// names its term's chip, and every other term reads as typed.
+func (ctx *Context) QueryFilters(labels map[string]string) []Filter {
+	q := search.Parse(ctx.QueryParam("query"))
+	out := make([]Filter, 0, len(q))
+	for i, term := range q {
+		f := Filter{Label: ctx.T("filter.search"), Value: term.String(), Href: ctx.WithParam("query", slices.Delete(slices.Clone(q), i, i+1).String())}
+		if label, ok := labels[term.Key]; ok && !term.Not {
+			f.Label, f.Value = label, term.Value
+		}
+		out = append(out, f)
+	}
+	return out
+}
+
 // PageHref returns this page at page n; the first page carries no number.
 func (ctx *Context) PageHref(n int) string {
 	return pageHref(ctx.Request().URL, n)

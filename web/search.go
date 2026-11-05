@@ -110,9 +110,7 @@ func handleSearch(ctx *Context) error {
 		View:           view,
 		FilterRows:     ViewRows(ctx, view, false, ctx.WithoutParam("view")),
 	}
-	if f, ok := ctx.FilterOn("query", ctx.T("filter.search")); ok {
-		data.Filters = append(data.Filters, f)
-	}
+	data.Filters = ctx.QueryFilters(nil)
 	if f, ok := ctx.FilterOn("view", ctx.T("filter.color")); ok {
 		f.Value = ctx.T("color." + view)
 		if view == alborz.ViewStarred {

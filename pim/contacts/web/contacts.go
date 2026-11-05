@@ -204,10 +204,7 @@ func (p *plugin) contacts(ctx *web.Context) error {
 }
 
 func searchFilter(ctx *web.Context, list ContactList) []web.Filter {
-	var out []web.Filter
-	if f, ok := ctx.FilterOn("query", ctx.T("filter.search")); ok {
-		out = append(out, f)
-	}
+	out := ctx.QueryFilters(nil)
 	if f, ok := ctx.FilterOn("view", ctx.T("filter.color")); ok {
 		if f.Value == alborz.ViewStarred {
 			f.Value = ctx.T("mailbox.starred")

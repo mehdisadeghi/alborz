@@ -906,18 +906,5 @@ func searchFilters(ctx *web.Context) []web.Filter {
 		f.Value = viewTitle(ctx, f.Value)
 		out = append(out, f)
 	}
-	f, ok := ctx.FilterOn("query", ctx.T("filter.search"))
-	if !ok {
-		return out
-	}
-	for _, scope := range []struct{ prefix, label string }{
-		{"from:", ctx.T("filter.from")},
-		{"to:", ctx.T("filter.to")},
-	} {
-		if rest, cut := strings.CutPrefix(f.Value, scope.prefix); cut {
-			f.Label, f.Value = scope.label, rest
-			break
-		}
-	}
-	return append(out, f)
+	return append(out, ctx.QueryFilters(map[string]string{"from": ctx.T("filter.from"), "to": ctx.T("filter.to")})...)
 }

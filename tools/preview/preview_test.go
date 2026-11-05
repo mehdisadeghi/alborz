@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/emersion/go-imap/v2"
 	"golang.org/x/net/websocket"
 
 	. "git.mehdix.org/alborz/internal/alborztest"
@@ -51,6 +52,18 @@ func TestPreview(t *testing.T) {
 	a.IMAP.Append(t, "Sent", "From: <"+User+">\r\nTo: Alice Example <alice@example.org>, Bob Example <bob@example.org>, "+
 		"Carol Example <carol@example.org>, \"Sadeghi, Mehdi\" <mehdi@example.org>, سارا احمدی <sara@example.org>\r\n"+
 		"Subject: Plans for the week\r\nDate: Mon, 02 Nov 2026 09:00:00 +0000\r\nMessage-ID: <many@test>\r\nContent-Type: text/plain\r\n\r\nHello all.\r\n")
+	day := today.AddDate(0, 0, 7).Format("20060102")
+	invite := a.IMAP.Append(t, "INBOX", "From: Alice Example <alice@example.org>\r\nTo: <"+User+">\r\nSubject: Design review\r\n"+
+		"Date: Mon, 02 Nov 2026 10:00:00 +0000\r\nMIME-Version: 1.0\r\nContent-Type: text/calendar; charset=utf-8; method=REQUEST\r\n\r\n"+
+		"BEGIN:VCALENDAR\r\nMETHOD:REQUEST\r\nPRODID:-//test//EN\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:invite\r\nDTSTAMP:20261102T100000Z\r\n"+
+		"DTSTART:"+day+"T140000Z\r\nDTEND:"+day+"T150000Z\r\nSUMMARY:Design review\r\nORGANIZER:mailto:alice@example.org\r\n"+
+		"ATTENDEE;PARTSTAT=ACCEPTED:mailto:alice@example.org\r\nATTENDEE;PARTSTAT=NEEDS-ACTION:mailto:"+User+"\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n")
+	draft := a.IMAP.Append(t, "Drafts", "From: <"+User+">\r\nTo: Bob Example <bob@example.org>\r\nSubject: Notes\r\n"+
+		"Date: Mon, 02 Nov 2026 11:00:00 +0000\r\nMessage-ID: <draft@test>\r\nContent-Type: text/plain\r\n\r\nUnfinished.\r\n", imap.FlagDraft, imap.FlagSeen)
+	for _, name := range []string{"main", "holiday"} {
+		c.Post(t, "filters.list", url.Values{"name": {name}, "content": {"keep;\r\n"}}, url.Values{"account": {User}})
+	}
+	c.Post(t, "filters.filter.activate", url.Values{}, "main", url.Values{"account": {User}})
 	if uids := MessageUIDs(c.Page(t, "mail.mailbox", "INBOX")); len(uids) > 0 {
 		c.Post(t, "mail.messages.flag", url.Values{"uids": {uids[0]}, "color": {"red"}, "next": {"/"}}, "INBOX")
 	}
@@ -58,7 +71,8 @@ func TestPreview(t *testing.T) {
 	named := map[string]string{
 		"mail": a.Path("mail.mailbox", "INBOX"), "sent": a.Path("mail.mailbox", "Sent", url.Values{"account": {User}}), "tasks": a.Path("calendar.tasks"), "journal": a.Path("calendar.journal"),
 		"contacts": a.Path("contacts.list"), "calendar": a.Path("calendar.month"), "day": a.Path("calendar.day", url.Values{"date": {today.Format(time.DateOnly)}}),
-		"settings": a.Path("settings.profile"), "filters": a.Path("filters.list"),
+		"settings": a.Path("settings.profile"), "filters": a.Path("filters.list", url.Values{"account": {User}}),
+		"invite": a.Path("mail.message", "INBOX", invite, url.Values{"account": {User}}), "draft": a.Path("mail.message", "Drafts", draft, url.Values{"account": {User}}),
 		"collection": a.Path("calendar.collection", d.At()+DAVHome+"work/", url.Values{"account": {User}}),
 	}
 	var js string

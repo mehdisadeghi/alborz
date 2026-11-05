@@ -59,7 +59,7 @@
             {{ $flagged := .Message.HasFlag "\\Flagged" }}
             <span class="icon-group followups">
               {{if .Message.HasFlag "\\Draft"}}
-                <a class="button-link" href="{{url "mail.message.edit" .Message.Mailbox .Message.UID}}{{$partq}}">{{$.T "message.editdraft"}}</a>
+                <a class="icon-button" href="{{url "mail.message.edit" .Message.Mailbox .Message.UID}}{{$partq}}" title="{{$.T "message.editdraft"}}" aria-label="{{$.T "message.editdraft"}}">{{ template "icon" "edit" }}<span class="label">{{$.T "message.editdraft"}}</span></a>
               {{else}}
                 {{ if .Message.ListID }}
                 <a class="icon-button" href="{{url "mail.message.reply" .Message.Mailbox .Message.UID}}{{$partlistq}}" title="{{$.T "message.replylist"}} — {{.Message.ListID}}" aria-label="{{$.T "message.replylist"}}">{{ template "icon" "reply-list" }}</a>

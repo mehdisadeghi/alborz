@@ -193,6 +193,7 @@
 "filter.menu" = "Filtrer"
 "filter.view" = "Vue"
 "list.groupby" = "Grouper par"
+"list.separator" = ", "
 "calendar.groupday" = "Jour"
 "filter.category" = "Catégorie"
 "filter.group" = "Groupe"

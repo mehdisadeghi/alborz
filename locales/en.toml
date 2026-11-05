@@ -206,6 +206,7 @@
 "filter.menu" = "Filter"
 "filter.view" = "View"
 "list.groupby" = "Group by"
+"list.separator" = ", "
 "calendar.groupday" = "Day"
 "filter.category" = "Category"
 "filter.group" = "Group"

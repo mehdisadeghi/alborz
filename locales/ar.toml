@@ -193,6 +193,7 @@
 "filter.menu" = "تصفية"
 "filter.view" = "العرض"
 "list.groupby" = "تجميع حسب"
+"list.separator" = "، "
 "calendar.groupday" = "اليوم"
 "filter.category" = "الفئة"
 "filter.group" = "المجموعة"

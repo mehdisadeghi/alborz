@@ -86,15 +86,13 @@
           <div class="message-list-sender {{$classes}}" role="cell">
             {{ $people := .Envelope.From }}{{ $field := "from" }}{{ if $.Outgoing }}{{ $people = .Envelope.To }}{{ $field = "to" }}{{ end }}
             {{ if not $people }}{{$.T "mailbox.nosender"}}{{ end }}
-            {{ range $people }}
-            <a dir="auto"{{with $.GlobalData.ContentLang .Name}} lang="{{.}}"{{end}} href="{{ localhref (printf "%s?query=%s:%s%s" $.ListPath $field (.Addr | qv) $scope) }}">
-            {{ if .Name }}
-              {{.Name}}
-            {{ else }}
-              {{.Addr}}
-            {{ end }}
-            </a>
-            {{ end }}
+            {{/* One line cut once at its end, so the first names stay whole. */}}
+            {{ $sep := $.T "list.separator" }}
+            <span class="sender-names" dir="auto"{{ if gt (len $people) 1 }} title="{{ range $i, $p := $people }}{{ if $i }}{{ $sep }}{{ end }}{{ or $p.Name $p.Addr }}{{ end }}"{{ end }}>
+            {{- range $i, $p := $people }}{{ if $i }}{{ $sep }}{{ end -}}
+            <a dir="auto"{{with $.GlobalData.ContentLang $p.Name}} lang="{{.}}"{{end}} href="{{ localhref (printf "%s?query=%s:%s%s" $.ListPath $field ($p.Addr | qv) $scope) }}">{{ or $p.Name $p.Addr }}</a>
+            {{- end -}}
+            </span>
           </div>
           <div class="message-list-subject list-primary {{$classes}}{{ if .Attachments }} has-attach{{ end }}" role="cell">
             <div class="record-label">

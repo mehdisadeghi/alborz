@@ -203,6 +203,7 @@
 "filter.menu" = "فیلتر"
 "filter.view" = "نما"
 "list.groupby" = "گروه‌بندی بر اساس"
+"list.separator" = "، "
 "calendar.groupday" = "روز"
 "filter.category" = "دسته"
 "filter.group" = "گروه"

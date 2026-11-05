@@ -2296,14 +2296,14 @@ main.message pre {
 /* Said outright: start and match-parent resolve against a direction the row may have overridden. */
 :root:dir(rtl) .list .list-summary,
 :root:dir(rtl) .message-list-subject a,
-:root:dir(rtl) .message-list-sender a,
+:root:dir(rtl) .sender-names,
 :root:dir(rtl) .contact-list-name a {
   text-align: right;
 }
 
 :root:dir(ltr) .list .list-summary,
 :root:dir(ltr) .message-list-subject a,
-:root:dir(ltr) .message-list-sender a,
+:root:dir(ltr) .sender-names,
 :root:dir(ltr) .contact-list-name a {
   text-align: left;
 }
@@ -2312,12 +2312,12 @@ main.message pre {
 
 /* :dir() matches the direction dir=auto resolved, so the rule follows the row's own script. */
 :root[data-align="script"] .message-list-subject a:dir(ltr),
-:root[data-align="script"] .message-list-sender a:dir(ltr) {
+:root[data-align="script"] .sender-names:dir(ltr) {
   text-align: left;
 }
 
 :root[data-align="script"] .message-list-subject a:dir(rtl),
-:root[data-align="script"] .message-list-sender a:dir(rtl) {
+:root[data-align="script"] .sender-names:dir(rtl) {
   text-align: right;
 }
 
@@ -3364,8 +3364,11 @@ section.actions:has(> .toolbar-title) > .actions-wrap {
 }
 .account-popover:popover-open { display: block; }
 
-.message-list-sender > a {
-  flex: 0 1 auto;
+/* Inline names in one box, so the line is cut once at its end rather than every name at once. */
+.message-list-sender > .sender-names {
+  /* The names' colour, so the commas and the ellipsis read as one line with them. */
+  color: var(--link);
+  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3373,7 +3376,6 @@ section.actions:has(> .toolbar-title) > .actions-wrap {
 }
 
 /* The cells are flex containers, where text-overflow never reaches the text. */
-.message-list-sender a,
 .message-list-subject a,
 .contact-list-name a,
 .contact-list-book a,
@@ -5323,7 +5325,7 @@ h1.no-word .title-short {
 
   .message-list-checkbox { grid-area: check; align-self: stretch; }
   .message-list-sender { grid-area: sender; }
-  .message-list-sender a { color: inherit; }
+  .message-list-sender :is(.sender-names, a) { color: inherit; }
 
   /* No pointer shows the chevron here; a slot for it would push the star in. */
   .message-list-flags .row-star .flag-split .flag-more.icon-button { position: absolute; }

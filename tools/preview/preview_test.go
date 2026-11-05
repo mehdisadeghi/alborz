@@ -47,12 +47,16 @@ func TestPreview(t *testing.T) {
 	a.Put(t, tasks+"child.ics", "text/calendar", "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\nBEGIN:VTODO\r\nUID:child\r\nDTSTAMP:20261027T080000Z\r\nSUMMARY:Child task\r\nRELATED-TO:task0\r\nEND:VTODO\r\nEND:VCALENDAR\r\n")
 	a.Put(t, journal+"record.ics", "text/calendar", "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\nBEGIN:VJOURNAL\r\nUID:journal\r\nDTSTAMP:20261027T080000Z\r\nDTSTART;VALUE=DATE:20261027\r\nSUMMARY:Review a long product design proposal\r\nDESCRIPTION:Some text\r\nEND:VJOURNAL\r\nEND:VCALENDAR\r\n")
 	a.Put(t, book+"record.vcf", "text/vcard", "BEGIN:VCARD\r\nVERSION:3.0\r\nUID:contact\r\nFN:Alex Product Design Example\r\nN:Example;Alex;;;\r\nEMAIL:alex@example.org\r\nTEL:+49 123456789\r\nEND:VCARD\r\n")
+	// Sent to many, so the Sent list shows where its recipients are cut.
+	a.IMAP.Append(t, "Sent", "From: <"+User+">\r\nTo: Alice Example <alice@example.org>, Bob Example <bob@example.org>, "+
+		"Carol Example <carol@example.org>, \"Sadeghi, Mehdi\" <mehdi@example.org>, سارا احمدی <sara@example.org>\r\n"+
+		"Subject: Plans for the week\r\nDate: Mon, 02 Nov 2026 09:00:00 +0000\r\nMessage-ID: <many@test>\r\nContent-Type: text/plain\r\n\r\nHello all.\r\n")
 	if uids := MessageUIDs(c.Page(t, "mail.mailbox", "INBOX")); len(uids) > 0 {
 		c.Post(t, "mail.messages.flag", url.Values{"uids": {uids[0]}, "color": {"red"}, "next": {"/"}}, "INBOX")
 	}
 	c.SignIn(t, User2)
 	named := map[string]string{
-		"mail": a.Path("mail.mailbox", "INBOX"), "tasks": a.Path("calendar.tasks"), "journal": a.Path("calendar.journal"),
+		"mail": a.Path("mail.mailbox", "INBOX"), "sent": a.Path("mail.mailbox", "Sent", url.Values{"account": {User}}), "tasks": a.Path("calendar.tasks"), "journal": a.Path("calendar.journal"),
 		"contacts": a.Path("contacts.list"), "calendar": a.Path("calendar.month"), "day": a.Path("calendar.day", url.Values{"date": {today.Format(time.DateOnly)}}),
 		"settings": a.Path("settings.profile"), "filters": a.Path("filters.list"),
 		"collection": a.Path("calendar.collection", d.At()+DAVHome+"work/", url.Values{"account": {User}}),

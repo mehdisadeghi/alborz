@@ -203,6 +203,7 @@
 "filter.menu" = "Filtrar"
 "filter.view" = "Vista"
 "list.groupby" = "Agrupar por"
+"list.separator" = ", "
 "calendar.groupday" = "Día"
 "filter.category" = "Categoría"
 "filter.group" = "Grupo"

@@ -413,7 +413,7 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *mail.OutgoingMessage, opti
 				if err != nil {
 					return err
 				}
-				return ctx.NoticeRedirect(ctx.T("notice.draftsaved"), ctx.Path("mail.message.edit", drafts.Mailbox, uid)+"?part=1")
+				return ctx.NoticeRedirect(ctx.T("notice.draftsaved"), web.QueryPath(ctx.URL("mail.message.edit", drafts.Mailbox, uid), url.Values{"part": {"1"}}))
 			}
 			return p.submitCompose(ctx, sender, msg, options)
 		})

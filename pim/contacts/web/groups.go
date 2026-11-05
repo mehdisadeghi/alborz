@@ -83,7 +83,7 @@ func (p *plugin) groupContact(ctx *web.Context) error {
 			}
 		})
 		if err != nil {
-			return ctx.NotifyRedirect(pimweb.Refused(ctx, err), ctx.NextOr(ctx.Path("contacts.contact", contact.Path)))
+			return ctx.NotifyRedirect(pimweb.Refused(ctx, err), ctx.NextOr(ctx.URL("contacts.contact", contact.Path)))
 		}
 	}
 

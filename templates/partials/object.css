@@ -1,0 +1,120 @@
+main.contact .details,
+main.task .details,
+main.entry .details,
+main.event .details {
+  width: min(calc(100% - 2 * var(--space-4)), var(--content-reading));
+  margin: var(--space-4);
+}
+
+main.contact .details h1,
+main.task .details h1,
+main.entry .details h1,
+main.event .details h1 {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-xl);
+  line-height: 1.3;
+}
+
+main.contact dl,
+main.task dl,
+main.entry dl {
+  display: grid;
+  /* minmax(0, ...), or a long address widens the track past the card. */
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+}
+
+main.contact dl dt,
+main.task dl dt,
+main.entry dl dt {
+  font-weight: 500;
+  color: var(--fg-muted);
+}
+
+main.contact dl dd,
+main.task dl dd,
+main.entry dl dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+main.contact dl dd.contact-address {
+  white-space: pre-line;
+}
+
+main.contact dl dd.contact-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+main.contact .chip {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+  max-width: 100%;
+}
+
+main.contact .chip > a {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+main.contact .chip form {
+  display: inline-flex; margin: 0;
+}
+
+main.contact .chip button {
+  padding: 0;
+  color: var(--fg-muted);
+  line-height: 1;
+}
+
+main.event .details table {
+  border-collapse: collapse;
+}
+
+main.event .details th,
+main.event .details td {
+  padding: 0.3rem 0.5rem;
+  text-align: start;
+}
+
+main.event .details th {
+  color: var(--fg-muted);
+  font-weight: 500;
+}
+
+.contact-photo {
+  float: inline-end;
+  width: 120px;
+  height: 120px;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 8px;
+  margin-inline-start: 1rem;
+}
+
+.followups .action-group {
+  margin-inline-start: 0;
+}
+
+.followups a:not(:first-child) {
+  margin-inline-start: 0.3rem;
+}
+
+main.task .details h1.completed {
+  text-decoration: line-through;
+  color: var(--fg-faint);
+}
+
+@media (width <= 600px) {
+  main:is(.contact, .task, .entry, .event) .details {
+    width: calc(100% - 2 * var(--space-2));
+    margin: var(--space-2);
+  }
+}

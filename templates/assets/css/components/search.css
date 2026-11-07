@@ -1,0 +1,112 @@
+/* Held to the top, not centred: the field stays put as the answers grow under it. */
+.search-dialog {
+  width: min(64rem, calc(100vw - 2 * var(--space-4)));
+  max-width: none;
+  max-height: calc(100dvh - 2 * var(--space-6));
+  margin-block: var(--space-6) auto;
+  padding: 0;
+  color: var(--fg);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-raised);
+}
+
+.search-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+.search-dialog::backdrop {
+  background: var(--scrim);
+}
+
+.search-dialog > form {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+}
+
+.search-dialog > form > .icon {
+  color: var(--fg-muted); flex: none;
+}
+
+.search-dialog > form > input[type="text"] {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  box-shadow: none;
+  background: none;
+  font-size: var(--text-lg);
+}
+
+/* The field is the dialog's whole purpose; its line under it carries the focus. */
+.search-dialog > form > input[type="text"]:focus-visible {
+  outline: none;
+}
+
+.search-dialog > form:has(input:focus-visible) {
+  border-bottom-color: var(--link);
+}
+
+.search-dialog > form > :is(.filter-chip, div.overflow, select) {
+  flex: none;
+}
+
+.search-dialog-views {
+  width: auto;
+}
+
+/* The menu needs the script to keep its choice in the form; without one the select is the filter. */
+@media (scripting: enabled) {
+  .search-dialog-views {
+    display: none;
+  }
+}
+
+@media (scripting: none) {
+  .search-dialog > form > div.overflow {
+    display: none;
+  }
+}
+
+.search-dialog-view {
+  min-height: 0; background: none;
+}
+
+.search-dialog-hint {
+  margin: 0.15rem 0 0; padding: var(--space-2) var(--space-3);
+}
+
+.search-dialog-found {
+  overflow-y: auto;
+}
+
+/* An answer under way leaves the last one readable, dimmed as not yet this query's. */
+.search-block[aria-busy="true"] > :not(.search-kind) {
+  opacity: 0.6;
+}
+
+.search-kind {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: var(--row-pad);
+  font-size: var(--text-sm);
+  font-weight: 650;
+  color: var(--fg-muted);
+  background: var(--bg-well);
+  border-bottom: 1px solid var(--border);
+}
+
+@media (width <= 600px) {
+  .search-dialog {
+    width: 100vw;
+    height: 100dvh;
+    max-height: none;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+  }
+}

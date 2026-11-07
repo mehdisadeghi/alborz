@@ -1,0 +1,35 @@
+main table {
+  border-collapse: collapse; width: 100%; border: 1px solid var(--border-light);
+}
+
+main table td {
+  padding: 0.3rem;
+  overflow-wrap: anywhere;
+}
+
+main table tbody tr {
+  border-bottom: 1px solid var(--border-light);
+}
+
+main table td a {
+  text-decoration: none;
+}
+
+main table td a:hover {
+  text-decoration: underline;
+}
+
+main table th {
+  text-align: start;
+  padding: 0.3rem; font-weight: normal;
+}
+
+main table thead {
+  border-bottom: 1px solid var(--border);
+  background-color: var(--bg);
+}
+
+main table tfoot {
+  border-top: 1px solid var(--border);
+  background-color: var(--bg);
+}

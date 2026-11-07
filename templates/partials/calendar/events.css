@@ -1,0 +1,143 @@
+.event-grid {
+  display: grid;
+  grid-template-columns: var(--star-track) 6.5rem 5rem minmax(12rem, 1fr) var(--collection-track);
+}
+
+.event-grid-select {
+  grid-template-columns: var(--control-height) var(--star-track) 6.5rem 5rem minmax(12rem, 1fr) var(--collection-track);
+}
+
+.event-grid-grouped {
+  grid-template-columns: var(--star-track) 5rem minmax(12rem, 1fr) var(--collection-track);
+}
+
+.event-grid-select.event-grid-grouped {
+  grid-template-columns: var(--control-height) var(--star-track) 5rem minmax(12rem, 1fr) var(--collection-track);
+}
+
+@media (width < 60rem) {
+  .event-grid {
+    grid-template-columns: var(--star-track) 6.5rem 5rem minmax(0, 3fr) minmax(6rem, 1fr);
+  }
+
+  .event-grid-select {
+    grid-template-columns: var(--control-height) var(--star-track) 6.5rem 5rem minmax(0, 3fr) minmax(6rem, 1fr);
+  }
+
+  .event-grid-grouped {
+    grid-template-columns: var(--star-track) 5rem minmax(0, 3fr) minmax(6rem, 1fr);
+  }
+
+  .event-grid-select.event-grid-grouped {
+    grid-template-columns: var(--control-height) var(--star-track) 5rem minmax(0, 3fr) minmax(6rem, 1fr);
+  }
+}
+
+.event-date {
+  color: var(--fg-muted);
+}
+
+.event-header-row,
+.event-row {
+  display: contents;
+}
+
+/* A read-only event keeps a text-height placeholder in the star column. */
+.event-row .list-star::before {
+  content: "";
+  block-size: 1em;
+}
+
+.event-time,
+.event-owner {
+  color: var(--fg-muted);
+}
+
+.event-summary a {
+  color: inherit;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.event-summary a:hover {
+  text-decoration: underline;
+}
+
+.event-owner a {
+  flex-grow: 0;
+}
+
+.event-grid .event-day-header {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: var(--row-pad);
+  font-size: var(--text-sm);
+  font-weight: 650;
+  color: var(--fg-muted);
+  background: var(--bg-well);
+  border-bottom: 1px solid var(--border);
+}
+
+.event-grid .empty-list {
+  grid-column: 1 / -1;
+}
+
+@media (width <= 600px) {
+  .event-grid {
+    display: block;
+  }
+
+  .event-header-row {
+    display: none;
+  }
+
+  /* Each line spans the flexible track, so the calendar's name does not
+     size the star's column and narrow the summary above it. */
+  .event-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto auto var(--control-height);
+    column-gap: var(--space-2);
+    padding: var(--space-2);
+    border-bottom: 1px solid var(--border-light);
+  }
+
+  .event-row .event-select {
+    grid-column: 1;
+    grid-row: 1 / 3;
+    align-self: center;
+  }
+
+  .event-row .event-summary {
+    grid-column: 2 / 5;
+    grid-row: 1;
+    font-weight: 600;
+  }
+
+  .event-row .list-star {
+    grid-column: 5;
+    grid-row: 1;
+    place-self: start end;
+  }
+
+  .event-row .event-date {
+    grid-column: 3; grid-row: 2;
+  }
+
+  .event-row .event-time {
+    grid-column: 4 / 6;
+    grid-row: 2;
+    justify-content: flex-end;
+  }
+
+  .event-row .event-owner {
+    grid-column: 2;
+    grid-row: 2;
+    justify-content: flex-start;
+  }
+
+  .event-grid-grouped .event-row .event-time {
+    grid-column: 3 / 6;
+  }
+}

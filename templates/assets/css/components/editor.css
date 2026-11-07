@@ -1,0 +1,93 @@
+/* Focus writing: the targeted area covers the window; Back or the exit link leaves it.
+   body main: outweighs the form layouts (main.create-update form .field, .text). */
+body main .focus-write:is(:target, :has(:target)) {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: var(--space-3);
+  background: var(--bg);
+}
+
+body main .focus-write:is(:target, :has(:target)) :is(textarea, .editor) { flex: 1; resize: none; }
+.field.focus-write > .focus-toggle { float: inline-end; align-self: flex-end; }
+.editor-toolbar > .focus-toggle { margin-inline-start: auto; }
+.focus-write:is(:target, :has(:target)) .focus-enter,
+.focus-write:not(:target, :has(:target)) .focus-exit { display: none; }
+
+.editor-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.1rem;
+  margin-bottom: var(--space-1);
+}
+
+.editor-toolbar:not(.is-on) [data-act] { display: none; }
+
+/* Rich text is written in the script's editor. */
+@media (scripting: none) {
+  .editor-toolbar > button { display: none; }
+}
+
+.editor-toolbar [aria-pressed="true"] {
+  background: var(--bg-active);
+  border-color: var(--border-strong);
+}
+
+.editor-toolbar [data-act="rtl"] { margin-inline-start: var(--space-2); }
+
+/* A zero basis: a long body scrolls inside, as the textarea's does, rather than lengthening the page. */
+main.create-update .text .editor {
+  flex: 1 1 0;
+  min-height: 12rem;
+  overflow-y: auto;
+  padding: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--fg);
+  line-height: 1.5;
+}
+
+.editor:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.editor p { margin: 0 0 var(--space-2); }
+.editor blockquote {
+  margin: 0 0 var(--space-2);
+  padding-inline-start: var(--space-3);
+  border-inline-start: 2px solid var(--border-strong);
+  color: var(--fg-dim);
+}
+
+#send-progress {
+  position: absolute;
+  inset-inline-start: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  font-size: 1.2rem;
+  background: rgba(0, 0, 0, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#send-progress svg {
+  height: 1.2rem;
+  margin-inline-end: 0.3rem;
+  animation: fa-spin 2s infinite linear;
+}
+
+#send-progress svg path {
+  fill: currentColor;
+}
+
+@keyframes fa-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(1turn);
+  }
+}

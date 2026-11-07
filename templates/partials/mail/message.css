@@ -1,0 +1,181 @@
+main.message table,
+main.event table {
+  background-color: var(--bg);
+}
+
+main.message th,
+main.event th {
+  width: 5%; padding-inline: 0.5rem;
+}
+
+main.message h1,
+main.event h1 {
+  font-size: 1.2rem; padding: 0.5rem 0;
+}
+
+main.message td,
+main.event td {
+  padding-inline-start: 0;
+}
+
+/* 78ch is the line length plain-text mail is written for. */
+main.message pre {
+  padding-inline: 0.5rem;
+  max-width: 78ch;
+}
+
+main.message .shown-image {
+  height: auto;
+  margin-block-start: var(--space-3);
+}
+
+main.message .remote-content,
+main.message .part-cut {
+  background: var(--bg-accent);
+}
+
+main.message .remote-content td,
+main.message .part-cut td {
+  color: var(--fg);
+}
+
+main.message .tabs {
+  margin: 0.3rem 0 0;
+  padding: 0;
+  border-bottom: 1px solid var(--border-light);
+  overflow: visible;
+}
+
+main.message .tabs a {
+  padding: 0.2rem 0.5rem;
+  margin: 0;
+  display: inline-block;
+  height: calc(100% + 1px);
+  margin-bottom: -1px;
+  border-style: solid;
+  border-color: transparent;
+  border-width: 1px;
+  text-decoration: none;
+  color: var(--fg-dim);
+}
+
+main.message .tabs a.active,
+main.message .tabs a:hover {
+  background-color: var(--bg);
+  border-color: var(--border-light) var(--border-light) var(--bg) var(--border-light);
+  color: var(--fg);
+}
+
+main.message pre,
+main.message iframe,
+main.event pre {
+  flex: 1 auto;
+  padding: 1rem;
+  margin: 0;
+  background-color: var(--bg);
+  border-style: solid;
+  border-color: var(--border-light);
+  border-width: 0 1px 1px;
+  max-width: 100%;
+}
+
+/* E-mail documents assume a light canvas, whatever the UI theme. */
+main.message iframe {
+  background-color: white;
+}
+
+main.message pre,
+main.event pre {
+  white-space: pre-wrap;
+  word-break: normal;
+  overflow-wrap: anywhere;
+}
+
+main.message .message-header .parts {
+  margin: var(--space-3) 0;
+  padding-inline-end: var(--space-2);
+}
+
+/* A flex summary has no disclosure marker of its own. */
+main.message .message-header .parts > summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: baseline;
+}
+
+main.message .message-header .parts > summary::-webkit-details-marker {
+  display: none;
+}
+
+main.message .message-header .parts > summary::before {
+  flex: none;
+  width: 1rem;
+  color: var(--fg-muted);
+  text-align: center;
+}
+
+main.message .message-header .parts > summary .hint {
+  margin: 0;
+}
+
+main.message .message-header .parts .parts-all {
+  margin-inline-start: auto;
+}
+
+main.message .message-header .parts ul {
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A file name is the reader's: it wraps rather than widening the card. */
+main.message .message-header .parts li {
+  margin-inline-start: 0;
+  overflow-wrap: anywhere;
+}
+
+/* An unsigned message says nothing: a mark on every message teaches people to ignore marks. */
+.sig {
+  margin-inline-start: 0.4rem;
+  padding: 0.05rem 0.4rem;
+  border: 1px solid;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+  cursor: help;
+}
+
+/* The accent only where the domain's key and its signed delivery agree; a key the message brought proves less. */
+.sig-verified {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.sig-good {
+  color: var(--fg-muted);
+  border-color: color-mix(in srgb, var(--fg-muted) 40%, transparent);
+}
+
+.sig-bad {
+  color: var(--alert-fg);
+  border-color: color-mix(in srgb, var(--alert-fg) 40%, transparent);
+}
+
+@media (width <= 600px) {
+  /* A mail row is itself the tap target, so the touch minimum is the row's. */
+
+  main.message .message-header .parts {
+    margin: var(--space-2) 0;
+  }
+
+  main.message th, main.event th {
+    width: auto;
+  }
+
+  main.message td {
+    white-space: normal;
+    max-width: none;
+    overflow-wrap: anywhere;
+  }
+}

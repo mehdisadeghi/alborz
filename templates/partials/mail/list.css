@@ -1,0 +1,210 @@
+:where(.message-list-flags) {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+/* The star starts at the cell's edge: the checkbox brings its own padding. */
+.message-grid .message-list-flags {
+  padding-inline-start: 0;
+}
+
+/* The row's button carries the hit area and starts where the header's star
+   does; the chevron follows it. */
+.message-list-flags > form {
+  flex: none;
+  display: flex;
+}
+
+.message-list-unread.message-list-flags .flag-button:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover {
+  background: var(--bg-active);
+}
+
+.message-list-subject a {
+  color: var(--link-read);
+}
+
+.message-list-unread.message-list-sender,
+.message-list-unread.message-list-subject,
+.message-list-unread.message-list-date {
+  font-weight: bold; color: var(--fg);
+}
+
+.message-list-unread.message-list-subject {
+  color: var(--fg-dim);
+}
+
+.message-list-date {
+  text-align: start;
+}
+
+/* Only the subject moves, so the eye can still run down the other columns. */
+.message-grid .message-row .message-list-subject {
+  padding-inline-start: calc(var(--depth, 0) * var(--space-4));
+}
+
+.conversation > a + a::before {
+  content: "·";
+  color: var(--fg-faint);
+  margin-inline: var(--space-2);
+}
+
+.message-list-unread.message-list-subject a {
+  color: var(--link-unread);
+}
+
+.message-list-unread {
+  background-color: var(--bg);
+  opacity: 1;
+}
+
+.message-list-unread:first-child {
+  border-inline-start: 1px solid var(--border-faint);
+}
+
+.message-list-unread:last-child {
+  border-inline-end: 1px solid var(--border-faint);
+}
+
+/* Inside the subject cell: a row of its own would take neither the row's hover nor its hairline. */
+/* Only on rows with a second line: in a column, flex: 1 1 auto grows a lone subject down the cell. */
+.message-list-subject.has-attach {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0.15rem;
+}
+
+.message-list-subject.has-attach > a {
+  max-width: 100%;
+}
+
+.message-grid {
+  display: grid;
+  /* Fixed tracks: sorting or paging must not shift the headers under the pointer. */
+  /* A capped track hands its whole loss to the flexible one beside it. */
+  grid-template-columns:
+    var(--check-track) 5.4rem 14rem
+    minmax(0, 1fr) 8rem 5.5rem;
+  grid-template-rows: auto;
+}
+
+@media (width < 75rem) {
+  .message-grid {
+    grid-template-columns:
+      var(--check-track) 5.4rem minmax(6rem, 0.45fr)
+      minmax(0, 1fr) minmax(5rem, 8rem) minmax(4rem, 5.5rem);
+  }
+}
+
+@media (width < 60rem) {
+  .message-grid {
+    grid-template-columns:
+      var(--check-track) 5.4rem minmax(6rem, 0.45fr)
+      minmax(0, 1fr) minmax(5rem, 8rem);
+  }
+
+  /* Hide the size column without changing the shared cell layout. */
+  .message-grid .message-list-size {
+    display: none;
+  }
+}
+
+/* Inline names in one box, so the line is cut once at its end rather than every name at once. */
+.message-list-sender > .sender-names {
+  /* The names' colour, so the commas and the ellipsis read as one line with them. */
+  color: var(--link);
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.message-mark {
+  flex: 0 0 auto;
+  margin-inline-start: 0.2rem;
+  font-size: 0.8em;
+  color: var(--fg-dim);
+}
+
+.message-mark:first-of-type {
+  margin-inline-start: auto;
+}
+
+@media (width <= 600px) {
+  .message-grid {
+    display: block;
+  }
+
+  /* Actions stay beside the title; the meaningful date sits below them. */
+  .message-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) max-content;
+    grid-template-areas:
+      "check sender  flags"
+      "check subject date";
+    column-gap: 0.5rem;
+    padding-inline: 0.5rem;
+    padding-block: var(--space-2);
+    border-bottom: 1px solid var(--border-light);
+    min-height: 2.75rem;
+  }
+
+  .message-row:has(.message-list-unread) {
+    background-color: var(--bg);
+  }
+
+  /* The card is the row: an unread row's first-cell frame would land inside it. */
+  .message-row > .message-list-unread {
+    border-inline: 0;
+  }
+
+  .message-list-checkbox {
+    grid-area: check; align-self: stretch;
+  }
+
+  .message-list-sender {
+    grid-area: sender;
+  }
+
+  .message-list-sender :is(.sender-names, a) {
+    color: inherit;
+  }
+
+  .message-list-date {
+    grid-area: date;
+    align-self: end;
+    justify-content: flex-end;
+    font-size: 0.8rem;
+  }
+
+  .message-list-subject {
+    grid-area: subject;
+  }
+
+  .message-list-flags {
+    grid-area: flags;
+    align-self: start;
+    justify-content: flex-end;
+    padding-inline-end: 0.15rem;
+  }
+
+  /* The glyph matches the text and the button widens, keeping the row short and the target easy. */
+  .message-list-flags .flag-button {
+    min-height: 0;
+    padding-inline: 0.35rem;
+  }
+
+  .message-list-flags form {
+    order: 2;
+  }
+
+  .message-mark {
+    order: 1; margin-inline-start: 0.25rem;
+  }
+
+  .message-list .messages .message-list-size {
+    display: none;
+  }
+}

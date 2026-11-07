@@ -1,0 +1,81 @@
+main.login {
+  justify-content: center;
+}
+
+main.login .notices {
+  position: static; padding: 0; align-items: stretch;
+}
+
+main.login .notice {
+  width: 100%; margin-block-end: var(--space-4); animation: none;
+}
+
+main.setup details {
+  margin-block-end: var(--space-4);
+}
+
+main.login > section {
+  position: relative;
+  align-self: center;
+  background: var(--bg);
+  width: min(26rem, 100%);
+  padding: var(--space-8);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-raised);
+}
+
+main.login .login-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-6);
+  text-align: center;
+}
+
+main.login button:not(.nav-language *) {
+  width: 100%;
+  padding-block: 0.6rem;
+  font-weight: bold;
+}
+
+main.login .nav-language {
+  position: absolute;
+  inset-block-start: var(--space-3);
+  inset-inline-end: var(--space-3);
+}
+
+main.login .notice-dismiss {
+  margin-inline-start: auto; flex-shrink: 0;
+}
+
+main.login .notice-dismiss button {
+  width: auto; padding: 0;
+}
+
+body:has(main.login form[data-redirecting]) #notices > .notice-failed:not([id]) {
+  display: none;
+}
+
+main.login .colophon {
+  margin-top: 1rem;
+  text-align: center;
+  color: var(--fg-faint);
+  font-size: 0.8rem;
+}
+
+main.login .colophon a {
+  color: inherit;
+  text-decoration: none;
+}
+
+main.login .colophon a:hover {
+  text-decoration: underline;
+}
+
+@media (width <= 600px) {
+  main.login > section {
+    width: 100%;
+  }
+}

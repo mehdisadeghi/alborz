@@ -1,0 +1,133 @@
+.contact-grid {
+  display: grid;
+  grid-template-columns:
+    var(--check-track) var(--star-track) 2.5rem minmax(8rem, 1fr) minmax(6rem, 1fr)
+    var(--collection-track) minmax(6rem, 7rem) minmax(6rem, 7rem);
+  grid-template-rows: auto;
+}
+
+/* Below the base rule it overrides: a media query adds no specificity. */
+@media (width < 60rem) {
+  .contact-grid {
+    grid-template-columns:
+      var(--check-track) var(--star-track) 2.5rem minmax(8rem, 1fr) minmax(6rem, 1fr)
+      var(--collection-track) minmax(6rem, 7rem);
+  }
+
+  .contact-grid .contact-list-changed {
+    display: none;
+  }
+}
+
+@media (width < 48rem) {
+  .contact-grid {
+    grid-template-columns:
+      var(--check-track) var(--star-track) 2.5rem minmax(8rem, 1fr)
+      var(--collection-track) minmax(6rem, 7rem);
+  }
+
+  .contact-grid .contact-list-email {
+    display: none;
+  }
+}
+
+.contact-list-book a {
+  flex-grow: 0;
+}
+
+:where(.contact-list-photo) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* A flex item may shrink below its width; this one keeps its square. */
+.contact-list-photo img {
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+@media (width <= 600px) {
+  .contact-grid {
+    display: block;
+  }
+
+  .contact-row {
+    display: grid;
+    grid-template-columns: auto 2.5rem minmax(0, 1fr) auto;
+    grid-template-areas:
+      "check photo name  star"
+      "check photo phone ."
+      "check photo email date";
+    column-gap: 0.5rem;
+    padding-inline: 0.5rem;
+    padding-block: var(--space-2);
+    border-bottom: 1px solid var(--border-light);
+    min-height: 2.75rem;
+  }
+
+  .contact-row > .contact-list-checkbox {
+    grid-area: check;
+  }
+
+  .contact-row > .list-star {
+    grid-area: star; align-self: start;
+  }
+
+  .contact-row > .contact-list-photo {
+    grid-area: photo;
+  }
+
+  .contact-row > .contact-list-name {
+    grid-area: name;
+  }
+
+  .contact-row > .contact-list-phone {
+    grid-area: phone;
+  }
+
+  .contact-row > .contact-list-email {
+    grid-area: email;
+    display: flex;
+  }
+
+  .contact-row > .contact-list-changed {
+    display: block;
+    grid-area: date;
+    place-self: end end;
+    white-space: nowrap;
+    color: var(--fg-muted);
+    font-size: var(--text-sm);
+  }
+
+  .contact-row > .contact-list-book {
+    display: none;
+  }
+
+  /* Keep names aligned when any contact has a photo; otherwise give them the space. */
+  .contact-grid:not(:has(.contact-list-photo img)) .contact-row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "check name star"
+      "check phone ."
+      "check email date";
+  }
+
+  .contact-grid:not(:has(.contact-list-photo img)) .contact-list-photo {
+    display: none;
+  }
+
+  .contact-list-name {
+    flex-direction: column;
+    align-items: flex-start !important;
+    justify-content: center;
+  }
+
+  .contact-list-phone {
+    font-size: 0.8rem;
+  }
+}

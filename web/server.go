@@ -232,8 +232,9 @@ const (
 )
 
 type assetStamp struct {
-	key   string
-	stamp string
+	key     string
+	stamp   string
+	content []byte
 }
 
 var aLongTimeAgo = time.Unix(233431200, 0)
@@ -319,6 +320,10 @@ func (s *Server) assetStamp(name string) string {
 	if name == customCSS {
 		return s.loaded.Load().customStamp
 	}
+	if name == "style.css" {
+		_, stamp := s.styleCSS()
+		return stamp
+	}
 	files, file, ok := s.assetSource(name)
 	if !ok {
 		return ""
@@ -342,6 +347,25 @@ func (s *Server) assetStamp(name string) string {
 	stamp := stampOf(content)
 	s.assets[name] = assetStamp{key: key, stamp: stamp}
 	return stamp
+}
+
+func (s *Server) styleCSS() ([]byte, string) {
+	_, key, err := styleImports(s.files)
+	if err != nil {
+		return nil, ""
+	}
+	s.assetsMu.Lock()
+	defer s.assetsMu.Unlock()
+	if e, ok := s.assets["style.css"]; ok && e.key == key {
+		return e.content, e.stamp
+	}
+	content, key, err := bundleStylesheet(s.files)
+	if err != nil {
+		return nil, ""
+	}
+	stamp := stampOf(content)
+	s.assets["style.css"] = assetStamp{key: key, stamp: stamp, content: content}
+	return content, stamp
 }
 
 // assetSource maps a shared asset URL to the owning embedded tree.

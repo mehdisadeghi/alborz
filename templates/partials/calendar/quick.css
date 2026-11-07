@@ -1,0 +1,70 @@
+.quick-add {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--border-light);
+}
+
+/* One row at any width: the field grows, the destination shrinks to fit. */
+.quick-add input {
+  flex: 1 1 6rem; min-width: 0;
+}
+
+.quick-add :is(input[name="summary"], select, button) {
+  height: var(--control-height);
+  padding-block: 0;
+}
+
+.quick-add > .picker-quiet {
+  display: flex; min-width: 0;
+}
+
+.quick-add select {
+  min-width: 0; max-width: 100%;
+}
+
+.quick-add > .hint {
+  min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+}
+
+.calendar-quick {
+  position: relative;
+}
+
+.quick-help {
+  flex: none; align-self: center;
+}
+
+.quick-help > summary {
+  cursor: pointer; font-size: var(--text-sm);
+}
+
+.quick-help > p,
+#event-quick-preview {
+  position: absolute;
+  inset-block-start: 100%;
+  inset-inline: var(--space-2);
+  z-index: 5;
+  margin: 0;
+  padding: var(--space-2);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  box-shadow: 0 2px 8px #0002;
+}
+
+#event-quick-preview {
+  display: none;
+}
+
+.calendar-quick:has(input[name="summary"]:focus):not(:has(.quick-help[open])) #event-quick-preview:not(:empty) {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+#event-quick-error {
+  padding: var(--space-2);
+}

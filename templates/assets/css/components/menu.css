@@ -1,0 +1,144 @@
+.overflow-menu > hr {
+  margin: var(--space-1) 0;
+  border: 0;
+  border-block-start: 1px solid var(--border);
+}
+
+.overflow-menu div.overflow {
+  display: block;
+}
+
+.overflow-menu div.overflow > .overflow-menu {
+  position-area: inline-start span-block-end;
+  margin: 0;
+  margin-inline-end: 2px;
+}
+
+.overflow > button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.overflow-menu .toggle.no-word .toggle-option > .label {
+  display: inline;
+}
+
+.overflow-menu .toggle.no-word .toggle-option > .icon {
+  display: none;
+}
+
+.overflow-menu .actions-pagination {
+  margin-inline-start: 0;
+}
+
+/* Row menus remain popovers; the account disclosures stay in the drawer's flow. */
+div.overflow {
+  position: relative;
+  display: inline-block;
+}
+
+.actions-wrap div.overflow {
+  margin-inline-start: 0.3rem;
+}
+
+.overflow-menu[popover] {
+  inset: auto;
+  margin: 0;
+  margin-block-start: 2px;
+  position-area: block-end span-inline-start;
+  position-try-fallbacks: flip-inline, flip-block;
+  inline-size: max-content;
+  max-inline-size: calc(100vw - 2 * var(--space-2));
+  max-block-size: calc(var(--phone-viewport-height, 100dvh) - 2 * var(--space-2));
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+  color: inherit;
+}
+
+.overflow-menu .icon-button {
+  width: 100%;
+  justify-content: flex-start;
+  gap: var(--space-2);
+  color: inherit;
+}
+
+.overflow-menu .icon-button > .label {
+  display: inline;
+}
+
+/* Named, not linked, in the same box: bolding it would change its width. A row that submits is marked too. */
+.overflow-menu .is-current,
+.overflow-menu button.is-current:not(.icon-button) {
+  color: var(--fg);
+  background: var(--bg-active);
+  border-color: var(--border-strong);
+}
+
+.overflow-menu:popover-open {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.25rem;
+  min-width: 0;
+  padding: 0.5rem;
+  background-color: var(--surface-raised);
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.overflow-menu > strong {
+  padding: 0.3rem;
+}
+
+.overflow-menu form {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.overflow-menu button,
+.overflow-menu .button-link {
+  width: 100%;
+  min-inline-size: 0;
+  white-space: normal;
+  text-align: start;
+}
+
+.overflow-menu button:not(.icon-button) {
+  border-color: transparent;
+  background: transparent;
+}
+
+.overflow-menu .action-group {
+  margin-inline-start: 0;
+  margin-bottom: 0;
+}
+
+.overflow-menu button:not(.icon-button):not(:disabled):not([aria-disabled="true"]):hover {
+  background-color: var(--bg-active);
+  border-color: var(--border-strong);
+}
+
+/* Anchored to the viewport: a wide menu off a control near the left edge runs off the canvas. */
+@media (width <= 600px) {
+  .overflow-menu[popover] {
+    position-area: block-end;
+    justify-self: center;
+    width: calc(100vw - 2 * var(--space-2));
+    min-width: 0;
+  }
+}
+
+@media (width <= 600px) {
+  :root[data-phone="bar"] .overflow-menu[popover] {
+    max-block-size: calc(var(--phone-viewport-height, 100dvh) - var(--toolbar-height) - var(--phone-bar) - env(safe-area-inset-bottom) - 2 * var(--space-2));
+  }
+}
+
+/* Toolbar menu actions keep one line on a phone. */
+@media (width <= 600px) {
+  .actions .overflow-menu button,
+  .actions .overflow-menu .button-link { white-space: nowrap; }
+}

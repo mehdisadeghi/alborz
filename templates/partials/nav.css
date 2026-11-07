@@ -1,0 +1,365 @@
+header {
+  position: relative;
+  z-index: 12;
+  border-bottom: 1px solid var(--border);
+  background: var(--theme-color);
+}
+
+header nav {
+  min-height: var(--toolbar-height);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-inline: var(--space-2);
+}
+
+header nav.is-compact {
+  gap: var(--space-2);
+}
+
+footer {
+  padding: var(--space-2) var(--space-4); text-align: end;
+}
+
+/* Dim: the name says where you are rather than asks to be read. */
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--fg-dim);
+  text-decoration: none;
+}
+
+.brand:hover {
+  color: var(--fg);
+}
+
+.brand-mark {
+  width: 1.15rem;
+  height: 1.15rem;
+  flex: 0 0 auto;
+}
+
+.brand-name {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* No taller than the header's links: it is for a fault report, not for reading. */
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+
+/* Rigid: a wrapping build would grow the header; the sections turn to icons instead. */
+.brand-build {
+  font-size: var(--text-2xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-faint);
+  white-space: nowrap;
+}
+
+/* A span: "header nav > div" is the trailing group, pushed to the far side. */
+header nav .header-brand {
+  display: flex;
+  align-items: center;
+  margin-inline-end: var(--space-2);
+}
+
+.rail-brand {
+  display: none;
+}
+
+#session-lock-screen {
+  display: none;
+}
+
+html[data-session-concealed] body > :not(#session-lock-screen) {
+  display: none !important;
+}
+
+html[data-session-concealed] #session-lock-screen {
+  display: block;
+  max-width: 32rem;
+  margin: 15vh auto;
+  padding: var(--space-6);
+  text-align: center;
+}
+
+header nav > a,
+header nav > div > a {
+  color: var(--fg);
+  align-self: stretch;
+  display: inline-flex;
+  align-items: center;
+  border-bottom: 2px solid transparent;
+  text-decoration: none;
+}
+
+header nav > a:hover,
+header nav > div > a:hover {
+  border-bottom-color: var(--border-strong);
+}
+
+/* The script marks the nav where the words run out; without a script the row scrolls. */
+header nav > a > .icon {
+  display: none;
+}
+
+header nav.is-icons > a > .icon {
+  display: inline-block;
+}
+
+header nav.is-icons > a > .label {
+  display: none;
+}
+
+header nav.is-icons > a {
+  flex: 1 1 0;
+  justify-content: center;
+}
+
+header nav span {
+  color: var(--fg-muted);
+}
+
+header nav > div {
+  margin-inline-start: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.rail-mobile {
+  display: none;
+}
+
+header nav .nav-utilities,
+header nav .nav-session-lock,
+header nav :is(.nav-language, .nav-person),
+header nav .scheme-toggle {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+header nav .nav-utilities {
+  margin-inline-start: 0;
+  gap: 0;
+}
+
+header nav .nav-utilities .icon-button {
+  width: 1.75rem;
+  height: 1.75rem;
+  min-width: 1.75rem;
+  min-height: 1.75rem;
+}
+
+header nav .nav-utilities .icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+@media (pointer: coarse) {
+  header nav .nav-utilities .icon-button {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+/* Icons only: the menus, the lock and the scheme are spaced as the sections are. */
+:root:not([data-phone="bar"]) header nav.is-icons > .nav-utilities {
+  display: contents;
+}
+
+:root:not([data-phone="bar"]) header nav.is-icons :is(.nav-session-lock, .scheme-toggle, .nav-language, .nav-person) {
+  flex: 1 1 0;
+  min-width: 0;
+  align-self: stretch;
+}
+
+:root:not([data-phone="bar"]) header nav.is-icons .nav-utilities .icon-button {
+  width: 100%;
+  min-width: 0;
+  height: auto;
+}
+
+/* With no script the root names no scheme, and none shows. */
+:root:not([data-theme="system"]) .scheme-toggle [data-scheme="system"],
+:root:not([data-theme="light"]) .scheme-toggle [data-scheme="light"],
+:root:not([data-theme="dark"]) .scheme-toggle [data-scheme="dark"] {
+  display: none;
+}
+
+:root:not([data-phone="bar"]) header nav.is-icons .nav-language > .overflow {
+  display: flex; flex: 1 1 0;
+}
+
+/* The drawer holds the accounts and the settings on a phone. */
+@media (width <= 600px) {
+  header nav :is(.nav-language, .nav-person) {
+    display: none;
+  }
+}
+
+/* A touch screen has no keyboard to take shortcuts from. */
+@media (pointer: coarse) {
+  .keys-open {
+    display: none;
+  }
+}
+
+/* Without anchor positioning a menu off the header hangs under its far end; with a script, helpers.js places it. */
+@supports not (position-area: block-end) {
+  header .overflow-menu[popover] {
+    inset-block-start: var(--toolbar-height);
+    inset-inline: auto var(--space-2);
+  }
+}
+
+header a.active {
+  font-weight: 650;
+  color: var(--fg);
+  border-bottom-color: var(--accent);
+  text-decoration: none;
+}
+
+/* A field in the header opens the search; it yields before the sections' words do, then is their icon. */
+header nav > .nav-search-open {
+  display: flex;
+  flex: 0 1 16rem;
+  min-width: 8rem;
+  margin: 0;
+  margin-inline-start: auto;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-height);
+  padding: 0 var(--space-2);
+  color: var(--fg-muted);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.04);
+  cursor: text;
+}
+
+header nav.is-compact > .nav-search-open {
+  min-width: 6rem;
+}
+
+header nav > .nav-search-open + div {
+  margin-inline-start: 0;
+}
+
+header nav .nav-search-open:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover {
+  color: var(--fg);
+  background: var(--bg);
+  border-color: var(--border-strong);
+}
+
+header nav .nav-search-open .label {
+  flex: 1;
+  overflow: hidden;
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+header nav .nav-search-open kbd {
+  padding: 0 var(--space-1);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+header nav.is-icons > .nav-search-open {
+  flex: 1 1 0;
+  min-width: 0;
+  justify-content: center;
+  align-self: stretch;
+  padding: 0;
+  color: var(--fg);
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+header nav.is-icons .nav-search-open:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover {
+  background: none;
+  border-bottom-color: var(--border-strong);
+}
+
+header nav.is-icons .nav-search-open :is(.label, kbd) {
+  display: none;
+}
+
+/* Without a script nothing folds the row, so it wraps. */
+@media (scripting: none) {
+  header nav {
+    flex-wrap: wrap;
+    padding-block: var(--space-2);
+  }
+}
+
+@media (width <= 600px) {
+  header nav {
+    display: flex;
+    align-items: center;
+    overflow-x: auto;
+    white-space: nowrap;
+    gap: var(--space-3);
+    min-height: 3rem;
+    padding-inline: var(--space-2);
+  }
+
+  header nav > a {
+    min-height: 3rem;
+  }
+
+  header nav.is-icons {
+    gap: var(--space-1);
+  }
+
+  header nav > div {
+    float: none; display: none;
+  }
+
+  /* The trailing group is out of the row here, so the button pushes itself. */
+  header nav .nav-utilities {
+    margin-inline-start: auto;
+  }
+
+  header nav .header-brand {
+    display: none;
+  }
+
+  .rail-brand {
+    display: flex;
+    padding: var(--space-1) var(--space-2) var(--space-3);
+  }
+
+  /* The sections live in the bar; the header names the one in force, or the app where none is. */
+  :root[data-phone="bar"] header nav > a:not(.active) {
+    display: none;
+  }
+
+  :root[data-phone="bar"] header nav:not(:has(> a.active)) .header-brand {
+    display: flex;
+  }
+
+  /* The drawer's button stays put on every page; the ☰ glyph draws 0.15em inside its advance. */
+  :root[data-phone="bar"] header .sidebar-button {
+    line-height: var(--tap);
+    margin-inline-start: -0.15em;
+    padding-inline: 0 0.3rem;
+  }
+}

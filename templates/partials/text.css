@@ -1,0 +1,57 @@
+/* Code is written left to right in every language. */
+.code,
+textarea.code {
+  direction: ltr;
+  unicode-bidi: isolate;
+  text-align: left;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+/* dir=auto resolves the block's alignment, plaintext each line's direction. */
+.user-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  unicode-bidi: plaintext;
+}
+
+/* plaintext puts trailing punctuation at the end its own language puts it. */
+main.message h1,
+main.message pre {
+  unicode-bidi: plaintext;
+}
+
+/* Said outright: start and match-parent resolve against a direction the row may have overridden. */
+:root:dir(rtl) .list .list-summary,
+:root:dir(rtl) .message-list-subject a,
+:root:dir(rtl) .sender-names,
+:root:dir(rtl) .contact-list-name a {
+  text-align: right;
+}
+
+:root:dir(ltr) .list .list-summary,
+:root:dir(ltr) .message-list-subject a,
+:root:dir(ltr) .sender-names,
+:root:dir(ltr) .contact-list-name a {
+  text-align: left;
+}
+
+[dir="rtl"] aside details.acct-folders > summary.aside-account a {
+  text-align: right;
+}
+
+/* :dir() matches the direction dir=auto resolved, so the rule follows the row's own script. */
+:root[data-align="script"] .message-list-subject a:dir(ltr),
+:root[data-align="script"] .sender-names:dir(ltr) {
+  text-align: left;
+}
+
+:root[data-align="script"] .message-list-subject a:dir(rtl),
+:root[data-align="script"] .sender-names:dir(rtl) {
+  text-align: right;
+}
+
+/* dir=auto resolves LTR while a field is empty, pushing a translated placeholder to the wrong edge. */
+[dir="rtl"] input[dir="auto"]:placeholder-shown,
+[dir="rtl"] textarea[dir="auto"]:placeholder-shown {
+  direction: rtl;
+}

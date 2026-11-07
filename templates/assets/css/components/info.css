@@ -1,0 +1,131 @@
+.info-explain {
+  margin-top: var(--space-2);
+}
+
+main > .info-explain {
+  padding-inline: var(--space-2);
+}
+
+.info-explain > summary {
+  cursor: pointer;
+  color: var(--link);
+  list-style: none;
+}
+
+.info-explain > summary::-webkit-details-marker { display: none; }
+
+.info-explain > summary::before {
+  display: inline-block;
+  width: 0.75rem;
+}
+
+.info-explain dl {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.2rem var(--space-4);
+  margin: var(--space-2) 0 0;
+}
+
+.info-explain dt, .info-card dt { color: var(--fg-faint); }
+
+.info-card {
+  margin-top: var(--space-5);
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+}
+
+.info-card h2,
+main.settings form > h2,
+details.info-card > summary {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 650;
+  color: var(--fg-muted);
+}
+
+details.info-card > summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+details.info-card > summary::-webkit-details-marker { display: none; }
+
+details.info-card > summary::before {
+  display: inline-block;
+  width: 0.75rem;
+  text-align: center;
+}
+
+details.info-card[open] > summary { margin-bottom: var(--space-2); }
+
+.info-card dl {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.2rem var(--space-4);
+  margin: 0;
+}
+
+.info-abilities {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem var(--space-4);
+}
+
+.info-abilities li::before {
+  margin-inline-end: 0.35rem;
+  font-weight: 650;
+}
+
+.info-abilities .has::before { content: "\2713"; color: var(--accent); }
+
+.info-abilities .has-not {
+  color: var(--fg-faint);
+}
+
+.info-abilities .has-not::before { content: "\2013"; }
+
+/* Set off, or the ticks read as one more row of the list above them. */
+.info-group-title {
+  margin: var(--space-3) 0 var(--space-1);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-light);
+  color: var(--fg-faint);
+}
+
+.info-tags {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.info-tags li {
+  padding: 0 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
+
+.object-dates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border-light);
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+}

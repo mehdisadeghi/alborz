@@ -1,0 +1,187 @@
+input[type="submit"],
+.button,
+button,
+.button-link {
+  margin: 0;
+  cursor: pointer;
+  text-decoration: none;
+  text-align: center;
+  display: inline-block;
+  min-height: var(--control-height);
+  padding: var(--space-1) var(--space-2);
+  min-width: var(--control-height);
+  font-size: var(--text-sm);
+  line-height: 1.25;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  vertical-align: middle;
+  color: var(--fg);
+  background-color: var(--bg-button);
+}
+
+/* A link has no button's centring, so its label would sit at the top of the box. */
+.button,
+.button-quiet,
+.form-actions > .button-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Text actions in forms share a touch target; editor and toolbar icons keep their own. */
+@media (pointer: coarse) {
+  main.settings form button,
+  main.login :is(button, .button, .button-link),
+  .list-item > form > button,
+  .invitation-actions > button,
+  .note-box > button {
+    min-height: 2.75rem;
+    min-width: 2.75rem;
+  }
+
+  /* Their width is the label's, wider than the target. */
+  .form-actions > * {
+    min-height: 2.75rem;
+  }
+}
+
+.button:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover,
+button:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover,
+.button-link:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover {
+  background-color: var(--bg-active);
+  border-color: var(--border-strong);
+  text-decoration: none;
+}
+
+.button-link,
+.button-quiet {
+  border-color: transparent;
+  background: transparent;
+}
+
+.button-primary {
+  color: var(--on-accent);
+  background: var(--accent);
+  border-color: var(--accent);
+  font-weight: 650;
+}
+
+.button-primary:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover {
+  color: var(--on-accent);
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+}
+
+.button-danger {
+  color: var(--alert-fg);
+  border-color: color-mix(in srgb, var(--alert-fg) 35%, var(--border));
+  background: transparent;
+}
+
+.button-danger:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover {
+  color: var(--alert-fg);
+  border-color: var(--alert-fg);
+  background: var(--alert-bg);
+}
+
+button[disabled] {
+  color: var(--fg-muted);
+  background-color: var(--bg-button);
+  border-color: var(--border-light);
+  cursor: default;
+}
+
+form[aria-busy="true"],
+form[aria-busy="true"] button[disabled] {
+  cursor: progress;
+}
+
+.icon-sprite {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+.icon {
+  width: 1.15rem;
+  height: 1.15rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+/* An arrow's direction swaps sides with the script; a box or a bin does not. */
+[dir="rtl"] .icon-reply,
+[dir="rtl"] .icon-reply-list,
+[dir="rtl"] .icon-reply-all,
+[dir="rtl"] .icon-forward,
+[dir="rtl"] .icon-prev,
+[dir="rtl"] .icon-next {
+  transform: scaleX(-1);
+}
+
+/* The scoped selector outweighs the shared button rule's frame. */
+.actions .icon-button,
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-height);
+  height: var(--control-height);
+  min-width: var(--control-height);
+  min-height: var(--control-height);
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--fg-dim);
+  cursor: pointer;
+}
+
+.actions .icon-button:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover,
+.icon-button:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover {
+  background: var(--bg-active);
+  color: var(--fg);
+}
+
+.actions .icon-button:disabled,
+.icon-button:disabled,
+.actions [aria-disabled="true"],
+[aria-disabled="true"] {
+  color: var(--fg-faint);
+  cursor: default;
+  background: transparent;
+}
+
+.actions .icon-button.icon-danger:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover,
+.icon-button.icon-danger:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover {
+  color: var(--alert-fg);
+  background: var(--alert-bg);
+}
+
+.icon-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1rem;
+  margin-inline-end: var(--space-2);
+}
+
+.icon-group:not(:has(> *)),
+.actions-pagination:not(:has(> *)) {
+  display: none;
+}
+
+.icon-button > .label {
+  display: none;
+}
+
+.button:active,
+button:active,
+.button-link:active {
+  color: var(--border-strong);
+  background-color: var(--bg-active);
+}

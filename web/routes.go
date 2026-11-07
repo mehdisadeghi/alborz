@@ -96,6 +96,13 @@ func PublicRoutes(g *Group) {
 			}
 			return ctx.Blob(http.StatusOK, "text/css; charset=utf-8", custom)
 		}
+		if name == "style.css" {
+			css, _ := s.styleCSS()
+			if len(css) == 0 {
+				return NewError(http.StatusNotFound)
+			}
+			return ctx.Blob(http.StatusOK, "text/css; charset=utf-8", css)
+		}
 		files, file, ok := s.assetSource(name)
 		if !ok {
 			return NewError(http.StatusNotFound)

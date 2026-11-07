@@ -1,0 +1,115 @@
+.container {
+  flex: 1 auto;
+  display: flex;
+  flex-flow: column nowrap;
+  min-width: 0;
+}
+
+main.error {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+/* A flex item's min-width is auto, so a row that will not truncate would widen the rail. */
+aside {
+  flex: 0 0 var(--sidebar-width);
+  min-width: 0;
+  background: var(--bg);
+  border-inline-end: 1px solid var(--border-light);
+}
+
+main {
+  flex: 1 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  min-width: 0;
+  background-color: var(--bg-well);
+  padding-bottom: var(--space-bottom);
+}
+
+/* The drawer is driven by the header's checkbox, so no script is involved. */
+.sidebar-toggle,
+.sidebar-button,
+.sidebar-backdrop {
+  display: none;
+}
+
+@media (width <= 600px) {
+  body {
+    min-width: 0; font-size: var(--text-md);
+  }
+
+  .sidebar-button {
+    display: inline-block;
+    cursor: pointer;
+    padding: 0 0.3rem;
+    margin-inline-end: 0.5rem;
+    font-size: 1.2rem;
+  }
+
+  body:not(:has(aside)) .sidebar-button {
+    display: none;
+  }
+
+  /* They float over the page, so they paint on the opaque raised surface. */
+  aside {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    inset-block: 0;
+    inset-inline-start: calc(-1 * var(--drawer-width));
+    width: var(--drawer-width);
+    z-index: 20;
+    overflow-y: auto;
+    /* Full height, so the first row would sit under an installed window's status bar. */
+    padding-top: max(var(--space-3), env(safe-area-inset-top));
+    padding-bottom: max(var(--space-3), env(safe-area-inset-bottom));
+    background-color: var(--surface-raised);
+    border-inline-end: 1px solid var(--border);
+    transition: inset-inline-start 0.15s ease-out;
+  }
+
+  aside > * {
+    flex: none;
+  }
+
+  .sidebar-toggle:checked ~ .page-wrap aside {
+    inset-inline-start: 0;
+  }
+
+  body:has(.sidebar-toggle:checked) {
+    overflow: hidden;
+  }
+
+  .sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 15;
+    background-color: var(--scrim);
+  }
+
+  .sidebar-toggle:checked ~ .page-wrap .sidebar-backdrop {
+    display: block;
+  }
+
+  main {
+    padding: 0 0 var(--space-bottom);
+  }
+
+  /* Stays focusable for the keyboard, just unseen. */
+  .sidebar-toggle {
+    display: block;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    opacity: 0;
+  }
+
+  .sidebar-toggle:focus-visible ~ header .sidebar-button {
+    outline: 2px solid var(--link);
+  }
+}

@@ -1,0 +1,104 @@
+.detail-card {
+  margin: var(--space-3) 0;
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 6px);
+  background: var(--surface-raised);
+}
+
+.list-card {
+  margin: var(--space-1) 0;
+  padding-inline-start: var(--space-2);
+}
+
+.list-card > summary {
+  cursor: pointer;
+  color: var(--fg-dim);
+  font-size: var(--text-sm);
+}
+
+.list-card dl {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-1) var(--space-4);
+  margin: var(--space-2) 0 0;
+}
+
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 2rem;
+  padding: var(--row-pad);
+  background: color-mix(in srgb, var(--bg) 58%, var(--bg-well));
+  border-bottom: 1px solid var(--border-light);
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: 16rem;
+  text-decoration: none;
+}
+
+.filter-chip-label {
+  color: var(--fg-faint);
+}
+
+.filter-chip-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filter-chip-x {
+  color: var(--fg-faint);
+  font-size: var(--text-md);
+  line-height: 1;
+}
+
+.filter-chip:hover .filter-chip-x {
+  color: var(--fg);
+}
+
+.list-card dt,
+.detail-card dt {
+  color: var(--fg-dim); font-size: var(--text-sm);
+}
+
+.list-card dd,
+.detail-card dd,
+.info-card dd,
+.info-explain dd {
+  margin: 0; min-width: 0; overflow-wrap: anywhere;
+}
+
+main.task .subtasks {
+  margin-top: var(--space-4);
+}
+
+.detail-card > h2,
+main.task .subtasks > h2 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-base, 1rem);
+}
+
+.detail-card dl {
+  display: grid;
+  grid-template-columns: minmax(5rem, max-content) 1fr;
+  gap: 0.2rem var(--space-3);
+  margin: 0;
+}
+
+@media (width <= 600px) {
+  /* The label above its value: two columns leave neither enough room. */
+  .detail-card dl {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-card dt {
+    margin-top: var(--space-2);
+  }
+}

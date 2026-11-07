@@ -1,0 +1,82 @@
+/* In the crumb's box: a bar arriving above the rows would move them under the hand. */
+.crumb-slot {
+  position: relative;
+}
+
+.select-everything {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--row-pad);
+  overflow: hidden;
+  white-space: nowrap;
+  color: var(--fg);
+  font-size: var(--text-sm);
+  background: var(--bg-active);
+  border-bottom: 1px solid var(--border-light);
+}
+
+.select-everything span {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.filter-offer,
+.select-everything button {
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.context-crumb {
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  min-height: 2rem;
+  padding: var(--row-pad);
+  background: color-mix(in srgb, var(--bg) 58%, var(--bg-well));
+  border-bottom: 1px solid var(--border-light);
+}
+
+/* In a card the crumb is the card's first line, not a bar. */
+:is(form, section) > .context-crumb {
+  min-height: 0;
+  margin-bottom: var(--space-4);
+  padding: 0 0 var(--space-2);
+  background: transparent;
+}
+
+main.drop-into {
+  outline: 2px dashed var(--accent);
+  outline-offset: -4px;
+}
+
+aside a.drop-into {
+  background: var(--bg-active);
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.context-crumb h1 {
+  display: inline;
+  margin: 0;
+  color: var(--fg);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+@media (width <= 600px) {
+  :root[data-phone="bar"] .context-crumb {
+    padding-inline-start: var(--phone-edge);
+  }
+}

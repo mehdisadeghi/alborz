@@ -1,0 +1,8 @@
+/* An identifier is one LTR island: in an RTL paragraph "246 B" would print as "B 246". */
+.ltr,
+.colophon,
+.message-list-size,
+.contact-list-phone {
+  direction: ltr;
+  unicode-bidi: isolate;
+}

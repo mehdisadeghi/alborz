@@ -1,0 +1,285 @@
+:root {
+  color-scheme: light dark;
+  /* Always there, so a page that scrolls is no narrower than one that does not. */
+  overflow-y: scroll;
+
+  /* A theme sets the Latin face, the Persian one, or both; the join is here only. */
+  --font-latin: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-fa: Vazirmatn, Sahel, "IRANSans", "SF Arabic", "Geeza Pro", "Noto Naskh Arabic";
+  --font-sans: var(--font-latin);
+  --font-mono: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  --text-2xs: 0.6875rem;
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-md: 0.875rem;
+  --text-lg: 1rem;
+  --text-xl: 1.25rem;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  /* In an installed window the home indicator draws over the last line. */
+  --space-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+
+  --radius-sm: 3px;
+  --radius-md: 6px;
+  --radius-lg: 9px;
+  --control-height: 2rem;
+  --toolbar-height: 2.75rem;
+  --title-floor: 3rem;
+  /* A fixed track, so the controls after the title stand still from folder to folder. */
+  --title-track: 12rem;
+  /* One box for cell, header, chips and crumb, so their text shares a baseline and an edge. */
+  --row-pad: 0.4rem var(--space-2);
+  --pager-label: 6rem;
+  --sidebar-width: clamp(12rem, 18vw, 18rem);
+  --rail-chevron-track: 1.5rem;
+  --drawer-width: 15rem;
+  --content-list: 90rem;
+  --content-form: 46rem;
+  --content-reading: 54rem;
+  --shadow-raised: 0 1px 2px rgba(0, 0, 0, 0.09), 0 4px 16px rgba(0, 0, 0, 0.04);
+
+  --fg: #000;
+  --fg-dim: #555;
+  --fg-muted: #666;
+  /* Reads at 4.5:1 on the well. */
+  --fg-faint: #707070;
+  /* --fg-faint where it lies on --bg-accent, at 4.5:1 there. */
+  --fg-faint-accent: #6d6d6d;
+
+  --bg: #fff;
+  /* The top bar's; the browser paints it under the status bar, so the server reads it from here. */
+  --theme-color: #fff;
+  --bg-well: #f6f6f6;
+  --bg-inset: #eee;
+  --bg-button: #f5f5f5;
+  --bg-active: #f8f8f8;
+
+  --border: #e0e0e0;
+  --border-light: #eee;
+  --border-faint: #f2f2f2;
+  --border-strong: #ccc;
+
+  /* The logo's hue: sky #1f4a73 is the light accent, the ice on its snow #a9c4dc the dark one. */
+  --link: #1d63a5;
+  --link-read: #4d6f8f;
+  --link-unread: #1f4a73;
+
+  /* Both accents carry white text, so neither may fall under 4.5:1. */
+  --accent-strong: #286095;
+  --accent: #1f4a73;
+  --bg-accent: #eef3f8;
+  --border-accent: #a9c4dc;
+  /* Every flag is an icon; 3:1 on the well is the floor for all of them. */
+  --flag: #7a7a80;
+  /* Apple Mail's seven flag colours in its order, darkened to clear 3:1 on the well. */
+  --flag-red: #f90d00;
+  --flag-orange: #b86b00;
+  --flag-yellow: #997a00;
+  --flag-green: #269041;
+  --flag-blue: #0079fc;
+  --flag-purple: #af52de;
+  --flag-grey: #7d7d83;
+  --prio-high: var(--flag-red);
+  --prio-medium: var(--flag-orange);
+  --prio-low: var(--flag-blue);
+
+  --notice-fg: #0c5460;
+  --notice-bg: #d1ecf1;
+  --notice-border: #bee5eb;
+  --alert-fg: #721c24;
+  --alert-bg: #f8d7da;
+  --warn-fg: #6b4e00;
+  --warn-bg: #fff3cd;
+  --warn-border: #ffe69c;
+  --alert-border: #f5c6cb;
+
+  /* The row checkbox and the toolbar's select-all stand in the same track. */
+  --check-track: 2.2rem;
+  --star-track: 3rem;
+  /* A collection's name is capped, so the summary beside it takes the rest. */
+  --collection-track: minmax(5rem, 10rem);
+
+  /* A menu must not let through what it floats over; every popover paints on this. */
+  --surface-raised: var(--bg);
+  /* One value for every theme: it darkens whatever is under it. */
+  --scrim: rgb(0 0 0 / 0.4);
+  /* A theme with a translucent background overrides this with an opaque ink. */
+  --on-accent: var(--bg);
+  --focus-ring: color-mix(in srgb, var(--link) 68%, transparent);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --fg: #ddd;
+    --fg-dim: #a8a8a8;
+    --fg-muted: #a0a0a0;
+    --fg-faint: #8a8a8a;
+    --fg-faint-accent: #8f8f8f;
+
+    --bg: #1f1f1f;
+    --theme-color: #1f1f1f;
+    --bg-well: #141414;
+    --bg-inset: #2a2a2a;
+    --bg-button: #2c2c2c;
+    --bg-active: #363636;
+
+    --border: #3c3c3c;
+    --border-light: #333;
+    --border-faint: #2a2a2a;
+    --border-strong: #555;
+
+    --link: #7bb4ea;
+    --link-read: #8ea9c2;
+    --link-unread: #acd2f6;
+
+    --accent-strong: #c5d7e7;
+    --accent: #a9c4dc;
+    --bg-accent: #1f2830;
+    --border-accent: #1f4a73;
+    --flag: #9a9aa0;
+    --flag-red: #ff4238;
+    --flag-orange: #ff9500;
+    --flag-yellow: #ffcc00;
+    --flag-green: #34c759;
+    --flag-blue: #1f8aff;
+    --flag-purple: #b967e2;
+    --flag-grey: #8e8e93;
+
+    --notice-fg: #9ed6e0;
+    --notice-bg: #12343b;
+    --notice-border: #1c4a54;
+    --alert-fg: #f1aeb5;
+    --alert-bg: #35181c;
+    --warn-fg: #e6c25a;
+    --warn-bg: #3a2f10;
+    --warn-border: #664d03;
+    --alert-border: #58232b;
+  }
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --fg: #ddd;
+  --fg-dim: #a8a8a8;
+  --fg-muted: #a0a0a0;
+  --fg-faint: #8a8a8a;
+  --fg-faint-accent: #8f8f8f;
+
+  --bg: #1f1f1f;
+  --theme-color: #1f1f1f;
+  --bg-well: #141414;
+  --bg-inset: #2a2a2a;
+  --bg-button: #2c2c2c;
+  --bg-active: #363636;
+
+  --border: #3c3c3c;
+  --border-light: #333;
+  --border-faint: #2a2a2a;
+  --border-strong: #555;
+
+  --link: #7bb4ea;
+  --link-read: #8ea9c2;
+  --link-unread: #acd2f6;
+
+  --accent-strong: #c5d7e7;
+  --accent: #a9c4dc;
+  --bg-accent: #1f2830;
+  --border-accent: #1f4a73;
+  --flag: #9a9aa0;
+  --flag-red: #ff4238;
+  --flag-orange: #ff9500;
+  --flag-yellow: #ffcc00;
+  --flag-green: #34c759;
+  --flag-blue: #1f8aff;
+  --flag-purple: #b967e2;
+  --flag-grey: #8e8e93;
+
+  --notice-fg: #9ed6e0;
+  --notice-bg: #12343b;
+  --notice-border: #1c4a54;
+  --alert-fg: #f1aeb5;
+  --alert-bg: #35181c;
+  --warn-fg: #e6c25a;
+  --warn-bg: #3a2f10;
+  --warn-border: #664d03;
+  --alert-border: #58232b;
+}
+
+/* The good Persian faces are named first; none is downloaded. */
+:root:lang(fa),
+:root:lang(ar) {
+  --font-sans: var(--font-fa), var(--font-latin);
+}
+
+/* Persian dots run into the next line at Latin leading; prose only, to keep the chrome's density. */
+:root:lang(fa) .user-text,
+:root:lang(fa) main.message pre,
+:root:lang(ar) .user-text,
+:root:lang(ar) main.message pre {
+  line-height: 1.8;
+}
+
+:root[data-text="large"] {
+  font-size: 112.5%;
+}
+
+:root[data-text="larger"] {
+  font-size: 125%;
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --fg-dim: #333;
+    --fg-muted: #3d3d3d;
+    --fg-faint: #565656;
+    --fg-faint-accent: #565656;
+    --border: #a0a0a0;
+    --border-strong: #707070;
+  }
+
+  :root[data-theme="dark"] {
+    --fg-dim: #e0e0e0;
+    --fg-muted: #d0d0d0;
+    --fg-faint: #b0b0b0;
+    --fg-faint-accent: #b0b0b0;
+    --border: #808080;
+    --border-strong: #a0a0a0;
+  }
+}
+
+@media (prefers-contrast: more) and (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --fg-dim: #e0e0e0;
+    --fg-muted: #d0d0d0;
+    --fg-faint: #b0b0b0;
+    --fg-faint-accent: #b0b0b0;
+    --border: #808080;
+    --border-strong: #a0a0a0;
+  }
+}
+
+@media (forced-colors: active) {
+  :root {
+    --focus-ring: Highlight;
+  }
+
+  :where(a, button, input, textarea, select, summary):focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+
+  .flag-button,
+  .color-dot {
+    forced-color-adjust: none;
+  }
+}

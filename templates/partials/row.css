@@ -1,0 +1,426 @@
+/* The cell stretches like its neighbours, or its bottom border steps the row hairline. */
+.list-grid .list-checkbox {
+  padding-inline-start: 0.5rem;
+  align-self: stretch;
+}
+
+.list-row {
+  display: contents;
+}
+
+/* Keyboard focus only: a click on a row is not the cursor arriving. */
+.list-row:has(a:focus-visible) > .list-cell {
+  background: var(--bg-active);
+}
+
+.message-list,
+.contact-list {
+  display: flex;
+}
+
+/* The cap bounds the eye's travel from subject to date on wide monitors. */
+.message-list section,
+.contact-list section,
+.list section {
+  width: 100%;
+  max-width: var(--content-list);
+}
+
+.list-checkbox {
+  align-self: center;
+}
+
+.message-list .messages,
+.contact-list .contacts {
+  flex-grow: 1;
+}
+
+.list-header {
+  font-weight: bold;
+  color: var(--fg-muted);
+  border-bottom: 1px solid var(--border-strong);
+  min-height: 2rem;
+  padding: var(--row-pad);
+  align-self: stretch;
+}
+
+.list-header a {
+  color: inherit;
+}
+
+.sort-header {
+  display: inline-flex;
+  align-items: baseline;
+  white-space: nowrap;
+}
+
+/* Menu links use the button box; column labels keep inline flex. */
+.sort-header.button-link { display: inline-block; }
+
+.sort-header strong {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.25em;
+  white-space: nowrap;
+}
+
+/* Names and their account stay together at every viewport width. */
+.record-label {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  max-width: 100%;
+  line-height: 1.25;
+}
+
+.record-label > a,
+.record-label > :is(a, span).list-summary,
+.record-label > span[dir] {
+  display: block;
+  flex: none;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row-meta {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+  max-width: 100%;
+  color: var(--fg-muted);
+  font-size: var(--text-xs);
+  line-height: 1.25;
+  font-weight: 400;
+}
+
+.row-account,
+.row-meta .row-folder {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: inherit;
+}
+
+.row-meta .row-folder {
+  text-decoration: none;
+}
+
+.row-meta .row-folder:hover {
+  text-decoration: underline;
+}
+
+/* Color mode marks the record's outer edge, leaving its text tracks intact. */
+.account-marker {
+  display: none;
+  position: absolute;
+  inset-inline-start: 0;
+  inset-block: 4px;
+  width: 12px;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  box-shadow: none;
+  z-index: 1;
+}
+
+.account-marker .account-color {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 1px;
+  width: 3px;
+  border-radius: 2px;
+}
+
+.account-marker .account-color,
+.account-legend {
+  background: light-dark(hsl(var(--account-hue) 70% 36%), hsl(var(--account-hue) 70% 70%));
+}
+
+.account-legend {
+  display: none;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+.account-marker:hover {
+  background: transparent;
+}
+
+.account-marker:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: -2px;
+}
+
+/* Older browsers retain addresses instead of losing account identity. */
+@supports (grid-template-columns: subgrid) and selector(:popover-open) {
+  [data-account-names="hidden"] .row-account {
+    display: none;
+  }
+
+  [data-account-names="hidden"] .account-marker {
+    display: block;
+  }
+
+  [data-account-names="hidden"] .account-legend {
+    display: inline-block;
+  }
+
+  [data-account-names="hidden"] :is(.list-row, .list-item, .info-card, .alert):has(.account-marker) {
+    position: relative;
+  }
+
+  [data-account-names="hidden"] .list-row:has(.account-marker) .list-checkbox input {
+    position: relative;
+    z-index: 2;
+  }
+
+  @media (width > 600px) {
+    [data-account-names="hidden"] .list-row:has(.account-marker) {
+      display: grid;
+      grid-template-columns: subgrid;
+      grid-column: 1 / -1;
+    }
+  }
+
+  @media (forced-colors: active) {
+    [data-account-names="hidden"] .row-account {
+      display: inline;
+    }
+
+    [data-account-names="hidden"] :is(.account-marker, .account-legend) {
+      display: none;
+    }
+  }
+}
+
+.account-popover {
+  display: none;
+  max-width: calc(100vw - 2rem);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--fg);
+  background: var(--bg);
+  overflow-wrap: anywhere;
+}
+
+.account-popover:popover-open {
+  display: block;
+}
+
+/* The cells are flex containers, where text-overflow never reaches the text. */
+.message-list-subject a,
+.contact-list-name a,
+.contact-list-book a,
+.contact-list-email,
+.contact-list-phone,
+.task-list-summary a,
+.task-list-calendar,
+.journal-list-summary a,
+.journal-list-calendar,
+.event-summary a,
+.event-owner a {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  /* A flex item sized to its content leaves text-align no room to place anything. */
+  flex: 1 1 auto;
+}
+
+.date-secondary {
+  display: inline-block;
+  color: var(--fg-muted);
+  font-size: 0.9em;
+}
+
+.event-header-row > *,
+.event-row > *,
+.task-row > *,
+.journal-row > * {
+  min-height: 2.5rem;
+  padding: var(--row-pad);
+  border-bottom: 1px solid var(--border-light);
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.event-row:hover > *,
+.task-row:hover > *,
+.journal-row:hover > * {
+  background: var(--bg-active);
+}
+
+/* Rows that offer no selection draw no box; the empty track takes nothing. A phone's rows are grids of their own. */
+:is(.message-grid, .task-grid, .journal-grid, .contact-grid):not(:has(.list-checkbox)) {
+  --check-track: 0rem;
+}
+
+@media (width > 600px) {
+  :is(.message-grid, .task-grid, .journal-grid, .contact-grid):not(:has(.list-checkbox)) > .list-row > .list-cell:first-child {
+    grid-column-start: 2;
+  }
+}
+
+.task-list,
+.journal-list {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.task-list .tasks,
+.journal-list .journal {
+  flex-grow: 1;
+}
+
+.task-list-summary a,
+.journal-list-summary a {
+  color: inherit;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-list-summary a:hover,
+.journal-list-summary a:hover {
+  text-decoration: underline;
+}
+
+.task-list-calendar,
+.task-list-due,
+.task-list-fallback,
+.journal-list-calendar,
+.journal-list-date {
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+}
+
+.list-grid a {
+  text-decoration: none;
+}
+
+.list-grid a:hover {
+  text-decoration: underline;
+}
+
+.list-cell {
+  border-bottom: 1px solid var(--border-light);
+  white-space: nowrap;
+  min-height: 2.35rem;
+  padding: var(--row-pad);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+}
+
+.empty-list {
+  text-align: center;
+  grid-column: 1 / 10;
+  font-size: var(--text-md);
+  font-weight: 400;
+  color: var(--fg-dim);
+  margin: var(--space-8) var(--space-4);
+  padding: var(--space-6);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--bg) 52%, transparent);
+}
+
+@media (width <= 600px) {
+  .event-row > *,
+  .task-row > *,
+  .journal-row > * {
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+
+  .event-row:hover > *,
+  .task-row:hover > *,
+  .journal-row:hover > * {
+    background: transparent;
+  }
+
+  .task-header-row,
+  .journal-header-row {
+    display: none;
+  }
+
+  /* As the event row: the due date spans the star's track instead of
+     sizing it, so the summary ends on one edge in every row. */
+  .task-row,
+  .journal-row {
+    display: grid;
+    grid-template-rows: auto auto;
+    column-gap: var(--space-2);
+    padding: var(--space-2);
+    border-bottom: 1px solid var(--border-light);
+  }
+
+  /* A box starting at the card's top edge would sit above the text it is for. */
+  .task-row .task-list-checkbox,
+  .journal-row .journal-list-checkbox {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: center;
+  }
+
+  .task-row .list-star,
+  .journal-row .list-star {
+    grid-column: 5;
+    grid-row: 1;
+    place-self: start end;
+  }
+
+  .task-row .task-list-added,
+  .journal-row .journal-list-added {
+    display: none;
+  }
+
+  .task-row .task-list-summary,
+  .journal-row .journal-list-summary {
+    font-weight: 600;
+  }
+
+  /* No box: the empty first track's gap stands in for the card's padding. */
+  :is(.message-row, .event-row, .task-row, .journal-row, .contact-row):not(:has(> .list-checkbox)) {
+    padding-inline-start: 0;
+  }
+
+  :is(.event-owner, .task-list-calendar, .journal-list-calendar) > a {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 0 1 auto;
+  }
+
+  /* One separator on the wrapper; a per-cell min-height would charge a two-line row twice. */
+  .list-cell {
+    padding: 0.1rem 0;
+    min-height: 0;
+    border-inline: 0;
+    border-bottom: 0;
+  }
+
+  .list-header {
+    display: none;
+  }
+}

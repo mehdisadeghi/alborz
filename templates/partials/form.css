@@ -1,0 +1,234 @@
+main.create-update {
+  align-items: flex-start;
+  padding: var(--space-4);
+  background: var(--bg-well);
+}
+
+/* One card: a form's, a settings block's and an object's box. */
+main.create-update > form,
+main.create-update > section.collection-file,
+main.settings form,
+main.settings > .info-card,
+main:is(.contact, .task, .entry, .event) .details {
+  padding: var(--space-4);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-raised);
+}
+
+main.create-update > form,
+main.create-update > section.collection-file {
+  width: min(100%, var(--content-form));
+}
+
+main.create-update > form > h1 {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-xl);
+  line-height: 1.25;
+}
+
+/* A form's lead line is a block of its own, one gap from the field under it. */
+main.create-update > form > p:not(.hint) {
+  margin-bottom: var(--space-3);
+}
+
+main.create-update form .field,
+main.settings form .field,
+main.create-update > form > label {
+  display: block;
+  margin-bottom: var(--space-3);
+  color: var(--fg-dim);
+  font-size: var(--text-sm);
+}
+
+main.create-update form .field > label,
+main.settings form .field > label,
+main.create-update > form > label > span {
+  display: block;
+  margin-bottom: var(--space-1);
+  font-weight: 600;
+}
+
+main.create-update form .field > input,
+main.create-update form .field > select,
+main.create-update form .field > textarea,
+main.settings form .field > :is(input, select, textarea),
+main.create-update > form > label > input,
+main.create-update > form > label > select,
+main.create-update > form > label > textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+main.create-update form .field > textarea,
+main.create-update > form > label > textarea {
+  min-height: 8rem;
+  resize: vertical;
+}
+
+main.create-update form .field > input[readonly],
+main.create-update > form > label > input[readonly] {
+  color: var(--fg-muted);
+  background: var(--bg-inset);
+}
+
+/* Never wider: widening drags a textarea out of its column. */
+textarea {
+  resize: vertical;
+}
+
+/* One row while every action fits, else all stacked full width; never a split row (the Holy Albatross). */
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+
+.form-actions > :is(button, .button, .button-link) {
+  flex: 0 0 calc((26rem - 100%) * 999);
+  min-width: fit-content;
+  max-width: 100%;
+  white-space: nowrap;
+}
+
+/* A long body scrolls under the actions on wide screens; on a phone they would cover the keyboard's field. */
+@media (width > 600px) {
+  main.create-update .form-actions {
+    position: sticky;
+    inset-block-end: 0;
+    padding-block: var(--space-2);
+    background: var(--bg);
+  }
+}
+
+.hint {
+  display: block;
+  margin-top: 0.15rem;
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+}
+
+/* Isolated, or an RTL paragraph reorders the address inside it. */
+.hint code {
+  font-size: inherit;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.photo-field .photo-current {
+  display: block;
+  width: 5rem;
+  height: 5rem;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--space-2);
+}
+
+.photo-field .photo-shown {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.photo-field .photo-remove {
+  flex: none;
+  width: auto;
+  white-space: nowrap;
+}
+
+.action-group:not(:last-child) {
+  margin-bottom: 1rem;
+}
+
+.action-group:not(:has(*)) {
+  display: none;
+}
+
+.action-group.grow {
+  flex-grow: 1;
+}
+
+.action-group label,
+.action-group input,
+.action-group textarea {
+  display: block;
+  width: 100%;
+}
+
+/* A box taller than the line, as iOS draws it, would hang into the next label and push it along. */
+.action-group .checkbox {
+  display: flow-root;
+}
+
+.action-group .checkbox input {
+  display: inline;
+  width: 1rem;
+  float: inline-start;
+}
+
+.action-group.choices {
+  border: 0;
+  padding: 0;
+  /* The block's own end margin stays: it is the gap every other group leaves. */
+  margin-inline: 0;
+  margin-block-start: 0;
+}
+
+.action-group.choices legend {
+  padding: 0;
+  color: var(--fg-dim);
+}
+
+.action-group.choices .checkbox {
+  font-weight: normal;
+}
+
+.action-group.choices .field {
+  margin-block: var(--space-2);
+}
+
+select[multiple] {
+  display: block;
+  width: 100%;
+  height: 10rem;
+}
+
+/* A tick submits its own form, so the form's button is for a page without scripts. */
+@media (scripting: enabled) {
+  form:has([data-submit-on-change]) > button {
+    display: none;
+  }
+}
+
+@media (width <= 600px) {
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="file"],
+  input[type="number"],
+  input[type="date"],
+  input[type="time"],
+  input[type="datetime-local"],
+  input[type="url"],
+  input[type="tel"],
+  textarea,
+  select {
+    font-size: 16px;
+  }
+
+  main.create-update {
+    padding: var(--space-2);
+  }
+
+  main.create-update > form,
+  main.create-update > section.collection-file,
+  main.settings form,
+  main.settings > .info-card,
+  main:is(.contact, .task, .entry, .event) .details {
+    padding: var(--space-3);
+  }
+}

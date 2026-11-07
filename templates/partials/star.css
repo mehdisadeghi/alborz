@@ -1,0 +1,280 @@
+.list-header.message-list-flags .flag-sort,
+.list-header.list-star .flag-sort {
+  width: var(--control-height);
+  justify-content: center;
+  font-size: 13pt;
+  line-height: 1;
+}
+
+/* Centring star and arrow would slide the star off the rows' centre. */
+.list-header.message-list-flags .flag-sort:has(.sort-arrow),
+.list-header.list-star .flag-sort:has(.sort-arrow) {
+  width: auto;
+  justify-content: flex-start;
+}
+
+.list-header.message-list-flags .flag-sort .sort-label,
+.list-header.list-star .flag-sort .sort-label {
+  display: inline-block;
+  width: var(--control-height);
+  text-align: center;
+}
+
+.message-list-flags .flag-button,
+.list-star .flag-button {
+  margin: 0;
+  cursor: pointer;
+  text-decoration: none;
+  text-align: center;
+  display: inline-block;
+  padding: 0;
+  border: none;
+  color: var(--flag-set, var(--flag));
+  font-size: 13pt;
+  background: transparent;
+}
+
+/* The chevron hangs past the track's end, shown on hover or keyboard focus. */
+.row-star .flag-split {
+  position: relative;
+}
+
+.row-star .flag-split .flag-button.button-link {
+  width: var(--control-height);
+  min-width: var(--control-height);
+}
+
+/* Let the title determine row height when its account label is hidden. */
+.list-row .row-star .flag-split .flag-button.button-link,
+.list-row .row-star .flag-split .flag-more.icon-button {
+  min-height: 0;
+  height: auto;
+  padding-block: 0;
+  line-height: 1;
+}
+
+.row-star .flag-split .flag-more.icon-button {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 100%;
+  /* It hangs over the next cell, and a later cell paints over it. */
+  z-index: 1;
+  visibility: hidden;
+}
+
+/* Mail's marks follow the star, so its chevron keeps a slot instead of
+   covering them; hidden, it still holds it, and nothing moves on hover. */
+.message-list-flags .row-star .flag-split .flag-more.icon-button {
+  position: static;
+}
+
+/* The colours menu opens only by script. */
+@media (scripting: none) {
+  .row-star .flag-split .flag-more[data-row-colors] {
+    display: none;
+  }
+}
+
+/* As specific as the rule that hides it: the menu hangs from the chevron. */
+@media (hover: hover) {
+  .list-row:hover .row-star .flag-split .flag-more.icon-button {
+    visibility: visible;
+  }
+}
+
+.row-star:focus-within .flag-split .flag-more.icon-button,
+.row-star.star-open .flag-split .flag-more.icon-button {
+  visibility: visible;
+}
+
+/* The chevron hangs past the cell's edge; a clipping cell would cut it off. */
+.list-star {
+  justify-content: center;
+}
+
+.list-cell.list-star {
+  overflow: visible;
+}
+
+.list-star > form {
+  flex: 0 0 var(--control-height);
+  display: flex;
+  justify-content: center;
+}
+
+/* At the trailing end, so it does not read as the subject's own leading emoji. */
+/* Inside the cell: a flex th stops being a table cell. */
+.subject-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.subject-row > h1 {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+main .details > .subject-row {
+  width: auto;
+  margin: 0 0 var(--space-4);
+}
+
+main .details > .subject-row > h1 {
+  margin: 0;
+}
+
+.subject-row .flag-split .flag-button.button-link {
+  width: 2rem;
+  min-width: 2rem;
+  font-size: var(--text-xl);
+}
+
+.icon-group .flag-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-height);
+  min-width: var(--control-height);
+  height: var(--control-height);
+  padding: 0;
+  line-height: 1;
+  color: var(--flag-set, var(--flag));
+  font-size: 13pt;
+}
+
+/* A custom property, not a color: an inherited variable is read by whichever rule wins. */
+.flag-red {
+  --flag-set: var(--flag-red);
+}
+
+.flag-orange {
+  --flag-set: var(--flag-orange);
+}
+
+.flag-yellow {
+  --flag-set: var(--flag-yellow);
+}
+
+.flag-green {
+  --flag-set: var(--flag-green);
+}
+
+.flag-blue {
+  --flag-set: var(--flag-blue);
+}
+
+.flag-purple {
+  --flag-set: var(--flag-purple);
+}
+
+.flag-grey {
+  --flag-set: var(--flag-grey);
+}
+
+/* Compound on purpose: the later .actions .icon-button and .icon-group .flag-button would win. */
+.overflow.flag-split {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  border-radius: var(--radius-sm);
+}
+
+.overflow.flag-split:hover {
+  background: var(--bg-active);
+}
+
+.flag-split .flag-button.button-link,
+.flag-split .flag-more.icon-button {
+  margin: 0;
+  border: 0;
+  background: none;
+}
+
+/* A fixed box: a filled star is wider, and the row beside it would move. */
+.flag-split .flag-button.button-link {
+  width: 1.5rem;
+  min-width: 1.5rem;
+  padding-inline: 0;
+  text-align: center;
+}
+
+.flag-split .flag-more.icon-button {
+  width: 1.1rem;
+  min-width: 1.1rem;
+  padding: 0;
+  padding-inline-end: 0.2rem;
+  color: var(--fg-faint);
+}
+
+.flag-split .flag-more.icon-button:hover,
+.flag-split .flag-button.button-link:hover {
+  background: none;
+}
+
+.flag-split .flag-more.icon-button:hover {
+  color: var(--fg);
+}
+
+.flag-colors {
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  padding: 0.3rem;
+  min-width: 10rem;
+}
+
+/* The colour rides a span of its own, so it wins no argument with the menu's later button rules. */
+
+.overflow-menu.flag-colors button {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  text-align: start;
+}
+
+.flag-star {
+  color: var(--flag-set, var(--fg-muted));
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.flag-menu > button {
+  width: auto;
+  gap: 0.1rem;
+  padding-inline: 0.2rem;
+}
+
+.flag-menu:has(> :popover-open) > button {
+  background: var(--bg-active);
+}
+
+.flag-menu > button .flag-star {
+  font-size: 13pt;
+}
+
+.color-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  margin-inline-end: 4px;
+  vertical-align: middle;
+}
+
+.flag-button,
+.flag-button.button-link {
+  color: var(--flag-set, var(--flag));
+}
+
+@media (width <= 600px) {
+  /* At the card's end the chevron hangs inwards; past the end it widened the page. */
+  .list-row .row-star .flag-split .flag-more.icon-button {
+    inset-inline: auto 100%;
+  }
+
+  /* No pointer shows the chevron here; a slot for it would push the star in. */
+  .message-list-flags .row-star .flag-split .flag-more.icon-button {
+    position: absolute;
+  }
+}

@@ -1,0 +1,235 @@
+/* The window sizes the writing area, not a rail taller than it (the header is one toolbar and its border). */
+main.create-update:has(.headers) {
+  flex: none;
+  min-height: calc(100dvh - var(--toolbar-height) - 1px);
+}
+
+main.create-update:has(.headers) form {
+  flex: 1 auto;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+main.create-update .headers {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-rows: auto auto auto auto;
+  grid-gap: 0.5rem;
+  align-items: center;
+}
+
+/* minmax: a plain 1fr keeps the fields' own width, wider than a phone. */
+@media (scripting: none) {
+  main.create-update .headers {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  /* What is attached is listed to untick. */
+  main.create-update #attachment-list:not(:has(.upload)) {
+    display: none;
+  }
+}
+
+main.create-update .headers label {
+  grid-column-start: 1;
+}
+
+main.create-update .headers input {
+  grid-column: 2 / 3;
+}
+
+main.create-update .headers > .recipient-field {
+  grid-column: 2; min-width: 0;
+}
+
+.recipient-field {
+  display: block; position: relative; min-width: 0;
+}
+
+.recipient-field > input {
+  width: 100%; box-sizing: border-box;
+}
+
+.recipient-suggestions {
+  position: absolute;
+  inset-inline: 0;
+  top: 100%;
+  z-index: 10;
+  max-height: min(15rem, 35dvh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 0.25rem 0.75rem rgb(0 0 0 / 0.15);
+}
+
+.recipient-suggestions > [role="option"] {
+  padding: 0.65rem;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.recipient-suggestions > [aria-selected="true"] {
+  background: var(--bg-inset);
+}
+
+/* The whole page takes a drop, so an empty list is no target of its own. */
+main.create-update #attachment-list:not(:has(.upload, .attach-chip, input)) {
+  display: none;
+}
+
+main.create-update #attachment-list {
+  grid-column-start: 3;
+  grid-row: 1 / 7;
+
+  width: clamp(10rem, 28vw, 25rem);
+  height: 100%;
+  /* The fields size the rows; a long list scrolls within them. */
+  contain: size;
+  background: var(--bg-inset);
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  border: 1px solid var(--border-light);
+
+  display: flex;
+  flex-direction: column;
+}
+
+main.create-update #attachment-list .upload {
+  width: calc(100% - 1rem);
+  position: relative;
+  display: flex;
+  margin: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  background: var(--bg);
+  align-items: center;
+}
+
+main.create-update #attachment-list *:not(:last-child) {
+  margin-inline-end: 0.25rem;
+}
+
+main.create-update #attachment-list .upload .filename {
+  flex-grow: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+main.create-update #attachment-list .upload button {
+  padding: inherit;
+  min-width: inherit;
+}
+
+main.create-update #attachment-list .upload .progress {
+  position: absolute;
+  height: 5px;
+  background: var(--accent-strong);
+  bottom: 0;
+  inset-inline-start: 0;
+}
+
+main.create-update #attachment-list .upload .error {
+  display: none;
+}
+
+main.create-update #attachment-list .upload.error .error {
+  display: block;
+  color: var(--alert-fg);
+}
+
+main.create-update .text {
+  flex: 1 auto;
+  resize: none;
+  margin-top: 1rem;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+main.create-update .text textarea {
+  width: 100%;
+  height: 100%;
+}
+
+main.create-update .text[data-dragging]::after {
+  content: attr(data-drop);
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--fg-dim);
+  background: color-mix(in srgb, var(--bg) 85%, transparent);
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius-sm);
+  pointer-events: none;
+}
+
+/* A disclosure spans both columns, or it takes the label column and shifts every field after it. */
+main.create-update .headers > .compose-more {
+  grid-column: 2;
+}
+
+.compose-more > summary {
+  cursor: pointer;
+  color: var(--fg-dim);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.compose-more > input {
+  width: 100%; box-sizing: border-box;
+}
+
+.compose-more > label {
+  display: block; margin-block: var(--space-2) var(--space-1); color: var(--fg-dim); font-size: var(--text-sm);
+}
+
+.signature-pick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-block: var(--space-2);
+}
+
+.signature-edit {
+  margin-inline-start: auto;
+  color: var(--fg-dim);
+  font-size: var(--text-sm);
+}
+
+.signature-pick > label {
+  color: var(--fg-dim);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+@media (scripting: enabled) {
+  .signature-pick > button[name="signature_apply"] {
+    display: none;
+  }
+}
+
+/* Inside the control's cell it would grow the row and pull the caption off its line. */
+main.create-update .headers > .hint {
+  grid-column: 2 / 3;
+  margin-top: -0.25rem;
+}
+
+@media (width < 60rem) {
+  main.create-update .headers {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  main.create-update #attachment-list {
+    grid-column: 1 / -1;
+    grid-row: auto;
+    width: auto;
+    height: 8rem;
+  }
+}

@@ -1,0 +1,50 @@
+.attach-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.attach-line > .attach-chip {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+}
+
+.attach-chip,
+main.contact .chip {
+  padding: 0.05rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+}
+
+.attach-more {
+  flex: none;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  padding: 0 0.35rem;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--fg-faint);
+  font-size: var(--text-sm);
+  line-height: 1;
+}
+
+.attach-chip:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover {
+  color: var(--fg);
+  border-color: var(--border-strong);
+  text-decoration: none;
+}

@@ -1,0 +1,170 @@
+/* Fixed to the window: a reader scrolled down a list is the one told mail arrived. At its foot, since
+   its top holds the nav, the toolbar and the crumb, which a notice must not hide. */
+.notices {
+  position: fixed;
+  inset-block-end: calc(var(--space-2) + env(safe-area-inset-bottom));
+  inset-inline: 0;
+  z-index: 13;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding-inline: var(--space-2);
+  pointer-events: none;
+}
+
+.notice {
+  position: relative;
+  inset: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  max-width: min(100%, 40rem);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  color: var(--notice-fg);
+  background-color: var(--notice-bg);
+  border: 1px solid var(--notice-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-raised);
+  pointer-events: auto;
+  animation: notice-in 120ms ease-out;
+  transition: opacity 120ms ease-in, transform 120ms ease-in, display 120ms allow-discrete;
+}
+
+/* The rule above outranks the browser's own for a closed dialog. */
+dialog.notice:not([open]) {
+  display: none;
+  opacity: 0;
+  transform: translateY(0.25rem);
+}
+
+/* A done notice leaves after six seconds; a warning or a failure stays. */
+.notice-done {
+  animation: notice-in 120ms ease-out, notice-out 120ms ease-in 6s forwards;
+}
+
+.notice-done:is(:hover, :focus-within, :active) {
+  animation-play-state: paused;
+}
+
+@keyframes notice-in {
+  from { opacity: 0; transform: translateY(0.25rem); }
+}
+
+@keyframes notice-out {
+  to { opacity: 0; transform: translateY(0.25rem); visibility: hidden; }
+}
+
+.notice-warning {
+  color: var(--warn-fg);
+  background-color: var(--warn-bg);
+  border-color: var(--warn-border);
+}
+
+.notice-failed {
+  color: var(--alert-fg);
+  background-color: var(--alert-bg);
+  border-color: var(--alert-border);
+}
+
+.notice-action {
+  margin: 0;
+}
+
+.notice-action,
+.notice-action .button-link,
+.notice-dismiss button {
+  color: inherit;
+}
+
+.notice-action .button-link {
+  padding: 0;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+/* Two answers beside a sentence crush it on a phone. */
+dialog.notice:has(> .notice-action + .notice-action) {
+  flex-wrap: wrap;
+  justify-content: start;
+}
+
+dialog.notice:has(> .notice-action + .notice-action) > .notice-text {
+  flex: 1 1 16rem;
+}
+
+dialog.notice:has(> .notice-action + .notice-action) .button-link {
+  white-space: nowrap;
+}
+
+/* Bound by the viewport, which decides how much fits beside the Undo. */
+.notice-name {
+  display: inline-block;
+  max-width: min(45vw, 32ch);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+
+a.notice-name {
+  color: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.notice-dismiss {
+  display: inline-flex;
+  margin: 0;
+  line-height: 0;
+}
+
+.notice-dismiss button {
+  padding: 0;
+  line-height: 0;
+  background: none;
+  border: 0;
+}
+
+/* Under the skip link, which must stay reachable, and over everything else. */
+.progress {
+  position: fixed;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  z-index: 99;
+  block-size: 2px;
+  inline-size: 0;
+  background: var(--accent);
+  transition: inline-size 6s cubic-bezier(0.1, 0.9, 0.2, 1);
+}
+
+.progress-running {
+  inline-size: 80%;
+}
+
+.progress-done {
+  inline-size: 100%;
+  opacity: 0;
+  transition: inline-size 0.15s ease-out, opacity 0.2s ease-out 0.1s;
+}
+
+/* One line: a hundred file names would otherwise push the page down. */
+.notice > progress {
+  flex: none;
+  width: 8rem;
+}
+
+.notice:has(> progress) > .notice-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (width <= 600px) {
+  /* Above the bar, where the thumb that acted can reach Undo. */
+  :root[data-phone="bar"] header .notices {
+    inset-block: auto calc(var(--phone-bar) + env(safe-area-inset-bottom) + var(--space-2));
+  }
+}

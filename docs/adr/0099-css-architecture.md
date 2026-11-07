@@ -1,14 +1,14 @@
 # ADR 99: CSS architecture
 
-Status: accepted.
+Status: proposed.
 
 ## Context
 
-One hand-maintained stylesheet grows by appending: order and specificity
-decide the cascade, width media queries scatter away from the rules they
-adjust, and per-page overrides duplicate shared components. A reader
-cannot tell which rules belong to which partial, or whether a rule is
-still used.
+CSS sources are bundled from shared primitives and component-owned files,
+with responsive variants beside the components they adjust. Equal-specificity
+rules still depend on import order, and viewport breakpoints still govern
+component layouts. Layer precedence, intrinsic layouts and container queries
+would make those dependencies explicit.
 
 ## Decision
 
@@ -49,14 +49,14 @@ still used.
 
 ### Delivery
 
-12. The build MUST bundle the sources into one stylesheet with esbuild's
-    Go API, run by `go generate`, keeping layers and lowering nesting
-    for the baseline. No Node toolchain is required.
-13. Releases serve the bundle. With `-debug` (ADR 55) the sources MAY be
-    served unbundled.
-14. The service worker's precache list MUST be derived from the bundle's
-    output, not maintained by hand.
-15. Rules matching no markup MUST be removed.
+12. The server MUST assemble the sources listed in
+    `templates/assets/css/index.css` into one version-stamped
+    `style.css` stylesheet in memory, re-reading modified sources on
+    reload in `-debug` mode (ADR 55). No external build step or Node
+    toolchain is required.
+13. The service worker's precache list MUST include the stamped
+    `style.css` URL.
+14. Rules matching no markup MUST be removed.
 
 ## Consequences
 
@@ -64,7 +64,6 @@ still used.
 - Layer order, not selector weight, settles conflicts between groups.
 - Browsers older than the baseline ignore layered rules and get an
   unstyled page.
-- The build gains esbuild as a Go dependency.
 
 ## References
 
@@ -72,6 +71,6 @@ still used.
   CSS Nesting Module; CSS Containment Module Level 3 (container
   queries); Media Queries Level 5
 - ADR 13, ADR 55, ADR 82
-- `templates/assets/style.css`, `templates/partials/`,
-  `web/server.go` (`shellAssets`), `web/serviceworker.js`
-- `github.com/evanw/esbuild/pkg/api`
+- `templates/assets/css/index.css`, `templates/partials/`,
+  `web/prefs.go` (`bundleStylesheet`), `web/server.go` (`shellAssets`,
+  `styleCSS`), `web/serviceworker.js`

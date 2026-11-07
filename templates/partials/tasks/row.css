@@ -1,0 +1,159 @@
+/* Capped tracks take their maximum before a bare fr track gets anything. */
+.task-grid {
+  display: grid;
+  grid-template-columns:
+    var(--check-track) var(--star-track) 2.75rem minmax(8rem, 1fr) var(--collection-track)
+    minmax(4.5rem, 6rem) minmax(4.5rem, 7rem);
+}
+
+.task-row .task-list-fallback {
+  display: none;
+}
+
+@media (width < 60rem) {
+  .task-grid {
+    grid-template-columns:
+      var(--check-track) var(--star-track) 2.75rem minmax(8rem, 1fr) var(--collection-track) minmax(4.5rem, 6rem);
+  }
+
+  .task-grid .task-list-due {
+    display: none;
+  }
+}
+
+@media (width < 52rem) {
+  .task-grid {
+    grid-template-columns: var(--check-track) var(--star-track) 2.75rem minmax(8rem, 1fr) var(--collection-track);
+  }
+
+  .task-grid .task-list-added {
+    display: none;
+  }
+}
+
+.task-row.completed .task-list-summary a {
+  color: var(--fg-faint);
+  text-decoration: line-through;
+}
+
+.task-summary {
+  min-width: 0; width: 100%;
+}
+
+.task-summary > a, .task-parent {
+  display: block;
+}
+
+.task-parent {
+  color: var(--fg-muted); font-size: 0.85em;
+}
+
+.task-row.completed .task-parent a {
+  color: var(--fg-muted); text-decoration: none;
+}
+
+.task-list-status {
+  gap: var(--space-2);
+}
+
+/* The star's chevron hangs past its track, so the status starts clear of it. */
+@media (width > 600px) {
+  .task-grid .task-list-status {
+    padding-inline-start: var(--space-3);
+  }
+}
+
+.task-grid .task-list-status .status-sort {
+  width: 1rem;
+  display: inline-flex;
+  justify-content: center;
+}
+
+.task-grid .task-list-status .status-sort:has(.sort-arrow) {
+  width: auto;
+}
+
+.task-list-status .task-checkbox {
+  margin: 0;
+}
+
+.task-checkbox {
+  margin-inline-end: 0.5rem;
+}
+
+/* Round, where a selection is square, so it reads as something else. */
+.checkbox-button {
+  width: 1rem;
+  height: 1rem;
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  background: var(--bg);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  line-height: 1;
+  padding: 0;
+}
+
+.checkbox-button.prio-high,
+.checkbox-button.prio-medium,
+.checkbox-button.prio-low {
+  border-width: 2px;
+}
+
+.checkbox-button.prio-high {
+  border-color: var(--prio-high);
+}
+
+.checkbox-button.prio-medium {
+  border-color: var(--prio-medium);
+}
+
+.checkbox-button.prio-low {
+  border-color: var(--prio-low);
+}
+
+.checkbox-button.checked {
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+  color: var(--bg);
+}
+
+@media (width <= 600px) {
+  .task-grid {
+    display: block;
+  }
+
+  .task-row {
+    grid-template-columns: auto 2rem minmax(0, 1fr) auto var(--control-height);
+  }
+
+  .task-row .task-list-status {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: center;
+  }
+
+  .task-row .task-list-summary {
+    grid-column: 3 / 5;
+    grid-row: 1;
+  }
+
+  .task-row .task-list-calendar {
+    display: flex;
+    grid-column: 3;
+    grid-row: 2;
+  }
+
+  .task-row .task-list-due,
+  .task-row .task-list-fallback {
+    display: block;
+    grid-column: 4 / 6;
+    grid-row: 2;
+    justify-self: end;
+  }
+}

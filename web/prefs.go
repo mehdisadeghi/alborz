@@ -1,6 +1,7 @@
 package web
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -12,6 +13,66 @@ import (
 	"git.mehdix.org/alborz/internal/calsys"
 	"git.mehdix.org/alborz/internal/locale"
 )
+
+const styleEntry = "assets/css/index.css"
+
+func styleImports(files fs.FS) ([]string, string, error) {
+	raw, err := fs.ReadFile(files, styleEntry)
+	if err != nil {
+		return nil, "", err
+	}
+	var key strings.Builder
+	appendStat := func(p string) error {
+		info, err := fs.Stat(files, p)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(&key, "%s:%d.%d;", p, info.ModTime().UnixNano(), info.Size())
+		return nil
+	}
+	if err := appendStat(styleEntry); err != nil {
+		return nil, "", err
+	}
+	dir := path.Dir(styleEntry)
+	var paths []string
+	for line := range strings.SplitSeq(string(raw), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "/*") {
+			continue
+		}
+		rest, ok := strings.CutPrefix(line, `@import "`)
+		target, ok2 := strings.CutSuffix(rest, `";`)
+		if !ok || !ok2 || target == "" {
+			return nil, "", fmt.Errorf("%s: unsupported directive %q", styleEntry, line)
+		}
+		p := path.Join(dir, target)
+		if err := appendStat(p); err != nil {
+			return nil, "", err
+		}
+		paths = append(paths, p)
+	}
+	return paths, key.String(), nil
+}
+
+func bundleStylesheet(files fs.FS) ([]byte, string, error) {
+	paths, key, err := styleImports(files)
+	if err != nil {
+		return nil, "", err
+	}
+	var out bytes.Buffer
+	for _, p := range paths {
+		part, err := fs.ReadFile(files, p)
+		if err != nil {
+			return nil, "", err
+		}
+		if out.Len() > 0 {
+			out.WriteByte('\n')
+		}
+		out.Write(bytes.TrimSpace(part))
+		out.WriteByte('\n')
+	}
+	return out.Bytes(), key, nil
+}
 
 // The value lands in a stylesheet URL, so only listed themes are accepted.
 func readThemes(files fs.FS) (base Theme, themes []Theme, err error) {
@@ -38,7 +99,15 @@ func readOverlayThemes(files fs.FS, assetPrefix string) (themes []Theme, err err
 }
 
 func readTheme(files fs.FS, name string) (Theme, error) {
-	source, err := fs.ReadFile(files, name)
+	var (
+		source []byte
+		err    error
+	)
+	if name == "assets/style.css" {
+		source, _, err = bundleStylesheet(files)
+	} else {
+		source, err = fs.ReadFile(files, name)
+	}
 	if err != nil {
 		return Theme{}, err
 	}
@@ -74,7 +143,7 @@ type Theme struct {
 	Scheme string
 	// Colors are what the browser paints around the window, per scheme; one with no scheme for a pinned theme.
 	Colors []ThemeColor
-	// Scene names the layers of the scene the theme paints behind the page, none for a theme without one (ADR 77).
+	// Scene names the layers of the scene the theme paints behind the page, none for a theme without one.
 	Scene []string
 }
 

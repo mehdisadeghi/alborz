@@ -1,0 +1,66 @@
+/* Gestures keep vertical scrolling and pinch zoom available. */
+html[data-swipe-navigation="on"] :is([data-swipe-nav], [data-swipe-calendar]) {
+  touch-action: pan-y pinch-zoom;
+}
+
+.list-row.swiping {
+  position: relative;
+  z-index: 1;
+  background-color: var(--bg);
+}
+
+.swipe-hint {
+  position: absolute;
+  inset-inline: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-inline: var(--space-4);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--fg-muted);
+  background: var(--bg-inset);
+  direction: ltr;
+  pointer-events: none;
+}
+
+.swipe-left {
+  justify-content: flex-end;
+}
+
+.swipe-right {
+  justify-content: flex-start;
+}
+
+/* Grey until letting go would act. */
+.swipe-hint[data-action="delete"].armed {
+  color: var(--alert-fg);
+  background: var(--alert-bg);
+}
+
+.swipe-hint.armed:not([data-action="delete"]) {
+  color: var(--warn-fg);
+  background: var(--warn-bg);
+}
+
+.swipe-confirm {
+  pointer-events: auto;
+}
+
+[data-swipe-step].swipe-target {
+  background: var(--bg-inset);
+}
+
+[data-swipe-step].swipe-armed {
+  outline: 2px solid currentColor; outline-offset: -2px;
+}
+
+@media (width <= 600px) {
+  html[data-row-swipes="on"] .list-grid {
+    position: relative; overflow-x: clip;
+  }
+
+  html[data-row-swipes="on"] .list-row[data-swipe-kind] {
+    touch-action: pan-y pinch-zoom;
+  }
+}

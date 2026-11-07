@@ -487,7 +487,7 @@ func (r *renderer) Render(w io.Writer, name string, data any, ctx *Context) erro
 	return err
 }
 
-// loadTemplates reads layout.html and partials/ into one set, and each file under pages/ into a clone of it,
+// loadTemplates reads layout.html and HTML partials into one set, and HTML pages into clones of it,
 // named by its path without pages/ and .html.
 func loadTemplates(files fs.FS, funcs template.FuncMap, bundles []AddonBundle) (*renderer, error) {
 	partials := template.New("").Funcs(funcs)
@@ -504,7 +504,7 @@ func loadTemplates(files fs.FS, funcs template.FuncMap, bundles []AddonBundle) (
 			return err
 		}
 		return fs.WalkDir(tree, "partials", func(name string, d fs.DirEntry, err error) error {
-			if err == nil && !d.IsDir() {
+			if err == nil && !d.IsDir() && strings.HasSuffix(name, ".html") {
 				shared = append(shared, source{tree, name, prefix + name})
 			}
 			return err
@@ -546,7 +546,7 @@ func loadTemplates(files fs.FS, funcs template.FuncMap, bundles []AddonBundle) (
 			return err
 		}
 		return fs.WalkDir(tree, "pages", func(name string, d fs.DirEntry, err error) error {
-			if err != nil || d.IsDir() {
+			if err != nil || d.IsDir() || !strings.HasSuffix(name, ".html") {
 				return err
 			}
 			src, defined, err := parseFile(tree, name, funcs)

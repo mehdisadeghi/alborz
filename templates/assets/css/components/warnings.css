@@ -1,0 +1,45 @@
+.alert {
+  padding: 0.5rem;
+  border: 1px solid transparent;
+  margin: 1rem 0;
+  overflow-wrap: anywhere;
+  background: var(--alert-bg);
+  color: var(--alert-fg);
+  border-color: var(--alert-border);
+  max-width: 600px;
+}
+
+main.message td.warning-cell {
+  padding: var(--space-1) var(--space-2);
+}
+
+.warning-card {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: 0.4rem;
+}
+
+.warning-card > summary {
+  font-weight: 600;
+}
+
+.warning-card ul {
+  margin: var(--space-2) 0 0;
+  padding-inline-start: 1.25rem;
+}
+
+.warning-caution {
+  background: var(--warn-bg);
+}
+
+.warning-caution > summary {
+  color: var(--warn-fg);
+}
+
+.warning-alarm {
+  background: var(--alert-bg);
+}
+
+.warning-alarm > summary {
+  color: var(--alert-fg);
+}

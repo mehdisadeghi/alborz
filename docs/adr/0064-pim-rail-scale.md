@@ -1,6 +1,6 @@
 # ADR 64: PIM rail and mirror at scale
 
-Status: accepted. Amends ADR 35 (the rail) and ADR 53 (mirror reads).
+Status: accepted. Amends ADR 53.
 
 ## Context
 
@@ -55,7 +55,7 @@ per-account bound.
 ## References
 
 - RFC 5545 3.1, RFC 4791 7.8
-- ADR 13, ADR 35, ADR 53
+- ADR 13, ADR 53
 - `templates/partials/rail.html` (`scope-rail`),
   `templates/partials/form.html` (`collection-picker`)
 - `pim/dav/mirror.go` (`hotMaxBytes`, `objects`, `hold`, `change`,

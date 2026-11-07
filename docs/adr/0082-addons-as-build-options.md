@@ -1,6 +1,6 @@
 # ADR 82: Add-ons as build options
 
-Status: accepted. Amends ADR 67, ADR 77, ADR 78 and ADR 79.
+Status: accepted. Amends ADR 67 and ADR 79.
 
 ## Context
 
@@ -40,7 +40,7 @@ alone because startup checks every template's routes (ADR 55, ADR 66).
 
 ## References
 
-- ADR 26, ADR 55, ADR 59, ADR 66, ADR 67, ADR 77, ADR 78, ADR 79
+- ADR 26, ADR 55, ADR 59, ADR 66, ADR 67, ADR 79
 - `cmd/alborz/app/addon_*.go`, `cmd/alborz/app/noaddons_test.go`,
   `web/addons.go`, `web/status.go`, `internal/locale/locale.go`
   (`RegisterFS`)

@@ -1,7 +1,6 @@
 # ADR 67: Status bar and compiled-in add-ons
 
-Status: accepted, amended by ADR 77 (season add-on) and ADR 82 (add-ons
-as self-contained build-tagged packages).
+Status: accepted, amended by ADR 82.
 
 ## Context
 
@@ -57,7 +56,7 @@ viewport and a clean extension seam for add-ons.
 
 ## References
 
-- ADR 66, ADR 77, ADR 78, ADR 79, ADR 82
+- ADR 66, ADR 79, ADR 82
 - `web/status.go`, `web/addons.go`, `templates/partials/status.html`,
   `mail/web/status.go`, `pim/calendar/web/status.go`,
   `cmd/alborz/app/status_test.go`

@@ -1,7 +1,7 @@
 # ADR 75: Journal entries
 
 Status: accepted, amended by ADR 88 (moving entries between journals).
-Amends ADR 49, ADR 63 and ADR 69.
+Amends ADR 49 and ADR 69.
 
 ## Context
 
@@ -69,7 +69,7 @@ Evolution create them; alborz needs a section to read and edit them.
 ## References
 
 - RFC 5545 3.6.3, 3.8.1.11, 3.8.2.4; RFC 4791 5.2.3; RFC 7986 5.9
-- ADR 47, ADR 49, ADR 53, ADR 63, ADR 69, ADR 80, ADR 88
+- ADR 49, ADR 53, ADR 69, ADR 80, ADR 88
 - `pim/calendar/caldav.go` (`SupportsJournal`, `FirstJournal`,
   `JournalQuery`), `pim/calendar/settings.go`,
   `pim/calendar/web/journal.go`, `pim/calendar/web/entry.go`,

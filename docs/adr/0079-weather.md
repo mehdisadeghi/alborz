@@ -1,8 +1,7 @@
 # ADR 79: Weather add-on
 
-Status: accepted, amended by ADR 82 (packaged under `addons/weather`)
-and ADR 89 (month-grid annotations). Amends ADR 52 (`Profile.Place`)
-and ADR 54 (rule 4).
+Status: accepted, amended by ADR 82 (packaged under `addons/weather`).
+Amends ADR 52 (`Profile.Place`) and ADR 54 (rule 4).
 
 ## Context
 
@@ -57,6 +56,11 @@ attribution requirements that must remain opt-in for the operator.
 10. Every forecast display MUST credit "Source: Deutscher Wetterdienst"
     and state the forecast hour, station name and distance; place-server
     results credit OpenStreetMap contributors (ODbL).
+11. On the calendar month grid (`web.Extend`), when the `weather`
+    segment is enabled and `Profile.Place` is set, day annotations load
+    asynchronously via htmx (`Alborz-Unasked`) from the cached forecast
+    (current hour for today, local noon for future days) without
+    delaying month rendering.
 
 ## Consequences
 
@@ -67,5 +71,5 @@ attribution requirements that must remain opt-in for the operator.
 
 ## References
 
-- ADR 52, ADR 54, ADR 67, ADR 78, ADR 82, ADR 89
+- ADR 52, ADR 54, ADR 67, ADR 82
 - `addons/weather/`, `addons/weather/web/`, `profile.go` (`Place`)

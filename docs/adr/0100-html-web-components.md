@@ -1,6 +1,6 @@
 # ADR 100: HTML web components
 
-Status: accepted.
+Status: proposed.
 
 ## Context
 
@@ -40,7 +40,7 @@ leak, and nothing in the markup names the script that acts on it.
 ## References
 
 - WHATWG HTML Living Standard, Custom elements
-- ADR 8, ADR 13, ADR 55, ADR 99
+- ADR 13, ADR 55, ADR 99
 - Elements to define, by current source:
   - `toolbar-fit`, `overflow-menu`, `bulk-select`, `linked-select`,
     `mail-rail`, `status-segment`, `star-toggle`, `notice-stack`,

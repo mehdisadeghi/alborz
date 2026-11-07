@@ -1,6 +1,6 @@
 // @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&dn=expat.txt Expat
 
-// The tour knows no page: a stop points at the first visible control marked with its data-tour (ADR 76).
+// The tour knows no page: a stop points at the first visible control marked with its data-tour.
 (() => {
 	const still = matchMedia("(prefers-reduced-motion: reduce)");
 	const anchored = CSS.supports("position-area", "block-end");

@@ -8,8 +8,8 @@
 *Shahalborz, Alborz mountains. Image based on a [photo by nomad] on
 SummitPost.*
 
-Multi-account, RTL-ready mail user agent with calendars, contacts,
-tasks and sieve filters in a single binary.
+Multi-account, RTL-ready webmail client with calendars, contacts,
+tasks, notes and Sieve filters in a single binary.
 
 **Status: alpha.** Expect breaking changes before 1.0, and back up `alborz.db`.
 
@@ -24,6 +24,7 @@ anything a server cannot store.
 - Search across folders with Gmail-style operators
 - CalDAV calendars: month, day and agenda views
 - CalDAV tasks (VTODO)
+- CalDAV journal entries and notes (VJOURNAL)
 - CardDAV contacts with photos, groups, categories
 - iCalendar feed subscriptions
 - Built-in CalDAV/CardDAV server with sharing
@@ -35,8 +36,11 @@ anything a server cannot store.
 - Responsive PWA with light and dark themes
 - Offline reading of visited pages
 - Optional passkey (WebAuthn) lock; requires JavaScript
+- Optional per-account encryption of local caches and stored DAV data
+- PGP/MIME and S/MIME signature verification
+- Web Push notifications and background reminders
 - Session list with remote sign-out
-- RTL; English, German, Persian and Spanish
+- RTL and LTR; Arabic, English, French, German, Persian and Spanish
 - Solar Hijri calendar alongside Gregorian
 - mbox and .eml import and export
 - Drag-and-drop mail import
@@ -52,6 +56,8 @@ In addition to the protocols above:
 |---|---|
 | 5546, 6047 | iTIP and iMIP event requests, replies and cancellations |
 | 3156, Autocrypt, WKD | PGP/MIME signature verification; Autocrypt and WKD key lookup |
+| 8551 | S/MIME signature verification |
+| 8030, 8291, 8292 | Web Push delivery, payload encryption and VAPID authentication |
 | 8601 | Authentication-Results from the configured `authserv-id` |
 | 2369, 2919 | List headers and unsubscribe links |
 | 2177, 2971, 5464, 5256, 6154, 4551 | IDLE, ID, METADATA, SORT/THREAD, special-use folders, CONDSTORE |
@@ -73,7 +79,7 @@ attached to every [release]. See [INSTALLATION.md](INSTALLATION.md) for a
 systemd unit, reverse-proxy setup and building from source.
 
 Container images are published at `ghcr.io/mehdisadeghi/alborz` as `:latest`
-(or `:0.18.0`) and `:minimal` (or `:0.18.0-minimal`):
+(or `:<version>`) and `:minimal` (or `:<version>-minimal`):
 
     docker run -p 1323:1323 -v alborz-data:/data ghcr.io/mehdisadeghi/alborz
 
@@ -119,8 +125,24 @@ See [docs/cli.md](docs/cli.md) for all flags and URL schemes.
 
 Run `make test` and `make lint` with the Go version in `go.mod` and Node.js.
 Both targets run `make vuln` (`govulncheck`), which requires network access to
-fetch the vulnerability database; `make test-js` runs the browser tests offline
+fetch the vulnerability database; `make test-js` runs JavaScript tests offline
 without npm dependencies.
+
+Stylesheet sources are listed in `templates/assets/css/index.css` (shared
+components beside their partials, page rules beside their pages, and base/theme
+tokens under `templates/assets/css/`) and assembled in order by the server.
+
+Keep each component's base styles, states and responsive variants together.
+Toolbar rules live in `partials/toolbar.css`, menus in `assets/css/components/menu.css`,
+and domain rows beside their mail, contacts, calendar, tasks and journal partials.
+`partials/row.css` holds shared row primitives;
+`assets/css/layout.css` holds the page shell and mobile drawer. Import order
+still matters: verify layout changes across themes, narrow widths and RTL.
+
+The bundle is embedded in the binary. Commit CSS sources and the regenerated
+bundle together; generation skips unchanged output, so rebuilding a clean
+checkout stays clean. An uncommitted bundle change correctly marks Go's build
+metadata as dirty.
 
 Report issues and send patches at [github.com/mehdisadeghi/alborz].
 

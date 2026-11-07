@@ -1,7 +1,7 @@
 # ADR 61: List paging and neighbours
 
-Status: accepted. Amends ADR 34 (neighbours read the list's criteria)
-and ADR 36 (neighbours carry `from`).
+Status: accepted. Amends ADR 1 (neighbours carry `from`) and ADR 34
+(neighbours read the list's criteria).
 
 ## Context
 
@@ -65,7 +65,7 @@ neighbours.
 ## References
 
 - RFC 9051 6.4.4, 6.4.9; RFC 5256 (SORT, THREAD); RFC 4731; RFC 6154
-- ADR 34, ADR 36
+- ADR 1, ADR 34
 - `profile.go` (`Page`), `web/filters_shown.go` (`ListPage`,
   `NewPager`, `Paginate`, `Neighbours`),
   `templates/partials/toolbar.html` (`list-pager`, `object-nav`)

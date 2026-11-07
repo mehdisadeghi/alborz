@@ -1,7 +1,6 @@
 # ADR 102: Merged settings lists
 
-Status: accepted, amended by ADR 103 (header menus). Amends ADR 1 and
-ADR 74.
+Status: accepted. Amends ADR 1 and ADR 74.
 
 ## Context
 
@@ -38,7 +37,7 @@ each settings form still edits one account's data.
 
 ## References
 
-- ADR 1, ADR 37, ADR 74, ADR 103
+- ADR 1, ADR 74
 - `web/accounts.go` (`InScope`, `Scoped`), `web/profile.go`
   (`SettingsRail`, `MergedRows`), `templates/partials/rail.html`
   (`scope-rail`), `templates/partials/nav.html` (`person-menu`)

@@ -51,4 +51,4 @@ page-specific scripts.
 - ADR 69, ADR 75
 - `templates/assets/keys.js`, `templates/partials/toolbar.html`
   (`icon-key`, `object-step`, `pager-link`), `templates/partials/nav.html`,
-  `templates/assets/style.css`, `gestures.go`
+  `templates/assets/css/components/gestures.css`, `gestures.go`

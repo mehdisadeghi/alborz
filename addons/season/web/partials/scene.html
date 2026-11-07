@@ -1,4 +1,4 @@
-{{/* The scene a season theme paints behind the page (ADR 77): layers back
+{{/* The scene a season theme paints behind the page: layers back
      to front, each a group of its own whose paints are its own tokens, so a
      season picks its variants by name and a new layer touches no other. */}}
 {{ define "page-background" }}{{ if .GlobalData.Scene }}<svg class="scene" id="scene" hx-preserve viewBox="0 0 1600 420" preserveAspectRatio="xMidYMax slice" aria-hidden="true" focusable="false">

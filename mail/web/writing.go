@@ -9,6 +9,10 @@ import (
 )
 
 // SignatureChoice keeps identically named signatures distinct across accounts.
+// When signature pooling is enabled, compose offers signatures from all
+// signed-in accounts; switching signatures replaces the RFC 3676 "-- \n"
+// sign-off block only when it still matches an offered signature + attribution
+// verbatim once, leaving any user-edited sign-off untouched.
 type SignatureChoice struct {
 	mail.Signature
 	Value, Account string

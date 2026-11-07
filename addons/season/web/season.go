@@ -1,4 +1,17 @@
-// Package web lets the season fall on the pages of a reader who turns it on: snow, or what the theme names (ADR 77).
+// Package web serves the seasonal valley scene partials (--scene layers: far,
+// conifers/broadleaves, blossoms, near, house, smoke, snowcover, foreground)
+// and the opt-in falling-weather engine (--season-weather: snow, leaves, rain,
+// sunrays) at shared scale METRE = 53 CSS px/m:
+//   - snow (kinds/snow.js): Reiter crystal sprites, Locatelli-Hobbs terminal
+//     speeds, Gunn-Marshall sizes, and Tycho-2 winter night star density.
+//   - leaves (kinds/leaves.js): RK4 integration of the Andersen, Pesavento &
+//     Wang quasi-steady plate ODE (J. Fluid Mech. 541, 2005, 65-104) at
+//     half-chord a = 4 cm across fluttering, tumbling and chaotic regimes for
+//     four Hyrcanian leaf outlines (Parrotia persica, Acer velutinum, Fagus
+//     orientalis, Quercus castaneifolia).
+//   - rain (kinds/rain.js): Marshall-Palmer (J. Meteorol. 5, 1948) drop sizes
+//     at Atlas-Srivastava-Sekhon (Rev. Geophys. 11, 1973) terminal speeds.
+//   - sunrays (kinds/sunrays.js): soft inline-end wedges at half resolution.
 package web
 
 import (

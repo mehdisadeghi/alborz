@@ -37,7 +37,7 @@ live mailbox updates over SSE, and match the active theme's chrome.
 6. Bottom-docked elements pad by `env(safe-area-inset-bottom)`.
 7. The manifest sets `display: "minimal-ui"`.
 8. Every theme stylesheet MUST declare `--theme-color` (light first,
-   dark last, or once for a scheme-pinned theme per ADR 48). The server
+   dark last, or once for a scheme-pinned theme). The server
    reads it at startup and renders `<meta name="theme-color">` tags;
    `scheme.js` (ADR 50) updates which tag applies.
 9. The manifest omits `theme_color` so mobile browsers use their native
@@ -54,7 +54,7 @@ live mailbox updates over SSE, and match the active theme's chrome.
 ## References
 
 - Web App Manifest, Service Workers, HTML Server-Sent Events
-- ADR 13, ADR 19, ADR 25, ADR 45, ADR 48, ADR 50, ADR 74
+- ADR 13, ADR 19, ADR 25, ADR 45, ADR 50, ADR 74
 - `web/serviceworker.go`, `web/routes.go`, `web/prefs.go` (`readTheme`),
   `web/live.go` (`handleEvents`), `templates/assets/helpers.js`,
   `templates/layout.html`

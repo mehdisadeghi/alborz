@@ -12,7 +12,7 @@
     {{ with .newhref }}{{ $href := . }}{{ if not (hrefaccount $href) }}{{ $href = printf "%s%s" $href (account (qsep $href) $.g.GlobalData.URLAccount) }}{{ end }}{{ with $.back }}{{ $href = printf "%s%snext=%s" $href (qsep $href) (qv .) }}{{ end }}<a class="icon-button" href="{{ localhref $href }}" title="{{$.newlabel}}" aria-label="{{$.newlabel}}" data-key="c" data-tour="new">{{ template "icon" (or $.newicon "plus") }}<span class="label">{{$.newlabel}}</span></a>{{ end }}
 {{ end }}
 
-{{/* The toolbar-head dict; in the row the long title yields to the short one (ADR 8). */}}
+{{/* The toolbar-head dict; in the row the long title yields to the short one. */}}
 {{ define "toolbar-title" }}<h1 title="{{.title}}"{{ if .shorttitle }} data-priority="20" data-yield="word"{{ end }}>{{ with .shorttitle }}<span class="title-long">{{ $.title }}</span><span class="title-short">{{.}}</span>{{ else }}{{.title}}{{ end }}{{ with .subtitle }}<span class="title-secondary">{{.}}</span>{{ end }}</h1>{{ end }}
 
 {{ define "toolbar-end" }}

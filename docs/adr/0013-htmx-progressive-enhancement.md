@@ -56,7 +56,7 @@ must continue working without JavaScript.
 ## References
 
 - CSP Level 3 (`unsafe-eval`); Media Queries Level 5 (`scripting`)
-- ADR 8, ADR 14, ADR 41
+- ADR 4, ADR 14
 - `templates/layout.html`, `templates/assets/helpers.js`,
   `templates/partials/toolbar.html` (`swaps`, `swap-main`),
   `web/htmx.go` (`Partial`,

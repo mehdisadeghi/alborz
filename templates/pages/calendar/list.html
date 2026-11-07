@@ -1,5 +1,5 @@
 {{ define "rail" }}
-  {{/* A collection leaves a star view, which is a place of its own (ADR 35). */}}
+  {{/* A collection leaves a star view, which is a place of its own. */}}
   {{ $keep := printf "&month=%s" .Page }}{{ if not .StarView }}{{ $keep = printf "%s&view=list" $keep }}{{ end }}
   {{ template "calendar-rail" (dict "g" $ "keep" $keep "path" (printf "%s?%s" (url "calendar.month") (slice $keep 1)) "action" (url "calendar.month") "views" (dict "path" (printf "%s?month=%s" (url "calendar.month") .Page) "view" .StarView "account" .GlobalData.URLAccount)) }}
 {{ end }}

@@ -22,8 +22,10 @@ override was made for and is state the server holds per browser.
 3. The toggle renders all three buttons (`system`, `light`, `dark`);
    CSS shows the one matching `data-theme`. Each click moves to the
    next and keeps focus on the shown button.
-4. A theme that pins one scheme hides the toggle (`SchemePinned`,
-   ADR 48). A permanent choice is such a theme.
+4. A theme that pins one scheme hides the toggle (`SchemePinned`).
+   A permanent choice is such a theme. A theme pins a scheme when it
+   sets `color-scheme: light` or `dark` without a dark-scheme media
+   query or `[data-theme="dark"]` rule.
 
 ## Consequences
 
@@ -34,9 +36,9 @@ override was made for and is state the server holds per browser.
 
 ## References
 
-- ADR 14, ADR 48
+- ADR 14
 - `templates/assets/scheme.js`, `templates/assets/helpers.js`
   (`.scheme-toggle` click handler), `templates/layout.html`,
   `templates/partials/nav.html` (`scheme-toggle`),
-  `templates/assets/style.css` (`.scheme-toggle`),
+  `templates/partials/nav.css` (`.scheme-toggle`),
   `web/server.go` (`shellAssets`), `web/middleware.go` (CSP)

@@ -1,8 +1,6 @@
 # ADR 52: Settings storage and the reader's profile
 
-Status: accepted, amended by ADR 72 (the `key` entry and per-account
-encryption), ADR 76 (`Profile.Toured`), ADR 79 (`Profile.Place`) and
-ADR 91 (`StartPage`, `PoolSignatures`, `Attribution`). Amends ADR 4.
+Status: accepted, amended by ADR 72 and ADR 79. Amends ADR 4.
 
 ## Context
 
@@ -28,13 +26,16 @@ and render on signed-out pages.
 
 ### Profile
 
-4. `alborz.Profile` holds `StartPage` (ADR 91), `Reading` (messages per
-   page, timezone, first weekday, prefer HTML, primary and secondary
-   calendar), `Writing` (reply position, RTL direction part, signature
-   pooling, client attribution, ADR 91), `Display` (theme, text size,
-   script alignment, language, status bar segments, add-ons), `Place`
-   (ADR 79) and `Toured` (ADR 76). The per-tab scheme override (ADR 50)
-   and session passkey lock (ADR 25) are not part of the profile.
+4. `alborz.Profile` holds `StartPage` (default section on `/` and
+   post-login redirect), `Reading` (messages per page, timezone, first
+   weekday, prefer HTML, primary and secondary calendar), `Writing`
+   (reply position, RTL direction part, cross-account signature pooling,
+   client attribution), `Display` (theme, text size, script alignment,
+   language, status bar segments, add-ons), `Place` (ADR 79) and
+   `Toured` (acknowledged first desktop tour). Partial profile form
+   submissions MUST NOT reset checkboxes that were not rendered on the
+   submitted form. The per-tab scheme override (ADR 50) and session
+   passkey lock (ADR 25) are not part of the profile.
 5. Saving the profile writes the `profile` entry to every signed-in
    account, failing only if every account refuses the write.
 6. The session holds the active profile (persisted in
@@ -63,7 +64,6 @@ and render on signed-out pages.
 
 ## References
 
-- RFC 5464; ADR 4, ADR 26, ADR 48, ADR 50, ADR 51, ADR 72, ADR 76,
-  ADR 79, ADR 91
+- RFC 5464; ADR 4, ADR 26, ADR 50, ADR 51, ADR 72, ADR 79
 - `store.go`, `records.go`, `profile.go`, `web/profile.go`,
-  `web/prefs.go`, `settings/web/profile.go`
+  `web/prefs.go`, `web/start.go`, `settings/web/profile.go`

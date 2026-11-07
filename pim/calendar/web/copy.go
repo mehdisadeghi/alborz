@@ -21,7 +21,7 @@ import (
 	"github.com/emersion/go-webdav/caldav"
 )
 
-// copyTo writes an event, a task or a journal entry into a calendar the reader chooses, as an object of its own (ADR 63).
+// copyTo writes an event, a task or a journal entry into a calendar the reader chooses, as an object of its own (ADR 88).
 func (p *plugin) copyTo(s section) func(*web.Context) error {
 	return p.transferTo(s, false)
 }

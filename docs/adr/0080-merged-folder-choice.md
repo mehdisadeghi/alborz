@@ -1,13 +1,13 @@
 # ADR 80: Choosing what feeds the merged folders
 
-Status: accepted. Amends ADR 1 and ADR 35.
+Status: accepted. Amends ADR 1.
 
 ## Context
 
 In a multi-account session, a merged mailbox (`/mailbox/<role>` without
 `account`) unions that role across every signed-in account. Readers need
 a way to exclude an account's role folder from the merged view, matching
-the inclusion checkboxes that DAV collections have in the rail (ADR 35).
+the inclusion checkboxes that DAV collections have in the rail.
 
 ## Decision
 
@@ -24,7 +24,7 @@ the inclusion checkboxes that DAV collections have in the rail (ADR 35).
 5. An account whose settings cannot be read because its server is
    unreachable is reported as not answering (ADR 1 rule 6).
 6. In the merged mail rail, each role row under an account renders
-   ADR 35's member checkbox (`common.shown`). Submitting posts the roles
+   a member checkbox (`common.shown`). Submitting posts the roles
    shown (`shown`) and ticked (`merged`), updating only the roles on the
    form (`alborz.Untick`) and redrawing the rail and list in place.
 7. DAV visibility settings (`CalendarFilter`/`VisibleCalendars`,
@@ -46,7 +46,7 @@ the inclusion checkboxes that DAV collections have in the rail (ADR 35).
 
 ## References
 
-- ADR 1, ADR 35, ADR 46, ADR 52
+- ADR 1, ADR 46, ADR 52
 - `store.go` (`Login.Update`, `Untick`), `mail/settings.go` (`Unmerged`,
   `Merges`, `ChooseMerged`), `pim/calendar/settings.go`,
   `pim/contacts/settings.go`, `pim/pooled.go` (`Choose`),

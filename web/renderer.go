@@ -91,7 +91,7 @@ type GlobalRenderData struct {
 	Merged bool
 	// Personal marks a page of the person, in no scope (Personal).
 	Personal bool
-	// Item says the page shows one object; Own is its URL without From (ADR 37).
+	// Item says the page shows one object; Own is its URL without From (ADR 1).
 	Item bool
 	Own  string
 
@@ -127,7 +127,7 @@ type GlobalRenderData struct {
 	// HasRail says the page data carries a feature rail for the shared page shell.
 	HasRail bool
 
-	// Tour is the tour open on this page, nil for none; TourStart opens it here (ADR 76).
+	// Tour is the tour open on this page, nil for none; TourStart opens it here.
 	Tour      *Tour
 	TourStart string
 }
@@ -403,7 +403,7 @@ func (brd *BaseRenderData) WithTitle(title string) *BaseRenderData {
 	return brd
 }
 
-// Refused makes a form's refusal the page's notice (ADR 41); empty text leaves it as it was.
+// Refused makes a form's refusal the page's notice (ADR 4); empty text leaves it as it was.
 func (brd *BaseRenderData) Refused(text string) *BaseRenderData {
 	if text != "" {
 		brd.GlobalData.Notice = &Notice{Kind: NoticeFailed, Text: text}

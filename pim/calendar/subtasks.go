@@ -7,7 +7,9 @@ import (
 	"github.com/emersion/go-ical"
 )
 
-// isParent follows RFC 5545: an omitted RELTYPE means PARENT.
+// isParent follows RFC 5545 3.8.4.5: subtasks link to a parent VTODO in the
+// same collection via RELATED-TO;RELTYPE=PARENT (an omitted RELTYPE defaults
+// to PARENT). Completing a parent or subtask never cascades to relatives.
 func isParent(relation ical.Prop) bool {
 	kind := strings.ToUpper(relation.Params.Get("RELTYPE"))
 	return kind == "" || kind == "PARENT"

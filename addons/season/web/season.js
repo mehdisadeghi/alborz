@@ -1,7 +1,7 @@
 // @license magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&dn=expat.txt Expat
 (() => {
-// What the season lets fall on the page of a reader who asked for it
-// (ADR 77). The theme names it in --season-weather; each kind is a module
+// What the season lets fall on the page of a reader who asked for it.
+// The theme names it in --season-weather; each kind is a module
 // of its own beside this script - its sprites, how many, how one moves -
 // and this owns what they share: the canvas, the air (the theme's wind, the
 // phone's tilt, a drag, the puff of a click), the clock, visibility,

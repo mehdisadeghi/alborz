@@ -1,6 +1,6 @@
 /* Season presentation and weather tokens, supplied by the season add-on. */
 :root {
-  /* What the season add-on lets fall (ADR 77): a kind beside its script, or none. */
+  /* What the season add-on lets fall: a kind beside its script, or none. */
   --season-weather: snow;
   /* Its mean wind in CSS pixels a second towards the inline end, the way
      the smoke drifts: wind you see, not one that sweeps the page to one
@@ -43,7 +43,7 @@
   --season-sunray: #ffda89;
 }
 
-/* The scene of a season theme (ADR 77), behind the page. Its tokens live
+/* The scene of a season theme, behind the page. Its tokens live
    in the season's file alone: no other theme renders the markup. It
    mirrors with the page, so the house stands at the inline end, clear of
    the rail at the inline start. */

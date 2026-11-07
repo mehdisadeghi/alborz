@@ -9,7 +9,7 @@ import (
 	"git.mehdix.org/alborz"
 )
 
-// TourStop is one stop of the tour (ADR 76).
+// TourStop is one stop of the tour.
 type TourStop struct {
 	// Name keys the stop's title and body, tour.<Name>.title and tour.<Name>.body, and names it in the URL.
 	Name string
@@ -103,7 +103,7 @@ func TourStart(page *url.URL) string {
 	return withTour(page.EscapedPath(), page.RawQuery, tourStops[0].Name)
 }
 
-// withoutTour is u without the tour's parameter: links a page builds from its own address do not carry it (ADR 76).
+// withoutTour is u without the tour's parameter: links a page builds from its own address do not carry it.
 func withoutTour(u *url.URL) *url.URL {
 	kept := slices.DeleteFunc(strings.Split(u.RawQuery, "&"), func(p string) bool {
 		return p == "" || p == tourParam || strings.HasPrefix(p, tourParam+"=")

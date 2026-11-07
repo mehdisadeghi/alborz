@@ -554,8 +554,7 @@ for (const event of ["htmx:sendError", "htmx:timeout", "htmx:responseError"]) {
 			text.dataset.noanswer ??= text.textContent;
 			const xhr = ev.detail && ev.detail.xhr;
 			const own = ev.type === "htmx:responseError" && (xhr.getResponseHeader("Content-Type") || "").startsWith("text/plain");
-			text.textContent = own ? xhr.responseText.trim() : text.dataset.noanswer;
-			notice.show();
+			showScriptFailure(own ? xhr.responseText.trim() : text.dataset.noanswer);
 		}
 	});
 }
@@ -1076,7 +1075,7 @@ document.addEventListener("beforetoggle", ev => {
 }, true);
 
 // A bar per source of news: mail arriving must not take an upload's progress.
-// As long as a done notice from the server stays (ADR 41).
+// As long as a done notice from the server stays.
 const noticeLinger = 6000;
 const noticeBar = () => {
 	let bar = null;

@@ -22,7 +22,12 @@ type QuickEvent struct {
 var ErrQuickEvent = errors.New("event needs a title and an unambiguous date and time")
 
 // ParseQuickEvent extracts date, clock/range and duration independently of their
-// position in the title. Uncertain timing belongs in the full event editor.
+// position in the title (ISO YYYY-MM-DD, DD.MM.YYYY, localized today/tomorrow,
+// English weekdays and month names, "in N days", noon/midnight, 12h/24h clocks,
+// ranges, and "for N minutes/hours", normalizing localized digits). Date-only
+// input creates an all-day event; timed events default to 1 hour. Conflicting
+// dates/clocks, recurrence phrases, and ambiguous or nonexistent DST local
+// times return ErrQuickEvent so uncertain timing goes to the full event editor.
 func ParseQuickEvent(text string, now time.Time, words QuickWords) (QuickEvent, error) {
 	p := quickParser{original: strings.Fields(text), now: now}
 	for _, token := range p.original {

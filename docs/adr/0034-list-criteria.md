@@ -1,7 +1,6 @@
 # ADR 34: List criteria and cross-folder search
 
-Status: accepted, amended by ADR 61 (list paging and held orders).
-Amends ADR 3 and ADR 21.
+Status: accepted, amended by ADR 61. Amends ADR 21.
 
 ## Context
 
@@ -45,7 +44,7 @@ hold one IMAP connection turn past its deadline.
 ## References
 
 - RFC 9051 6.4.4 (SEARCH), 6.4.5 (FETCH ENVELOPE), 7.5.2
-- ADR 3, ADR 21
+- ADR 21
 - `mail/views.go` (`listCriteria`), `mail/imap.go` (`carried`,
   `envelopeCarries`, `viewOrder`), `mail/listing.go` (`searchWindow`,
   `gather`, `searchFolders`), `mail/prefetch.go` (`listingBudget`),

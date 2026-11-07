@@ -36,7 +36,7 @@
   --border-accent: rgba(31, 74, 115, 0.3);
   --flag: #9a7400;
 
-  /* A notice floats over the page (ADR 41), so it stays opaque. */
+  /* A notice floats over the page, so it stays opaque. */
   --notice-fg: #0c5460;
   --notice-bg: #d1ecf1;
   --notice-border: #bee5eb;

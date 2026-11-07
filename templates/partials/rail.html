@@ -49,7 +49,7 @@
   {{ $davrows := and (eq .kind "dav") .data.items }}
   {{ range .accounts }}
   {{ if $davrows }}
-  {{/* The heading opens every collection, as an account heading does among several (ADR 35). */}}
+  {{/* The heading opens every collection, as an account heading does among several. */}}
   <a id="rail-head-{{.Username}}" class="aside-account rail-account-empty{{ if $merged }} active{{ end }}" href="{{$.path}}" title="{{.Username}}"{{ if $merged }} aria-current="true"{{ end }}{{ if $.g.GlobalData.Swap }} hx-swap-oob="true"{{ end }}>{{ template "account-legend" (dict "g" $.g "account" .Username) }}{{ template "ltr" .Username }}</a>
   {{ else }}
   <a class="aside-account rail-mobile rail-account-settings" href="{{url "mail.account"}}{{ account "?" .Username }}" title="{{$.g.T "settings.account"}}: {{.Username}}" dir="ltr">{{ template "account-legend" (dict "g" $.g "account" .Username) }}{{ template "ltr" .Username }}</a>
@@ -148,7 +148,7 @@
 
 {{ define "rail-dav-account" }}
 {{ $d := .data }}
-{{/* A tick redraws the list and these rows in place; the address follows without a step in history, which the links inside still take (ADR 35).
+{{/* A tick redraws the list and these rows in place; the address follows without a step in history, which the links inside still take.
      A second tick replaces the first's request: queued, it would go after the first's answer redrew the rows, with their old ticks. */}}
 <form id="rail-{{.account}}" method="post" action="{{$d.action}}{{ account "?" .account }}" class="aside-filter" hx-post="{{$d.action}}{{ account "?" .account }}" hx-target="#main" hx-swap="innerHTML show:none" hx-replace-url="true" hx-sync="this:replace" hx-disinherit="hx-replace-url hx-sync"{{ if $.g.GlobalData.Swap }} hx-swap-oob="innerHTML"{{ end }}>
 <input type="hidden" name="next" value="{{$d.next}}">
@@ -273,7 +273,7 @@
 {{ $active := "" }}{{ with $d.Mailbox }}{{ $active = .Name }}{{ end }}
 {{ $q := printf "?account=%s" .account }}
 {{ range $d.SidebarAccounts }}{{ if eq .Account $.account }}
-{{/* A tick redraws these rows, the merged counts and the list in place (ADR 35, ADR 80); its links keep their own targets.
+{{/* A tick redraws these rows, the merged counts and the list in place (ADR 80); its links keep their own targets.
      A second tick replaces the first's request, as on the DAV rails. */}}
 <form id="merged-{{$.account}}" class="aside-filter" method="post" action="{{url "mail.merged"}}{{ account "?" $.account }}" hx-post="{{url "mail.merged"}}{{ account "?" $.account }}" hx-target="this" hx-select="form[id='merged-{{$.account}}']" hx-select-oob="#main,#merged-roles" hx-swap="outerHTML show:none" hx-sync="this:replace" hx-disinherit="*">
 <input type="hidden" name="next" value="{{$d.GlobalData.URL.RequestURI}}">

@@ -25,12 +25,14 @@
         {{end}}
 
         {{$base := .}}
+        {{ $scope := "" }}{{ with .Scope }}{{ $scope = printf "&%s" . }}{{ end }}
+        {{range .Weeks}}
+        <div class="month-week">
         {{range $i, $day := .Dates}}
         <div class="date
           {{if not ($base.SameMonth $base.Time .)}}extra{{end}}
           {{if eq (.Format "2006-01-02") ($base.Now.Format "2006-01-02")}}active{{end}}
-          ">
-          {{ $scope := "" }}{{ with $base.Scope }}{{ $scope = printf "&%s" . }}{{ end }}
+          " style="--column:{{$i}}">
           <a href="{{localhref (printf "%s?date=%s%s" (url "calendar.day") (.Format "2006-01-02") $scope)}}" class="date-link" aria-label="{{ $base.GlobalData.LongDate . }}"></a>
           <h3>
             {{ if eq (mod $i 7) 0 }}<span class="weeknum" title="{{$base.WeekTitle $day}}">{{$base.WeekNumber $day}}</span>{{ end }}
@@ -39,29 +41,19 @@
             {{ with $base.SecondaryDay . }}<span class="day-secondary">{{.}}</span>{{ end }}
             {{ if $base.DayAnnotations }}<span class="day-annotations">{{ range $base.DayAnnotations }}<span id="calendar-day-{{ .Name }}-{{ $day.Format "2006-01-02" }}" class="day-annotation"></span>{{ end }}</span>{{ end }}
           </h3>
-          <div class="events">
-            {{$events := (call $base.EventsForDate .)}}
-            {{if $events}}
-            <ul>
-              {{$overflow := 0}}
-              {{if gt (len $events) 3}}
-              {{$overflow = call $base.Sub (len $events) 3}}
-              {{$events = slice $events 0 3}}
-              {{end}}
-
-              {{range $events}}
-              {{$color := (call $base.CollectionFor .Account .Path).Color}}
-              <li>
-                {{if $color}}<span class="color-dot" style="background:{{$color}}"></span>{{end}}
-                {{.Summary}}
-              </li>
-              {{end}}
-              {{if ne $overflow 0}}
-              <li class="overflow">{{$base.GlobalData.Tf "calendar.more" $overflow}}</li>
-              {{end}}
-            </ul>
-            {{end}}
-          </div>
+        </div>
+        {{end}}
+        {{range .Events}}
+        {{$color := (call $base.CollectionFor .Account .Path).Color}}
+        {{$href := url "calendar.event" .Path}}
+        {{with .Account}}{{$href = printf "%s%s" $href (account (qsep $href) .)}}{{end}}
+        <a class="month-event{{if .ContinuesBefore}} continues-before{{end}}{{if .ContinuesAfter}} continues-after{{end}}" href="{{localhref (from $href $base.GlobalData.URL.RequestURI)}}" style="--column:{{.Column}};--span:{{.Span}};--row:{{.Row}}" title="{{.Summary}}">
+          {{if $color}}<span class="color-dot" style="background:{{$color}}"></span>{{end}}<span class="month-event-title" dir="auto">{{.Summary}}</span>
+        </a>
+        {{end}}
+        {{range .Overflow}}
+        <a class="month-overflow" style="--column:{{.Column}}" href="{{localhref (printf "%s?date=%s%s" (url "calendar.day") (.Date.Format "2006-01-02") $scope)}}">{{$base.GlobalData.Tf "calendar.more" .Count}}</a>
+        {{end}}
         </div>
         {{end}}
       </section>

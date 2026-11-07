@@ -3778,12 +3778,23 @@ main.calendar .dates .weekday {
   background: var(--bg);
 }
 
+main.calendar .month-week {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-rows: auto repeat(3, 1.5rem) minmax(1.25rem, 1fr);
+  gap: 2px 1px;
+  min-block-size: 9rem;
+}
+
 main.calendar .date {
   border: 0;
-  padding: var(--space-1);
+  padding: 0;
   background: var(--bg);
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: subgrid;
+  grid-column: calc(var(--column) + 1);
+  grid-row: 1 / -1;
   position: relative;
   min-width: 0;
 }
@@ -3808,38 +3819,68 @@ main.calendar .date.extra {
   opacity: 0.58;
 }
 
-main.calendar .date ul {
-  list-style: none;
-  margin: 0;
-  padding-inline-start: 0;
-}
-
-main.calendar .date .events {
+main.calendar .month-event,
+main.calendar .month-overflow {
+  grid-column: var(--column) / span var(--span, 1);
+  position: relative;
+  z-index: 1;
   min-width: 0;
-  overflow: hidden;
-}
-
-main.calendar .date .events li {
+  margin-inline: var(--space-1);
+  padding-inline: var(--space-1);
+  font-size: var(--text-xs);
+  line-height: 1.5rem;
+  color: var(--fg);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: var(--text-xs);
-  line-height: 1.45;
+  text-decoration: none;
 }
 
-main.calendar .date .events .color-dot {
+main.calendar .month-event {
+  grid-row: calc(var(--row) + 1);
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  border-radius: var(--radius-sm);
+  background: var(--bg-button);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+main.calendar .month-event:hover { background: var(--bg-active); }
+
+main.calendar .month-event-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+main.calendar .month-event.continues-before {
+  margin-inline-start: 0;
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+}
+
+main.calendar .month-event.continues-after {
+  margin-inline-end: 0;
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
+
+main.calendar .month-event .color-dot {
   width: 6px;
   height: 6px;
-  margin-inline-end: 3px;
+  flex-shrink: 0;
 }
 
-main.calendar .events .overflow {
+main.calendar .month-overflow {
+  grid-row: 5;
   color: var(--fg-dim);
   text-align: end;
 }
 
 /* Two by two: each calendar aligns against its own row, so week and day do not drift apart. */
 main.calendar .date h3 {
+  grid-row: 1;
+  padding: var(--space-1);
   display: grid;
   grid-template-columns: auto 1fr;
   /* A cell is a seventh of the width, and a spelled-out month would run into its neighbour. */
@@ -5443,19 +5484,15 @@ h1.no-word .title-short {
   main.calendar .dates { grid-gap: 2px; padding: 0; }
   main.calendar .dates .weekday { font-size: 0; }
   main.calendar .dates .weekday::first-letter { font-size: 0.8rem; }
-  main.calendar .date { padding: 2px; min-height: 3rem; }
-  main.calendar .date h3 { font-size: 0.7rem; min-height: 1.35rem; overflow: hidden; white-space: nowrap; }
+  main.calendar .month-week { column-gap: 2px; min-block-size: 8rem; }
+  main.calendar .date h3 { padding: 2px; font-size: 0.7rem; min-height: 1.35rem; overflow: hidden; white-space: nowrap; }
   main.calendar .date h3 .day-label { font-size: 0.75rem; min-height: 1.35rem; padding-inline: 2px; }
   main.calendar .date h3 .label-long { display: none; }
   main.calendar .date h3 .day-secondary { font-size: 0.6rem; }
-  main.calendar .date ul { padding-inline-start: 0; }
-  main.calendar .events li { display: inline; font-size: 0; }
-  main.calendar .events li .color-dot {
-    width: 6px;
-    height: 6px;
-    margin-inline-end: 2px;
-  }
-  main.calendar .events .overflow { font-size: 0.7rem; }
+  main.calendar .month-event,
+  main.calendar .month-overflow { margin-inline: 2px; padding-inline: 2px; font-size: 0.7rem; }
+  main.calendar .month-event.continues-before { margin-inline-start: 0; }
+  main.calendar .month-event.continues-after { margin-inline-end: 0; }
 }
 
 main.message td.warning-cell {

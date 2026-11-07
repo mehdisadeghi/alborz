@@ -23,6 +23,7 @@ type CalendarRenderData struct {
 	Now                time.Time
 	ThisMonth          bool
 	Dates              []time.Time
+	Weeks              []MonthWeek
 	DayAnnotations     []DayAnnotation
 	Events             []calendar.Object
 	Page               string
@@ -38,7 +39,6 @@ type CalendarRenderData struct {
 	GroupRows []web.FilterRow
 	// Group is "day" when the agenda is banded by day, else empty.
 	Group string
-	Sub   func(a, b int) int
 }
 
 type monthView struct {
@@ -97,6 +97,7 @@ func (p *plugin) month(ctx *web.Context) error {
 		Now:                    mv.now,
 		ThisMonth:              mv.thisMonth,
 		Dates:                  mv.dates,
+		Weeks:                  monthWeeks(mv.dates, mv.on),
 		Events:                 mv.events,
 		Page:                   mv.page,
 		PrevPage:               mv.prevPage,
@@ -115,10 +116,6 @@ func (p *plugin) month(ctx *web.Context) error {
 
 		EventsForDate: func(when time.Time) []calendar.Occurrence {
 			return mv.on[mv.day(when)]
-		},
-
-		Sub: func(a, b int) int {
-			return a - b
 		},
 	}
 	if mv.view == "" {
@@ -196,11 +193,6 @@ func (p *plugin) monthView(ctx *web.Context) (monthView, error) {
 		t = t.In(loc)
 		return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, loc)
 	}
-	// An event is drawn on every day it covers; DTEND is exclusive.
-	// A DATE names a day, not an instant: its digits are read, not converted to the zone.
-	writtenDay := func(t time.Time) time.Time {
-		return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, loc)
-	}
 	gridEnd := gridStart.AddDate(0, 0, rows*7)
 	eventMap := make(map[time.Time][]calendar.Occurrence)
 	unread = append(unread, eachOccurrence(events,
@@ -211,21 +203,7 @@ func (p *plugin) monthView(ctx *web.Context) (monthView, error) {
 			if view != "list" && !web.StarMatches(oc.Star(), view) {
 				return
 			}
-			var first, last time.Time
-			if oc.AllDay() {
-				first = writtenDay(oc.Start)
-				last = first
-				if l := writtenDay(oc.End).AddDate(0, 0, -1); l.After(last) {
-					last = l
-				}
-			} else {
-				first, last = day(oc.Start), day(oc.Start)
-				if oc.End.After(oc.Start) {
-					if l := day(oc.End.Add(-time.Nanosecond)); l.After(last) {
-						last = l
-					}
-				}
-			}
+			first, last := occurrenceDays(oc, loc)
 			if first.Before(gridStart) {
 				first = gridStart
 			}

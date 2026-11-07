@@ -42,6 +42,13 @@ func TestPreview(t *testing.T) {
 	// The event falls today, so the current month's pages always show it.
 	today := time.Now().UTC()
 	a.Put(t, calendar+"record.ics", "text/calendar", "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\nBEGIN:VEVENT\r\nUID:event\r\nDTSTAMP:20261027T080000Z\r\nDTSTART:"+today.Format("20060102")+"T120000Z\r\nDTEND:"+today.Format("20060102")+"T130000Z\r\nSUMMARY:Review a long product design proposal\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n")
+	for i, span := range []struct {
+		name        string
+		start, days int
+	}{{"Factory visit", -2, 9}, {"Production trial", 0, 4}, {"Design workshop", 1, 2}, {"Supplier review", 1, 1}} {
+		start := today.AddDate(0, 0, span.start)
+		a.Put(t, calendar+fmt.Sprintf("span%d.ics", i), "text/calendar", fmt.Sprintf("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\nBEGIN:VEVENT\r\nUID:span%d\r\nDTSTAMP:20261027T080000Z\r\nDTSTART;VALUE=DATE:%s\r\nDTEND;VALUE=DATE:%s\r\nSUMMARY:%s\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n", i, start.Format("20060102"), start.AddDate(0, 0, span.days).Format("20060102"), span.name))
+	}
 	for i := range 6 {
 		a.Put(t, tasks+fmt.Sprintf("t%d.ics", i), "text/calendar", fmt.Sprintf("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\nBEGIN:VTODO\r\nUID:task%d\r\nDTSTAMP:20261027T080000Z\r\nCREATED:20261020T080000Z\r\nSUMMARY:Review a very long product design proposal with many words in its summary number %d\r\nDUE;VALUE=DATE:20261028\r\nEND:VTODO\r\nEND:VCALENDAR\r\n", i, i))
 	}

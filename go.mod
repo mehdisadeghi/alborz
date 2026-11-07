@@ -31,7 +31,7 @@ require (
 	gitlab.com/golang-commonmark/linkify v0.0.0-20200225224916-64bca66f6ad3
 	go.etcd.io/bbolt v1.5.0
 	go.guido-berhoerster.org/managesieve v0.8.1
-	golang.org/x/crypto v0.58.0
+	golang.org/x/crypto v0.58.1-0.20261009181718-2f1f834330b2
 	golang.org/x/image v0.45.0
 	golang.org/x/net v0.62.0
 	golang.org/x/sys v0.49.0

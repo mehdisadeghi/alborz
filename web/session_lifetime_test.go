@@ -2,12 +2,14 @@ package web
 
 import (
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/internal/seal"
 )
 
 type sessionRecordsForTest struct {
@@ -180,5 +182,107 @@ func TestRememberedDeadlineGovernsLiveAndStoredSessions(t *testing.T) {
 				t.Fatalf("expired session listed as signed in: %v, %v", signed, err)
 			}
 		})
+	}
+}
+
+func TestLocalPathRejectsBrowserAuthorityAndSchemes(t *testing.T) {
+	for _, raw := range []string{
+		"https://evil.example/path", "//evil.example/path",
+		"http:/evil.example/path", "https:/evil.example/path", "javascript:/a/path",
+		"///evil.example/path", "////evil.example/path",
+		"/%2Fevil.example/path", "/%2f%2fevil.example/path", "%2F%2Fevil.example/path",
+		`/\evil.example/path`, "relative/path", "",
+	} {
+		t.Run(raw, func(t *testing.T) {
+			if got := localPath(raw); got != "" {
+				t.Fatalf("accepted non-local return path %q as %q", raw, got)
+			}
+		})
+	}
+	for _, raw := range []string{"/", "/mail/INBOX", "/safe?next=//evil.example/path", "/a%20b#part"} {
+		if got := localPath(raw); got != raw {
+			t.Errorf("local path %q became %q", raw, got)
+		}
+	}
+}
+
+func TestNotificationPreviewsFollowTheRecipientSessionLock(t *testing.T) {
+	s, _ := newSession()
+	now := time.Now()
+	if got := pushBody(s, "account", "preview", now); got != "account\npreview" {
+		t.Fatalf("unprotected session: %q", got)
+	}
+	s.addPasskey(alborz.Passkey{Name: "test"})
+	s.unlock(now)
+	if got := pushBody(s, "account", "preview", now); got != "account\npreview" {
+		t.Fatalf("unlocked passkey session: %q", got)
+	}
+	s.LockNow()
+	if got := pushBody(s, "account", "preview", now); got != "account" {
+		t.Fatalf("locked session leaked preview: %q", got)
+	}
+	s.unlock(now)
+	if got := pushBody(s, "account", "preview", now.Add(s.Lock().Wait()+time.Second)); got != "account" {
+		t.Fatalf("idle session leaked preview: %q", got)
+	}
+	if got := pushBody(nil, "account", "preview", now); got != "account" {
+		t.Fatalf("unrestored session leaked preview: %q", got)
+	}
+}
+
+// The profile is the person's, so All accounts reads the zone one account's page does.
+func TestMergedScopeReadsThePersonsZone(t *testing.T) {
+	server := rememberedServer(t, nil)
+	ctx := rememberedContext(t, server)
+	for _, account := range []string{"one@test.local", "two@test.local"} {
+		login, err := server.SignIn(account, "password", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx.session.add(login)
+	}
+	ctx.session.setProfile(alborz.Profile{Reading: alborz.Reading{Timezone: "Asia/Tehran"}})
+	zone := ""
+	err := Accounts(func(ctx *Context) error {
+		if !ctx.Unified {
+			t.Fatal("two accounts with none named are not the merged scope")
+		}
+		zone = UserLocation(ctx).String()
+		return nil
+	})(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if zone != "Asia/Tehran" {
+		t.Errorf("the merged scope reads %q", zone)
+	}
+}
+
+func TestFullAttachmentCacheStaysUsable(t *testing.T) {
+	s, _ := newSession()
+	body, err := seal.NewSpool(func(w io.Writer) error {
+		_, err := w.Write(make([]byte, MaxAttachmentSize))
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer body.Close()
+	big := &File{Spool: body}
+	if _, err := s.putAttachment(big); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.putAttachment(big); err != ErrAttachmentCacheSize {
+		t.Fatalf("a second full-size attachment was taken: %v", err)
+	}
+	done := make(chan struct{})
+	go func() {
+		s.popAttachment("none")
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("the cache stayed locked after refusing an attachment")
 	}
 }

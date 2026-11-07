@@ -21,8 +21,12 @@ watch:
 	find templates -name '*.html' | entr -n pkill -USR1 -x alborz & \
 	find . -name '*.go' | entr -nr $(MAKE) run
 
+# Follow local Go packages, including files that have not been tracked yet.
+GO_DIRS := $(shell $(GO) list -e -f '{{.Dir}}' ./...)
+GO_FILES := $(wildcard $(addsuffix /*.go,$(GO_DIRS)))
+
 fmt:
-	gofmt -w $$(git ls-files '*.go')
+	gofmt -w $(GO_FILES)
 
 # The same diagnostics the editor shows: gofmt, vet, and gopls with its
 # analyzers, which is where the modernize hints come from; then
@@ -39,11 +43,11 @@ STYLELINT ?= npx --yes stylelint@17.15.0
 lint: vuln lint-go lint-web
 lint-web:
 	$(ESLINT) .
-	$(STYLELINT) "templates/assets/**/*.css" "addons/*/web/**/*.css"
+	$(STYLELINT) "templates/**/*.css" "addons/*/web/**/*.css"
 lint-go:
-	@out=$$(gofmt -l $$(git ls-files '*.go')) && test -z "$$out" || { echo "$$out"; exit 1; }
+	@out=$$(gofmt -l $(GO_FILES)) && test -z "$$out" || { echo "$$out"; exit 1; }
 	$(GO) vet ./...
-	@out=$$($(GOPLS) check -severity=hint $$(git ls-files '*.go') 2>&1) && test -z "$$out" || { echo "$$out"; exit 1; }
+	@out=$$($(GOPLS) check -severity=hint $(GO_FILES) 2>&1) && test -z "$$out" || { echo "$$out"; exit 1; }
 	$(GOLANGCI) run ./...
 	$(REVIVE) -config revive.toml -set_exit_status -exclude ./local/... ./...
 
@@ -86,3 +90,55 @@ packages:
 	$(TOOL) nfpm package -f contrib/packaging/nfpm.yaml -p rpm -t dist
 
 include contrib/packaging/desktop/desktop.mk
+
+# Check commands used by the targets in this Makefile without installing anything.
+DOCTOR_NEEDS = go:build,test,lint node:test-js,lint-web npx:lint-web git:version,release-next openssl:login-key
+CHROMES = chrome-headless-shell google-chrome chromium chromium-browser chrome
+CHROME_APPS = '/Applications/Google Chrome.app' /Applications/Chromium.app
+
+.PHONY: doctor
+doctor:
+	@missing=0; for need in $(DOCTOR_NEEDS); do \
+		command -v $${need%%:*} >/dev/null || { echo "missing: $${need%%:*} (for $${need#*:})"; missing=1; }; \
+	done; \
+	found=; for c in $(CHROMES); do command -v $$c >/dev/null && found=$$c; done; \
+	for a in $(CHROME_APPS); do test -d "$$a" && found="$$a"; done; \
+	test -n "$$found" || { echo 'missing: Chrome or chrome-headless-shell (for shot)'; missing=1; }; \
+	want=$$(sed -n 's/^go //p' go.mod); have=$$($(GO) env GOVERSION 2>/dev/null); \
+	echo "go.mod wants go $$want; $(GO) is $${have:-absent}"; \
+	test $$missing = 0 && echo 'nothing missing'
+
+# Releases. A version is an annotated git tag; CI reads the tag name and stamps it into the binary.
+.PHONY: version release-next release-patch release-minor release-major
+
+version:
+	@printf 'describe : %s\n' "$$(git describe --tags --always --dirty 2>/dev/null)"
+	@printf 'would be : %s\n' "$$(git describe --tags --exact-match 2>/dev/null || echo 'dev (untagged commit)')"
+
+LAST_TAG = $(shell git tag -l 'v*' --sort=-v:refname | head -1)
+
+release-next:
+	@last='$(LAST_TAG)'; last=$${last:-v0.0.0}; \
+	set -- $$(echo "$${last#v}" | tr . ' '); \
+	printf 'last  : %s\n' "$$last"; \
+	printf 'patch : v%s.%s.%s\n' "$$1" "$$2" "$$(($$3 + 1))"; \
+	printf 'minor : v%s.%s.0\n' "$$1" "$$(($$2 + 1))"; \
+	printf 'major : v%s.0.0\n' "$$(($$1 + 1))"
+
+release-patch: BUMP = patch
+release-minor: BUMP = minor
+release-major: BUMP = major
+release-patch release-minor release-major:
+	@test -z "$$(git status --porcelain --untracked-files=no)" \
+		|| { echo 'refusing: the working tree has uncommitted changes'; exit 1; }
+	@last='$(LAST_TAG)'; last=$${last:-v0.0.0}; \
+	set -- $$(echo "$${last#v}" | tr . ' '); \
+	case '$(BUMP)' in \
+		patch) next="v$$1.$$2.$$(($$3 + 1))" ;; \
+		minor) next="v$$1.$$(($$2 + 1)).0" ;; \
+		major) next="v$$(($$1 + 1)).0.0" ;; \
+	esac; \
+	echo "tagging $$next at $$(git log -1 --format='%h %s')"; \
+	git tag -a "$$next" -m "$$next"
+
+-include local.mk

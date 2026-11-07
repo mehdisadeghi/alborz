@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -534,5 +535,28 @@ func TestMirrorRoundWaitsForALockedAccount(t *testing.T) {
 	before = s.count()
 	if got := summaries(t, c); !slices.Equal(got, []string{"a", "b"}) || s.count() != before {
 		t.Fatalf("after the round the copy read %v, asking the server %d times", got, s.count()-before)
+	}
+}
+
+func TestDiscoveryWaitIsScopedAndCancelable(t *testing.T) {
+	ready, pending := make(chan struct{}), make(chan struct{})
+	close(ready)
+	p := &Provider{discovery: map[string]<-chan struct{}{"ready.test": ready, "pending.test": pending}}
+	for _, domain := range []string{"ready.test", "unlisted.test"} {
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		err := p.awaitDiscovery(ctx, domain)
+		cancel()
+		if err != nil {
+			t.Errorf("%s waited on another domain's probe: %v", domain, err)
+		}
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := p.awaitDiscovery(ctx, "pending.test"); !errors.Is(err, context.Canceled) {
+		t.Errorf("canceled wait: %v", err)
+	}
+	p.discovery[""] = pending
+	if err := p.awaitDiscovery(ctx, "unlisted.test"); !errors.Is(err, context.Canceled) {
+		t.Errorf("default-domain wait: %v", err)
 	}
 }

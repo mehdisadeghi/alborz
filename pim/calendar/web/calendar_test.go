@@ -13,8 +13,10 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	. "git.mehdix.org/alborz/internal/alborztest"
+	calweb "git.mehdix.org/alborz/pim/calendar/web"
 	"git.mehdix.org/alborz/web"
 )
 
@@ -652,5 +654,294 @@ func TestTwoQuickRailTicksBothHold(t *testing.T) {
 	}
 	if !ticks[hidden[0]] {
 		t.Errorf("%s, made again, is not on the rail ticked", hidden[0])
+	}
+}
+
+func TestCalendarMonthDayAnnotations(t *testing.T) {
+	a, c := SignedIn(t, User)
+	var dates []time.Time
+	calls := 0
+	web.Extend(a.Server, func(_ *web.Context, data *calweb.CalendarRenderData) error {
+		calls++
+		dates = append([]time.Time(nil), data.Dates...)
+		data.DayAnnotations = append(data.DayAnnotations, calweb.DayAnnotation{Name: "example", URL: "/calendar/annotations"})
+		return nil
+	})
+	c.Page(t, "calendar.month", url.Values{"month": {"2026-09"}})
+	if calls != 1 || len(dates) < 28 {
+		t.Fatalf("month extension calls = %d, visible dates = %d", calls, len(dates))
+	}
+	c.Page(t, "calendar.month", url.Values{"month": {"2026-09"}, "view": {"list"}})
+	if calls != 1 {
+		t.Fatal("agenda invoked the month extension")
+	}
+}
+
+func TestMonthEventLinksKeepTheirScope(t *testing.T) {
+	a, c := SignedIn(t, User)
+	coll := c.CreateCalendar(t, "Trips", "")
+	a.Put(t, coll+"trip.ics", "text/calendar", "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\n"+
+		"BEGIN:VEVENT\r\nUID:trip\r\nDTSTAMP:20260901T080000Z\r\nDTSTART;VALUE=DATE:20260904\r\nDTEND;VALUE=DATE:20260909\r\n"+
+		"SUMMARY:Factory visit\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n")
+	for _, account := range []string{"", User} {
+		q := url.Values{"month": {"2026-09"}, "cal": {Here + coll}}
+		if account != "" {
+			q.Set("account", account)
+		}
+		page := c.Page(t, "calendar.month", q)
+		links := regexp.MustCompile(`<a class="month-event[^"]*" href="([^"]+)"`).FindAllStringSubmatch(page, -1)
+		if len(links) != 2 {
+			t.Fatalf("account %q: got %d event links, want two week segments", account, len(links))
+		}
+		for _, link := range links {
+			u, err := url.Parse(html.UnescapeString(link[1]))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if u.Query().Get("account") != User || u.Query().Get("from") == "" {
+				t.Errorf("event link lost its owning account or return path: %s", u)
+			}
+			back, err := url.Parse(u.Query().Get("from"))
+			if err != nil || back.Query().Get("month") != "2026-09" || back.Query().Get("cal") != Here+coll || back.Query().Get("account") != account {
+				t.Errorf("event return path lost month scope: %v (%v)", back, err)
+			}
+		}
+	}
+}
+
+func TestHiddenCollectionsStayOutOfCreatePickers(t *testing.T) {
+	_, c := SignedIn(t, User)
+	for _, tc := range []struct{ list, create string }{
+		{"calendar.month", "calendar.event.create"},
+		{"calendar.tasks", "calendar.task.create"},
+		{"calendar.journal", "calendar.entry.create"},
+	} {
+		t.Run(tc.list, func(t *testing.T) {
+			holds := "both"
+			if tc.list == "calendar.journal" {
+				holds = "journal"
+			}
+			hidden := Here + c.CreateCalendar(t, "Hidden"+strings.ReplaceAll(tc.list, ".", ""), holds)
+			c.CreateCalendar(t, "Visible"+strings.ReplaceAll(tc.list, ".", ""), holds)
+			if resp := c.Post(t, tc.list, url.Values{"shown": {hidden}}); resp.StatusCode != http.StatusFound {
+				t.Fatalf("hide: %s", resp.Status)
+			}
+			page := c.Page(t, tc.create)
+			picker := Between(page, `<select name="calendar"`, `</select>`)
+			if strings.Contains(picker, "Hidden"+strings.ReplaceAll(tc.list, ".", "")) || !strings.Contains(picker, "Visible") {
+				t.Fatalf("picker did not respect visibility: %s", picker)
+			}
+		})
+	}
+}
+
+func TestEventDateModesWithoutJavaScript(t *testing.T) {
+	a, c := SignedIn(t, User)
+	coll := c.CreateCalendar(t, "Plans", "")
+	path := coll + "modes.ics"
+	a.Put(t, path, "text/calendar", "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//test//EN\r\n"+
+		"BEGIN:VEVENT\r\nUID:modes\r\nDTSTAMP:20260901T080000Z\r\nDTSTART:20260928T120000Z\r\nDTEND:20260928T130000Z\r\n"+
+		"SUMMARY:Modes\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n")
+	for _, route := range []string{"calendar.event.create", "calendar.event.update"} {
+		t.Run(route, func(t *testing.T) {
+			var args []any
+			if route == "calendar.event.update" {
+				args = []any{Here + path}
+			}
+			for _, allDay := range []bool{false, true} {
+				form := url.Values{"summary": {"Modes"}, "calendar": {User + "|" + Here + coll},
+					"start": {"invalid inactive time"}, "end": {"invalid inactive time"},
+					"start_date": {"invalid inactive date"}, "end_date": {"invalid inactive date"},
+					"start-calendar": {"gregorian"}, "end-calendar": {"gregorian"},
+					"start_date-calendar": {"gregorian"}, "end_date-calendar": {"gregorian"}}
+				if allDay {
+					form.Set("allday", "1")
+					form.Set("start_date", "2026-09-28")
+					form.Set("end_date", "2026-09-29")
+				} else {
+					form.Set("start", "2026-09-28T12:00")
+					form.Set("end", "2026-09-28T13:00")
+				}
+				if resp := c.Post(t, route, form, args...); resp.StatusCode != http.StatusFound {
+					t.Fatalf("all-day=%t submission with inactive invalid inputs answered %s", allDay, resp.Status)
+				}
+			}
+		})
+	}
+}
+
+func TestCreateCalendarWithNoneYet(t *testing.T) {
+	d := DAV(t)
+	c := Alborz(t, WithDAV(d)).SignIn(t, User)
+
+	resp := c.Post(t, "calendar.event.create", url.Values{"summary": {"Lunch"}, "start": {"2026-09-28T12:00"}, "end": {"2026-09-28T13:00"}, "start-calendar": {"gregorian"}, "end-calendar": {"gregorian"}})
+	if resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("saving an event with nowhere to save answered %s, want the form refused", resp.Status)
+	}
+
+	form := url.Values{"name": {"First"}, "color": {"#22aa55"}, "holds": {"both"}, "place": {"domain"}}
+	if resp := c.Post(t, "calendar.calendars.create", form); resp.StatusCode != http.StatusFound {
+		t.Fatalf("creating the first calendar answered %s, want a redirect", resp.Status)
+	}
+	if n := len(d.Calendars()); n != 1 {
+		t.Fatalf("the server was not asked to make the calendar: %d exist", n)
+	}
+	for deadline := time.Now().Add(2 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+		if strings.Contains(c.Page(t, "calendar.month"), "First") {
+			return
+		}
+	}
+	t.Errorf("the created calendar never appeared in the rail")
+}
+
+// The guarded client refuses the loopback stub, which is the refusal under test.
+func TestSubscribingToAnUnreadableFeedIsRefused(t *testing.T) {
+	d := DAV(t)
+	c := Alborz(t, WithDAV(d)).SignIn(t, User)
+	if resp := c.Post(t, "calendar.subscribe", url.Values{"address": {d.URL + "/feed.ics"}}); resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("an unreadable feed answered %s, want the form back", resp.Status)
+	}
+	if n := len(d.Calendars()); n != 0 {
+		t.Errorf("an address made a collection on the server")
+	}
+}
+
+func alarmed(uid, rule, action string, start time.Time) string {
+	stamp := func(t time.Time) string { return t.UTC().Format("20060102T150405Z") }
+	return "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//test//EN\r\nBEGIN:VEVENT\r\nUID:" + uid +
+		"\r\nDTSTAMP:20260901T080000Z\r\nDTSTART:" + stamp(start) + "\r\nDTEND:" + stamp(start.Add(time.Hour)) + rule +
+		"\r\nSUMMARY:Budget review\r\nBEGIN:VALARM\r\nACTION:" + action + "\r\nDESCRIPTION:Soon\r\nTRIGGER:-PT2S\r\nEND:VALARM" +
+		"\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+}
+
+// A display alarm of today's occurrence of a daily series is pushed once, naming its time and summary, though
+// two logins of the account find it; an e-mail alarm is not alborz's to fire.
+func TestEventReminderPushesItsOccurrence(t *testing.T) {
+	push := PushServer(t)
+	a, c := SignedIn(t, User, Guarded(push.Client().Transport), ReminderTick(200*time.Millisecond))
+	endpoint := push.TurnOn(t, c)
+	// A second browser's login of the account finds the same alarm in each round.
+	a.SignIn(t, User)
+	cal := c.CreateCalendar(t, "Personal", "")
+
+	start := time.Now().Add(4 * time.Second).Truncate(time.Second)
+	a.Put(t, cal+"daily.ics", "text/calendar", alarmed("daily", "\r\nRRULE:FREQ=DAILY;COUNT=3", "DISPLAY", start.AddDate(0, 0, -1)))
+	a.Put(t, cal+"mailed.ics", "text/calendar", alarmed("mailed", "", "EMAIL", start))
+
+	want := T(t, "push.event", start.UTC().Format("15:04"))
+	got := push.Await(t, endpoint, want)
+	if got.Title != want || got.Body != User+"\nBudget review" {
+		t.Fatalf("the push says %q / %q, want %q / %q", got.Title, got.Body, want, User+"\nBudget review")
+	}
+	if page := c.Follow(t, got.URL); !strings.Contains(page, "Budget review") {
+		t.Fatalf("a click on the push opens %q, which is not the event", got.URL)
+	}
+	if got.Header.Get("Urgency") != "high" {
+		t.Fatalf("urgency %q", got.Header.Get("Urgency"))
+	}
+	time.Sleep(time.Second)
+	if n := len(push.Received()); n != 1 {
+		t.Fatalf("%d pushes, want the one reminder: %+v", n, push.Received())
+	}
+}
+
+func TestSubtasksKeepTheirParentAndCompleteIndependently(t *testing.T) {
+	a, c := SignedIn(t, User)
+	cal := c.CreateCalendar(t, "Project", "tasks")
+	parent, child := cal+"parent.ics", cal+"child.ics"
+	a.Put(t, parent, "text/calendar", Todo("parent-uid", "Build prototype"))
+	a.Put(t, child, "text/calendar", Todo("child-uid", "Order components"))
+	if resp := c.Post(t, "calendar.task.edit", url.Values{"summary": {"Order components"}, "parent": {"parent-uid"}}, Here+child); resp.StatusCode != http.StatusFound {
+		t.Fatalf("set parent: %s\n%s", resp.Status, resp.Text)
+	}
+	// A descendant as parent would close a cycle.
+	if resp := c.Post(t, "calendar.task.edit", url.Values{"summary": {"Build prototype"}, "parent": {"child-uid"}}, Here+parent); resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("cycle accepted: %s", resp.Status)
+	}
+	if !strings.Contains(c.Page(t, "calendar.task", Here+parent), "Order components") {
+		t.Fatal("parent page does not list its child")
+	}
+	if resp := c.Post(t, "calendar.task.complete", url.Values{}, Here+parent); resp.StatusCode != http.StatusFound {
+		t.Fatalf("complete parent: %s", resp.Status)
+	}
+	report := a.DAV(t, "REPORT", cal, map[string]string{"Depth": "1", "Content-Type": "application/xml"}, `<C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:prop><C:calendar-data/></D:prop><C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VTODO"/></C:comp-filter></C:filter></C:calendar-query>`).Text
+	if strings.Count(report, "RELATED-TO;RELTYPE=PARENT:parent-uid") != 1 || strings.Contains(report, "PARENT:child-uid") || strings.Count(report, "STATUS:COMPLETED") != 1 {
+		t.Fatalf("relationship/completion not preserved:\n%s", report)
+	}
+	// Completed parents are absent from the open list; the child remains an open task.
+	if !strings.Contains(c.Page(t, "calendar.tasks"), "Order components") {
+		t.Fatal("completing the parent hid its open child")
+	}
+	if !strings.Contains(c.Page(t, "calendar.task", Here+parent), "Order components") {
+		t.Fatal("completed parent lost its children")
+	}
+}
+
+func TestSavingKeepsAMissingParent(t *testing.T) {
+	a, c := SignedIn(t, User)
+	cal := c.CreateCalendar(t, "Project", "tasks")
+	orphan := cal + "orphan.ics"
+	a.Put(t, orphan, "text/calendar", strings.Replace(Todo("orphan-uid", "Solder header"), "END:VTODO", "RELATED-TO;RELTYPE=PARENT:gone-uid\r\nEND:VTODO", 1))
+	if resp := c.Post(t, "calendar.task.edit", url.Values{"summary": {"Solder header"}, "parent": {"gone-uid"}}, Here+orphan); resp.StatusCode != http.StatusFound {
+		t.Fatalf("save: %s\n%s", resp.Status, resp.Text)
+	}
+	if got := a.DAV(t, "GET", orphan, nil, "").Text; !strings.Contains(got, "RELATED-TO;RELTYPE=PARENT:gone-uid") {
+		t.Fatalf("missing parent lost on save:\n%s", got)
+	}
+}
+
+func TestQuickEventDestinationMatchesTaskScope(t *testing.T) {
+	_, c := SignedIn(t, User)
+	first := Here + c.CreateCalendar(t, "First", "")
+	quick := func(params url.Values) string {
+		return html.UnescapeString(Between(c.Page(t, "calendar.day", params), `id="quick-add">`, `</form>`))
+	}
+	single := func(form string) {
+		t.Helper()
+		if strings.Contains(form, `<select`) || !strings.Contains(form, `type="hidden" name="calendar" value="`+User+`|`+first+`"`) {
+			t.Fatalf("single destination should be fixed without a picker:\n%s", form)
+		}
+		if !Says(t, form, "common.saveto") || !strings.Contains(form, "First") {
+			t.Fatalf("fixed destination must remain visible:\n%s", form)
+		}
+	}
+	single(quick(nil))
+	c.CreateCalendar(t, "Second", "")
+	if form := quick(nil); !strings.Contains(form, `data-destination-key="quickevent"`) || !strings.Contains(form, "First") || !strings.Contains(form, "Second") {
+		t.Fatalf("multiple destinations need a picker:\n%s", form)
+	}
+	single(quick(url.Values{"cal": {first}}))
+}
+
+func TestQuickEventCreatesInChosenCalendarAndKeepsInvalidInput(t *testing.T) {
+	a, c := SignedIn(t, User)
+	c.CreateCalendar(t, "First", "")
+	cal := c.CreateCalendar(t, "Chosen", "")
+	c.Post(t, "settings.profile", url.Values{"timezone": {"Europe/Berlin"}})
+	form := url.Values{"quick": {"event"}, "summary": {"Review 2026-11-03 14:00-15:30"}, "calendar": {User + "|" + Here + cal}, "next": {a.Path("calendar.month", url.Values{"view": {"list"}}) + "#quick-add"}}
+	if resp := c.Post(t, "calendar.event.create", form); resp.StatusCode != http.StatusFound || resp.Header.Get("Location") != form.Get("next") {
+		t.Fatalf("quick create: %s\n%s", resp.Status, resp.Text)
+	}
+	report := a.DAV(t, "REPORT", cal, map[string]string{"Depth": "1", "Content-Type": "application/xml"}, `<C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:prop><C:calendar-data/></D:prop><C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT"/></C:comp-filter></C:filter></C:calendar-query>`).Text
+	if !strings.Contains(report, "SUMMARY:Review") || !strings.Contains(report, "20261103T140000") || !strings.Contains(report, "Europe/Berlin") {
+		t.Fatalf("quick event not stored in chosen calendar/timezone:\n%s", report)
+	}
+	form.Set("summary", "Keep this ambiguous 03/04/2026")
+	if resp := c.Post(t, "calendar.event.create", form); resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("an ambiguous quick event answered %s, want it refused", resp.Status)
+	}
+	form.Set("summary", "Lunch tomorrow afternoon")
+	back := a.Path("calendar.day", url.Values{"date": {"2026-11-03"}, "cal": {Here + cal}})
+	form.Set("next", back+"#quick-add")
+	req, err := http.NewRequest(http.MethodPost, a.URL+a.Path("calendar.event.create"), strings.NewReader(form.Encode()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("HX-Request", "true")
+	req.Header.Set("HX-Boosted", "true")
+	resp := c.Do(t, req)
+	if resp.StatusCode != http.StatusUnprocessableEntity || resp.Header.Get("HX-Replace-Url") != back {
+		t.Fatalf("boosted invalid submission must replace create URL with calendar: %s %v", resp.Status, resp.Header)
 	}
 }

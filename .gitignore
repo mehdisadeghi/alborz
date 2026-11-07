@@ -1,7 +1,7 @@
 /alborz
 /alborz-linux
 *.mbox
-/GNUmakefile
+/local.mk
 /local/
 *.db
 /tracker.db

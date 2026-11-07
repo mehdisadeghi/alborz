@@ -198,3 +198,24 @@ func TestAnAccountsServerIsNotDialledOnOurNetwork(t *testing.T) {
 		t.Errorf("a loopback server was reached (%v), err %v", reached, err)
 	}
 }
+
+func TestRemoveObjectRequiresTheVersionRead(t *testing.T) {
+	requests := 0
+	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		if r.Method != http.MethodDelete || r.Header.Get("If-Match") != `"original"` || r.Header.Get("Schedule-Reply") != "F" {
+			t.Errorf("unsafe deletion: %s, %v", r.Method, r.Header)
+		}
+		w.WriteHeader(http.StatusPreconditionFailed)
+	}))
+	defer s.Close()
+	for _, etag := range []string{"", `W/"weak"`, `"original"`} {
+		err := RemoveObject(context.Background(), s.Client(), s.URL+"/event.ics", etag)
+		if code, _ := webdav.HTTPErrorCode(err); code != http.StatusPreconditionFailed {
+			t.Errorf("etag %q: got %v, want 412", etag, err)
+		}
+	}
+	if requests != 1 {
+		t.Errorf("sent %d deletions, want only the strong ETag", requests)
+	}
+}

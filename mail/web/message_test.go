@@ -9,6 +9,7 @@ import (
 	"io"
 	"maps"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"regexp"
 	"slices"
@@ -735,5 +736,171 @@ func TestADamagedPartShowsWhatDecodes(t *testing.T) {
 		if !strings.Contains(resp.Text, "The first line decodes.") {
 			t.Errorf("%s does not show what decoded", route)
 		}
+	}
+}
+
+// Mailman appends an inline footer outside the sender's alternative body.
+func TestMailingListFooterDoesNotReplaceTheMessage(t *testing.T) {
+	const body = "The Distributions DevRoom is returning to FOSDEM"
+	const footer = "FOSDEM mailing list -- fosdem@lists.fosdem.org"
+	raw := "From: sender@example.org\r\nTo: " + User + "\r\nSubject: Distributions Devroom\r\nMIME-Version: 1.0\r\n" +
+		"Content-Type: multipart/mixed; boundary=outer\r\n\r\n" +
+		"--outer\r\nContent-Type: multipart/alternative; boundary=inner\r\n\r\n" +
+		"--inner\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n" + body + " for a half-day.\r\n" +
+		"--inner\r\nContent-Type: text/html; charset=utf-8\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\n" +
+		"<div dir=3D\"ltr\">" + body + " for a half-day.</div>\r\n--inner--\r\n" +
+		"--outer\r\nContent-Type: text/plain; charset=us-ascii\r\nContent-Disposition: inline\r\n\r\n" + footer + "\r\n--outer--\r\n"
+	a, c := SignedIn(t, User)
+	uid := a.IMAP.Append(t, "INBOX", raw)
+	for _, preferHTML := range []string{"", "1"} {
+		c.Post(t, "settings.profile", url.Values{"prefer_html": {preferHTML}})
+		page := c.Page(t, "mail.message", "INBOX", uid)
+		if !strings.Contains(page, body) {
+			t.Errorf("prefer_html=%q: the message body is missing", preferHTML)
+		}
+	}
+	if page := c.Page(t, "mail.message", "INBOX", uid, url.Values{"part": {"2"}}); !strings.Contains(page, "FOSDEM mailing list") {
+		t.Fatal("the separately addressed footer is no longer accessible")
+	}
+}
+
+// What another app shares opens compose: its title the subject, its text and link the body, its file
+// attached and sent with the message even without a script.
+func TestShareOpensCompose(t *testing.T) {
+	smtp := SMTP(t)
+	a := Alborz(t, WithSMTP(smtp))
+	c := a.SignIn(t, User)
+	resp := c.Upload(t, "mail.share", url.Values{"title": {"Trip notes"}, "text": {"See the plan."}, "url": {"https://example.org/plan"}},
+		[]File{{Field: "files", Name: "plan.txt", Type: "text/plain", Body: strings.NewReader("Day one: the coast.")}})
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("sharing answered %s", resp.Status)
+	}
+	page := c.Follow(t, resp.Header.Get("Location"))
+	for _, want := range []string{`value="Trip notes"`, "See the plan.\n\nhttps://example.org/plan", "plan.txt"} {
+		if !strings.Contains(page, want) {
+			t.Fatalf("compose lacks %q", want)
+		}
+	}
+	uuids := Between(page, `name="attachment-uuids" value="`, `"`)
+	if uuids == "" {
+		t.Fatal("the shared file is not carried by the form")
+	}
+	sent := c.Upload(t, "mail.compose", url.Values{"to": {"eve@example.org"}, "subject": {"Trip notes"}, "text": {"See the plan."}, "attachment-uuids": {uuids}}, nil)
+	if sent.StatusCode != http.StatusFound {
+		t.Fatalf("sending answered %s", sent.Status)
+	}
+	file := "Day one: the coast."
+	if msg := smtp.Last(); !strings.Contains(msg, "plan.txt") || !strings.Contains(msg, file) && !strings.Contains(msg, base64.StdEncoding.EncodeToString([]byte(file))) {
+		t.Fatalf("the sent message lacks the shared file:\n%s", msg)
+	}
+}
+
+func TestImageReferencesSurviveLoadingImages(t *testing.T) {
+	a := Alborz(t)
+	uid := a.IMAP.Append(t, "INBOX", "From: <eve@example.org>\r\nTo: <"+User+">\r\nSubject: Images\r\nMIME-Version: 1.0\r\n"+
+		"Content-Type: multipart/related; boundary=r\r\n\r\n"+
+		"--r\r\nContent-Type: text/html\r\n\r\nMARK<img src=\"cid:logo%40example.org\"><img src=\"http://images.example.org/logo.png\">\r\n"+
+		"--r\r\nContent-Type: image/png\r\nContent-ID: <logo@example.org>\r\n\r\nPNG\r\n--r--\r\n")
+	c := a.SignIn(t, User)
+	for _, allowed := range []string{"", "1"} {
+		doc := frameDoc(t, c.Page(t, "mail.message", "INBOX", uid, url.Values{"part": {"1"}, "allow-remote-resources": {allowed}}))
+		if !strings.Contains(doc, a.Path("mail.message.raw", "INBOX", uid)) {
+			t.Error("percent-encoded Content-ID lost its inline image")
+		}
+		if got := strings.Contains(doc, a.Path("mail.proxy")+"?"); got != (allowed == "1") {
+			t.Errorf("allowed=%q: HTTP image proxied=%v", allowed, got)
+		}
+	}
+}
+
+func TestRemoteImageProxyValidatesTheActualResponse(t *testing.T) {
+	png, _ := base64.StdEncoding.DecodeString("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aN1sAAAAASUVORK5CYII=")
+	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/generic":
+			w.Header().Set("Content-Type", "application/octet-stream")
+		case "/missing":
+			w.Header().Set("Content-Type", "image/png")
+			w.WriteHeader(http.StatusNotFound)
+		case "/oversized":
+			w.Header().Set("Content-Type", "image/png")
+			w.WriteHeader(http.StatusOK)
+			w.(http.Flusher).Flush()
+			w.Write(make([]byte, (5<<20)+1))
+			return
+		case "/html":
+			w.Header().Set("Content-Type", "text/html")
+			w.Write([]byte("<html>not an image</html>"))
+			return
+		}
+		w.Write(png)
+	}))
+	defer upstream.Close()
+	a := Alborz(t, Guarded(upstream.Client().Transport))
+	c := a.SignIn(t, User)
+	for _, path := range []string{"generic", "missing", "oversized", "html"} {
+		resp := c.Get(t, "mail.proxy", url.Values{"src": {upstream.URL + "/" + path}})
+		if path == "generic" {
+			if resp.StatusCode != http.StatusOK || resp.Header.Get("Content-Type") != "image/png" || resp.Text != string(png) {
+				t.Errorf("valid PNG with generic MIME: %s %q", resp.Status, resp.Header.Get("Content-Type"))
+			}
+		} else if resp.StatusCode < 400 {
+			t.Errorf("%s served as an image: %s", path, resp.Status)
+		}
+	}
+}
+
+func TestAnUncachedReadConfirmsSeenOnTheServer(t *testing.T) {
+	a := Alborz(t, NoCache(), WithIMAP(IMAP(t, FetchKeepsUnread())))
+	uid := a.IMAP.Append(t, "INBOX", "From: eve@example.org\r\nSubject: Read me\r\n\r\nHello.\r\n")
+	c := a.SignIn(t, User)
+	c.Page(t, "mail.message", "INBOX", uid)
+	other := a.IMAP.Dial(t)
+	if _, err := other.Select("INBOX", nil).Wait(); err != nil {
+		t.Fatal(err)
+	}
+	msgs, err := other.Fetch(imap.UIDSetNum(uid), &imap.FetchOptions{Flags: true}).Collect()
+	if err != nil || len(msgs) != 1 {
+		t.Fatalf("reading the flags: %v (%d messages)", err, len(msgs))
+	}
+	if !slices.Contains(msgs[0].Flags, imap.FlagSeen) {
+		t.Fatal("opening the message left it unread on the mail server")
+	}
+}
+
+func TestAReadOnlyMessageStaysReadableAndUnread(t *testing.T) {
+	for _, cached := range []bool{false, true} {
+		name := "uncached"
+		if cached {
+			name = "cached"
+		}
+		t.Run(name, func(t *testing.T) {
+			opts := []Option{WithIMAP(IMAP(t, ReadOnlyMailboxes()))}
+			if !cached {
+				opts = append(opts, NoCache())
+			}
+			a := Alborz(t, opts...)
+			uid := a.IMAP.Append(t, "INBOX", "From: eve@example.org\r\nSubject: Read-only message\r\n\r\nStill readable.\r\n")
+			c := a.SignIn(t, User)
+			c.Page(t, "mail.mailbox", "INBOX", url.Values{"query": {"subject:Read-only message"}})
+			if page := c.Page(t, "mail.message", "INBOX", uid); !strings.Contains(page, "Still readable.") {
+				t.Fatal("the read-only message body was not shown")
+			}
+			other := a.IMAP.Dial(t)
+			if _, err := other.Select("INBOX", nil).Wait(); err != nil {
+				t.Fatal(err)
+			}
+			msgs, err := other.Fetch(imap.UIDSetNum(uid), &imap.FetchOptions{Flags: true}).Collect()
+			if err != nil || len(msgs) != 1 {
+				t.Fatalf("reading the flags: %v (%d messages)", err, len(msgs))
+			}
+			if slices.Contains(msgs[0].Flags, imap.FlagSeen) {
+				t.Fatal("opening a read-only message marked it read on the server")
+			}
+			page := c.Page(t, "mail.mailbox", "INBOX", url.Values{"query": {"subject:Read-only message"}})
+			if !strings.Contains(page, "message-list-unread") {
+				t.Fatal("the listing incorrectly marks the read-only message read")
+			}
+		})
 	}
 }

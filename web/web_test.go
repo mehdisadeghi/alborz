@@ -141,7 +141,7 @@ func TestShellCachesLayoutScripts(t *testing.T) {
 	}
 }
 
-// A season paints its scene in every scheme, and no other theme paints one (ADR 77).
+// A season paints its scene in every scheme, and no other theme paints one.
 func TestSeasonThemesPaintTheirSceneInEveryScheme(t *testing.T) {
 	a := Alborz(t)
 	c := a.SignIn(t, User)

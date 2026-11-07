@@ -18,8 +18,8 @@ const browser = readonly([
 	"performance", "print", "prompt", "queueMicrotask", "removeEventListener",
 	"requestAnimationFrame", "screen", "scrollTo", "sessionStorage", "setInterval", "setTimeout",
 	"structuredClone", "visualViewport", "window",
-	// Vendored libraries loaded before our scripts.
-	"htmx", "Squire",
+	// Vendored libraries and globals shared across our classic scripts.
+	"htmx", "Squire", "applyScheme", "failedNotice", "showScriptFailure",
 ]);
 
 const worker = readonly(["clients", "importScripts", "registration", "self"]);
@@ -33,15 +33,15 @@ const node = readonly([
 
 const rules = {
 	// A leading underscore marks a parameter kept for its position.
-	"no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
-	"no-undef": "warn",
+	"no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
+	"no-undef": "error",
 	// An empty catch deliberately ignores a best-effort failure.
-	"no-empty": ["warn", { allowEmptyCatch: true }],
-	"no-useless-escape": "warn",
-	"no-constant-condition": "warn",
+	"no-empty": ["error", { allowEmptyCatch: true }],
+	"no-useless-escape": "error",
+	"no-constant-condition": "error",
 	"no-unreachable": "error",
 	"no-dupe-keys": "error",
-	"no-redeclare": "error",
+	"no-redeclare": ["error", { builtinGlobals: false }],
 };
 
 export default [

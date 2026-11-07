@@ -12,7 +12,7 @@ import (
 // A sign-in goes on to the page that asked for it, and never off the site.
 func TestSignInStaysOnTheSite(t *testing.T) {
 	a := Alborz(t)
-	// A desktop acknowledges its first tour separately from the sign-in (ADR 76).
+	// A desktop acknowledges its first tour separately from the sign-in.
 	c := a.SignIn(t, User)
 	if resp := c.Post(t, "core.tour.seen", nil); resp.StatusCode != http.StatusNoContent {
 		t.Fatalf("acknowledging the tour answered %s", resp.Status)

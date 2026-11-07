@@ -24,7 +24,7 @@ require (
 	github.com/emersion/go-webdav v0.7.0
 	github.com/fxamacker/cbor/v2 v2.9.4
 	github.com/go-webauthn/webauthn v0.18.2
-	github.com/klauspost/compress v1.20.1
+	github.com/klauspost/compress v1.20.2
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/nicksnyder/go-i18n/v2 v2.6.1
 	github.com/smallstep/pkcs7 v0.2.3

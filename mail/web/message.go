@@ -281,6 +281,11 @@ func (p *plugin) handleGetPart(ctx *web.Context) error {
 	if err := web.Extended(ctx, &data.Shown); err != nil {
 		return err
 	}
+	// Only a page that shows the body reads the message; the body is on hand, so a failed store
+	// leaves it unread rather than failing the page.
+	if err := p.MarkRead(ctx.Request().Context(), ctx.Login, shown); err != nil {
+		ctx.Logger().Printf("mark read %s %d: %v", mboxName, uid, err)
+	}
 	return ctx.Render(http.StatusOK, "mail/message", data)
 }
 

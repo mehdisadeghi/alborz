@@ -219,7 +219,7 @@ func (p *Mailboxes) prefetchBodies(s *alborz.Login, preferHTML bool, mbox string
 						}
 						lastClient, lastSelection = c, c.Mailbox()
 					}
-					msgs, err := c.Fetch(imap.UIDSetNum(active...), partFetchOptions(path, true, true)).Collect()
+					msgs, err := c.Fetch(imap.UIDSetNum(active...), partFetchOptions(path, true)).Collect()
 					if err != nil {
 						return err
 					}

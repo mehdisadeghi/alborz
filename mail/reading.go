@@ -11,6 +11,7 @@ import (
 	"mime"
 	"net/url"
 	"path"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -23,6 +24,8 @@ import (
 	"github.com/emersion/go-message/charset"
 	"github.com/emersion/go-message/mail"
 	"github.com/emersion/go-message/textproto"
+	nethtml "golang.org/x/net/html"
+	"golang.org/x/net/html/atom"
 	"jaytaylor.com/html2text"
 )
 
@@ -140,8 +143,58 @@ func StreamPart(ctx context.Context, login *alborz.Login, mboxName string, uid i
 	})
 }
 
+// HTMLText reads HTML as words. html2text keeps only the breaks of <br> and <pre>, so a line break a
+// style keeps (white-space: pre, pre-wrap, pre-line, break-spaces), as the HTML view shows it, is
+// made a <br> first.
+func HTMLText(r io.Reader) (string, error) {
+	doc, err := nethtml.Parse(r)
+	if err != nil {
+		return "", err
+	}
+	keepStyledBreaks(doc, false)
+	return html2text.FromHTMLNode(doc, html2text.Options{})
+}
+
+var whiteSpaceStyle = regexp.MustCompile(`(?i)white-space\s*:\s*([a-z-]+)`)
+
+// keepStyledBreaks turns the line breaks of text under a white-space style that keeps them into <br>.
+func keepStyledBreaks(n *nethtml.Node, keep bool) {
+	switch n.DataAtom {
+	case atom.Pre, atom.Script, atom.Style, atom.Textarea:
+		return
+	}
+	for _, a := range n.Attr {
+		if strings.EqualFold(a.Key, "style") {
+			// The last declaration wins.
+			if m := whiteSpaceStyle.FindAllStringSubmatch(a.Val, -1); m != nil {
+				switch strings.ToLower(m[len(m)-1][1]) {
+				case "pre", "pre-wrap", "pre-line", "break-spaces":
+					keep = true
+				default:
+					keep = false
+				}
+			}
+		}
+	}
+	for c := n.FirstChild; c != nil; {
+		next := c.NextSibling
+		if c.Type == nethtml.TextNode && keep && strings.Contains(c.Data, "\n") {
+			for i, line := range strings.Split(c.Data, "\n") {
+				if i > 0 {
+					n.InsertBefore(&nethtml.Node{Type: nethtml.ElementNode, Data: "br", DataAtom: atom.Br}, c)
+				}
+				n.InsertBefore(&nethtml.Node{Type: nethtml.TextNode, Data: line}, c)
+			}
+			n.RemoveChild(c)
+		} else {
+			keepStyledBreaks(c, keep)
+		}
+		c = next
+	}
+}
+
 func htmlAsText(part *message.Entity) (*message.Entity, error) {
-	text, err := html2text.FromReader(part.Body, html2text.Options{})
+	text, err := HTMLText(part.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read the HTML as text: %v", err)
 	}
@@ -321,7 +374,7 @@ func CalendarPart(ctx context.Context, login *alborz.Login, msg *IMAPMessage, mb
 		if err := ensureMailboxSelected(c, mboxName); err != nil {
 			return err
 		}
-		msg, err := fetchOne(c, uid, partFetchOptions(part.Path, true, true))
+		msg, err := fetchOne(c, uid, partFetchOptions(part.Path, true))
 		if err != nil {
 			return err
 		}
@@ -394,9 +447,12 @@ type Opened struct {
 	DeliveredTo, ForwardedBy string
 	// Unsubscribe is the mail that leaves the list, where it takes one.
 	Unsubscribe url.Values
+	// held says the body came from the prefetch, under the folder's validity.
+	held     bool
+	validity uint32
 }
 
-// Read reads a message for its page, from what is held where it can, and marks it read.
+// Read reads a message for its page, from what is held where it can; MarkRead marks it read.
 func (p *Mailboxes) Read(ctx context.Context, r ReadAsk) (*Opened, error) {
 	// Read before the message's IMAP work: it may sample the inbox, and the login lock is not reentrant.
 	trusted := p.TrustedAuthServ(r.Login, r.Settings)
@@ -448,10 +504,6 @@ func (p *Mailboxes) Read(ctx context.Context, r ReadAsk) (*Opened, error) {
 		}
 		permanentFlags = held.permanent
 		authResults = readAuthResults(messageRootHeader(msg), trusted)
-		// The peek left it unread on the server; the page is what reads it.
-		if !msg.HasFlag(imap.FlagSeen) && slices.Contains(permanentFlags, imap.FlagSeen) {
-			p.markHeldSeen(r.Login, r.Mailbox, r.UID, held.validity)
-		}
 	}
 	sent := sentFolder(sb.Mailboxes)
 	needsThread := msg != nil && (len(msg.Envelope.InReplyTo) > 0 || msg.References != "" || (sent != "" && r.Mailbox == sent))
@@ -473,12 +525,8 @@ func (p *Mailboxes) Read(ctx context.Context, r ReadAsk) (*Opened, error) {
 					return err
 				}
 				permanentFlags = c.Mailbox().PermanentFlags
-				if !msg.HasFlag(imap.FlagSeen) && slices.Contains(permanentFlags, imap.FlagSeen) {
-					if err := storeFlags(c, r.Mailbox, imap.UIDSetNum(r.UID), imap.StoreFlagsAdd, []imap.Flag{imap.FlagSeen}); err != nil {
-						return err
-					}
-					p.messageRead(r.Login.Username(), r.Mailbox, r.UID)
-				} else if msg.HasFlag(imap.FlagSeen) {
+				// Read elsewhere: the listing learns it. Unread stays so until MarkRead.
+				if msg.HasFlag(imap.FlagSeen) {
 					p.messageRead(r.Login.Username(), r.Mailbox, r.UID)
 				}
 			}
@@ -536,11 +584,37 @@ func (p *Mailboxes) Read(ctx context.Context, r ReadAsk) (*Opened, error) {
 	if addressed(deliveredTo, msg.Envelope.To, msg.Envelope.Cc) {
 		deliveredTo = ""
 	}
-	return &Opened{Message: msg, Part: part, PartPath: partPath, Rail: sb, PermanentFlags: permanentFlags,
+	opened := &Opened{Message: msg, Part: part, PartPath: partPath, Rail: sb, PermanentFlags: permanentFlags,
 		AuthResults: authResults, InReplyTo: inReplyTo, Answers: answers,
 		ThreadAlgorithm: threadAlgorithm, Place: place, DeferContext: deferContext, Warnings: warnings, Mark: mark,
 		DeliveredTo: deliveredTo, ForwardedBy: ForwardedBy(msg.rootHeader, trusted, msg.ListID),
-		Unsubscribe: unsubscribeMail(r.Settings, trust, msg)}, nil
+		Unsubscribe: unsubscribeMail(r.Settings, trust, msg)}
+	if held != nil {
+		opened.held, opened.validity = true, held.validity
+	}
+	return opened, nil
+}
+
+// MarkRead stores \Seen on an opened message, called once its page has the body it shows, so a
+// fetch that failed leaves it unread. A held body answers without waiting on the server.
+func (p *Mailboxes) MarkRead(ctx context.Context, s *alborz.Login, o *Opened) error {
+	msg := o.Message
+	// Some servers announce only \* (RFC 9051 7.1); a peek leaves nothing else to set \Seen.
+	settable := slices.ContainsFunc(o.PermanentFlags, func(f imap.Flag) bool { return f == imap.FlagSeen || f == imap.FlagWildcard })
+	if msg.HasFlag(imap.FlagSeen) || !settable {
+		return nil
+	}
+	if o.held {
+		p.markHeldSeen(s, msg.Mailbox, msg.UID, o.validity)
+		return nil
+	}
+	return s.DoIMAPContext(ctx, alborz.RoundTripTimeout, func(c *imapclient.Client) error {
+		if err := storeFlags(c, msg.Mailbox, imap.UIDSetNum(msg.UID), imap.StoreFlagsAdd, []imap.Flag{imap.FlagSeen}); err != nil {
+			return err
+		}
+		p.messageRead(s.Username(), msg.Mailbox, msg.UID)
+		return nil
+	})
 }
 
 // Body is the part a message's page shows: the HTML its pieces make whole, and read as words where

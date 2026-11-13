@@ -45,7 +45,7 @@ func (p *Mailboxes) Verify(ctx context.Context, login *alborz.Login, mboxName st
 		if err := ensureMailboxSelected(c, mboxName); err != nil {
 			return err
 		}
-		buf, err := fetchOne(c, uid, partFetchOptions(nil, true, false))
+		buf, err := fetchOne(c, uid, partFetchOptions(nil, false))
 		if err != nil {
 			return err
 		}

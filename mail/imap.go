@@ -1632,11 +1632,13 @@ func (node IMAPPartNode) Cut() bool {
 	return node.octets > partReadMax
 }
 
+// A fetch never marks the message read: a reply cut off after the server set \Seen would leave a
+// message read that the page never showed. Reading stores \Seen itself (Mailboxes.MarkRead).
 func fetchMessagePart(conn *imapclient.Client, mboxName string, uid imap.UID, partPath []int, cut bool) (*IMAPMessage, *message.Entity, error) {
 	if err := ensureMailboxSelected(conn, mboxName); err != nil {
 		return nil, nil, err
 	}
-	msg, err := fetchOne(conn, uid, partFetchOptions(partPath, false, cut))
+	msg, err := fetchOne(conn, uid, partFetchOptions(partPath, cut))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1646,10 +1648,10 @@ func fetchMessagePart(conn *imapclient.Client, mboxName string, uid imap.UID, pa
 // The message's header comes too, for what a part's does not carry, like
 // List-Post. Without a part it comes alone, as the bare envelope shows no body.
 // With cut, no more than partReadMax bytes of the body cross the wire.
-func partFetchOptions(partPath []int, peek, cut bool) *imap.FetchOptions {
-	sections := []*imap.FetchItemBodySection{{Peek: peek, Specifier: imap.PartSpecifierHeader}}
+func partFetchOptions(partPath []int, cut bool) *imap.FetchOptions {
+	sections := []*imap.FetchItemBodySection{{Peek: true, Specifier: imap.PartSpecifierHeader}}
 	if len(partPath) > 0 {
-		body := &imap.FetchItemBodySection{Peek: peek, Part: partPath}
+		body := &imap.FetchItemBodySection{Peek: true, Part: partPath}
 		if cut {
 			body.Partial = &imap.SectionPartial{Size: partReadMax}
 		}
@@ -1667,7 +1669,7 @@ func partFetchOptions(partPath []int, peek, cut bool) *imap.FetchOptions {
 }
 
 func messagePart(msg *imapclient.FetchMessageBuffer, mboxName string, uid imap.UID, partPath []int, cut bool) (*IMAPMessage, *message.Entity, error) {
-	sections := partFetchOptions(partPath, true, cut).BodySection
+	sections := partFetchOptions(partPath, cut).BodySection
 	rootHeaderBuf := msg.FindBodySection(sections[0])
 	if rootHeaderBuf == nil {
 		return nil, nil, fmt.Errorf("server didn't return the header")

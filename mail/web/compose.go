@@ -16,7 +16,6 @@ import (
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-message"
-	"jaytaylor.com/html2text"
 )
 
 // AttachedMessage names a whole message the form carries across a round trip.
@@ -576,7 +575,7 @@ func readComposePart(part *message.Entity, mimeType string, quote bool) (string,
 	case "text/plain":
 		body, err = mail.ReadText(part)
 	case "text/html":
-		body, err = html2text.FromReader(part.Body, html2text.Options{})
+		body, err = mail.HTMLText(part.Body)
 	default:
 		return "", web.NewError(http.StatusBadRequest, fmt.Errorf("cannot forward %q part", mimeType))
 	}

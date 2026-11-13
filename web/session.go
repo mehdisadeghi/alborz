@@ -89,6 +89,22 @@ func (s *Session) remembers(address string) bool {
 	return ok
 }
 
+// unrestored reports whether a remembered account has no live login.
+func (s *Session) unrestored() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for address := range s.remember {
+		if !s.liveLocked(address) {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *Session) liveLocked(address string) bool {
+	return slices.ContainsFunc(s.accounts, func(l *alborz.Login) bool { return l.Username() == address && l.Alive() })
+}
+
 func (s *Session) forget(address string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -177,9 +193,7 @@ func (s *Session) restored(login *alborz.Login, sealed []byte) bool {
 		!bytes.Equal(s.remember[login.Username()], sealed) {
 		return false
 	}
-	if slices.ContainsFunc(s.accounts, func(other *alborz.Login) bool {
-		return other.Username() == login.Username() && other.Alive()
-	}) {
+	if s.liveLocked(login.Username()) {
 		return false
 	}
 	s.addLocked(login)

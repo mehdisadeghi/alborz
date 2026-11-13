@@ -3,6 +3,7 @@ package web
 import (
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -158,21 +159,15 @@ func (ctx *Context) signIn(next HandlerFunc, required bool) error {
 		login = live[0]
 	}
 
-	// An intercepted POST cannot be resumed after login, so remembered accounts sign back in first;
-	// so does a remembered account that timed out while another stayed (a device kept it, ADR 74).
-	if required && (login == nil || len(ctx.lostAccounts) > 0) {
-		var forgotten []string
-		if session := ctx.lookupSession(); session != nil {
-			for _, address := range ctx.lostAccounts {
-				if !session.remembers(address) {
-					forgotten = append(forgotten, address)
-				}
-			}
-		}
-		if ctx.RestoreRememberedAccounts() {
+	// Any remembered account with no live login signs back in on a page that needs one, wherever its
+	// timeout was first seen: an intercepted POST cannot be resumed after login, and an account that timed
+	// out while another stayed comes back too (a device kept it, ADR 74). A public page does not wait on
+	// an upstream sign-in; Server.Restore holds a failed account back, so a broken upstream is not hammered.
+	if session := ctx.lookupSession(); session != nil {
+		// A remembered account comes back or its restore names the failure; only one not remembered is gone.
+		ctx.lostAccounts = slices.DeleteFunc(ctx.lostAccounts, session.remembers)
+		if required && (login == nil || session.unrestored()) && ctx.RestoreRememberedAccounts() {
 			login = ctx.Login
-			// A restore names its own failures; only an account not remembered is gone.
-			ctx.lostAccounts = forgotten
 		}
 	}
 	if login == nil && required {

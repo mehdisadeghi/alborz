@@ -128,6 +128,7 @@ main .details > .subject-row > h1 {
 .subject-row .flag-split .flag-button.button-link {
   width: 2rem;
   min-width: 2rem;
+  min-height: var(--control-height);
   font-size: var(--text-xl);
 }
 
@@ -138,6 +139,7 @@ main .details > .subject-row > h1 {
   width: var(--control-height);
   min-width: var(--control-height);
   height: var(--control-height);
+  min-height: var(--control-height);
   padding: 0;
   line-height: 1;
   color: var(--flag-set, var(--flag));

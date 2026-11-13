@@ -98,6 +98,11 @@ div.overflow {
   gap: 0.25rem;
 }
 
+/* A row in the buttons' box, the icon rows' height on any pointer. */
+.overflow-menu :where(button, .button-link, select) {
+  min-height: var(--control-height);
+}
+
 .overflow-menu button,
 .overflow-menu .button-link {
   width: 100%;

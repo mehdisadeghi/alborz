@@ -7,9 +7,9 @@ button,
   text-decoration: none;
   text-align: center;
   display: inline-block;
-  min-height: var(--control-height);
+  min-height: var(--action-size);
   padding: var(--space-1) var(--space-2);
-  min-width: var(--control-height);
+  min-width: var(--action-size);
   font-size: var(--text-sm);
   line-height: 1.25;
   border: 1px solid var(--border);
@@ -41,21 +41,22 @@ button,
   visibility: hidden;
 }
 
-/* Text actions in forms share a touch target, and so does a picker beside them; editor and toolbar icons keep their own. */
+/* Every text action is a touch target on a coarse pointer; a control of another kind (icon, menu row, chip, mark) sets its own box. */
 @media (pointer: coarse) {
-  main.settings form button,
-  main.login :is(button, .button, .button-link),
-  .list-item > form > button,
-  .invitation-actions :is(button, select),
-  .note-box > button {
-    min-height: 2.75rem;
-    min-width: 2.75rem;
+  :root {
+    --action-size: 2.75rem;
   }
 
   /* Their width is the label's, wider than the target. */
   .form-actions > * {
-    min-height: 2.75rem;
+    min-height: var(--action-size);
   }
+}
+
+/* A picker beside a text action takes its height. */
+:where(:has(> :is(button, .button, .button-link, input[type="submit"]))) > select,
+:where(:has(> :is(button, .button, .button-link, input[type="submit"]))) > label > select {
+  min-height: var(--action-size);
 }
 
 .button:not(:disabled):not([aria-disabled="true"]):not(.is-disabled):hover,

@@ -203,6 +203,11 @@ main.create-update .headers > .compose-more {
   font-size: var(--text-sm);
 }
 
+/* A field among the header's fields, in their height. */
+.signature-pick > :is(select, button) {
+  min-height: var(--control-height);
+}
+
 .signature-pick > label {
   color: var(--fg-dim);
   font-size: var(--text-sm);

@@ -12,7 +12,7 @@
 }
 
 .quick-add :is(input[name="summary"], select, button) {
-  height: var(--control-height);
+  height: var(--action-size);
   padding-block: 0;
 }
 

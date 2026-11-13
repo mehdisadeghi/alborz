@@ -253,6 +253,10 @@ func (ctx *Context) RestoreRememberedAccounts() bool {
 	var want []credential
 	session.mu.Lock()
 	for address, sealed := range session.remember {
+		// A live account needs no second upstream sign-in.
+		if slices.ContainsFunc(session.accounts, func(l *alborz.Login) bool { return l.Username() == address && l.Alive() }) {
+			continue
+		}
 		password, ok := ctx.openRemembered(sealed, session.expires, time.Now())
 		if !ok {
 			continue

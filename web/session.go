@@ -82,6 +82,13 @@ func (s *Session) Remember(address string, sealed []byte) {
 	s.remember[address] = sealed
 }
 
+func (s *Session) remembers(address string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, ok := s.remember[address]
+	return ok
+}
+
 func (s *Session) forget(address string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

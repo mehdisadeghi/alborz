@@ -23,6 +23,8 @@
 "form.nametaken" = "Ya existe una colección llamada %s."
 "form.localcollectionname" = "Usa entre 1 y 120 letras latinas, dígitos, espacios o . _ @ -; no solo uno o dos puntos."
 "form.sendrefused" = "El mensaje no se envió. El servidor dijo: %s"
+"form.utf8address" = "El mensaje no se envió. El servidor no acepta direcciones internacionales como %s."
+"form.addressinvalid" = "%s no es una dirección válida."
 "form.sentmissing" = "El mensaje no se envió porque esta cuenta no tiene una carpeta Enviados."
 "notice.senduncertain" = "Es posible que el servidor haya aceptado el mensaje. Revisa Enviados o consulta al destinatario antes de redactarlo de nuevo."
 "notice.sentfollowup" = "Mensaje enviado. Revisa Enviados y el borrador; el archivado o la limpieza podrían estar incompletos."

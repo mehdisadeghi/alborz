@@ -23,6 +23,8 @@
 "form.nametaken" = "Eine Sammlung namens %s gibt es bereits."
 "form.localcollectionname" = "Verwende 1–120 lateinische Buchstaben, Ziffern, Leerzeichen oder . _ @ -. Der Name darf nicht . oder .. sein."
 "form.sendrefused" = "Die Nachricht wurde nicht gesendet. Der Server sagt: %s"
+"form.utf8address" = "Die Nachricht wurde nicht gesendet. Der Server nimmt keine internationalen Adressen wie %s an."
+"form.addressinvalid" = "%s ist keine gültige Adresse."
 "form.sentmissing" = "Die Nachricht wurde nicht gesendet, da diesem Konto ein Gesendet-Postfach fehlt."
 "notice.senduncertain" = "Der Mailserver hat die Nachricht möglicherweise angenommen. Prüfe Gesendet oder frage den Empfänger, bevor du sie erneut verfasst."
 "notice.sentfollowup" = "Nachricht gesendet. Prüfe Gesendet und den Entwurf; das Ablegen oder Aufräumen könnte unvollständig sein."

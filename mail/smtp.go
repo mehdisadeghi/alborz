@@ -327,18 +327,18 @@ func prepareAddressList(addresses []string) ([]*mail.Address, error) {
 
 // WriteMessage writes the message as RFC 5322 bytes; not WriteTo, whose name belongs to io.WriterTo.
 func (msg *OutgoingMessage) WriteMessage(w io.Writer) error {
-	fromAddr, err := mail.ParseAddress(msg.From)
+	fromAddr, err := aLabels(msg.From)
 	if err != nil {
 		return err
 	}
 	from := []*mail.Address{fromAddr}
 
-	to, err := prepareAddressList(msg.To)
+	to, err := aLabelList(msg.To)
 	if err != nil {
 		return err
 	}
 
-	cc, err := prepareAddressList(msg.Cc)
+	cc, err := aLabelList(msg.Cc)
 	if err != nil {
 		return err
 	}
@@ -352,14 +352,14 @@ func (msg *OutgoingMessage) WriteMessage(w io.Writer) error {
 		h.SetText("Subject", msg.Subject)
 	}
 	if len(msg.ReplyTo) > 0 {
-		replyTo, err := prepareAddressList(msg.ReplyTo)
+		replyTo, err := aLabelList(msg.ReplyTo)
 		if err != nil {
 			return err
 		}
 		h.SetAddressList("Reply-To", replyTo)
 	}
 	if msg.Sender != "" {
-		if addr, err := mail.ParseAddress(msg.Sender); err == nil {
+		if addr, err := aLabels(msg.Sender); err == nil {
 			h.SetAddressList("Sender", []*mail.Address{addr})
 		}
 	}
@@ -560,6 +560,10 @@ func deliverWithPhase(sender *alborz.Login, msg *OutgoingMessage) (*seal.Spool, 
 		if _, ok := err.(alborz.AuthError); ok {
 			return nil, false, err
 		}
+		// Refused before MAIL: an address the session cannot carry.
+		if no, ok := errors.AsType[Refused](err); ok {
+			return nil, false, no
+		}
 		return nil, dataStarted, Refused{"form.sendrefused", err}
 	}
 	return body, false, nil
@@ -567,21 +571,26 @@ func deliverWithPhase(sender *alborz.Login, msg *OutgoingMessage) (*seal.Spool, 
 
 // sendMessage transmits body, a spooled msg, from its start.
 func sendMessage(c *smtp.Client, msg *OutgoingMessage, body io.ReadSeeker, dataStarted *bool) error {
-	addr, err := mail.ParseAddress(msg.From)
+	typed := slices.Concat([]string{msg.From}, msg.To, msg.Bcc, msg.Cc)
+	envelope, err := aLabelList(typed)
 	if err != nil {
-		return fmt.Errorf("parsing 'From' address failed: %v", err)
+		return err
 	}
 
-	if err := c.Mail(addr.Address, nil); err != nil {
+	// A UTF-8 addr-spec rides only on SMTPUTF8 (RFC 6531 3.4); refused before MAIL without it.
+	var opts *smtp.MailOptions
+	if address := needsUTF8(typed, envelope); address != "" {
+		if ok, _ := c.Extension("SMTPUTF8"); !ok {
+			return Refused{"form.utf8address", addressError{address: address}}
+		}
+		opts = &smtp.MailOptions{UTF8: true}
+	}
+
+	if err := c.Mail(envelope[0].Address, opts); err != nil {
 		return fmt.Errorf("MAIL FROM failed: %w", err)
 	}
 
-	for _, to := range append(msg.To, append(msg.Bcc, msg.Cc...)...) {
-		addr, err := mail.ParseAddress(to)
-		if err != nil {
-			return fmt.Errorf("parsing address %q failed: %v", to, err)
-		}
-
+	for _, addr := range envelope[1:] {
 		if err := c.Rcpt(addr.Address, nil); err != nil {
 			return fmt.Errorf("RCPT TO failed: %w (%s)", err, addr.Address)
 		}

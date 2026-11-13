@@ -22,6 +22,8 @@
 "form.nametaken" = "Une collection nommée %s existe déjà."
 "form.localcollectionname" = "Utilise de 1 à 120 lettres latines, chiffres, espaces ou . _ @ - ; pas uniquement un ou deux points."
 "form.sendrefused" = "Le message n’a pas été envoyé. Le serveur a répondu : %s"
+"form.utf8address" = "Le message n’a pas été envoyé. Le serveur n’accepte pas les adresses internationales comme %s."
+"form.addressinvalid" = "%s n’est pas une adresse valide."
 "form.sentmissing" = "Le message n’a pas été envoyé car ce compte n’a pas de dossier Envoyés."
 "notice.senduncertain" = "Le serveur de messagerie a peut-être accepté le message. Vérifie Envoyés ou demande au destinataire avant de le rédiger à nouveau."
 "notice.sentfollowup" = "Message envoyé. Vérifie Envoyés et le brouillon ; le classement ou le nettoyage est peut-être incomplet."

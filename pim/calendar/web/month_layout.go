@@ -10,21 +10,35 @@ import (
 	"git.mehdix.org/alborz/pim/calendar"
 )
 
+// monthLanes is how many bars a week holds before its days count the rest.
+const monthLanes = 3
+
+// MonthWeek's Overflow counts what its lanes cannot hold; Squeezed counts,
+// for a window that fits fewer lanes, what a day hides at each Fit.
 type MonthWeek struct {
 	Dates    []time.Time
 	Events   []MonthEvent
 	Overflow []MonthOverflow
+	Squeezed []MonthOverflow
 }
 
+// Counts is every "more" link the week may show, whatever the window fits.
+func (w MonthWeek) Counts() []MonthOverflow {
+	return append(slices.Clip(w.Overflow), w.Squeezed...)
+}
+
+// Fit is the fewest lines the week's lane area needs for the bar to show.
 type MonthEvent struct {
 	calendar.Occurrence
-	Column, Span, Row               int
+	Column, Span, Row, Fit          int
 	ContinuesBefore, ContinuesAfter bool
 }
 
+// Fit is the number of lines the lane area holds when the link shows, and
+// the line it sits on; monthLanes+1 means that many or more.
 type MonthOverflow struct {
-	Date          time.Time
-	Column, Count int
+	Date               time.Time
+	Column, Count, Fit int
 }
 
 type monthOccurrenceKey struct {
@@ -93,7 +107,7 @@ func monthWeeks(dates []time.Time, on map[time.Time][]calendar.Occurrence) []Mon
 			}
 			return cmp.Compare(a.key.recurrenceID, b.key.recurrenceID)
 		})
-		var occupied [3][7]bool
+		var occupied [monthLanes][7]bool
 		var hidden [7]int
 		next := make(map[monthOccurrenceKey]int)
 		for _, s := range candidates {
@@ -138,13 +152,61 @@ func monthWeeks(dates []time.Time, on map[time.Time][]calendar.Occurrence) []Mon
 		}
 		for col, count := range hidden {
 			if count > 0 {
-				week.Overflow = append(week.Overflow, MonthOverflow{dates[start+col], col + 1, count})
+				week.Overflow = append(week.Overflow, MonthOverflow{dates[start+col], col + 1, count, monthLanes + 1})
 			}
 		}
+		squeeze(&week, occupied, hidden)
 		weeks = append(weeks, week)
 		previous = next
 	}
 	return weeks
+}
+
+// squeeze plans the week for a window that fits fewer than monthLanes+1
+// lines, as Apple Calendar does: with n lines the week shows n lanes when
+// nothing beyond them is hidden, else n-1 lanes and a count on line n.
+// The stylesheet picks the plan with a container query on the lane area.
+func squeeze(week *MonthWeek, occupied [monthLanes][7]bool, hidden [7]int) {
+	beyond := func(lanes int) bool {
+		for col := range hidden {
+			if hidden[col] > 0 {
+				return true
+			}
+			for row := lanes; row < monthLanes; row++ {
+				if occupied[row][col] {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	// shown[n] is how many lanes n lines show.
+	var shown [monthLanes + 2]int
+	shown[monthLanes+1] = monthLanes
+	for n := 1; n <= monthLanes; n++ {
+		shown[n] = n
+		if beyond(n) {
+			shown[n] = n - 1
+			for col := range hidden {
+				count := hidden[col]
+				for row := n - 1; row < monthLanes; row++ {
+					if occupied[row][col] {
+						count++
+					}
+				}
+				if count > 0 {
+					week.Squeezed = append(week.Squeezed, MonthOverflow{week.Dates[col], col + 1, count, n})
+				}
+			}
+		}
+	}
+	for i := range week.Events {
+		e := &week.Events[i]
+		e.Fit = e.Row
+		if shown[e.Row] < e.Row {
+			e.Fit = e.Row + 1
+		}
+	}
 }
 
 // DTEND is exclusive. A DATE names a civil day, rather than an instant

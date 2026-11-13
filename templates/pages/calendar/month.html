@@ -33,7 +33,7 @@
           {{if not ($base.SameMonth $base.Time .)}}extra{{end}}
           {{if eq (.Format "2006-01-02") ($base.Now.Format "2006-01-02")}}active{{end}}
           " style="--column:{{$i}}">
-          <a href="{{localhref (printf "%s?date=%s%s" (url "calendar.day") (.Format "2006-01-02") $scope)}}" class="date-link" aria-label="{{ $base.GlobalData.LongDate . }}"></a>
+          <a href="{{localhref (printf "%s?date=%s%s" (url "calendar.day") (.Format "2006-01-02") $scope)}}" class="date-link" aria-label="{{ $base.GlobalData.LongDate . }}" title="{{ $base.GlobalData.LongDate . }}{{ with $base.GlobalData.SecondaryDate . }} ({{.}}){{ end }}"></a>
           <h3>
             {{ if eq (mod $i 7) 0 }}<span class="weeknum" title="{{$base.WeekTitle $day}}">{{$base.WeekNumber $day}}</span>{{ end }}
             <span class="day-label">{{ with $base.CalendarDayLabel . }}{{ with .Before }}<span class="label-long">{{ . }}</span>{{ end }}<span class="day-num">{{ .Day }}</span>{{ with .After }}<span class="label-long">{{ . }}</span>{{ end }}{{ end }}</span>
@@ -43,17 +43,19 @@
           </h3>
         </div>
         {{end}}
+        <div class="month-lanes">
         {{range .Events}}
         {{$color := (call $base.CollectionFor .Account .Path).Color}}
         {{$href := url "calendar.event" .Path}}
         {{with .Account}}{{$href = printf "%s%s" $href (account (qsep $href) .)}}{{end}}
-        <a class="month-event{{if .ContinuesBefore}} continues-before{{end}}{{if .ContinuesAfter}} continues-after{{end}}" href="{{localhref (from $href $base.GlobalData.URL.RequestURI)}}" style="--column:{{.Column}};--span:{{.Span}};--row:{{.Row}}" title="{{.Summary}}">
+        <a class="month-event{{if .ContinuesBefore}} continues-before{{end}}{{if .ContinuesAfter}} continues-after{{end}}" href="{{localhref (from $href $base.GlobalData.URL.RequestURI)}}" style="--column:{{.Column}};--span:{{.Span}};--row:{{.Row}}" data-fit="{{.Fit}}" title="{{.Summary}}">
           {{if $color}}<span class="color-dot" style="background:{{$color}}"></span>{{end}}<span class="month-event-title" dir="auto">{{.Summary}}</span>
         </a>
         {{end}}
-        {{range .Overflow}}
-        <a class="month-overflow" style="--column:{{.Column}}" href="{{localhref (printf "%s?date=%s%s" (url "calendar.day") (.Date.Format "2006-01-02") $scope)}}">{{$base.GlobalData.Tf "calendar.more" .Count}}</a>
+        {{range .Counts}}
+        <a class="month-overflow" style="--column:{{.Column}};--row:{{.Fit}}" data-fit="{{.Fit}}" href="{{localhref (printf "%s?date=%s%s" (url "calendar.day") (.Date.Format "2006-01-02") $scope)}}">{{$base.GlobalData.Tf "calendar.more" .Count}}</a>
         {{end}}
+        </div>
         </div>
         {{end}}
       </section>

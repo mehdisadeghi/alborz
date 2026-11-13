@@ -34,9 +34,9 @@
             {{ end }}
           </div>
           {{ if .Active }}
-          {{ template "filter-action" (dict "g" $ "action" (printf "%s%s" (url "filters.deactivate") $gq) "fields" (tuple (dict "name" "next" "value" $.GlobalData.URL.RequestURI)) "button" "filters.deactivate") }}
+          {{ template "filter-action" (dict "g" $ "action" (printf "%s%s" (url "filters.deactivate") $gq) "fields" (tuple (dict "name" "next" "value" $.GlobalData.URL.RequestURI)) "button" "filters.deactivate" "other" "filters.activate") }}
           {{ else }}
-          {{ template "filter-action" (dict "g" $ "action" (printf "%s%s" (url "filters.filter.activate" .Name) $gq) "fields" (tuple (dict "name" "next" "value" $.GlobalData.URL.RequestURI)) "button" "filters.activate") }}
+          {{ template "filter-action" (dict "g" $ "action" (printf "%s%s" (url "filters.filter.activate" .Name) $gq) "fields" (tuple (dict "name" "next" "value" $.GlobalData.URL.RequestURI)) "button" "filters.activate" "other" "filters.deactivate") }}
           {{ end }}
           {{ template "filter-action" (dict "g" $ "action" (printf "%s%s" (url "filters.filter.delete" .Name) $gq) "fields" (tuple (dict "name" "next" "value" $.GlobalData.URL.RequestURI)) "button" "common.delete" "class" "button-danger") }}
         </div>

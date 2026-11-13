@@ -13,10 +13,10 @@
 {{/* dict: g [collection path chooses heading]. */}}
 {{ define "filters-crumb" }}{{ template "section-crumb" (dict "g" .g "section" (.g.T "nav.filters") "home" (url "filters.list") "collection" .collection "path" .path "chooses" .chooses "heading" .heading) }}{{ end }}
 
-{{/* dict: action fields button [class]. Each field is a dict with name and value. */}}
+{{/* dict: action fields button [class other]. Each field is a dict with name and value; other is a toggle's opposite label, which reserves its width. */}}
 {{ define "filter-action" }}
 <form method="post" action="{{.action}}">
   {{ range .fields }}<input type="hidden" name="{{.name}}" value="{{.value}}">{{ end }}
-  <button{{ with .class }} class="{{.}}"{{ end }}>{{.g.T .button}}</button>
+  <button{{ with .class }} class="{{.}}"{{ end }}>{{ if .other }}<span class="toggle-label"><span>{{.g.T .button}}</span><span aria-hidden="true">{{.g.T .other}}</span></span>{{ else }}{{.g.T .button}}{{ end }}</button>
 </form>
 {{ end }}

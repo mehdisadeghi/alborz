@@ -28,12 +28,25 @@ button,
   justify-content: center;
 }
 
-/* Text actions in forms share a touch target; editor and toolbar icons keep their own. */
+/* A toggle stacks both labels in one cell, so its width does not follow its state. */
+.toggle-label {
+  display: inline-grid;
+}
+
+.toggle-label > * {
+  grid-area: 1 / 1;
+}
+
+.toggle-label > [aria-hidden="true"] {
+  visibility: hidden;
+}
+
+/* Text actions in forms share a touch target, and so does a picker beside them; editor and toolbar icons keep their own. */
 @media (pointer: coarse) {
   main.settings form button,
   main.login :is(button, .button, .button-link),
   .list-item > form > button,
-  .invitation-actions > button,
+  .invitation-actions :is(button, select),
   .note-box > button {
     min-height: 2.75rem;
     min-width: 2.75rem;

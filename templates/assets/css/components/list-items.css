@@ -32,6 +32,11 @@
   border-bottom: 1px solid var(--border-light);
 }
 
+/* A row's actions are rigid, so a label never wraps into a taller button; the content yields. */
+.list-item > form {
+  flex: none;
+}
+
 .list-item:hover {
   background: var(--bg-active);
 }

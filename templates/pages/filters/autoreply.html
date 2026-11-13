@@ -17,8 +17,8 @@
             <span class="list-detail" dir="auto">{{ with .From }}{{ template "ltr" ($.GlobalData.InputDay .).Value }}{{ end }}{{ if or .From .Until }} – {{ end }}{{ with .Until }}{{ template "ltr" ($.GlobalData.InputDay .).Value }}{{ end }}{{ if or .From .Until }} · {{ end }}{{ with .Subject }}{{.}}{{ else }}{{.Text}}{{ end }}</span>
             {{ if eq $i $.Active }}<span class="list-meta">{{$.T "filters.active"}}</span>{{ end }}
           </div>
-          {{ $index := $i }}{{ $toggle := "filters.activate" }}{{ if eq $i $.Active }}{{ $index = "" }}{{ $toggle = "filters.deactivate" }}{{ end }}
-          {{ template "filter-action" (dict "g" $ "action" (printf "%s%s" (url "filters.autoreply.activate") $aq) "fields" (tuple (dict "name" "loaded" "value" $.Loaded) (dict "name" "index" "value" $index)) "button" $toggle) }}
+          {{ $index := $i }}{{ $toggle := "filters.activate" }}{{ $other := "filters.deactivate" }}{{ if eq $i $.Active }}{{ $index = "" }}{{ $toggle = "filters.deactivate" }}{{ $other = "filters.activate" }}{{ end }}
+          {{ template "filter-action" (dict "g" $ "action" (printf "%s%s" (url "filters.autoreply.activate") $aq) "fields" (tuple (dict "name" "loaded" "value" $.Loaded) (dict "name" "index" "value" $index)) "button" $toggle "other" $other) }}
           {{ template "filter-action" (dict "g" $ "action" (printf "%s%s" (url "filters.autoreply.delete") $aq) "fields" (tuple (dict "name" "loaded" "value" $.Loaded) (dict "name" "index" "value" $i)) "button" "common.delete" "class" "button-danger") }}
         </div>
         {{ end }}

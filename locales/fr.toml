@@ -620,6 +620,8 @@
 "settings.gregorian" = "Grégorien"
 "settings.secondary" = "Calendrier secondaire"
 "settings.secondaryhint" = "Affiché en petit à côté de chaque date. Sans effet s’il est identique au calendrier principal."
+"settings.weeknumbers" = "Afficher les numéros de semaine"
+"calendar.repeats" = "Se répète"
 "settings.secondarynone" = "Aucun"
 "settings.shcal" = "Hégire solaire"
 "settings.light" = "Clair"

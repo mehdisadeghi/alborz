@@ -168,6 +168,11 @@ main.calendar .month-event-title {
   text-overflow: ellipsis;
 }
 
+/* The bar's gap spaces it from the title. */
+main.calendar .month-event .repeat-mark {
+  margin-inline-start: 0;
+}
+
 main.calendar .month-event.continues-before {
   margin-inline-start: 0;
   border-start-start-radius: 0;
@@ -281,8 +286,14 @@ main.calendar .date.active h3 .day-num {
 }
 
 @media (width <= 600px) {
+  /* Narrowed rather than hidden: the reader's setting alone decides whether weeks are numbered. */
   main.calendar .date h3 .weeknum {
-    display: none;
+    font-size: 0.6rem;
+    line-height: 1.35rem;
+  }
+
+  main.calendar .date h3 .weeknum-secondary {
+    font-size: 0.55rem;
   }
 
   main.calendar .dates {
@@ -302,7 +313,7 @@ main.calendar .date.active h3 .day-num {
   }
 
   main.calendar .date h3 {
-    padding: 2px; font-size: 0.7rem; min-height: 1.35rem; overflow: hidden; white-space: nowrap;
+    padding: 2px; font-size: 0.7rem; min-height: 1.35rem; overflow: hidden; white-space: nowrap; column-gap: 2px;
   }
 
   main.calendar .date h3 .day-label {

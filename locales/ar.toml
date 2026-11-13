@@ -620,6 +620,8 @@
 "settings.gregorian" = "ميلادي"
 "settings.secondary" = "التقويم الثانوي"
 "settings.secondaryhint" = "يُعرض بحجم صغير بجانب كل تاريخ. لا أثر له إذا طابق التقويم الأساسي أعلاه."
+"settings.weeknumbers" = "إظهار أرقام الأسابيع"
+"calendar.repeats" = "يتكرر"
 "settings.secondarynone" = "لا شيء"
 "settings.shcal" = "هجري شمسي"
 "settings.light" = "فاتح"

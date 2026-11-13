@@ -145,6 +145,13 @@
             </select>
             {{ template "hint" (dict "text" ($.T "settings.secondaryhint")) }}
           </div>
+
+          <div class="action-group">
+            <label for="week_numbers" class="checkbox">
+              <input type="checkbox" name="week_numbers" id="week_numbers" value="1"{{if not .Reading.NoWeekNumbers}} checked{{end}}>
+              {{$.T "settings.weeknumbers"}}
+            </label>
+          </div>
         </section>
 
         <details class="settings-section" id="settings-gestures">

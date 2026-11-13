@@ -41,7 +41,7 @@ func TestPreview(t *testing.T) {
 	calendar, tasks, journal, book := c.CreateCalendar(t, "Plans", ""), c.CreateCalendar(t, "Tasks", "tasks"), c.CreateCalendar(t, "Journal", "journal"), c.CreateBook(t, "People")
 	// The event falls today, so the current month's pages always show it.
 	today := time.Now().UTC()
-	a.Put(t, calendar+"record.ics", "text/calendar", "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\nBEGIN:VEVENT\r\nUID:event\r\nDTSTAMP:20261027T080000Z\r\nDTSTART:"+today.Format("20060102")+"T120000Z\r\nDTEND:"+today.Format("20060102")+"T130000Z\r\nSUMMARY:Review a long product design proposal\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n")
+	a.Put(t, calendar+"record.ics", "text/calendar", "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\nBEGIN:VEVENT\r\nUID:event\r\nDTSTAMP:20261027T080000Z\r\nDTSTART:"+today.Format("20060102")+"T120000Z\r\nDTEND:"+today.Format("20060102")+"T130000Z\r\nRRULE:FREQ=WEEKLY\r\nSUMMARY:Review a long product design proposal\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n")
 	for i, span := range []struct {
 		name        string
 		start, days int
@@ -52,7 +52,7 @@ func TestPreview(t *testing.T) {
 	for i := range 6 {
 		a.Put(t, tasks+fmt.Sprintf("t%d.ics", i), "text/calendar", fmt.Sprintf("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\nBEGIN:VTODO\r\nUID:task%d\r\nDTSTAMP:20261027T080000Z\r\nCREATED:20261020T080000Z\r\nSUMMARY:Review a very long product design proposal with many words in its summary number %d\r\nDUE;VALUE=DATE:20261028\r\nEND:VTODO\r\nEND:VCALENDAR\r\n", i, i))
 	}
-	a.Put(t, tasks+"child.ics", "text/calendar", "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\nBEGIN:VTODO\r\nUID:child\r\nDTSTAMP:20261027T080000Z\r\nSUMMARY:Child task\r\nRELATED-TO:task0\r\nEND:VTODO\r\nEND:VCALENDAR\r\n")
+	a.Put(t, tasks+"child.ics", "text/calendar", "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\nBEGIN:VTODO\r\nUID:child\r\nDTSTAMP:20261027T080000Z\r\nDTSTART;VALUE=DATE:20261027\r\nRRULE:FREQ=WEEKLY\r\nSUMMARY:Child task\r\nRELATED-TO:task0\r\nEND:VTODO\r\nEND:VCALENDAR\r\n")
 	a.Put(t, journal+"record.ics", "text/calendar", "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\nBEGIN:VJOURNAL\r\nUID:journal\r\nDTSTAMP:20261027T080000Z\r\nDTSTART;VALUE=DATE:20261027\r\nSUMMARY:Review a long product design proposal\r\nDESCRIPTION:Some text\r\nEND:VJOURNAL\r\nEND:VCALENDAR\r\n")
 	a.Put(t, book+"record.vcf", "text/vcard", "BEGIN:VCARD\r\nVERSION:3.0\r\nUID:contact\r\nFN:Alex Product Design Example\r\nN:Example;Alex;;;\r\nEMAIL:alex@example.org\r\nTEL:+49 123456789\r\nEND:VCARD\r\n")
 	// Sent to many, so the Sent list shows where its recipients are cut.
@@ -80,6 +80,7 @@ func TestPreview(t *testing.T) {
 		"contacts": a.Path("contacts.list"), "calendar": a.Path("calendar.month"), "day": a.Path("calendar.day", url.Values{"date": {today.Format(time.DateOnly)}}),
 		"settings": a.Path("settings.profile"), "filters": a.Path("filters.list", url.Values{"account": {User}}),
 		"invite": a.Path("mail.message", "INBOX", invite, url.Values{"account": {User}}), "draft": a.Path("mail.message", "Drafts", draft, url.Values{"account": {User}}),
+		"reply": a.Path("mail.message.reply", "Drafts", draft, url.Values{"account": {User}}), "compose": a.Path("mail.compose"),
 		"collection": a.Path("calendar.collection", d.At()+DAVHome+"work/", url.Values{"account": {User}}),
 	}
 	var js string

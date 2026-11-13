@@ -635,6 +635,8 @@
 "settings.gregorian" = "Gregoriano"
 "settings.secondary" = "Calendario secundario"
 "settings.secondaryhint" = "Se muestra en pequeño junto a cada fecha. No tiene efecto si coincide con el calendario de arriba."
+"settings.weeknumbers" = "Mostrar números de semana"
+"calendar.repeats" = "Se repite"
 "settings.secondarynone" = "Ninguno"
 "settings.shcal" = "Hégira solar"
 "settings.light" = "Claro"

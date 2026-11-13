@@ -630,6 +630,8 @@
 "settings.gregorian" = "میلادی"
 "settings.secondary" = "تقویم دوم"
 "settings.secondaryhint" = "ریز کنار هر تاریخ نشان داده می‌شود. اگر با تقویم بالا یکی باشد، اثری ندارد."
+"settings.weeknumbers" = "نمایش شماره‌ی هفته"
+"calendar.repeats" = "تکرار می‌شود"
 "settings.secondarynone" = "هیچ"
 "settings.shcal" = "هجری شمسی"
 "settings.light" = "روشن"

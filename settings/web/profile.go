@@ -168,6 +168,7 @@ func handleProfile(ctx *web.Context) error {
 	if reading.Secondary == calsys.Of(reading.Primary).Name() {
 		reading.Secondary = ""
 	}
+	reading.NoWeekNumbers = ctx.FormValue("week_numbers") == ""
 	if v, ok := given("reply_position"); ok {
 		p.Writing.ReplyBelowQuote = v == "below"
 	}

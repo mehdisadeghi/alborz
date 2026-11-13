@@ -35,9 +35,9 @@
           " style="--column:{{$i}}">
           <a href="{{localhref (printf "%s?date=%s%s" (url "calendar.day") (.Format "2006-01-02") $scope)}}" class="date-link" aria-label="{{ $base.GlobalData.LongDate . }}" title="{{ $base.GlobalData.LongDate . }}{{ with $base.GlobalData.SecondaryDate . }} ({{.}}){{ end }}"></a>
           <h3>
-            {{ if eq (mod $i 7) 0 }}<span class="weeknum" title="{{$base.WeekTitle $day}}">{{$base.WeekNumber $day}}</span>{{ end }}
+            {{ if and $base.WeekNumbers (eq (mod $i 7) 0) }}<span class="weeknum" title="{{$base.WeekTitle $day}}">{{$base.WeekNumber $day}}</span>{{ end }}
             <span class="day-label">{{ with $base.CalendarDayLabel . }}{{ with .Before }}<span class="label-long">{{ . }}</span>{{ end }}<span class="day-num">{{ .Day }}</span>{{ with .After }}<span class="label-long">{{ . }}</span>{{ end }}{{ end }}</span>
-            {{ if eq (mod $i 7) 0 }}{{ with $base.SecondaryWeek $day }}<span class="weeknum-secondary">{{.}}</span>{{ end }}{{ end }}
+            {{ if and $base.WeekNumbers (eq (mod $i 7) 0) }}{{ with $base.SecondaryWeek $day }}<span class="weeknum-secondary">{{.}}</span>{{ end }}{{ end }}
             {{ with $base.SecondaryDay . }}<span class="day-secondary">{{.}}</span>{{ end }}
             {{ if $base.DayAnnotations }}<span class="day-annotations">{{ range $base.DayAnnotations }}<span id="calendar-day-{{ .Name }}-{{ $day.Format "2006-01-02" }}" class="day-annotation"></span>{{ end }}</span>{{ end }}
           </h3>
@@ -49,7 +49,7 @@
         {{$href := url "calendar.event" .Path}}
         {{with .Account}}{{$href = printf "%s%s" $href (account (qsep $href) .)}}{{end}}
         <a class="month-event{{if .ContinuesBefore}} continues-before{{end}}{{if .ContinuesAfter}} continues-after{{end}}" href="{{localhref (from $href $base.GlobalData.URL.RequestURI)}}" style="--column:{{.Column}};--span:{{.Span}};--row:{{.Row}}" data-fit="{{.Fit}}" title="{{.Summary}}">
-          {{if $color}}<span class="color-dot" style="background:{{$color}}"></span>{{end}}<span class="month-event-title" dir="auto">{{.Summary}}</span>
+          {{if $color}}<span class="color-dot" style="background:{{$color}}"></span>{{end}}<span class="month-event-title" dir="auto">{{.Summary}}</span>{{ if .Recurs }}{{ template "repeat-mark" ($base.T "calendar.repeats") }}{{ end }}
         </a>
         {{end}}
         {{range .Counts}}

@@ -633,6 +633,8 @@
 "settings.gregorian" = "Gregorian"
 "settings.secondary" = "Secondary calendar"
 "settings.secondaryhint" = "Shown small beside each date. No effect when it matches the calendar above."
+"settings.weeknumbers" = "Show week numbers"
+"calendar.repeats" = "Repeats"
 "settings.secondarynone" = "None"
 "settings.shcal" = "Solar Hijri"
 "settings.light" = "Light"

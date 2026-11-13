@@ -52,6 +52,8 @@ type TaskRow struct {
 	Priority string
 	// Star is the colour the task is marked in, or empty.
 	Star string
+	// Repeats marks a task that is one of a series.
+	Repeats bool
 	// Href is the task's page with the list carried along.
 	Href   string
 	Parent *TaskLink
@@ -320,6 +322,7 @@ func taskRow(ctx *web.Context, task *caldav.CalendarObject, cal dav.Collection, 
 		Completed: status == "COMPLETED",
 		Priority:  calendar.PriorityBand(todo),
 		Star:      calendar.ComponentColor(todo),
+		Repeats:   calendar.Recurs(todo),
 	}
 }
 

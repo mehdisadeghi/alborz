@@ -25,6 +25,7 @@
     {{ template "record-account" (dict "g" $g "account" .Task.Account) }}
     {{ with .Parent }}<small class="task-parent">{{$g.T "tasks.subtask.parent"}}: <a href="{{.Href}}" dir="auto">{{.Summary}}</a></small>{{ end }}
     </div>
+    {{ if .Repeats }}{{ template "repeat-mark" ($g.T "calendar.repeats") }}{{ end }}
   </div>
   {{ template "row-collection" (dict "g" $g "cell" "task-list-calendar" "label" ($g.T "common.calendar") "list" (url "calendar.tasks") "coll" .Calendar "account" .Task.Account) }}
   {{ template "row-date" (dict "g" $g "cell" "task-list-added" "label" ($g.T "common.added") "time" .Added "since" true) }}

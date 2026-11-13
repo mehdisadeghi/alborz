@@ -24,6 +24,7 @@ type CalendarRenderData struct {
 	ThisMonth          bool
 	Dates              []time.Time
 	Weeks              []MonthWeek
+	WeekNumbers        bool
 	DayAnnotations     []DayAnnotation
 	Events             []calendar.Object
 	Page               string
@@ -98,6 +99,7 @@ func (p *plugin) month(ctx *web.Context) error {
 		ThisMonth:              mv.thisMonth,
 		Dates:                  mv.dates,
 		Weeks:                  monthWeeks(mv.dates, mv.on),
+		WeekNumbers:            !ctx.Reading().NoWeekNumbers,
 		Events:                 mv.events,
 		Page:                   mv.page,
 		PrevPage:               mv.prevPage,

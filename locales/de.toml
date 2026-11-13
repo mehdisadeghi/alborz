@@ -635,6 +635,8 @@
 "settings.gregorian" = "Gregorianisch"
 "settings.secondary" = "Zweitkalender"
 "settings.secondaryhint" = "Klein neben jedem Datum. Ohne Wirkung, wenn er dem oben gewählten Kalender entspricht."
+"settings.weeknumbers" = "Kalenderwochen anzeigen"
+"calendar.repeats" = "Wiederholt sich"
 "settings.secondarynone" = "Keiner"
 "settings.shcal" = "Sonnen-Hidschri"
 "settings.light" = "Hell"

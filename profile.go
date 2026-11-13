@@ -34,6 +34,8 @@ type Reading struct {
 	// Primary and Secondary are calendar systems; empty means Gregorian and none.
 	Primary   string
 	Secondary string
+	// NoWeekNumbers is negative so existing profiles keep the month's week numbers.
+	NoWeekNumbers bool
 }
 
 type Writing struct {

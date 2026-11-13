@@ -51,6 +51,16 @@ func FormRepeat(r dates.Reader, event *ical.Event, loc *time.Location) Repeat {
 	return Repeat{Freq: freq, Until: r.Input(until)}
 }
 
+// Recurs reports whether comp is one of a series: it repeats (RFC 5545 3.8.5) or overrides an instance (3.8.4.4).
+func Recurs(comp *ical.Component) bool {
+	for _, name := range []string{ical.PropRecurrenceRule, ical.PropRecurrenceDates, ical.PropRecurrenceID} {
+		if comp.Props.Get(name) != nil {
+			return true
+		}
+	}
+	return false
+}
+
 // plain reports whether the form can say rule: a frequency, a last day, and
 // the scale and SKIP it writes itself.
 func plain(r recur.Rule) bool {

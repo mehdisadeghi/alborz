@@ -179,6 +179,11 @@ func (o Occurrence) Summary() string {
 	return summary
 }
 
+// Recurs reports whether the occurrence is an instance of a series.
+func (o Occurrence) Recurs() bool {
+	return Recurs(o.Event.Component)
+}
+
 // Star is the colour the occurrence's own event is marked in, or empty.
 func (o Occurrence) Star() string {
 	return ComponentColor(o.Event.Component)

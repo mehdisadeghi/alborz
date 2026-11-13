@@ -241,6 +241,19 @@
   flex: 1 1 auto;
 }
 
+/* A thing, not a direction: the mark does not mirror in a right-to-left page. */
+.repeat-mark {
+  flex: none;
+  display: inline-flex;
+  margin-inline-start: var(--space-1);
+  color: var(--fg-muted);
+}
+
+.repeat-mark .icon {
+  width: 0.9em;
+  height: 0.9em;
+}
+
 .date-secondary {
   display: inline-block;
   color: var(--fg-muted);

@@ -24,6 +24,7 @@
     {{ if .href }}<a href="{{.href}}" dir="auto"{{ with .addedby }} title="{{.}}"{{ end }}>{{.summary}}</a>{{ else }}<span dir="auto">{{.summary}}</span>{{ end }}
     {{ with .account }}<span class="row-meta">{{ template "account-label" (dict "label" . "account" $.accountTitle) }}</span>{{ end }}
     </div>
+    {{ with .repeats }}{{ template "repeat-mark" . }}{{ end }}
   </div>
   <div class="event-owner list-cell" role="cell" data-label="{{.calendarLabel}}">{{ with .ownerhref }}<a href="{{.}}">{{$.owner}}</a>{{ else }}{{.owner}}{{ end }}{{ template "collection-mark" (dict "g" .g "c" .collection) }}</div>
 </div>
@@ -51,6 +52,7 @@
    "ref" (printf "%s|%s" $obj.Account $obj.Path)
    "selectLabel" ($base.T "a11y.selectevent")
    "summary" .Summary
+   "repeats" (and .Recurs ($base.T "calendar.repeats"))
    "star" .Star
    "staraction" $staraction
    "next" $base.GlobalData.URL.RequestURI

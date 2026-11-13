@@ -2,6 +2,9 @@
 <svg class="icon icon-{{.}}" aria-hidden="true" focusable="false"><use href="#i-{{.}}"/></svg>
 {{ end }}
 
+{{/* A row's mark for one of a series; the argument is its label. */}}
+{{ define "repeat-mark" }}<span class="repeat-mark" title="{{.}}">{{ template "icon" "repeat" }}<span class="visually-hidden">{{.}}</span></span>{{ end }}
+
 {{ define "ltr" }}<bdi class="ltr">{{.}}</bdi>{{ end }}
 
 {{ define "user-text" }}<div class="user-text" dir="auto">{{.}}</div>{{ end }}

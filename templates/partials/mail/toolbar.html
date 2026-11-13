@@ -71,8 +71,9 @@
         {{ template "empty-mailbox-action" (dict "action" (printf "%s%s" (url "mail.mailbox.empty" .Mailbox.Name) $aq) "label" ($.T "mailbox.emptyfolder") "disabled" .Mailbox.IsEmpty) }}
         {{ end }}
         {{ if not (eq .Mailbox.Name "INBOX") }}
-        <a class="button-link" href="{{url "mail.mailbox.rename" .Mailbox.Name}}{{$aq}}">{{$.T "mailbox.renamefolder"}}</a>
-        <a class="button-link button-danger" href="{{url "mail.mailbox.delete" .Mailbox.Name}}{{$aq}}">{{$.T "mailbox.deletefolder"}}</a>
+        {{ $rename := printf "%s%s" (url "mail.mailbox.rename" .Mailbox.Name) $aq }}{{ $delete := printf "%s%s" (url "mail.mailbox.delete" .Mailbox.Name) $aq }}
+        <a class="button-link" href="{{ localhref (printf "%s%snext=%s" $rename (qsep $rename) (.GlobalData.URL.RequestURI | qv)) }}">{{$.T "mailbox.renamefolder"}}</a>
+        <a class="button-link button-danger" href="{{ localhref (printf "%s%snext=%s" $delete (qsep $delete) (.GlobalData.URL.RequestURI | qv)) }}">{{$.T "mailbox.deletefolder"}}</a>
         {{ end }}
     {{ template "more-close" }}
     {{ end }}

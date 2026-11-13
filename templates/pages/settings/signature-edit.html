@@ -18,6 +18,6 @@
           <p class="hint">{{$.T "settings.signaturehint"}}</p>
         </div>
 
-        {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (or .GlobalData.From (printf "%s%s" (url "mail.signatures") $aq)) "cancelLabel" ($.T "common.cancel")) }}
+        {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (or .GlobalData.Back (printf "%s%s" (url "mail.signatures") $aq)) "cancelLabel" ($.T "common.cancel")) }}
       </form>
 {{ end }}

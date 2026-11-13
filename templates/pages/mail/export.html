@@ -16,7 +16,7 @@
         </div>
         <div class="form-actions">
           <button type="submit" class="button-primary"{{ if eq .Count 0 }} disabled{{ end }}>{{$.T "folder.exportdo"}}</button>
-          <a class="button-link button-quiet" href="{{ template "mail-list-url" (dict "base" (url "mail.mailbox" .Mailbox.Name) "g" $ "account" $.GlobalData.URLAccount "queryFirst" true) }}">{{$.T "common.cancel"}}</a>
+          <a class="button-link button-quiet" href="{{ with .Back }}{{.}}{{ else }}{{ template "mail-list-url" (dict "base" (url "mail.mailbox" $.Mailbox.Name) "g" $ "account" $.GlobalData.URLAccount "queryFirst" true) }}{{ end }}">{{$.T "common.cancel"}}</a>
         </div>
       </form>
 {{ end }}

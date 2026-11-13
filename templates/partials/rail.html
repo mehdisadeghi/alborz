@@ -170,7 +170,8 @@
     <span dir="auto">{{$i.Name}}</span>
     {{ template "collection-mark" (dict "g" $.g "c" $i) }}
   </a>
-  <a class="filter-edit icon-button" href="{{url .edit $i.Path}}{{account "?" $i.Account}}" title="{{.editlabel}}" aria-label="{{.editlabel}}" hx-boost="false">{{ template "icon" "edit" }}</a>
+  {{ $edit := printf "%s%s" (url .edit $i.Path) (account "?" $i.Account) }}
+  <a class="filter-edit icon-button" href="{{ localhref (printf "%s%snext=%s" $edit (qsep $edit) (.g.GlobalData.URL.RequestURI | qv)) }}" title="{{.editlabel}}" aria-label="{{.editlabel}}" hx-boost="false">{{ template "icon" "edit" }}</a>
   <label class="filter-tick" title="{{.shown}}">
     <input type="hidden" name="shown" value="{{$i.Path}}">
     <input type="checkbox" id="rail-{{$i.Account}}{{$i.Path}}" name="{{.field}}" value="{{$i.Path}}" {{ if $i.Visible }}checked{{ end }} data-source-item data-submit-on-change {{ if $i.Color }}style="accent-color:{{$i.Color}}"{{ end }} aria-label="{{.shown}}: {{$i.Name}}">

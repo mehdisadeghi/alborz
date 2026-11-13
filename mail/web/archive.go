@@ -117,6 +117,8 @@ type ExportRenderData struct {
 	UIDs []imap.UID
 	// Everything is the list's address when it is exported whole: a hidden field per message would weigh megabytes.
 	Everything string
+	// Back is the list the export was asked from, where Cancel returns.
+	Back string
 }
 
 func (p *plugin) exportPage(ctx *web.Context, mboxName string, uids []imap.UID, form url.Values) error {
@@ -125,7 +127,7 @@ func (p *plugin) exportPage(ctx *web.Context, mboxName string, uids []imap.UID, 
 		return err
 	}
 	ibase.WithTitle(fmt.Sprintf(ctx.T("folder.exporttitle"), ibase.Mailbox.Label))
-	data := &ExportRenderData{IMAPBaseRenderData: *ibase, Count: len(uids), UIDs: uids}
+	data := &ExportRenderData{IMAPBaseRenderData: *ibase, Count: len(uids), UIDs: uids, Back: ctx.NextOr("")}
 	query, view, whole := wholeView(form)
 	if whole {
 		data.UIDs, data.Everything, data.Query = nil, form.Get("next"), query

@@ -558,7 +558,7 @@ func (p *plugin) handleMove(ctx *web.Context) error {
 		return ctx.Render(http.StatusOK, "mail/move", &MoveRenderData{
 			IMAPBaseRenderData: *ibase,
 			UIDs:               uids,
-			Next:               ctx.FormValue("next"),
+			Next:               back,
 		})
 	}
 

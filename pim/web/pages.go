@@ -142,7 +142,7 @@ func (pg Page) HandleCreate(p *dav.Provider, form func(*web.Context) (CreateForm
 			OffersHolds: f.OffersHolds,
 			Holds:       f.Holds,
 			Places:      Places(ctx, p),
-			Next:        ctx.FormValue("next"),
+			Next:        ctx.NextOr(""),
 		}
 		data.Account, data.Place = ReadPlace(ctx, p, data.Account)
 		if ctx.Request().Method != http.MethodPost {

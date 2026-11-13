@@ -85,6 +85,8 @@ type GlobalRenderData struct {
 	URLAccount string
 
 	From string
+	// Back is where a form's Cancel goes: the page it was opened from (next), else the list (From).
+	Back string
 
 	// Scope and Merged are the account the nav, switcher and rail follow, and whether it is all of them.
 	Scope  string
@@ -314,6 +316,10 @@ func NewBaseRenderData(ctx *Context) *BaseRenderData {
 	global.Scene = theme.Scene
 	global.URLAccount = ctx.urlAccount
 	global.From = ctx.From()
+	// The query only: a body is the handler's to read, and a form keeps next in the address it posts to.
+	if global.Back = localPath(ctx.QueryParam("next")); global.Back == "" {
+		global.Back = global.From
+	}
 	global.Scope, global.Merged, global.Personal = ctx.urlAccount, ctx.Unified, ctx.personal
 	// Values.Encode would escape the raw values again.
 	req := global.URL

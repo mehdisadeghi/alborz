@@ -3,7 +3,7 @@
 
 {{ define "main" }}
   {{ $aq := .GlobalData.AccountQuery }}
-        {{ template "list-toolbar" (dict "g" $ "newhref" (printf "%s%s" (url "filters.rules.create") $aq) "newlabel" ($.T "filters.rulenew") "pager" .Pager) }}
+        {{ template "list-toolbar" (dict "g" $ "newhref" (printf "%s%s" (url "filters.rules.create") $aq) "back" $.GlobalData.URL.RequestURI "newlabel" ($.T "filters.rulenew") "pager" .Pager) }}
 
       {{ template "filters-crumb" (dict "g" $ "collection" ($.T "filters.rules") "path" (url "filters.rules") "heading" true) }}
 
@@ -14,7 +14,8 @@
         {{ range $i := .Shown }}{{ with index $.Rules $i }}
         <div class="list-item{{ if .Off }} off{{ end }}">
           <div class="list-content">
-            <a href="{{url "filters.rule" $i}}{{$aq}}" class="list-summary" dir="auto">{{.Name}}</a>
+            {{ $rule := printf "%s%s" (url "filters.rule" $i) $aq }}
+            <a href="{{ localhref (printf "%s%snext=%s" $rule (qsep $rule) ($.GlobalData.URL.RequestURI | qv)) }}" class="list-summary" dir="auto">{{.Name}}</a>
             {{ if .Off }}<span class="list-meta">{{$.T "filters.off"}}</span>{{ end }}
             <span class="list-detail">{{ template "rule-words" (dict "r" . "g" $) }}</span>
           </div>

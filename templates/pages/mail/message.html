@@ -11,9 +11,10 @@
 </form>
 {{ end }}
 
-      {{/* dict: addrs account mbox key. */}}
+      {{/* dict: addrs account next mbox key. */}}
       {{define "addr-list"}}
         {{ $aamp := account "&" .account }}
+        {{ $toamp := printf "&next=%s%s" (.next | qv) $aamp }}
         {{ $folder := url "mail.mailbox" .mbox }}
         {{range $i, $addr := .addrs}}
           {{if $i}},{{end}}
@@ -22,9 +23,9 @@
           {{ $filter := "" }}{{ with $.key }}{{ $filter = localhref (printf "%s?query=%s%s" $folder (printf "%s:%s" . $term | qv) $aamp) }}{{ end }}
           {{ if .Name }}
           <bdi dir="auto">{{ with $filter }}<a class="addr-filter" href="{{.}}" title="{{$.filterlabel}}">{{$addr.Name}}</a>{{ else }}<strong>{{.Name}}</strong>{{ end }}
-          &lt;<a href="{{ localhref (printf "%s?to=%s%s" (url "mail.compose") (.Addr | qv) $aamp) }}">{{.Addr}}</a>&gt;</bdi>
+          &lt;<a href="{{ localhref (printf "%s?to=%s%s" (url "mail.compose") (.Addr | qv) $toamp) }}">{{.Addr}}</a>&gt;</bdi>
           {{ else }}
-          <bdi dir="auto">{{ with $filter }}<a class="addr-filter" href="{{.}}" title="{{$.filterlabel}}">{{$addr.Addr}}</a>{{ else }}<a href="{{ localhref (printf "%s?to=%s%s" (url "mail.compose") ($addr.Addr | qv) $aamp) }}">{{$addr.Addr}}</a>{{ end }}</bdi>
+          <bdi dir="auto">{{ with $filter }}<a class="addr-filter" href="{{.}}" title="{{$.filterlabel}}">{{$addr.Addr}}</a>{{ else }}<a href="{{ localhref (printf "%s?to=%s%s" (url "mail.compose") ($addr.Addr | qv) $toamp) }}">{{$addr.Addr}}</a>{{ end }}</bdi>
           {{ end }}
         {{end}}
       {{end}}
@@ -61,7 +62,9 @@
             {{ $flagged := .Message.HasFlag "\\Flagged" }}
             <span class="icon-group followups">
               {{if .Message.HasFlag "\\Draft"}}
-                <a class="icon-button" href="{{url "mail.message.edit" .Message.Mailbox .Message.UID}}{{$partq}}" title="{{$.T "message.editdraft"}}" aria-label="{{$.T "message.editdraft"}}">{{ template "icon" "edit" }}<span class="label">{{$.T "message.editdraft"}}</span></a>
+                {{/* A draft's form is the draft: Cancel, Send or Save leave it for the list it is in. */}}
+                {{ $editq := printf "?next=%s%s" ($back | qv) $aamp }}{{ with .Message.PreferredPart $.PreferHTML }}{{ $editq = printf "?part=%s&next=%s%s" .PathString ($back | qv) $aamp }}{{ end }}
+                <a class="icon-button" href="{{url "mail.message.edit" .Message.Mailbox .Message.UID}}{{$editq}}" title="{{$.T "message.editdraft"}}" aria-label="{{$.T "message.editdraft"}}">{{ template "icon" "edit" }}<span class="label">{{$.T "message.editdraft"}}</span></a>
               {{else}}
                 {{ if .Message.ListID }}
                 <a class="icon-button" href="{{url "mail.message.reply" .Message.Mailbox .Message.UID}}{{$partlistq}}" title="{{$.T "message.replylist"}} — {{.Message.ListID}}" aria-label="{{$.T "message.replylist"}}">{{ template "icon" "reply-list" }}</a>
@@ -100,7 +103,7 @@
                 <a hx-boost="false" class="button-link" href="{{url "mail.message.eml" .Message.Mailbox .Message.UID}}{{$aq}}" download>{{$.T "message.downloademl"}}</a>
                 {{ if $.Filters }}
                 {{ $from := "" }}{{ with .Message.Envelope.From }}{{ $from = (index . 0).Addr }}{{ end }}
-                <a class="button-link" href="{{ localhref (printf "%s?from=%s&list=%s&subject=%s%v" (url "filters.rules.create") ($from | qv) (.Message.ListID | qv) (.Message.Envelope.Subject | qv) (account "&" $.GlobalData.URLAccount)) }}">{{$.T "message.newrule"}}</a>
+                <a class="button-link" href="{{ localhref (printf "%s?from=%s&list=%s&subject=%s&next=%s%v" (url "filters.rules.create") ($from | qv) (.Message.ListID | qv) (.Message.Envelope.Subject | qv) ($here | qv) (account "&" $.GlobalData.URLAccount)) }}">{{$.T "message.newrule"}}</a>
                 {{ if $from }}
                 {{ template "message-block-form" (dict "aq" $aq "value" $from "next" $here "label" ($.T "message.blocksender")) }}
                 {{ $domain := .Message.FromDomain }}
@@ -190,11 +193,11 @@
             <th scope="row">{{$.T "compose.from"}}:</th>
             <td>
                 {{ if .Message.Author }}
-                {{template "addr-list" (dict "addrs" (tuple .Message.Author) "account" $.GlobalData.URLAccount "mbox" .Mailbox.Name "key" "from" "byname" true "filterlabel" ($.T "message.filterfrom"))}}
+                {{template "addr-list" (dict "addrs" (tuple .Message.Author) "account" $.GlobalData.URLAccount "next" $here "mbox" .Mailbox.Name "key" "from" "byname" true "filterlabel" ($.T "message.filterfrom"))}}
                 {{$.T "message.via"}}
-                {{template "addr-list" (dict "addrs" (tuple .Message.Via) "account" $.GlobalData.URLAccount "mbox" .Mailbox.Name "key" "from" "filterlabel" ($.T "message.filterfrom"))}}
+                {{template "addr-list" (dict "addrs" (tuple .Message.Via) "account" $.GlobalData.URLAccount "next" $here "mbox" .Mailbox.Name "key" "from" "filterlabel" ($.T "message.filterfrom"))}}
                 {{ else }}
-                {{template "addr-list" (dict "addrs" .Message.Envelope.From "account" $.GlobalData.URLAccount "mbox" .Mailbox.Name "key" "from" "filterlabel" ($.T "message.filterfrom"))}}
+                {{template "addr-list" (dict "addrs" .Message.Envelope.From "account" $.GlobalData.URLAccount "next" $here "mbox" .Mailbox.Name "key" "from" "filterlabel" ($.T "message.filterfrom"))}}
                 {{ end }}
               {{/* Outside the body frame: a message can style its own body to look
                    like a verdict. It may read the whole message, so it comes after the page. */}}
@@ -208,17 +211,17 @@
             <td>{{ template "date-full" (dict "g" .Global "time" .Message.Date) }}</td>
           </tr>
           <tr>
-            <th scope="row">{{$.T "compose.to"}}:</th><td>{{template "addr-list" (dict "addrs" .Message.Envelope.To "account" $.GlobalData.URLAccount "mbox" .Mailbox.Name "key" "to" "filterlabel" ($.T "message.filterto"))}}</td>
+            <th scope="row">{{$.T "compose.to"}}:</th><td>{{template "addr-list" (dict "addrs" .Message.Envelope.To "account" $.GlobalData.URLAccount "next" $here "mbox" .Mailbox.Name "key" "to" "filterlabel" ($.T "message.filterto"))}}</td>
           </tr>
           {{if .Message.Envelope.Cc}}
           <tr>
-            <th scope="row">{{$.T "compose.cc"}}:</th><td>{{template "addr-list" (dict "addrs" .Message.Envelope.Cc "account" $.GlobalData.URLAccount "mbox" .Mailbox.Name "key" "cc" "filterlabel" ($.T "message.filterto"))}}</td>
+            <th scope="row">{{$.T "compose.cc"}}:</th><td>{{template "addr-list" (dict "addrs" .Message.Envelope.Cc "account" $.GlobalData.URLAccount "next" $here "mbox" .Mailbox.Name "key" "cc" "filterlabel" ($.T "message.filterto"))}}</td>
           </tr>
           {{end}}
           {{if .Message.Envelope.Bcc}}
           <tr>
             <th scope="row">{{$.T "compose.bcc"}}:</th>
-            <td>{{template "addr-list" (dict "addrs" .Message.Envelope.Bcc "account" $.GlobalData.URLAccount "mbox" .Mailbox.Name "key" "")}}</td>
+            <td>{{template "addr-list" (dict "addrs" .Message.Envelope.Bcc "account" $.GlobalData.URLAccount "next" $here "mbox" .Mailbox.Name "key" "")}}</td>
           </tr>
           {{ end }}
           {{ with .DeliveredTo }}
@@ -246,7 +249,7 @@
                 <dl>
                   {{ with .Message.ListPost }}
                   <dt>{{$.T "list.post"}}</dt>
-                  <dd><a href="{{ localhref (printf "%s?to=%s%s" (url "mail.compose") (. | qv) (account "&" $.GlobalData.URLAccount)) }}">{{ template "ltr" . }}</a></dd>
+                  <dd><a href="{{ localhref (printf "%s?to=%s&next=%s%s" (url "mail.compose") (. | qv) ($here | qv) (account "&" $.GlobalData.URLAccount)) }}">{{ template "ltr" . }}</a></dd>
                   {{ end }}
                   {{ template "list-link" (dict "g" $ "label" "list.help" "url" .List.Help) }}
                   {{ template "list-link" (dict "g" $ "label" "list.subscribe" "url" .List.Subscribe) }}

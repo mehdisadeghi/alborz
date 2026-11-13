@@ -169,7 +169,7 @@ func handleRuleSave(ctx *web.Context) error {
 		ctx.Made(ctx.T("notice.rulecreated"), r.Name,
 			ctx.URL("filters.rule", made),
 			ctx.URL("filters.rules.create"))
-		return ctx.FoundRedirect(ctx.URL("filters.rules"))
+		return ctx.FoundRedirect(ctx.NextOr(ctx.URL("filters.rules")))
 	}
 	return answer(ctx, err, "filters.rules", ctx.T("notice.rulesaved"))
 }

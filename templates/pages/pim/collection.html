@@ -34,7 +34,7 @@
         {{ end }}
 
         {{ if not .SharedBy }}
-        {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" .ListHref "cancelLabel" ($.T "common.cancel")) }}
+        {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (or .GlobalData.Back .ListHref) "cancelLabel" ($.T "common.cancel")) }}
         {{ end }}
       </form>
 

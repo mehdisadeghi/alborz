@@ -13,6 +13,6 @@
 
         {{ template "field" (dict "label" ($.T "calendar.address") "name" "address" "type" "url" "value" .Address "placeholder" "https://" "required" true "autofocus" true "hint" ($.T "calendar.addresshint")) }}
 
-        {{ template "form-actions" (dict "save" ($.T "calendar.subscribedo") "cancel" (url "calendar.month") "cancelLabel" ($.T "common.cancel")) }}
+        {{ template "form-actions" (dict "save" ($.T "calendar.subscribedo") "cancel" (or .GlobalData.Back (url "calendar.month")) "cancelLabel" ($.T "common.cancel")) }}
       </form>
 {{ end }}

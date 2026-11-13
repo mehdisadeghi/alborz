@@ -134,7 +134,7 @@ func handleSubscribe(p *plugin) func(*web.Context) error {
 			PageData: *web.NewPageData(ctx, ctx.T("calendar.subscribe"), rail),
 			Accounts: ctx.Accounts(),
 			Account:  ctx.Login.Username(),
-			Next:     ctx.FormValue("next"),
+			Next:     ctx.NextOr(""),
 		}
 		if ctx.Request().Method != http.MethodPost {
 			return ctx.Render(http.StatusOK, "calendar/subscribe", data)

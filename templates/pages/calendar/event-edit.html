@@ -30,6 +30,6 @@
         {{ template "field" (dict "label" ($.T "calendar.attendees") "name" "attendees" "value" .Attendees "rows" 3) }}
         {{ template "hint" (dict "text" ($.T "help.attendees")) }}
 
-        {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (or .GlobalData.From (printf "%s%s" (url "calendar.month") $acct)) "cancelLabel" ($.T "common.cancel")) }}
+        {{ template "form-actions" (dict "save" ($.T "common.save") "cancel" (or .GlobalData.Back (printf "%s%s" (url "calendar.month") $acct)) "cancelLabel" ($.T "common.cancel")) }}
       </form>
 {{ end }}

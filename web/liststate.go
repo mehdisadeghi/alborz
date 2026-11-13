@@ -29,6 +29,15 @@ func ReadListState(ctx *Context) ListState {
 	return state
 }
 
+// ReturnOf is the list the page at the local address raw was opened from, or "".
+func ReturnOf(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return ""
+	}
+	return localPath(u.Query().Get("from"))
+}
+
 // ListStateFrom projects common list parameters from an address such as a form's return URL.
 func ListStateFrom(q url.Values) ListState {
 	query := q.Get("query")

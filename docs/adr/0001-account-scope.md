@@ -40,6 +40,13 @@ standing preferences and per-browser state must not be mixed.
    the return link, and the `next` target of actions that leave the
    object. Neighbour links pass `from` on; when `from` is absent, the
    object's own account and collection are used.
+10. A link that opens a form (new, edit, compose, rename) SHOULD carry
+    `next`, the local page it was opened from; the form MUST keep it in
+    the address it posts to. Cancel MUST return to `next`, else `from`
+    (`GlobalData.Back`). A submit lands on `next`, except that one
+    settling the object whose page `next` names (a reply or a draft
+    sent) lands on the list that page was opened from. `next` MUST be
+    read through `NextOr`, which takes only a local path.
 
 ## Consequences
 
@@ -54,7 +61,8 @@ standing preferences and per-browser state must not be mixed.
 - `web/middleware.go` (account resolution, `ctx.Unified`),
   `web/accounts.go` (`Scoped`, `Personal`, `InScope`, `AccountPath`,
   `Context.From`, `NextOr`), `web/renderer.go` (`GlobalData.Scope`,
-  `From`, `Merged`, `Own`), `web/session.go` (`Session.Accounts`)
+  `From`, `Back`, `Merged`, `Own`), `web/liststate.go` (`ReturnOf`),
+  `web/session.go` (`Session.Accounts`), `mail/web/compose.go` (`sentTo`)
 - `pim/pooled.go` (`Visible`), `pim/web/pooled.go` (`Pooled`),
   `pim/calendar/settings.go`, `pim/contacts/settings.go`,
   `mail/settings.go` (`Unmerged`)

@@ -6,7 +6,9 @@
         <span class="icon-group">
           {{ block "object-actions" . }}{{ end }}
           {{ if not .readonly }}
-          <a class="icon-button" href="{{ localhref (from (printf "%s%s" (url (printf "%s.%s" .object .edit) .id) .acct) $g.GlobalData.From) }}" title="{{$g.T "common.edit"}}" aria-label="{{$g.T "common.edit"}}" data-phone-priority="13">{{ template "icon" "edit" }}<span class="label">{{$g.T "common.edit"}}</span></a>
+          {{/* The form cancels back to this page; saved, it lands here too, still knowing its list. */}}
+          {{ $edit := from (printf "%s%s" (url (printf "%s.%s" .object .edit) .id) .acct) $g.GlobalData.From }}
+          <a class="icon-button" href="{{ localhref (printf "%s%snext=%s" $edit (qsep $edit) ($g.GlobalData.URL.RequestURI | qv)) }}" title="{{$g.T "common.edit"}}" aria-label="{{$g.T "common.edit"}}" data-phone-priority="13">{{ template "icon" "edit" }}<span class="label">{{$g.T "common.edit"}}</span></a>
           {{ end }}
           <a hx-boost="false" class="icon-button" href="{{url (printf "%s.raw" .object) .id}}{{ $g.GlobalData.AccountQuery }}" title="{{$g.T "common.source"}}" aria-label="{{$g.T "common.source"}}" data-phone-priority="12">{{ template "icon" "source" }}<span class="label">{{$g.T "common.source"}}</span></a>
           <a hx-boost="false" class="icon-button" href="{{url (printf "%s.raw" .object) .id}}?save=1{{ account "&" $g.GlobalData.URLAccount }}" title="{{ $g.Tf "common.saveas" .ext }}" aria-label="{{ $g.Tf "common.saveas" .ext }}" data-phone-priority="10">{{ template "icon" "download" }}<span class="label">{{ $g.Tf "common.saveas" .ext }}</span></a>

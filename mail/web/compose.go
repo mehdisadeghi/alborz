@@ -182,13 +182,13 @@ func (p *plugin) submitCompose(ctx *web.Context, sender *alborz.Login, msg *mail
 	sent, sentUID, to, err := p.Submit(ctx.Request().Context(), ctx.Login, sender, msg, options)
 	if errors.Is(err, mail.ErrSendUncertain) {
 		ctx.Logger().Printf("send outcome uncertain: %v", err)
-		return ctx.NotifyRedirect(web.Notice{Kind: web.NoticeWarning, Text: ctx.T("notice.senduncertain")}, ctx.URL("mail.mailbox", "INBOX"))
+		return ctx.NotifyRedirect(web.Notice{Kind: web.NoticeWarning, Text: ctx.T("notice.senduncertain")}, sentTo(ctx))
 	}
 	if errors.Is(err, mail.ErrSendAlreadyAccepted) {
-		return ctx.NotifyRedirect(web.Notice{Kind: web.NoticeDone, Text: ctx.T("notice.sent")}, ctx.URL("mail.mailbox", "INBOX"))
+		return ctx.NotifyRedirect(web.Notice{Kind: web.NoticeDone, Text: ctx.T("notice.sent")}, sentTo(ctx))
 	}
 	if errors.Is(err, mail.ErrSendFollowupUnknown) {
-		return ctx.NotifyRedirect(web.Notice{Kind: web.NoticeWarning, Text: ctx.T("notice.sentfollowup")}, ctx.URL("mail.mailbox", "INBOX"))
+		return ctx.NotifyRedirect(web.Notice{Kind: web.NoticeWarning, Text: ctx.T("notice.sentfollowup")}, sentTo(ctx))
 	}
 	acceptedWithIssues := errors.Is(err, mail.ErrSendAccepted)
 	if acceptedWithIssues {
@@ -216,7 +216,27 @@ func (p *plugin) submitCompose(ctx *web.Context, sender *alborz.Login, msg *mail
 		view := web.AccountURL(ctx.Path("mail.message", sent.Name(), sentUID), sender.Username())
 		notice.Actions = []*web.NoticeAction{{Label: ctx.T("notice.view"), Path: view}}
 	}
-	return ctx.NotifyRedirect(notice, ctx.URL("mail.mailbox", "INBOX"))
+	return ctx.NotifyRedirect(notice, sentTo(ctx))
+}
+
+// sentTo is where a sent message leaves the reader: the page compose was opened from, or, for a
+// message's page, the list that message was opened from, since sending settles the answer.
+func sentTo(ctx *web.Context) string {
+	back := ctx.NextOr("")
+	if back == "" {
+		return ctx.URL("mail.mailbox", "INBOX")
+	}
+	u, err := url.Parse(back)
+	if err != nil {
+		return back
+	}
+	if route, values, _ := ctx.Server.Match(u); route == "mail.message" {
+		if list := web.ReturnOf(back); list != "" {
+			return list
+		}
+		return web.AccountURL(ctx.Path("mail.mailbox", values["mbox"]), u.Query().Get("account"))
+	}
+	return back
 }
 
 func (p *plugin) handleCompose(ctx *web.Context, msg *mail.OutgoingMessage, options *mail.ComposeOptions) error {
@@ -412,7 +432,12 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *mail.OutgoingMessage, opti
 				if err != nil {
 					return err
 				}
-				return ctx.NoticeRedirect(ctx.T("notice.draftsaved"), web.QueryPath(ctx.URL("mail.message.edit", drafts.Mailbox, uid), url.Values{"part": {"1"}}))
+				// The saved draft's form cancels to where this one would have.
+				again := url.Values{"part": {"1"}}
+				if next := ctx.NextOr(""); next != "" {
+					again.Set("next", next)
+				}
+				return ctx.NoticeRedirect(ctx.T("notice.draftsaved"), web.QueryPath(ctx.URL("mail.message.edit", drafts.Mailbox, uid), again))
 			}
 			return p.submitCompose(ctx, sender, msg, options)
 		})

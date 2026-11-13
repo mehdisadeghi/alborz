@@ -126,9 +126,31 @@ if (form && textarea && holder && toolbar && htmlInput && toggle && window.Squir
 		editor.setHTML(html);
 		editor.addEventListener("pathChange", reflect);
 		editor.addEventListener("select", reflect);
-		editor.moveCursorToEnd();
+		placeCaret();
+		// The hidden text field cannot keep the focus it was given; a touch screen gets none (helpers.js).
+		if (textarea.hasAttribute("autofocus") && !matchMedia("(pointer: coarse)").matches) {
+			editor.focus();
+		}
 		reflect();
 		toggle.setAttribute("aria-pressed", "true");
+	};
+
+	// As the text field does (helpers.js): data-caret "start" writes above the quote,
+	// "end" in the paragraph above the sign-off, or at the very end without one.
+	const placeCaret = () => {
+		if (textarea.dataset.caret === "start") {
+			editor.moveCursorToStart();
+			return;
+		}
+		const sign = [...holder.children].findLast(el => /^--[\s ]/.test(el.textContent));
+		const before = sign && sign.previousElementSibling;
+		if (!before || before.tagName !== "P") {
+			editor.moveCursorToEnd();
+			return;
+		}
+		const range = document.createRange();
+		range.setStart(before, 0);
+		editor.setSelection(range);
 	};
 
 	const close = () => {

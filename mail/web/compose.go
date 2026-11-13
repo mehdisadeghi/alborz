@@ -38,8 +38,8 @@ type ComposeRenderData struct {
 	PoolSignatures bool
 	// Suggestions are addresses the recipient fields offer.
 	Suggestions []string
-	// Reply opens the text at its end, below the quote.
-	Reply bool
+	// Back is the local page the form was opened from, where Cancel returns.
+	Back string
 	// LocalImage matches the images the editor may keep: those alborz holds (ADR 40).
 	LocalImage string
 }
@@ -59,7 +59,7 @@ func (p *plugin) composeRenderData(ctx *web.Context, base *IMAPBaseRenderData, m
 		Signature:          signature,
 		PoolSignatures:     ctx.Profile().Writing.PoolSignatures,
 		Suggestions:        suggestions(ctx),
-		Reply:              options.InReplyTo != nil,
+		Back:               ctx.NextOr(ctx.URL("mail.mailbox", "INBOX")),
 		LocalImage:         p.images.String(),
 	}
 }

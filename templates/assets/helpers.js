@@ -216,7 +216,7 @@ const enhance = () => {
 
 	// The reply is written above the quote or below it; data-caret says which end.
 	// At the end, the writing goes above the sign-off, a blank line after the quote.
-	const caret = document.querySelector("textarea[data-caret]");
+	const caret = document.querySelector("textarea[data-caret][autofocus]");
 	if (caret && !touch && once(caret, "caret")) {
 		const sign = caret.value.lastIndexOf("\n-- \n");
 		const above = sign < 0 ? "" : caret.value.slice(0, sign).replace(/\n+$/, "");

@@ -1,7 +1,7 @@
 {{ define "main-class" }} class="create-update"{{ end }}
 
 {{ define "main" }}
-      <form method="post" enctype="multipart/form-data" hx-boost="false" id="compose-form" data-upload="{{url "mail.attachment.add"}}" data-local-image="{{.LocalImage}}"{{ if .Reply }} data-reply{{ end }}>
+      <form method="post" enctype="multipart/form-data" hx-boost="false" id="compose-form" data-upload="{{url "mail.attachment.add"}}" data-local-image="{{.LocalImage}}">
         {{ template "mail-crumb" (dict "g" $ "chooses" true) }}
         <h1 class="visually-hidden">{{$.T "aside.compose"}}</h1>
         {{/* Enter in a field presses the form's first submit button: Send, never the signature's Apply. */}}
@@ -29,6 +29,8 @@
           {{ if eq $to "MISSING_MAILBOX@MISSING_DOMAIN" }}
           {{ $to = "" }}
           {{ end }}
+          {{/* Focus starts at the first thing left to write: the recipient, the subject, else the text. */}}
+          {{ $focus := "body" }}{{ if not $to }}{{ $focus = "to" }}{{ else if not .Message.Subject }}{{ $focus = "subject" }}{{ end }}
           <input
             type="text"
             name="to"
@@ -36,7 +38,7 @@
             value="{{$to}}"
             data-recipient autocomplete="off"
             required
-            {{ if not $to }} autofocus{{ end }}
+            {{ if eq $focus "to" }} autofocus{{ end }}
           />
 
           <details class="compose-more"{{ if or (join .Message.Cc "") (join .Message.Bcc "") (join .Message.ReplyTo "") }} open{{ end }}>
@@ -55,7 +57,7 @@
             id="subject"
             dir="auto"
             value="{{.Message.Subject}}"
-            {{ if $to }} autofocus{{ end }}
+            {{ if eq $focus "subject" }} autofocus{{ end }}
           />
 
           <label for="attachments">{{$.T "message.attachments"}}</label>
@@ -87,7 +89,7 @@
           <div class="editor body" hidden></div>
           <input type="hidden" name="html" value="{{.Message.HTML}}">
           {{ with .Message.QuoteHTML }}<template id="quote-html"{{ if $.Message.QuoteRich }} data-open{{ end }}>{{.}}</template>{{ end }}
-          <textarea name="text" class="body" dir="auto" autofocus aria-label="{{$.T "a11y.body"}}"
+          <textarea name="text" class="body" dir="auto"{{ if eq $focus "body" }} autofocus{{ end }} aria-label="{{$.T "a11y.body"}}"
                     data-caret="{{ if .Message.QuoteBelow }}start{{ else }}end{{ end }}">{{.Message.Text}}</textarea>
           <div id="send-progress" style="display: none">
             <!--
@@ -121,7 +123,7 @@
         <div class="form-actions">
           <button id="send-button" class="button-primary" type="submit">{{$.T "compose.send"}}</button>
           <button id="save-button" type="submit" name="save_as_draft" formnovalidate>{{$.T "compose.savedraft"}}</button>
-          <a class="button-link button-quiet" href="{{url "mail.mailbox" "INBOX"}}">{{$.T "common.cancel"}}</a>
+          <a class="button-link button-quiet" href="{{.Back}}">{{$.T "common.cancel"}}</a>
         </div>
       </form>
 {{ end }}

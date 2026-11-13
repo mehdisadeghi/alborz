@@ -42,8 +42,10 @@
 
 {{ define "main" }}
   {{ $aq := "" }}{{ $aamp := "" }}{{ with .GlobalData.URLAccount }}{{ $aq = printf "?account=%s" . }}{{ $aamp = printf "&account=%s" . }}{{ end }}
-  {{ $partq := $aq }}{{ $partallq := $aq }}{{ $partlistq := printf "?list=1%s" $aamp }}{{ with .Message.PreferredPart $.PreferHTML }}{{ $partq = printf "?part=%s%s" .PathString $aamp }}{{ $partallq = printf "?part=%s&all=true%s" .PathString $aamp }}{{ $partlistq = printf "?part=%s&list=1%s" .PathString $aamp }}{{ end }}
       {{ $here := .GlobalData.URL.RequestURI }}
+  {{/* A compose page opened from here cancels back here. */}}
+  {{ $nq := printf "next=%s%s" ($here | qv) $aamp }}
+  {{ $partq := printf "?%s" $nq }}{{ $partallq := printf "?all=true&%s" $nq }}{{ $partlistq := printf "?list=1&%s" $nq }}{{ with .Message.PreferredPart $.PreferHTML }}{{ $partq = printf "?part=%s&%s" .PathString $nq }}{{ $partallq = printf "?part=%s&all=true&%s" .PathString $nq }}{{ $partlistq = printf "?part=%s&list=1&%s" .PathString $nq }}{{ end }}
       <form id="message-flag-form" method="post" hx-boost="false">
         {{ template "message-action-fields" (dict "uid" .Message.UID "next" $here) }}
       </form>

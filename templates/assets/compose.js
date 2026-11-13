@@ -2,13 +2,7 @@
 
 // A block of its own: a boosted visit reruns this script, and a top-level const declared twice is a SyntaxError.
 {
-const textarea = document.querySelector("textarea.body");
 const composeForm = document.getElementById("compose-form");
-if ("reply" in composeForm.dataset) {
-	textarea.focus();
-	textarea.setSelectionRange(textarea.value.length, textarea.value.length);
-	textarea.scrollTop = textarea.scrollHeight;
-}
 
 const sendButton = document.getElementById("send-button"),
 	saveButton = document.getElementById("save-button"),

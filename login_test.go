@@ -18,7 +18,7 @@ import (
 func TestExpiryUnlistsTheLogin(t *testing.T) {
 	sm := newLoginManager(nil, nil, nil, nil, nil, nil, nil, nil, nil, LoginDuration, nil)
 	s := &Login{manager: sm, closed: make(chan struct{}), pings: make(chan struct{}, 5),
-		username: "a@test.local"}
+		username: "a@test.localdomain"}
 	sm.logins[s] = struct{}{}
 	done := make(chan struct{})
 	go func() {

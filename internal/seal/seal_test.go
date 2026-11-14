@@ -21,7 +21,7 @@ const (
 )
 
 func TestSealOpensOnlyUnderItsKey(t *testing.T) {
-	plain := []byte("a@test.local")
+	plain := []byte("a@test.localdomain")
 	sealed := root(t, one).Key("sessions").Seal(plain)
 	if bytes.Contains(sealed, plain) {
 		t.Fatal("the sealed value holds the plain text")
@@ -54,11 +54,11 @@ func TestFernetIsAnotherFormat(t *testing.T) {
 
 func TestNamesDifferPerKey(t *testing.T) {
 	a, b := root(t, one).Names(), root(t, two).Names()
-	name := a.Of("a@test.local")
-	if name != a.Of("a@test.local") {
+	name := a.Of("a@test.localdomain")
+	if name != a.Of("a@test.localdomain") {
 		t.Fatal("a name changes between calls")
 	}
-	if name == b.Of("a@test.local") || name == a.Of("b@test.local") {
+	if name == b.Of("a@test.localdomain") || name == a.Of("b@test.localdomain") {
 		t.Fatal("two keys or two values give one name")
 	}
 	if len(name) != 32 {
@@ -77,7 +77,7 @@ func TestFormatTellsTheKindOfKey(t *testing.T) {
 	var secret [KeySize]byte
 	copy(secret[:], "an account's own key, 32 bytes!!")
 	own, instance := AccountRoot(secret).Key("settings"), NewKey(secret)
-	sealed := own.Seal([]byte("a@test.local"))
+	sealed := own.Seal([]byte("a@test.localdomain"))
 	if Format(sealed) != ByAccount || Format(instance.Seal(nil)) != ByInstance {
 		t.Fatalf("formats %d and %d", Format(sealed), Format(instance.Seal(nil)))
 	}
@@ -88,7 +88,7 @@ func TestFormatTellsTheKindOfKey(t *testing.T) {
 		t.Errorf("another purpose: Open = %v, want ErrOpen", err)
 	}
 	// The seal covers the byte: the same secret as an instance's key does not open it.
-	flipped := NewAccountKey(secret).Seal([]byte("a@test.local"))
+	flipped := NewAccountKey(secret).Seal([]byte("a@test.localdomain"))
 	flipped[0] = ByInstance
 	if _, err := instance.Open(flipped); !errors.Is(err, ErrOpen) {
 		t.Errorf("the byte changed: Open = %v, want ErrOpen", err)

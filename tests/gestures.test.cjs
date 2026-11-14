@@ -134,7 +134,7 @@ function fixture(preferences = {}) {
 	const context = {document, window, localStorage, htmx, FormData: FixtureFormData, Event: FixtureEvent, performance, console, setTimeout, clearTimeout, URL, URLSearchParams,
 		innerWidth: 1000, matchMedia: media, getComputedStyle: el => ({display: 'grid', overflowX: el.style.overflowX || 'visible', direction: el.attrs.dir || document.documentElement.attrs.dir || 'ltr'}),
 		CSS: {escape: s => s}, Element, HTMLElement: Element, HTMLInputElement: Element, HTMLFormElement: Element,
-		location: {href: 'http://test.local/mail', pathname: '/mail'}, navigator: {}, requestAnimationFrame: fn => fn()};
+		location: {href: 'http://test.localdomain/mail', pathname: '/mail'}, navigator: {}, requestAnimationFrame: fn => fn()};
 	vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../templates/assets/gestures.js'), 'utf8'), context);
 	const pointer = (type, target, x, y = 20, extra = {}) => {
 		const event = {type, target, pointerId: 1, pointerType: 'touch', isPrimary: true, button: 0, buttons: 1,
@@ -248,7 +248,7 @@ function bulkFixture() {
 		return el;
 	};
 	input({type: 'hidden', name: 'csrf', value: 'token'});
-	input({type: 'hidden', name: 'account', value: 'a@test.local'});
+	input({type: 'hidden', name: 'account', value: 'a@test.localdomain'});
 	input({type: 'hidden', name: 'next', value: '/inbox'});
 	input({type: 'hidden', name: 'everything', value: '', form: 'messages-form'});
 	const target = input({type: 'checkbox', name: 'uids', value: '11', form: 'messages-form'}, f.row);
@@ -275,7 +275,7 @@ test('bulk row action submits only that row without changing other selections', 
 	assert.deepEqual(values.getAll('uids'), ['11']);
 	assert.equal(values.has('everything'), false);
 	assert.equal(values.get('csrf'), 'token');
-	assert.equal(values.get('account'), 'a@test.local');
+	assert.equal(values.get('account'), 'a@test.localdomain');
 	assert.equal(values.get('next'), '/inbox');
 	assert.equal(f.target.checked, false);
 	assert.equal(f.other.checked, true);

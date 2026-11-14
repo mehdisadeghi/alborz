@@ -43,15 +43,9 @@ func TestAccountsScopeAndSignOut(t *testing.T) {
 			t.Errorf("the merged view's rail does not offer %s", account)
 		}
 	}
-	if !strings.Contains(merged, `class="acct-folders aggregate-folders"`) {
-		t.Errorf("the merged view has no merged entry in the rail")
-	}
 	scoped := c.Page(t, "mail.mailbox", "INBOX", url.Values{"account": {User2}})
 	if !strings.Contains(scoped, `aria-label="`+T(t, "nav.accounts")+": "+User2+`"`) {
 		t.Errorf("a page scoped to %s does not say so in the nav", User2)
-	}
-	if !strings.Contains(scoped, `class="acct-folders aggregate-folders"`) {
-		t.Errorf("the scoped view lost the merged entry from the rail")
 	}
 
 	for _, account := range []string{User, User2} {

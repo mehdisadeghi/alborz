@@ -91,7 +91,7 @@ func TestFeedRefreshesOnItsOwnClockOncePerFeed(t *testing.T) {
 	}))
 	defer srv.Close()
 	f, _ := feedsAt(t, srv.Client())
-	accounts := []string{"a@test.local", "b@test.local"}
+	accounts := []string{"a@test.localdomain", "b@test.localdomain"}
 	for _, account := range accounts {
 		list := shared{}
 		if err := list.Put(context.Background(), subscriptionsKey, []Subscription{{URL: srv.URL, Name: "Holidays"}}); err != nil {
@@ -169,7 +169,7 @@ func TestAFeedWaitsForItsEncryptedOwner(t *testing.T) {
 	}))
 	defer srv.Close()
 	f, ring := feedsAt(t, srv.Client())
-	const account = "a@test.local"
+	const account = "a@test.localdomain"
 	own := bytes.Repeat([]byte{7}, seal.KeySize)
 	release, err := ring.Hold(ring.Name(account), own, true)
 	if err != nil {

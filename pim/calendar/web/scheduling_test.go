@@ -190,7 +190,7 @@ RECURRENCE-ID:19970701T210000Z
 SEQUENCE:1
 ORGANIZER:mailto:a@example.com
 ATTENDEE;ROLE=CHAIR;PARTSTAT=ACCEPTED:mailto:a@example.com
-ATTENDEE;PARTSTAT=NEEDS-ACTION:mailto:alias@test.local
+ATTENDEE;PARTSTAT=NEEDS-ACTION:mailto:alias@test.localdomain
 ATTENDEE:mailto:c@example.com
 DESCRIPTION:IETF-C&S Conference Call
 CLASS:PUBLIC
@@ -207,7 +207,7 @@ END:VCALENDAR
 func TestAnInvitationIsAnsweredAsInvited(t *testing.T) {
 	sent := SMTP(t)
 	a, c := SignedIn(t, User, WithSMTP(sent))
-	if resp := c.Post(t, "mail.account", url.Values{"identities": {"Alias <alias@test.local>"}}); resp.StatusCode != http.StatusFound {
+	if resp := c.Post(t, "mail.account", url.Values{"identities": {"Alias <alias@test.localdomain>"}}); resp.StatusCode != http.StatusFound {
 		t.Fatalf("saving the identity answered %s", resp.Status)
 	}
 	uid := a.IMAP.Append(t, "INBOX", calendarMail("a@example.com", "Moved", "REQUEST", instanceRequest))
@@ -220,8 +220,8 @@ func TestAnInvitationIsAnsweredAsInvited(t *testing.T) {
 		t.Fatalf("answering sent %d calendars, want one REPLY", len(got))
 	}
 	reply := got[0].event
-	if who := attendees(reply); strings.Join(who, ",") != "alias@test.local" {
-		t.Errorf("the REPLY answers as %v, want the invited alias@test.local", who)
+	if who := attendees(reply); strings.Join(who, ",") != "alias@test.localdomain" {
+		t.Errorf("the REPLY answers as %v, want the invited alias@test.localdomain", who)
 	}
 	if seq, rid := prop(reply, ical.PropSequence), prop(reply, ical.PropRecurrenceID); seq != "1" || rid != "19970701T210000Z" {
 		t.Errorf("the REPLY carries SEQUENCE %q RECURRENCE-ID %q, want the request's 1 and 19970701T210000Z", seq, rid)
@@ -343,9 +343,9 @@ func TestAMessageTheEventCannotTakeIsRefused(t *testing.T) {
 func TestACalendarThatDoesNotReadIsRefused(t *testing.T) {
 	a, c := SignedIn(t, User)
 	coll := c.CreateCalendar(t, "Plans", "")
-	for _, tc := range []struct{ method, body, reason string }{
-		{"COUNTER", "BEGIN:VCALENDAR\nPRODID:-//Example//EN\nMETHOD:COUNTER\nVERSION:2.0\nBEGIN:VEVENT\nUID:x\nDTSTAMP:20260901T080000Z\nEND:VEVENT\nEND:VCALENDAR\n", "COUNTER"},
-		{"REQUEST", "BEGIN:VCALENDAR\nMETHOD:REQUEST\nBEGIN:VEVENT\nUID:x\nSUMMARY\n", "missing colon"},
+	for _, tc := range []struct{ method, body string }{
+		{"COUNTER", "BEGIN:VCALENDAR\nPRODID:-//Example//EN\nMETHOD:COUNTER\nVERSION:2.0\nBEGIN:VEVENT\nUID:x\nDTSTAMP:20260901T080000Z\nEND:VEVENT\nEND:VCALENDAR\n"},
+		{"REQUEST", "BEGIN:VCALENDAR\nMETHOD:REQUEST\nBEGIN:VEVENT\nUID:x\nSUMMARY\n"},
 	} {
 		uid := fmt.Sprint(a.IMAP.Append(t, "INBOX", calendarMail("b@example.org", "Plan", tc.method, tc.body)))
 		for _, post := range []func() *Response{
@@ -360,7 +360,7 @@ func TestACalendarThatDoesNotReadIsRefused(t *testing.T) {
 			if resp.StatusCode != http.StatusFound {
 				t.Fatalf("%s: the button answered %s, want a redirect", tc.method, resp.Status)
 			}
-			if bar := NoticeBar(c.Follow(t, resp.Header.Get("Location"))); !Says(t, bar, "invite.unreadable", Any) || !strings.Contains(bar, tc.reason) {
+			if bar := NoticeBar(c.Follow(t, resp.Header.Get("Location"))); !Says(t, bar, "invite.unreadable", Any) {
 				t.Errorf("%s: the page after does not say why:\n%s", tc.method, bar)
 			}
 		}

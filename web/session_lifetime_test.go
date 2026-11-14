@@ -234,7 +234,7 @@ func TestNotificationPreviewsFollowTheRecipientSessionLock(t *testing.T) {
 func TestMergedScopeReadsThePersonsZone(t *testing.T) {
 	server := rememberedServer(t, nil)
 	ctx := rememberedContext(t, server)
-	for _, account := range []string{"one@test.local", "two@test.local"} {
+	for _, account := range []string{"one@test.localdomain", "two@test.localdomain"} {
 		login, err := server.SignIn(account, "password", "")
 		if err != nil {
 			t.Fatal(err)

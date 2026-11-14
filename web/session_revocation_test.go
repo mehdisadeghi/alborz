@@ -32,7 +32,7 @@ func (s loginHeld) Login(user, password string) error {
 func rememberedServer(t *testing.T, hold func(string)) *Server {
 	t.Helper()
 	mem := imapmemserver.New()
-	for _, user := range []string{"one@test.local", "two@test.local"} {
+	for _, user := range []string{"one@test.localdomain", "two@test.localdomain"} {
 		mem.AddUser(imapmemserver.NewUser(user, "password"))
 	}
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
@@ -49,7 +49,7 @@ func rememberedServer(t *testing.T, hold func(string)) *Server {
 	t.Cleanup(func() { imap.Close() })
 	core, err := alborz.New(log.New(io.Discard, "", 0), alborz.Options{
 		LoginKey: "YLZFnivEgqo-9cIJcqU6wOS7LhhCrXtgxRvYHoQ6NmA=", DataDir: t.TempDir(),
-		Domains: map[string]alborz.DomainConfig{"test.local": {"imap": "imap+insecure://" + listener.Addr().String()}},
+		Domains: map[string]alborz.DomainConfig{"test.localdomain": {"imap": "imap+insecure://" + listener.Addr().String()}},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -81,14 +81,14 @@ func (s failedSessionSave) Save(*alborz.SessionRecord) error { return s.err }
 
 func TestPasswordChangeRevokesOtherSessionsWhenRememberingFails(t *testing.T) {
 	server := rememberedServer(t, nil)
-	ctx := rememberedContext(t, server, "one@test.local")
+	ctx := rememberedContext(t, server, "one@test.localdomain")
 	other := rememberedContext(t, server)
-	oldLogin, err := server.SignIn("one@test.local", "password", "")
+	oldLogin, err := server.SignIn("one@test.localdomain", "password", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	other.session.add(oldLogin)
-	newLogin, err := server.SignIn("one@test.local", "password", "")
+	newLogin, err := server.SignIn("one@test.localdomain", "password", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,15 +97,15 @@ func TestPasswordChangeRevokesOtherSessionsWhenRememberingFails(t *testing.T) {
 	if err := ctx.PasswordChanged(newLogin, "new password"); !errors.Is(err, failed) {
 		t.Fatalf("password change error: %v", err)
 	}
-	if oldLogin.Alive() || server.Sessions.Holds(other.session.ID, "one@test.local") {
+	if oldLogin.Alive() || server.Sessions.Holds(other.session.ID, "one@test.localdomain") {
 		t.Fatal("failed persistence left another browser signed in after password change")
 	}
 }
 
 func TestBrowserLogoutPreservesAnotherUnrememberedAccount(t *testing.T) {
 	server := rememberedServer(t, nil)
-	ctx := rememberedContext(t, server, "one@test.local")
-	for _, account := range []string{"one@test.local", "two@test.local"} {
+	ctx := rememberedContext(t, server, "one@test.localdomain")
+	for _, account := range []string{"one@test.localdomain", "two@test.localdomain"} {
 		login, err := server.SignIn(account, "password", "")
 		if err != nil {
 			t.Fatal(err)
@@ -113,8 +113,8 @@ func TestBrowserLogoutPreservesAnotherUnrememberedAccount(t *testing.T) {
 		ctx.session.add(login)
 	}
 	id, secret := ctx.session.ID, ctx.sessionSecret
-	remaining := ctx.LogoutAccount("one@test.local")
-	if remaining == nil || remaining.Username() != "two@test.local" || !server.Sessions.Holds(id, "two@test.local") {
+	remaining := ctx.LogoutAccount("one@test.localdomain")
+	if remaining == nil || remaining.Username() != "two@test.localdomain" || !server.Sessions.Holds(id, "two@test.localdomain") {
 		t.Fatal("logging out the remembered account also discarded the unremembered account")
 	}
 	if _, ok := server.SessionRecords.Load(id); ok {
@@ -123,7 +123,7 @@ func TestBrowserLogoutPreservesAnotherUnrememberedAccount(t *testing.T) {
 	if server.Sessions.lookup(id, secret) == nil {
 		t.Fatal("the remaining account cannot be reached on the next request")
 	}
-	if ctx.LogoutAccount("two@test.local") != nil {
+	if ctx.LogoutAccount("two@test.localdomain") != nil {
 		t.Fatal("last logout retained an account")
 	}
 	if server.Sessions.lookup(id, secret) != nil {
@@ -142,12 +142,12 @@ func TestConcurrentRestoreCannotReAddARevokedAccount(t *testing.T) {
 	}()
 	var hold atomic.Bool
 	server := rememberedServer(t, func(user string) {
-		if user == "one@test.local" && hold.CompareAndSwap(true, false) {
+		if user == "one@test.localdomain" && hold.CompareAndSwap(true, false) {
 			close(entered)
 			<-release
 		}
 	})
-	ctx := rememberedContext(t, server, "one@test.local", "two@test.local")
+	ctx := rememberedContext(t, server, "one@test.localdomain", "two@test.localdomain")
 	hold.Store(true)
 	done := make(chan bool, 1)
 	go func() { done <- ctx.RestoreRememberedAccounts() }()
@@ -156,7 +156,7 @@ func TestConcurrentRestoreCannotReAddARevokedAccount(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("restore never reached upstream authentication")
 	}
-	if err := server.Sessions.SignOut(ctx.session.ID, "one@test.local"); err != nil {
+	if err := server.Sessions.SignOut(ctx.session.ID, "one@test.localdomain"); err != nil {
 		t.Fatal(err)
 	}
 	close(release)
@@ -168,14 +168,14 @@ func TestConcurrentRestoreCannotReAddARevokedAccount(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("restore did not finish")
 	}
-	if server.Sessions.Holds(ctx.session.ID, "one@test.local") {
+	if server.Sessions.Holds(ctx.session.ID, "one@test.localdomain") {
 		t.Fatal("in-flight restoration re-added the revoked account")
 	}
-	if !server.Sessions.Holds(ctx.session.ID, "two@test.local") {
+	if !server.Sessions.Holds(ctx.session.ID, "two@test.localdomain") {
 		t.Fatal("revocation removed the other account")
 	}
 	for _, login := range server.Logins() {
-		if login.Username() == "one@test.local" && login.Alive() {
+		if login.Username() == "one@test.localdomain" && login.Alive() {
 			t.Fatal("discarded restoration left an upstream login alive")
 		}
 	}
@@ -183,19 +183,19 @@ func TestConcurrentRestoreCannotReAddARevokedAccount(t *testing.T) {
 
 func TestRemovingALiveAccountRevokesItsPendingRestoration(t *testing.T) {
 	server := rememberedServer(t, nil)
-	ctx := rememberedContext(t, server, "one@test.local", "two@test.local")
-	login, err := server.SignIn("one@test.local", "password", "")
+	ctx := rememberedContext(t, server, "one@test.localdomain", "two@test.localdomain")
+	login, err := server.SignIn("one@test.localdomain", "password", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	ctx.session.add(login)
-	sealed := ctx.session.remember["one@test.local"]
-	pending, err := server.SignIn("one@test.local", "password", "")
+	sealed := ctx.session.remember["one@test.localdomain"]
+	pending, err := server.SignIn("one@test.localdomain", "password", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer pending.Close()
-	removed := ctx.session.remove("one@test.local")
+	removed := ctx.session.remove("one@test.localdomain")
 	if removed == nil {
 		t.Fatal("live login was not removed")
 	}
@@ -219,12 +219,12 @@ func TestConcurrentRestorationSurvivesRenewalAndAnotherRestore(t *testing.T) {
 			}()
 			var hold atomic.Bool
 			server := rememberedServer(t, func(user string) {
-				if user == "one@test.local" && hold.CompareAndSwap(true, false) {
+				if user == "one@test.localdomain" && hold.CompareAndSwap(true, false) {
 					close(entered)
 					<-release
 				}
 			})
-			ctx := rememberedContext(t, server, "one@test.local", "two@test.local")
+			ctx := rememberedContext(t, server, "one@test.localdomain", "two@test.localdomain")
 			other := &Context{Server: server, session: ctx.session, sessionSecret: ctx.sessionSecret,
 				request: httptest.NewRequest(http.MethodGet, "/private", nil), response: &Response{ResponseWriter: httptest.NewRecorder()}}
 			hold.Store(true)
@@ -251,7 +251,7 @@ func TestConcurrentRestorationSurvivesRenewalAndAnotherRestore(t *testing.T) {
 			case <-time.After(5 * time.Second):
 				t.Fatal("restore did not finish")
 			}
-			for _, account := range []string{"one@test.local", "two@test.local"} {
+			for _, account := range []string{"one@test.localdomain", "two@test.localdomain"} {
 				if !server.Sessions.Holds(ctx.session.ID, account) {
 					t.Fatalf("lost %s", account)
 				}

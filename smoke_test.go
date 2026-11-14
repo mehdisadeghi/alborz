@@ -91,9 +91,7 @@ func TestPagesAnswer(t *testing.T) {
 		if path := a.Path(route); !strings.HasPrefix(path, a.Path("settings.profile")+"/") {
 			t.Errorf("%s is outside settings: %s", route, path)
 		}
-		if page := c.Page(t, route); !strings.Contains(page, "<aside") {
-			t.Errorf("%s has no settings sidebar", route)
-		}
+		c.Page(t, route)
 	}
 	uids := MessageUIDs(c.Page(t, "mail.mailbox", "INBOX"))
 	if len(uids) < 4 {

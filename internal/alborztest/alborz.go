@@ -21,9 +21,9 @@ import (
 
 // The rig's mail domain and accounts; Elsewhere is on a domain of its own.
 const (
-	Domain    = "test.local"
-	User      = "a@test.local"
-	User2     = "b@test.local"
+	Domain    = "test.localdomain"
+	User      = "a@test.localdomain"
+	User2     = "b@test.localdomain"
 	Elsewhere = "c@elsewhere.local"
 	Password  = "x"
 	loginKey  = "YLZFnivEgqo-9cIJcqU6wOS7LhhCrXtgxRvYHoQ6NmA="

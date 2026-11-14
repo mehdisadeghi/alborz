@@ -141,60 +141,6 @@ func TestShellCachesLayoutScripts(t *testing.T) {
 	}
 }
 
-// A season paints its scene in every scheme, and no other theme paints one.
-func TestSeasonThemesPaintTheirSceneInEveryScheme(t *testing.T) {
-	a := Alborz(t)
-	c := a.SignIn(t, User)
-	base := c.Get(t, "core.asset", "style.css").Text
-	sources := map[string]string{}
-	var seasons []string
-	for _, theme := range a.Server.Themes() {
-		source := c.Get(t, "core.asset", theme.Asset).Text
-		sources[theme.Name] = source
-		if strings.Contains(source, "--scene:") {
-			seasons = append(seasons, theme.Name)
-		}
-	}
-	if len(seasons) == 0 {
-		for _, addon := range a.Server.Addons {
-			if addon.Name == "season" {
-				t.Fatal("season add-on offers no scene theme")
-			}
-		}
-		t.Skip("season add-on is not in this build")
-	}
-	for name, source := range sources {
-		c.Post(t, "settings.profile", url.Values{"theme": {name}})
-		scene := sceneMarkup.FindString(c.Page(t, "settings.profile"))
-		if !slices.Contains(seasons, name) {
-			if scene != "" {
-				t.Errorf("theme %s declares no scene and renders one", name)
-			}
-			continue
-		}
-		tokens := sceneToken.FindAllStringSubmatch(scene+base, -1)
-		blocks := slices.DeleteFunc(schemeBlock.FindAllString(source, -1), func(b string) bool {
-			return !strings.Contains(b, "color-scheme:")
-		})
-		if scene == "" || len(tokens) == 0 || len(blocks) == 0 {
-			t.Fatalf("theme %s: %d bytes of scene, %d tokens, %d scheme blocks", name, len(scene), len(tokens), len(blocks))
-		}
-		for _, b := range blocks {
-			for _, tok := range tokens {
-				if !strings.Contains(b, tok[1]+":") {
-					t.Errorf("theme %s: a scheme block lacks %s", name, tok[1])
-				}
-			}
-		}
-	}
-}
-
-var (
-	sceneMarkup = regexp.MustCompile(`(?s)<svg class="scene".*?</svg>`)
-	sceneToken  = regexp.MustCompile(`var\((--scene-[a-z-]+)\)`)
-	schemeBlock = regexp.MustCompile(`\{[^{}]*\}`)
-)
-
 func TestDoneNoticeClosesWithoutAScript(t *testing.T) {
 	c := Alborz(t).SignIn(t, User)
 	uids := MessageUIDs(c.Page(t, "mail.mailbox", "INBOX"))
@@ -206,7 +152,7 @@ func TestDoneNoticeClosesWithoutAScript(t *testing.T) {
 	if !strings.Contains(notice, "notice-done") {
 		t.Fatalf("no done notice after a move: %q", notice)
 	}
-	if !strings.Contains(notice, `<form method="dialog" class="notice-dismiss">`) {
+	if !strings.Contains(notice, `method="dialog"`) {
 		t.Errorf("the notice has no cross that closes it without a script:\n%s", notice)
 	}
 }

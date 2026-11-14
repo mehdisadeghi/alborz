@@ -57,7 +57,7 @@ func multipartSigned(protocol, part, sigPart string) string {
 }
 
 func mailFrom(extra, body string) string {
-	return "From: Gil <gil@example.org>\r\nTo: a@test.local\r\nSubject: Signed\r\nMIME-Version: 1.0\r\n" + extra + body
+	return "From: Gil <gil@example.org>\r\nTo: a@test.localdomain\r\nSubject: Signed\r\nMIME-Version: 1.0\r\n" + extra + body
 }
 
 type unresolvable struct{}
@@ -128,7 +128,7 @@ func TestVerdict(t *testing.T) {
 func verdictOver(t *testing.T, raw string) Verification {
 	t.Helper()
 	mem := imapmemserver.New()
-	user := imapmemserver.NewUser("a@test.local", "x")
+	user := imapmemserver.NewUser("a@test.localdomain", "x")
 	if err := user.Create("INBOX", nil); err != nil {
 		t.Fatal(err)
 	}
@@ -155,7 +155,7 @@ func verdictOver(t *testing.T, raw string) Verification {
 		t.Fatal(err)
 	}
 	defer c.Close()
-	if err := c.Login("a@test.local", "x").Wait(); err != nil {
+	if err := c.Login("a@test.localdomain", "x").Wait(); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := c.Select("INBOX", nil).Wait(); err != nil {

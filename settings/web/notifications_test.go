@@ -120,7 +120,7 @@ func TestNotificationsArePerAccount(t *testing.T) {
 	if len(accountDevices(t, c, User)) != 0 || len(accountDevices(t, c, User2)) != 1 {
 		t.Fatal("turning one account off changed the other's subscription")
 	}
-	sub.Set("account", "outsider@test.local")
+	sub.Set("account", "outsider@test.localdomain")
 	resp = c.Post(t, "settings.notifications.create", sub)
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("subscribing an account not signed in: %s", resp.Status)

@@ -65,13 +65,21 @@ main.calendar .month-lanes > a {
   pointer-events: auto;
 }
 
-/* data-fit is the number of 1.5rem lines (2px apart) a bar or count needs; the server plans each. */
-main.calendar .month-overflow:not([data-fit="4"]) {
+/* data-fit is the number of 1.5rem lines (2px apart) a bar or count needs; the server plans each, for up to monthLanes+1 lines. */
+main.calendar .month-overflow:not([data-fit="6"]) {
   display: none;
 }
 
+@container month-lanes (height < 9.625rem) {
+  main.calendar .month-lanes > [data-fit="6"] { display: none; }
+}
+
+@container month-lanes (height < 8rem) {
+  main.calendar .month-lanes > .month-event[data-fit="5"] { display: none; }
+}
+
 @container month-lanes (height < 6.375rem) {
-  main.calendar .month-lanes > [data-fit="4"] { display: none; }
+  main.calendar .month-lanes > .month-event[data-fit="4"] { display: none; }
 }
 
 @container month-lanes (height < 4.75rem) {
@@ -84,6 +92,14 @@ main.calendar .month-overflow:not([data-fit="4"]) {
 
 @container month-lanes (height < 1.5rem) {
   main.calendar .month-lanes > .month-event[data-fit="1"] { display: none; }
+}
+
+@container month-lanes (8rem <= height < 9.625rem) {
+  main.calendar .month-lanes > .month-overflow[data-fit="5"] { display: block; }
+}
+
+@container month-lanes (6.375rem <= height < 8rem) {
+  main.calendar .month-lanes > .month-overflow[data-fit="4"] { display: block; }
 }
 
 @container month-lanes (4.75rem <= height < 6.375rem) {
@@ -161,6 +177,22 @@ main.calendar .month-event {
 
 main.calendar .month-event:hover {
   background: var(--bg-active);
+}
+
+/* A timed event of one day is a line, not a bar: dot, start time, title. */
+main.calendar .month-event.timed {
+  background: none;
+  box-shadow: none;
+}
+
+main.calendar .month-event.timed:hover {
+  background: var(--bg-active);
+}
+
+main.calendar .month-event-time {
+  flex-shrink: 0;
+  color: var(--fg-dim);
+  font-variant-numeric: tabular-nums;
 }
 
 main.calendar .month-event-title {

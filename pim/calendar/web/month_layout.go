@@ -11,7 +11,7 @@ import (
 )
 
 // monthLanes is how many bars a week holds before its days count the rest.
-const monthLanes = 3
+const monthLanes = 5
 
 // MonthWeek's Overflow counts what its lanes cannot hold; Squeezed counts,
 // for a window that fits fewer lanes, what a day hides at each Fit.
@@ -32,6 +32,10 @@ type MonthEvent struct {
 	calendar.Occurrence
 	Column, Span, Row, Fit          int
 	ContinuesBefore, ContinuesAfter bool
+	// Timed is an event within one day, shown as a time and title, not a bar.
+	Timed bool
+	// Day is the date the bar starts on in this week.
+	Day time.Time
 }
 
 // Fit is the number of lines the lane area holds when the link shows, and
@@ -46,8 +50,12 @@ type monthOccurrenceKey struct {
 	start                            time.Time
 }
 
-// monthWeeks assigns one lane to every visible segment, so a bar never
-// changes height partway through a week. Hidden segments count on each day.
+// monthWeeks lays out each week as Apple Calendar does. All-day and
+// multi-day events are bars, placed first and longest first; a bar takes the
+// lowest lane free across its days, or, on a crowded week, the lowest free
+// lane on each day. Timed events of one day then fill each day's lowest free
+// lanes in start order, so no lane is left empty above an item. What still
+// does not fit counts on its day.
 func monthWeeks(dates []time.Time, on map[time.Time][]calendar.Occurrence) []MonthWeek {
 	type span struct {
 		key         monthOccurrenceKey
@@ -69,87 +77,130 @@ func monthWeeks(dates []time.Time, on map[time.Time][]calendar.Occurrence) []Mon
 			}
 		}
 	}
+	tie := func(a, b *span) int {
+		if c := a.occurrence.Start.Compare(b.occurrence.Start); c != 0 {
+			return c
+		}
+		if c := cmp.Compare(a.key.account, b.key.account); c != 0 {
+			return c
+		}
+		if c := cmp.Compare(a.key.path, b.key.path); c != 0 {
+			return c
+		}
+		if c := cmp.Compare(a.key.uid, b.key.uid); c != 0 {
+			return c
+		}
+		return cmp.Compare(a.key.recurrenceID, b.key.recurrenceID)
+	}
 	var weeks []MonthWeek
 	previous := make(map[monthOccurrenceKey]int)
 	for start := 0; start < len(dates); start += 7 {
 		end := min(start+7, len(dates))
 		week := MonthWeek{Dates: dates[start:end]}
-		var candidates []*span
+		var bars, items []*span
 		for _, s := range spans {
-			if s.first < end && s.last >= start {
-				candidates = append(candidates, s)
+			if s.first >= end || s.last < start {
+				continue
+			}
+			firstDay, lastDay := occurrenceDays(s.occurrence, dates[0].Location())
+			if s.occurrence.AllDay() || lastDay.After(firstDay) {
+				bars = append(bars, s)
+			} else {
+				items = append(items, s)
 			}
 		}
-		slices.SortFunc(candidates, func(a, b *span) int {
-			// Keep continuing bars in their previous lanes before placing new ones.
-			if c := cmp.Compare(previous[b.key], previous[a.key]); c != 0 {
+		slices.SortFunc(bars, func(a, b *span) int {
+			// Continuing bars come first, in the order they had last week.
+			pa, pb := previous[a.key], previous[b.key]
+			if (pa > 0) != (pb > 0) {
+				if pa > 0 {
+					return -1
+				}
+				return 1
+			}
+			if c := cmp.Compare(pa, pb); c != 0 {
 				return c
 			}
-			// Start order lets every non-overlapping interval reuse a lane;
-			// length alone can fragment all three lanes unnecessarily.
+			// Longest first, so a trip is not hidden behind a crowded day.
+			la, lb := min(end-1, a.last)-max(start, a.first), min(end-1, b.last)-max(start, b.first)
+			if c := cmp.Compare(lb, la); c != 0 {
+				return c
+			}
 			if c := cmp.Compare(a.first, b.first); c != 0 {
 				return c
 			}
-			if c := cmp.Compare(b.last-b.first, a.last-a.first); c != 0 {
-				return c
-			}
-			if c := a.occurrence.Start.Compare(b.occurrence.Start); c != 0 {
-				return c
-			}
-			if c := cmp.Compare(a.key.account, b.key.account); c != 0 {
-				return c
-			}
-			if c := cmp.Compare(a.key.path, b.key.path); c != 0 {
-				return c
-			}
-			if c := cmp.Compare(a.key.uid, b.key.uid); c != 0 {
-				return c
-			}
-			return cmp.Compare(a.key.recurrenceID, b.key.recurrenceID)
+			return tie(a, b)
 		})
+		slices.SortFunc(items, tie)
 		var occupied [monthLanes][7]bool
 		var hidden [7]int
-		next := make(map[monthOccurrenceKey]int)
-		for _, s := range candidates {
-			first, last := max(start, s.first)-start, min(end-1, s.last)-start
-			free := func(row int) bool {
-				for col := first; col <= last; col++ {
-					if occupied[row][col] {
-						return false
-					}
+		lowest := func(first, last int) int {
+			for r := range occupied {
+				free := true
+				for col := first; col <= last && free; col++ {
+					free = !occupied[r][col]
 				}
-				return true
-			}
-			row := -1
-			if preferred := previous[s.key]; preferred > 0 && free(preferred-1) {
-				row = preferred - 1
-			} else {
-				for r := range occupied {
-					if free(r) {
-						row = r
-						break
-					}
+				if free {
+					return r
 				}
 			}
-			if row < 0 {
-				for col := first; col <= last; col++ {
-					hidden[col]++
-				}
-				continue
-			}
+			return -1
+		}
+		place := func(s *span, first, last, row int, timed bool) {
 			for col := first; col <= last; col++ {
 				occupied[row][col] = true
 			}
 			firstDay, lastDay := occurrenceDays(s.occurrence, dates[start].Location())
 			week.Events = append(week.Events, MonthEvent{
-				Occurrence: s.occurrence, Column: first + 1, Span: last - first + 1, Row: row + 1,
+				Occurrence: s.occurrence, Column: first + 1, Span: last - first + 1, Row: row + 1, Timed: timed, Day: dates[start+first],
 				ContinuesBefore: firstDay.Before(dates[start+first]),
 				ContinuesAfter:  lastDay.After(dates[start+last]),
 			})
-			if s.last >= end {
-				next[s.key] = row + 1
+		}
+		next := make(map[monthOccurrenceKey]int)
+		for _, s := range bars {
+			first, last := max(start, s.first)-start, min(end-1, s.last)-start
+			if row := lowest(first, last); row >= 0 {
+				place(s, first, last, row, false)
+				if s.last >= end {
+					next[s.key] = row + 1
+				}
+				continue
+			}
+			// No lane is free all week: show each run of days that has one.
+			for col := first; col <= last; {
+				row := lowest(col, col)
+				if row < 0 {
+					hidden[col]++
+					col++
+					continue
+				}
+				run := col
+				for run < last && lowest(run+1, run+1) == row {
+					run++
+				}
+				place(s, col, run, row, false)
+				if run == end-1-start && s.last >= end {
+					next[s.key] = row + 1
+				}
+				col = run + 1
 			}
 		}
+		for _, s := range items {
+			col := s.first - start
+			if row := lowest(col, col); row >= 0 {
+				place(s, col, col, row, true)
+			} else {
+				hidden[col]++
+			}
+		}
+		// Day by day, top to bottom: the order a screen reader reads them in.
+		slices.SortStableFunc(week.Events, func(a, b MonthEvent) int {
+			if c := cmp.Compare(a.Column, b.Column); c != 0 {
+				return c
+			}
+			return cmp.Compare(a.Row, b.Row)
+		})
 		for col, count := range hidden {
 			if count > 0 {
 				week.Overflow = append(week.Overflow, MonthOverflow{dates[start+col], col + 1, count, monthLanes + 1})

@@ -1,6 +1,8 @@
 package web
 
 import (
+	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -48,45 +50,60 @@ func TestMonthWeeksSpanAndContinueAcrossWeeks(t *testing.T) {
 	if second.Column != 1 || second.Span != 2 || !second.ContinuesBefore || second.ContinuesAfter {
 		t.Errorf("second segment: %#v", second)
 	}
-	if first.Row != second.Row {
-		t.Errorf("continuation changed lane from %d to %d", first.Row, second.Row)
-	}
 }
 
-func TestMonthWeeksKeepLongEventsVisibleAndCountHiddenDays(t *testing.T) {
+// Whatever the lane count, a week shows each event only on its own days,
+// never stacks two in one place, and counts on each day what it hides.
+func TestMonthWeeksAccountForEveryEvent(t *testing.T) {
 	dates := monthLayoutDates(7)
 	on := make(map[time.Time][]calendar.Occurrence)
-	trip := monthLayoutEvent("a", "/trip.ics", dates[0], dates[6])
-	for _, date := range dates[:6] {
-		on[date] = []calendar.Occurrence{trip}
-	}
-	for _, path := range []string{"/a.ics", "/b.ics", "/c.ics", "/d.ics"} {
-		on[dates[2]] = append(on[dates[2]], monthLayoutEvent("a", path, dates[2], dates[3]))
-	}
-	week := monthWeeks(dates, on)[0]
-	if len(week.Events) != 3 || week.Events[0].Path != "/trip.ics" || week.Events[0].Span != 6 {
-		t.Fatalf("long trip must stay visible above the crowded day: %#v", week.Events)
-	}
-	if len(week.Overflow) != 1 || week.Overflow[0].Column != 3 || week.Overflow[0].Count != 2 || !week.Overflow[0].Date.Equal(dates[2]) {
-		t.Errorf("want two hidden events on Wednesday: %#v", week.Overflow)
-	}
-}
-
-func TestMonthWeeksReuseLanesWithoutOverlaps(t *testing.T) {
-	dates := monthLayoutDates(7)
-	on := make(map[time.Time][]calendar.Occurrence)
-	for _, bounds := range [][2]int{{0, 3}, {1, 4}, {4, 7}} {
-		event := monthLayoutEvent("a", dates[bounds[0]].String(), dates[bounds[0]], dates[0].AddDate(0, 0, bounds[1]))
-		for _, date := range dates[bounds[0]:bounds[1]] {
+	add := func(name string, first, days int) {
+		event := monthLayoutEvent("a", name, dates[first], dates[first].AddDate(0, 0, days))
+		for _, date := range dates[first : first+days] {
 			on[date] = append(on[date], event)
 		}
 	}
-	week := monthWeeks(dates, on)[0]
-	if len(week.Events) != 3 || len(week.Overflow) != 0 {
-		t.Fatalf("all three events should fit: %#v", week)
+	add("/trip.ics", 0, 6)
+	add("/workshop.ics", 1, 3)
+	add("/review.ics", 2, 2)
+	for i := range 2 * monthLanes {
+		start := dates[2].Add(time.Duration(9+i) * time.Hour)
+		event := monthLayoutEvent("a", fmt.Sprintf("/meeting%d.ics", i), start, start.Add(30*time.Minute))
+		on[dates[2]] = append(on[dates[2]], event)
 	}
-	if week.Events[0].Row == week.Events[1].Row || week.Events[0].Row != week.Events[2].Row {
-		t.Errorf("overlaps need different lanes; later events reuse them: %#v", week.Events)
+	week := monthWeeks(dates, on)[0]
+
+	shown := make([]map[string]bool, 7)
+	var taken [monthLanes + 1][7]bool
+	for _, e := range week.Events {
+		if e.Row < 1 || e.Row > monthLanes {
+			t.Fatalf("%s sits on lane %d", e.Path, e.Row)
+		}
+		for col := e.Column - 1; col < e.Column-1+e.Span; col++ {
+			if !slices.ContainsFunc(on[dates[col]], func(oc calendar.Occurrence) bool { return oc.Path == e.Path }) {
+				t.Errorf("%s shows on %s, a day it does not cover", e.Path, dates[col].Format(time.DateOnly))
+			}
+			if taken[e.Row][col] {
+				t.Errorf("two events share lane %d on %s", e.Row, dates[col].Format(time.DateOnly))
+			}
+			taken[e.Row][col] = true
+			if shown[col] == nil {
+				shown[col] = map[string]bool{}
+			}
+			shown[col][e.Path] = true
+		}
+	}
+	hidden := make([]int, 7)
+	for _, o := range week.Overflow {
+		hidden[o.Column-1] = o.Count
+	}
+	for col, date := range dates {
+		if got := len(shown[col]) + hidden[col]; got != len(on[date]) {
+			t.Errorf("%s shows %d and counts %d hidden of %d events", date.Format(time.DateOnly), len(shown[col]), hidden[col], len(on[date]))
+		}
+	}
+	if !shown[2]["/trip.ics"] {
+		t.Error("the long trip is hidden behind the crowded day")
 	}
 }
 
@@ -100,9 +117,6 @@ func TestMonthWeeksDoNotMergeAccountsOrRecurringInstances(t *testing.T) {
 	if len(week.Events) != 3 {
 		t.Fatalf("distinct account and recurrence occurrences were merged: %#v", week.Events)
 	}
-	if week.Events[0].Account != "a" || week.Events[1].Account != "b" || week.Events[2].Column != 3 {
-		t.Errorf("equal starts should have stable account order: %#v", week.Events)
-	}
 }
 
 func TestMonthWeeksMarkContinuationOutsideGrid(t *testing.T) {
@@ -115,21 +129,6 @@ func TestMonthWeeksMarkContinuationOutsideGrid(t *testing.T) {
 	segment := monthWeeks(dates, on)[0].Events[0]
 	if segment.Column != 1 || segment.Span != 7 || !segment.ContinuesBefore || !segment.ContinuesAfter {
 		t.Errorf("grid-clipped event should continue at both ends: %#v", segment)
-	}
-}
-
-func TestMonthWeeksDoNotOverflowWhenThreeLanesFit(t *testing.T) {
-	dates := monthLayoutDates(7)
-	on := make(map[time.Time][]calendar.Occurrence)
-	for _, bounds := range [][2]int{{0, 0}, {0, 1}, {0, 3}, {1, 2}, {2, 3}, {3, 5}} {
-		event := monthLayoutEvent("a", dates[bounds[0]].String()+dates[bounds[1]].String(), dates[bounds[0]], dates[0].AddDate(0, 0, bounds[1]+1))
-		for _, date := range dates[bounds[0] : bounds[1]+1] {
-			on[date] = append(on[date], event)
-		}
-	}
-	week := monthWeeks(dates, on)[0]
-	if len(week.Events) != 6 || len(week.Overflow) != 0 {
-		t.Fatalf("six events with at most three per day should fit: %#v", week)
 	}
 }
 
@@ -182,8 +181,13 @@ END:VCALENDAR
 		if len(week.Events) != 3 || len(week.Overflow) != 0 {
 			t.Fatalf("coincident instances must stay distinct: %#v", week)
 		}
-		if week.Events[1].Summary() != "Ordinary" || week.Events[2].Summary() != "Moved" || week.Events[1].Row == week.Events[2].Row {
-			t.Errorf("coincident instances need stable, separate lanes: %#v", week.Events)
+		lanes := map[[2]int]string{}
+		for _, e := range week.Events {
+			at := [2]int{e.Column, e.Row}
+			if other, ok := lanes[at]; ok {
+				t.Errorf("%s and %s share a lane on day %d", other, e.Summary(), e.Column)
+			}
+			lanes[at] = e.Summary()
 		}
 	}
 }

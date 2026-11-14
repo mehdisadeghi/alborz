@@ -41,8 +41,10 @@ func serveDNS(conn net.Conn, answer func(dnsmessage.Question) []dnsmessage.Resou
 		return
 	}
 	response := dnsmessage.Message{
-		Header:    dnsmessage.Header{ID: query.ID, Response: true, Authoritative: true},
-		Questions: query.Questions,
+		ID:            query.ID,
+		Response:      true,
+		Authoritative: true,
+		Questions:     query.Questions,
 	}
 	for _, q := range query.Questions {
 		if answer != nil {

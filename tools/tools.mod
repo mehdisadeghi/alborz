@@ -3,7 +3,7 @@
 // own x/tools, so the Makefile runs it at a pinned version on its own.
 module git.mehdix.org/alborz
 
-go 1.27.3
+go 1.27.4
 
 tool (
 	github.com/golangci/golangci-lint/v2/cmd/golangci-lint

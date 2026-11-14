@@ -27,8 +27,8 @@ func monthLayoutEvent(account, path string, start, end time.Time) calendar.Occur
 	event.Props.SetText(ical.PropSummary, path)
 	event.Props.SetDateTime(ical.PropDateTimeStart, start)
 	return calendar.Occurrence{
-		Object: calendar.Object{Account: account, CalendarObject: &caldav.CalendarObject{Path: path}},
-		Event:  event, Start: start, End: end,
+		Account: account, CalendarObject: &caldav.CalendarObject{Path: path},
+		Event: event, Start: start, End: end,
 	}
 }
 

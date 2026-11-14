@@ -49,7 +49,7 @@ type AccountIdentities struct {
 	Addresses []string
 }
 
-func (p *plugin) composeRenderData(ctx *web.Context, base *IMAPBaseRenderData, msg *mail.OutgoingMessage, options *mail.ComposeOptions, signature string) *ComposeRenderData {
+func (p *plugin) composeRenderData(ctx *web.Context, base *IMAPBaseRenderData, msg *mail.OutgoingMessage, signature string) *ComposeRenderData {
 	return &ComposeRenderData{
 		IMAPBaseRenderData: *base,
 		Message:            msg,
@@ -63,9 +63,9 @@ func (p *plugin) composeRenderData(ctx *web.Context, base *IMAPBaseRenderData, m
 	}
 }
 
-func (p *plugin) renderCompose(ctx *web.Context, status int, base *IMAPBaseRenderData, msg *mail.OutgoingMessage, options *mail.ComposeOptions, settings *mail.Settings, signature, refusal string) error {
+func (p *plugin) renderCompose(ctx *web.Context, status int, base *IMAPBaseRenderData, msg *mail.OutgoingMessage, settings *mail.Settings, signature, refusal string) error {
 	base.WithTitle(ctx.T("aside.compose")).Refused(refusal)
-	data := p.composeRenderData(ctx, base, msg, options, signature)
+	data := p.composeRenderData(ctx, base, msg, signature)
 	var err error
 	data.Signatures, err = composeSignatures(ctx, settings)
 	if err != nil {
@@ -276,7 +276,7 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *mail.OutgoingMessage, opti
 			return err
 		}
 		render := func(status int, signature, errText string) error {
-			return p.renderCompose(ctx, status, ibase, msg, options, settings, signature, errText)
+			return p.renderCompose(ctx, status, ibase, msg, settings, signature, errText)
 		}
 		// A server's refusal comes back on the form; uploads stay with the session until the message has left.
 		var uploads []string
@@ -443,7 +443,7 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *mail.OutgoingMessage, opti
 		})
 	}
 
-	return p.renderCompose(ctx, http.StatusOK, ibase, msg, options, settings, options.Signature, "")
+	return p.renderCompose(ctx, http.StatusOK, ibase, msg, settings, options.Signature, "")
 }
 
 // suggestions are what the features offer, each entry once, sorted.

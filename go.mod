@@ -1,6 +1,6 @@
 module git.mehdix.org/alborz
 
-go 1.27.3
+go 1.27.4
 
 // Listeners on Linux use plain TCP: Go 1.24+ defaults them to MPTCP, the
 // path to remote code execution in CVE-2026-98432 (golang/go#82717).

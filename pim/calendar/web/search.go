@@ -19,7 +19,7 @@ import (
 // EventSearchRenderData is the events a search finds across all time, each on the occurrence it shows.
 type EventSearchRenderData struct {
 	pimweb.ListRenderData
-	Found []calendar.Occurrence
+	Found []ListEvent
 	// ListQuery is carried to an event's page so it can name its neighbours; SelectForm is the rows' form.
 	ListQuery string
 	unread    []pim.Unread
@@ -94,10 +94,14 @@ func (p *plugin) eventSearch(ctx *web.Context, only map[string]bool, view string
 		return cmp.Or(a.Start.Compare(b.Start), strings.Compare(a.Path, b.Path))
 	})
 	collection, href := pimweb.Labels(ctx, calendars, "calendar.month", "cal", map[string][]string{"view": {"list"}})
+	rows := make([]ListEvent, len(found))
+	for i, oc := range found {
+		rows[i] = newListEvent(oc, loc, time.Time{})
+	}
 	return &EventSearchRenderData{
 		CollectionLabels: pimweb.NewCollectionLabels(p.DAV, ctx.Login.Username(), collection, href),
 		Collections:      calendars,
-		Found:            found,
+		Found:            rows,
 		ListQuery:        web.Query(web.ReadListState(ctx).Keep(eventSearchParams...)),
 		unread:           unread,
 	}, nil

@@ -1,35 +1,35 @@
 .event-grid {
   display: grid;
-  grid-template-columns: var(--star-track) 6.5rem 5rem minmax(12rem, 1fr) var(--collection-track);
+  grid-template-columns: var(--star-track) minmax(12rem, 1fr) var(--collection-track) 5rem 6.5rem;
 }
 
 .event-grid-select {
-  grid-template-columns: var(--control-height) var(--star-track) 6.5rem 5rem minmax(12rem, 1fr) var(--collection-track);
+  grid-template-columns: var(--control-height) var(--star-track) minmax(12rem, 1fr) var(--collection-track) 5rem 6.5rem;
 }
 
 .event-grid-grouped {
-  grid-template-columns: var(--star-track) 5rem minmax(12rem, 1fr) var(--collection-track);
+  grid-template-columns: var(--star-track) minmax(12rem, 1fr) var(--collection-track) 5rem;
 }
 
 .event-grid-select.event-grid-grouped {
-  grid-template-columns: var(--control-height) var(--star-track) 5rem minmax(12rem, 1fr) var(--collection-track);
+  grid-template-columns: var(--control-height) var(--star-track) minmax(12rem, 1fr) var(--collection-track) 5rem;
 }
 
 @media (width < 60rem) {
   .event-grid {
-    grid-template-columns: var(--star-track) 6.5rem 5rem minmax(0, 3fr) minmax(6rem, 1fr);
+    grid-template-columns: var(--star-track) minmax(0, 3fr) minmax(6rem, 1fr) 5rem 6.5rem;
   }
 
   .event-grid-select {
-    grid-template-columns: var(--control-height) var(--star-track) 6.5rem 5rem minmax(0, 3fr) minmax(6rem, 1fr);
+    grid-template-columns: var(--control-height) var(--star-track) minmax(0, 3fr) minmax(6rem, 1fr) 5rem 6.5rem;
   }
 
   .event-grid-grouped {
-    grid-template-columns: var(--star-track) 5rem minmax(0, 3fr) minmax(6rem, 1fr);
+    grid-template-columns: var(--star-track) minmax(0, 3fr) minmax(6rem, 1fr) 5rem;
   }
 
   .event-grid-select.event-grid-grouped {
-    grid-template-columns: var(--control-height) var(--star-track) 5rem minmax(0, 3fr) minmax(6rem, 1fr);
+    grid-template-columns: var(--control-height) var(--star-track) minmax(0, 3fr) minmax(6rem, 1fr) 5rem;
   }
 }
 
@@ -69,6 +69,18 @@
   flex-grow: 0;
 }
 
+/* A day a multi-day event has already passed through keeps a muted row, its
+   color dot a dashed outline of itself; its first day reads unmuted. */
+.event-row.continues-before .event-summary {
+  color: var(--fg-muted);
+}
+
+.event-row.continues-before .color-dot {
+  box-sizing: border-box;
+  background: transparent !important;
+  border: 1px dashed var(--fg-muted);
+}
+
 .event-grid .event-day-header {
   grid-column: 1 / -1;
   margin: 0;
@@ -93,8 +105,8 @@
     display: none;
   }
 
-  /* Each line spans the flexible track, so the calendar's name does not
-     size the star's column and narrow the summary above it. */
+  /* The date sits on the title's row, at its inline end; the owner takes
+     the line below. */
   .event-row {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) auto auto var(--control-height);
@@ -105,12 +117,12 @@
 
   .event-row .event-select {
     grid-column: 1;
-    grid-row: 1 / 3;
+    grid-row: 1;
     align-self: center;
   }
 
   .event-row .event-summary {
-    grid-column: 2 / 5;
+    grid-column: 2;
     grid-row: 1;
     font-weight: 600;
   }
@@ -121,23 +133,26 @@
     place-self: start end;
   }
 
-  .event-row .event-date {
-    grid-column: 3; grid-row: 2;
+  .event-row .event-time {
+    grid-column: 3;
+    grid-row: 1;
+    justify-self: end;
   }
 
-  .event-row .event-time {
-    grid-column: 4 / 6;
-    grid-row: 2;
-    justify-content: flex-end;
+  .event-row .event-date {
+    grid-column: 4;
+    grid-row: 1;
+    justify-self: end;
   }
 
   .event-row .event-owner {
-    grid-column: 2;
+    grid-column: 2 / 5;
     grid-row: 2;
-    justify-content: flex-start;
+    justify-self: start;
   }
 
   .event-grid-grouped .event-row .event-time {
-    grid-column: 3 / 6;
+    grid-column: 3 / 5;
+    justify-self: end;
   }
 }

@@ -33,7 +33,10 @@ type CalendarRenderData struct {
 	// Scope is the account and calendars the page is narrowed to.
 	Scope string
 
-	EventsForDate func(time.Time) []calendar.Occurrence
+	// EventsForDate rows a day's occurrences when the agenda groups by day.
+	EventsForDate func(time.Time) []ListEvent
+	// ListEvents is the flat agenda's rows, one per multi-day span.
+	ListEvents []ListEvent
 	// StarView is the star the agenda is narrowed to.
 	StarView string
 	// FilterRows and GroupRows are the agenda's filter and sort menus.
@@ -45,6 +48,7 @@ type CalendarRenderData struct {
 type monthView struct {
 	loc       *time.Location
 	start     time.Time
+	monthEnd  time.Time
 	now       time.Time
 	view      string
 	group     string
@@ -66,7 +70,9 @@ type monthView struct {
 func (mv monthView) shown() []calendar.Occurrence {
 	var out []calendar.Occurrence
 	for _, date := range mv.dates {
-		if mv.view != "" && date.Month() != mv.start.Month() {
+		// A month is a span of the reader's calendar, so the comparison is by
+		// the span, not the Gregorian month the day number falls in.
+		if mv.view != "" && (date.Before(mv.start) || !date.Before(mv.monthEnd)) {
 			continue
 		}
 		out = append(out, mv.on[mv.day(date)]...)
@@ -116,9 +122,18 @@ func (p *plugin) month(ctx *web.Context) error {
 		GroupRows: groupRows(ctx, mv),
 		Group:     mv.group,
 
-		EventsForDate: func(when time.Time) []calendar.Occurrence {
-			return mv.on[mv.day(when)]
+		EventsForDate: func(when time.Time) []ListEvent {
+			return dayListEvents(mv.on[mv.day(when)], mv.day(when), mv.loc)
 		},
+	}
+	if mv.view != "" && mv.group != "day" {
+		month := make([]time.Time, 0, len(mv.dates))
+		for _, date := range mv.dates {
+			if !date.Before(mv.start) && date.Before(mv.monthEnd) {
+				month = append(month, date)
+			}
+		}
+		data.ListEvents = flatListEvents(month, func(when time.Time) []calendar.Occurrence { return mv.on[when] }, mv.loc)
 	}
 	if mv.view == "" {
 		if err := web.Extended(ctx, data); err != nil {
@@ -223,6 +238,7 @@ func (p *plugin) monthView(ctx *web.Context) (monthView, error) {
 	return monthView{
 		loc:       loc,
 		start:     start,
+		monthEnd:  monthEnd,
 		now:       now,
 		view:      view,
 		group:     group,

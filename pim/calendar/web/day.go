@@ -15,7 +15,7 @@ import (
 
 type CalendarDateRenderData struct {
 	CalendarPageRenderData
-	Events             []calendar.Occurrence
+	Events             []ListEvent
 	PrevPage, NextPage string
 	Scope              string
 	// IsToday marks the day shown, so the pager can disable its Today step.
@@ -46,7 +46,7 @@ func (p *plugin) day(ctx *web.Context) error {
 	return ctx.Render(quickPageStatus(ctx), "calendar/day", &CalendarDateRenderData{
 		CalendarPageRenderData: calendarPageData(ctx, ctx.T("nav.calendar")+": "+ctx.Dates().Long(dv.start), dv.calendars, pimweb.NewCollectionLabels(p.DAV, ctx.Login.Username(), collection, href), "", "", nil, nil, "", invitations, dayQuery(ctx, dv.start), dv.start),
 		// Named even when the URL omits it, so an opened event knows its list.
-		Events:   dv.events,
+		Events:   dayListEvents(dv.events, dv.start, dv.start.Location()),
 		PrevPage: dv.start.AddDate(0, 0, -1).Format(datePageLayout),
 		NextPage: dv.start.AddDate(0, 0, 1).Format(datePageLayout),
 		Scope:    web.Query(web.ReadListState(ctx).Keep("account", "cal")),

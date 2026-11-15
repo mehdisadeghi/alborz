@@ -119,7 +119,9 @@ func (p *plugin) eventItems(ctx *web.Context) ([]pimweb.Item, error) {
 		if err != nil {
 			return nil, err
 		}
-		shown = found.Found
+		for _, row := range found.Found {
+			shown = append(shown, row.Occurrence)
+		}
 	default:
 		return nil, nil
 	}

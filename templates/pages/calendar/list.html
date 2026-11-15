@@ -23,16 +23,23 @@
         {{$any := false}}
         <div class="event-grid list-grid{{ if .SelectForm }} event-grid-select{{ end }}{{ if $grouped }} event-grid-grouped{{ end }}" role="table">
           {{ template "event-grid-header" (dict "starred" ($.T "sort.starred") "form" .SelectForm "date" (and (not $grouped) ($.T "sort.date")) "time" ($.T "calendar.time") "event" ($.T "calendar.event") "calendar" ($.T "common.calendar")) }}
+          {{ if $grouped }}
           {{range .Dates}}
           {{if $base.SameMonth . $base.Time}}
           {{$events := call $base.EventsForDate .}}
           {{if $events}}
           {{$any = true}}
-          {{ if $grouped }}<h2 class="event-day-header" role="rowheader">{{ template "date-day" (dict "g" $base.Global "time" .) }}</h2>{{ end }}
-          {{ template "event-rows" (dict "events" $events "base" $base "dated" (not $grouped)) }}
+          <h2 class="event-day-header" role="rowheader">{{ template "date-day" (dict "g" $base.Global "time" .) }}</h2>
+          {{ template "event-rows" (dict "events" $events "base" $base) }}
           {{end}}
           {{end}}
           {{end}}
+          {{ else }}
+          {{ with .ListEvents }}
+          {{$any = true}}
+          {{ template "event-rows" (dict "events" . "base" $base "dated" true) }}
+          {{ end }}
+          {{ end }}
         </div>
         {{if not $any}}
         <p class="empty-list">{{$.T "calendar.noevents"}}</p>

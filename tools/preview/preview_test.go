@@ -54,6 +54,7 @@ func TestPreview(t *testing.T) {
 		a.Put(t, tasks+fmt.Sprintf("t%d.ics", i), "text/calendar", fmt.Sprintf("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\nBEGIN:VTODO\r\nUID:task%d\r\nDTSTAMP:20261027T080000Z\r\nCREATED:20261020T080000Z\r\nSUMMARY:Review a very long product design proposal with many words in its summary number %d\r\nDUE;VALUE=DATE:20261028\r\nEND:VTODO\r\nEND:VCALENDAR\r\n", i, i))
 	}
 	a.Put(t, tasks+"child.ics", "text/calendar", "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\nBEGIN:VTODO\r\nUID:child\r\nDTSTAMP:20261027T080000Z\r\nDTSTART;VALUE=DATE:20261027\r\nRRULE:FREQ=WEEKLY\r\nSUMMARY:Child task\r\nRELATED-TO:task0\r\nEND:VTODO\r\nEND:VCALENDAR\r\n")
+	a.Put(t, tasks+"done.ics", "text/calendar", "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\nBEGIN:VTODO\r\nUID:done\r\nDTSTAMP:20261027T080000Z\r\nSUMMARY:Completed task\r\nDUE;VALUE=DATE:20261028\r\nSTATUS:COMPLETED\r\nCOMPLETED:20261027T100000Z\r\nEND:VTODO\r\nEND:VCALENDAR\r\n")
 	a.Put(t, journal+"record.ics", "text/calendar", "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\nBEGIN:VJOURNAL\r\nUID:journal\r\nDTSTAMP:20261027T080000Z\r\nDTSTART;VALUE=DATE:20261027\r\nSUMMARY:Review a long product design proposal\r\nDESCRIPTION:Some text\r\nEND:VJOURNAL\r\nEND:VCALENDAR\r\n")
 	a.Put(t, book+"record.vcf", "text/vcard", "BEGIN:VCARD\r\nVERSION:3.0\r\nUID:contact\r\nFN:Alex Product Design Example\r\nN:Example;Alex;;;\r\nEMAIL:alex@example.org\r\nTEL:+49 123456789\r\nEND:VCARD\r\n")
 	// Sent to many, so the Sent list shows where its recipients are cut.
@@ -75,6 +76,7 @@ func TestPreview(t *testing.T) {
 	if uids := MessageUIDs(c.Page(t, "mail.mailbox", "INBOX")); len(uids) > 0 {
 		c.Post(t, "mail.messages.flag", url.Values{"uids": {uids[0]}, "color": {"red"}, "next": {"/"}}, "INBOX")
 	}
+	c.Post(t, "settings.profile", url.Values{"calendar": {"gregorian"}, "secondary": {"shcal"}})
 	c.SignIn(t, User2)
 	named := map[string]string{
 		"mail": a.Path("mail.mailbox", "INBOX"), "sent": a.Path("mail.mailbox", "Sent", url.Values{"account": {User}}), "tasks": a.Path("calendar.tasks"), "journal": a.Path("calendar.journal"),
@@ -83,6 +85,10 @@ func TestPreview(t *testing.T) {
 		"invite": a.Path("mail.message", "INBOX", invite, url.Values{"account": {User}}), "draft": a.Path("mail.message", "Drafts", draft, url.Values{"account": {User}}),
 		"reply": a.Path("mail.message.reply", "Drafts", draft, url.Values{"account": {User}}), "compose": a.Path("mail.compose"),
 		"collection": a.Path("calendar.collection", d.At()+DAVHome+"work/", url.Values{"account": {User}}),
+		"event":      a.Path("calendar.event", Here+calendar+"record.ics"), "task": a.Path("calendar.task", Here+tasks+"t1.ics"),
+		"tasksub": a.Path("calendar.task", Here+tasks+"t0.ics"), "taskdone": a.Path("calendar.task", Here+tasks+"done.ics"),
+		"contact": a.Path("contacts.contact", Here+book+"record.vcf"), "entry": a.Path("calendar.entry", Here+journal+"record.ics"),
+		"monthlist": a.Path("calendar.month", url.Values{"view": {"list"}, "span": {"month"}}), "monthday": a.Path("calendar.month", url.Values{"view": {"list"}, "span": {"month"}, "group": {"day"}}), "search": a.Path("calendar.search", url.Values{"query": {"proposal"}}),
 	}
 	var js string
 	if *script != "" {

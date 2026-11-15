@@ -35,6 +35,18 @@ main .object-card h1 {
   overflow-wrap: anywhere;
 }
 
+/* The event page's label-less when-line above the meta grid. */
+.event-when {
+  margin: calc(-1 * var(--space-2)) 0 var(--space-4);
+  font-size: var(--text-md);
+}
+
+/* The arrow's direction swaps sides with the script; a box or a bin does not. */
+[dir="rtl"] .range-sep {
+  transform: scaleX(-1);
+  display: inline-block;
+}
+
 /* The head: the title block and, on a contact, its photo side by side;
    the crumb takes a full line above them. */
 .object-header {

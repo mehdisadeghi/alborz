@@ -17,13 +17,17 @@
         {{$startProp := $event.Props.Get "DTSTART"}}
         {{$allDay := and $startProp (eq (len $startProp.Value) 8)}}
         {{$lastDay := $end}}{{ if $allDay }}{{$lastDay = $end.AddDate 0 0 -1}}{{ end }}
+        {{$sameDay := eq ($start.Format "2006-01-02") ($end.Format "2006-01-02")}}
+        <p class="event-when">
+          {{- if $allDay }}
+          {{- template "date-day" (dict "g" $.Global "time" $start) }}{{ if $lastDay.After $start }}<span class="visually-hidden"> {{ $.T "calendar.rangeto" }} </span><span class="range-sep" aria-hidden="true">→</span>{{ template "date-day" (dict "g" $.Global "time" $lastDay) }}{{ end }}
+          {{- else if $sameDay }}
+          {{- template "date-day" (dict "g" $.Global "time" $start) }} · {{ $.GlobalData.FormatTime $start }}{{ if $end.After $start }} – {{ $.GlobalData.FormatTime $end }}{{ end }}
+          {{- else }}
+          {{- template "date-day" (dict "g" $.Global "time" $start) }} {{ $.GlobalData.FormatTime $start }}<span class="visually-hidden"> {{ $.T "calendar.rangeto" }} </span><span class="range-sep" aria-hidden="true">→</span>{{ template "date-day" (dict "g" $.Global "time" $end) }} {{ $.GlobalData.FormatTime $end }}
+          {{- end }}
+        </p>
         <dl class="object-meta">
-          <dt>{{$.T "calendar.startdate"}}</dt>
-          <dd>{{ if $allDay }}{{ template "date-day" (dict "g" $.Global "time" $start) }}{{ else }}{{ template "date-full" (dict "g" $.Global "time" $start) }}{{ end }}</dd>
-          {{ if $lastDay.After $start }}
-          <dt>{{$.T "calendar.enddate"}}</dt>
-          <dd>{{ if $allDay }}{{ template "date-day" (dict "g" $.Global "time" $lastDay) }}{{ else }}{{ template "date-full" (dict "g" $.Global "time" $end) }}{{ end }}</dd>
-          {{ end }}
           {{ with .Repeats }}
           <dt>{{$.T "calendar.repeat"}}</dt>
           <dd>{{.}}{{ with $.RepeatsUntil }} {{ template "ltr" . }}{{ end }}</dd>

@@ -53,9 +53,10 @@ button,
   }
 }
 
-/* A picker beside a text action takes its height. */
-:where(:has(> :is(button, .button, .button-link, input[type="submit"]))) > select,
-:where(:has(> :is(button, .button, .button-link, input[type="submit"]))) > label > select {
+/* A picker or text field beside a text action takes its height; a collapsed
+   mark in the same form (the toolbar's search) sets its own box. */
+:where(:has(> :is(button, .button, .button-link, input[type="submit"]))):not(.actions-search) > :is(select, input[type="text"]),
+:where(:has(> :is(button, .button, .button-link, input[type="submit"]))):not(.actions-search) > label > :is(select, input[type="text"]) {
   min-height: var(--action-size);
 }
 

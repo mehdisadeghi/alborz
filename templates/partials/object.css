@@ -99,6 +99,39 @@ main .object-card h1 {
   font-weight: 500;
 }
 
+/* The contact's add-to-group row: one row of controls under the meta grid. */
+.group-form {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-light);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.group-form label {
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.group-form :is(select, input, button) {
+  height: var(--action-size);
+  box-sizing: border-box;
+  padding-block: 0;
+}
+
+.group-form input[name="newgroup"] {
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+
+.group-form select {
+  min-width: 0;
+  max-width: 100%;
+}
+
 .attendee-list {
   margin: 0;
   padding: 0;
@@ -137,6 +170,9 @@ main.contact .chip button {
   padding: 0;
   color: var(--fg-muted);
   line-height: 1;
+  /* A chip is its own box; the coarse pointer's action size would pill it. */
+  min-width: 0;
+  min-height: 0;
 }
 
 .followups .action-group {

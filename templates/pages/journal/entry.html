@@ -19,7 +19,7 @@
           <dd>{{ $.T (printf "journal.status.%s" .) }}</dd>
           {{ end }}
           {{ with .Categories }}
-          <dt>{{$.T "aside.categories"}}</dt>
+          <dt>{{$.T "contacts.categories"}}</dt>
           <dd>{{ range $i, $word := . }}{{ if $i }}, {{ end }}<a href="{{url "calendar.journal"}}?category={{$word | qv}}{{ account "&" $.GlobalData.URLAccount }}" dir="auto">{{$word}}</a>{{ end }}</dd>
           {{ end }}
         </dl>

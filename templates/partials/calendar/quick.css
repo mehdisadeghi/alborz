@@ -28,6 +28,18 @@
   min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
 }
 
+/* Narrow screens: the field takes the first row, the pickers and buttons
+   wrap to the next, so the placeholder is not clipped. */
+@media (width <= 600px) {
+  .quick-add {
+    flex-wrap: wrap;
+  }
+
+  .quick-add input[name="summary"] {
+    flex-basis: 100%;
+  }
+}
+
 .calendar-quick {
   position: relative;
 }

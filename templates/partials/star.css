@@ -128,7 +128,9 @@ main .object-card > .subject-row > h1 {
 .subject-row .flag-split .flag-button.button-link {
   width: 2rem;
   min-width: 2rem;
-  min-height: var(--control-height);
+  height: var(--control-height);
+  padding-block: 0;
+  line-height: 1;
   font-size: var(--text-xl);
 }
 

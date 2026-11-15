@@ -53,7 +53,7 @@
         </section>
         {{ end }}
         {{ with .Children }}
-        <section class="subtasks">
+        <section class="subtasks object-note">
           <h2>{{$.T "tasks.subtask.children"}}</h2>
           <ul>
             {{ range . }}<li{{ if .Completed }} class="completed"{{ end }}><a href="{{.Href}}" dir="auto">{{.Summary}}</a> · {{if .Completed}}{{$.T "tasks.completed"}}{{else}}{{$.T "tasks.pending"}}{{end}}</li>{{ end }}

@@ -52,7 +52,6 @@ func registerRoutes(p *plugin, g *web.Group) {
 	POST("color", "/contacts/color", p.color)
 	POST("contact.group", "/contacts/{path}/group", p.groupContact)
 	POST("contact.color", "/contacts/{path}/color", p.color)
-	POST("contact.note", "/contacts/{path}/note", p.note)
 	POST("contact.photo.delete", "/contacts/{path}/photo/delete", p.deletePhoto)
 	remove := pimweb.NoticeHandler(p.Client, "contacts.list", "notice.contactsdeleted", pimweb.Delete[*carddav.Client])
 	POST("contact.delete", "/contacts/{path}/delete", remove)

@@ -306,15 +306,6 @@ func (p *plugin) updateContact(ctx *web.Context) error {
 	})
 }
 
-func (p *plugin) note(ctx *web.Context) error {
-	return pimweb.Note(ctx, p.Client, "contacts.list", func(ctx *web.Context, ref pim.Ref[*carddav.Client], note string) error {
-		return contacts.ChangeCard(ctx.Request().Context(), ref, func(card vcard.Card) {
-			text := pim.AppendNote(card.Value(vcard.FieldNote), note, time.Now().In(web.UserLocation(ctx)))
-			setPreferred(card, vcard.FieldNote, text)
-		})
-	})
-}
-
 func setPreferred(card vcard.Card, name, value string) {
 	if field := card.Preferred(name); field != nil {
 		field.Value = value

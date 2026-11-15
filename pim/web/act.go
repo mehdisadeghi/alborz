@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
-	"strings"
 
 	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/pim"
@@ -81,18 +80,6 @@ func Handler[C any](a Action[C]) func(*web.Context) error {
 func NoticeHandler[C any](client func(context.Context, *alborz.Login) (C, error), list, key string, do func(*web.Context, pim.Ref[C]) error) func(*web.Context) error {
 	return Handler(Action[C]{Client: client, Do: do, List: list, Done: func(ctx *web.Context, done []pim.Ref[C], _ string) web.Notice {
 		return web.Notice{Kind: web.NoticeDone, Text: ctx.Tf(key, len(done))}
-	}})
-}
-
-// Note appends the submitted note to each selected object; an empty note is a quiet no-op.
-func Note[C any](ctx *web.Context, client func(context.Context, *alborz.Login) (C, error), list string,
-	change func(*web.Context, pim.Ref[C], string) error) error {
-	note := strings.TrimSpace(ctx.FormValue("note"))
-	return Run(ctx, Action[C]{Client: client, List: list, Done: Quiet[C], Do: func(ctx *web.Context, ref pim.Ref[C]) error {
-		if note == "" {
-			return nil
-		}
-		return change(ctx, ref, note)
 	}})
 }
 

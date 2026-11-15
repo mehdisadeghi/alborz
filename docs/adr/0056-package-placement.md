@@ -27,8 +27,9 @@ A unit of code MUST be placed by its imports and its users:
    other features. The session and the lock of a request are in `web`
    (ADR 66); logins and the persisted session and lock records stay in
    the root package.
-4. A helper lives with its only users: `pim.AppendNote` (dated notes on
-   events and contacts) is in `pim`.
+4. A helper lives with its only users, not in a package it does not
+   earn its place in: `calendar.PriorityBand` (RFC 5545 priority
+   bands) is in `pim/calendar`, beside the tasks it serves.
 5. A move is its own commit and carries no edits.
 
 ## Consequences
@@ -42,4 +43,4 @@ A unit of code MUST be placed by its imports and its users:
 - ADR 21, ADR 66, ADR 69
 - `internal/`, `search/`, `mail/imapsearch/`, `auth/web/`,
   `cmd/alborz/app/routes.go` (`Mount`), `web/session.go`, `web/lock.go`,
-  `records.go`, `lock.go`, `pim/note.go`
+  `records.go`, `lock.go`

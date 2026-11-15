@@ -82,24 +82,7 @@ main .object-card h1 {
   color: var(--fg-muted);
 }
 
-/* The task's quick edit: one row of selects under the description, before the subtasks. */
-.quick-edit {
-  margin-top: var(--space-4);
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--border-light);
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.quick-edit label {
-  color: var(--fg-muted);
-  font-size: var(--text-sm);
-  font-weight: 500;
-}
-
-/* The contact's add-to-group row: one row of controls under the meta grid. */
+/* The contact's add-to-group row: a row of controls under the note, set off by a rule. */
 .group-form {
   margin-top: var(--space-4);
   padding-top: var(--space-4);
@@ -122,14 +105,14 @@ main .object-card h1 {
   padding-block: 0;
 }
 
-.group-form input[name="newgroup"] {
-  flex: 1 1 8rem;
-  min-width: 0;
-}
-
 .group-form select {
   min-width: 0;
   max-width: 100%;
+}
+
+.group-form input[name="newgroup"] {
+  flex: 1 1 8rem;
+  min-width: 0;
 }
 
 .attendee-list {

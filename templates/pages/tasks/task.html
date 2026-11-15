@@ -61,24 +61,6 @@
           <p class="hint">{{$.T "tasks.subtask.independent"}}</p>
         </section>
         {{ end }}
-        {{ if .Collection.Writable }}
-        <form class="quick-edit" method="post" action="{{printf "%s%s" (url "calendar.task.quick" .Task.Path) $acct}}">
-          {{ template "next-field" .GlobalData.URL.RequestURI }}
-          <label for="quick-status">{{$.T "tasks.status"}}</label>
-          <select name="status" id="quick-status">
-            <option value="NEEDS-ACTION"{{ if not (eq $status "COMPLETED") }} selected{{ end }}>{{$.T "tasks.pending"}}</option>
-            <option value="COMPLETED"{{ if eq $status "COMPLETED" }} selected{{ end }}>{{$.T "tasks.completed"}}</option>
-          </select>
-          <label for="quick-priority">{{$.T "tasks.priority"}}</label>
-          <select name="priority" id="quick-priority">
-            <option value=""{{ if not .Priority }} selected{{ end }}>{{$.T "tasks.priority.none"}}</option>
-            {{ range .PriorityBands }}
-            <option value="{{.}}"{{ if eq . $.Priority }} selected{{ end }}>{{ $.T (printf "tasks.priority.%s" .) }}</option>
-            {{ end }}
-          </select>
-          <button type="submit">{{$.T "common.save"}}</button>
-        </form>
-        {{ end }}
         {{ template "object-dates" (dict "g" $.Global
            "created" ($todo.Props.DateTime "CREATED" nil)
            "modified" ($todo.Props.DateTime "LAST-MODIFIED" nil)

@@ -38,8 +38,6 @@ type walked struct {
 	form                   url.Values
 	bulkExport, listExport string
 	exported               string
-	// note says the object's page takes a dated note.
-	note bool
 }
 
 func card(uid, name string) string {
@@ -75,14 +73,14 @@ func walkedKinds() []walked {
 			},
 			collField: "cal", collection: CalendarsOf(User) + "plans/", collName: "Plans", ext: ".ics", mime: "text/calendar", body: eventToday, colorField: "COLOR",
 			titleField: "summary", destField: "calendar", form: url.Values{"start": {noon}, "end": {noon}, "start-calendar": {"gregorian"}, "end-calendar": {"gregorian"}},
-			listExport: "calendar.month.export", exported: "BEGIN:VEVENT", note: true},
+			listExport: "calendar.month.export", exported: "BEGIN:VEVENT"},
 		{name: "task", list: "calendar.tasks", object: "calendar.task", edit: "calendar.task.edit",
 			create: "calendar.task.create", bulkDelete: "calendar.tasks.delete",
 			importPage: "calendar.tasks.import", refresh: "calendar.tasks.refresh",
 			sorts:     []string{"summary", "status", "priority", "starred", "account", "calendar", "due", "added"},
 			collField: "cal", collection: CalendarsOf(User) + "chores/", collName: "Chores", ext: ".ics", mime: "text/calendar", body: Todo, colorField: "COLOR",
 			titleField: "summary", destField: "calendar", form: url.Values{},
-			bulkExport: "calendar.tasks.export", exported: "BEGIN:VTODO", note: true},
+			bulkExport: "calendar.tasks.export", exported: "BEGIN:VTODO"},
 		{name: "entry", list: "calendar.journal", object: "calendar.entry", edit: "calendar.entry.edit",
 			create: "calendar.entry.create", bulkDelete: "calendar.journal.delete",
 			importPage: "calendar.journal.import", refresh: "calendar.journal.refresh",
@@ -101,7 +99,7 @@ func walkedKinds() []walked {
 			sorts:     []string{"name", "starred", "email", "phone", "account", "book", "changed"},
 			collField: "book", collection: BooksOf(User) + "people/", collName: "People", ext: ".vcf", mime: "text/vcard", body: card, colorField: "X-ALBORZ-COLOR",
 			titleField: "fn", destField: "addressbook", form: url.Values{},
-			bulkExport: "contacts.export", exported: "BEGIN:VCARD", note: true},
+			bulkExport: "contacts.export", exported: "BEGIN:VCARD"},
 	}
 }
 
@@ -232,11 +230,6 @@ func walk(t *testing.T, a *App, c *Client, k walked, scope url.Values) {
 		t.Fatalf("the star, asked for as a piece, answered %s", starred.Status)
 	}
 	kept("first", "blue")
-
-	if k.note {
-		moved("the note", c.Post(t, k.object+".note", url.Values{"note": {"Walked note"}, "next": {next}}, object("first"), acct))
-		found("the object's page after a note", c.Page(t, k.object, object("first"), acct), "Walked note")
-	}
 
 	switch k.name {
 	case "task":

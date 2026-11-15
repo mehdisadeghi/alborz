@@ -108,16 +108,6 @@
 {{ with .go }}{{ template "form-actions" (dict "save" . "cancel" $.cancel "cancelLabel" ($.g.T "common.cancel")) }}{{ end }}
 {{ end }}
 
-{{/* dict: action next label add. */}}
-{{ define "note-box" }}
-<form class="note-box" method="post" action="{{.action}}">
-  <input type="hidden" name="next" value="{{.next}}">
-  <label for="note-add">{{.label}}</label>
-  <textarea name="note" id="note-add" rows="2" dir="auto"></textarea>
-  <button>{{.add}}</button>
-</form>
-{{ end }}
-
 {{/* dict: id next [action]. A form of its own, named by the buttons that submit it. */}}
 {{ define "next-form" }}
 <form id="{{.id}}" method="post"{{ with .action }} action="{{.}}"{{ end }} hx-boost="false">

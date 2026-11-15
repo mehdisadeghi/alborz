@@ -68,6 +68,7 @@ func (p *plugin) task(ctx *web.Context) error {
 		Parent:   parent, Children: children,
 	})
 }
+
 func (p *plugin) updateTask(ctx *web.Context) error {
 	taskPath := ctx.Param("path")
 	loc := web.UserLocation(ctx)

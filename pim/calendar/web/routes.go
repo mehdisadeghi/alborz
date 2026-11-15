@@ -161,24 +161,9 @@ func registerRoutes(p *plugin, g *web.Group) {
 		func(ctx *web.Context) string { return ctx.T("nav.journal") + ".ics" }, calendar.Join))
 	POST("entry.color", "/journal/{path}/color", p.color(calendar.FirstJournal, journalSection))
 
-	POST("task.note", "/tasks/{path}/note", p.note(calendar.FirstTodo, taskSection))
-	POST("event.note", "/calendar/{path}/note", p.note(calendar.FirstEvent, eventSection))
 	POST("task.complete", "/tasks/{path}/complete", p.complete)
 	POST("task.color", "/tasks/{path}/color", p.color(calendar.FirstTodo, taskSection))
 	POST("event.color", "/calendar/{path}/color", p.color(calendar.FirstEvent, eventSection))
-}
-
-// Appended and dated rather than replacing: a note people use is a record.
-func (p *plugin) note(comp func(*ical.Calendar) *ical.Component, s section) func(*web.Context) error {
-	return func(ctx *web.Context) error {
-		return pimweb.Note(ctx, p.Client, s.list, func(ctx *web.Context, ref pim.Ref[*caldav.Client], note string) error {
-			_, err := calendar.ChangeComponent(ctx.Request().Context(), ref, comp, func(target *ical.Component) {
-				existing, _ := target.Props.Text(ical.PropDescription)
-				target.Props.SetText(ical.PropDescription, pim.AppendNote(existing, note, time.Now().In(web.UserLocation(ctx))))
-			})
-			return err
-		})
-	}
 }
 
 func calendarFilters(ctx *web.Context) []web.Filter {

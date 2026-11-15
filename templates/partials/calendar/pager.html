@@ -1,0 +1,13 @@
+{{/* dict: g prev(href title name) next(href title name) [today href] istoday; the shared '< Today >' pager of the calendar views. prev and next step one page; today, when not istoday, links back to the current page of the view. */}}
+{{ define "calendar-pager" }}
+<div class="actions-pagination" data-swipe-nav data-priority="31" data-yield="split">
+  {{ template "pager-link" (dict "step" .prev "icon" "prev" "go" "p") }}
+  {{if .istoday}}
+  <span class="button-link" aria-disabled="true">{{.g.T "calendar.today"}}</span>
+  {{else}}
+  {{/* localhref, or html/template escapes the whole query as one value. */}}
+  <a href="{{ localhref .today }}" class="button-link" hx-replace-url="true">{{.g.T "calendar.today"}}</a>
+  {{end}}
+  {{ template "pager-link" (dict "step" .next "icon" "next" "go" "n") }}
+</div>
+{{ end }}

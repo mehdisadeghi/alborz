@@ -18,6 +18,8 @@ type CalendarDateRenderData struct {
 	Events             []calendar.Occurrence
 	PrevPage, NextPage string
 	Scope              string
+	// IsToday marks the day shown, so the pager can disable its Today step.
+	IsToday bool
 }
 
 type dayView struct {
@@ -33,6 +35,8 @@ func (p *plugin) day(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
+	now := time.Now().In(web.UserLocation(ctx))
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 	pimweb.WarnUnread(ctx, dv.unread)
 	collection, href := pimweb.Labels(ctx, dv.calendars, "calendar.month", "cal", url.Values{"view": {"list"}})
 	invitations, err := p.invitations(ctx)
@@ -46,6 +50,7 @@ func (p *plugin) day(ctx *web.Context) error {
 		PrevPage: dv.start.AddDate(0, 0, -1).Format(datePageLayout),
 		NextPage: dv.start.AddDate(0, 0, 1).Format(datePageLayout),
 		Scope:    web.Query(web.ReadListState(ctx).Keep("account", "cal")),
+		IsToday:  dv.start.Equal(today),
 	})
 }
 

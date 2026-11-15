@@ -13,17 +13,10 @@
 {{ template "toolbar-end" }}
     {{ template "filter-menu" (dict "id" "menu-filter" "icon" "list-filter" "title" ($.T "filter.menu") "rows" .FilterRows "disabled" (not .FilterRows) "priority" 25 "class" "filter-overflow") }}
     {{ template "filter-menu" (dict "id" "menu-group" "icon" "group" "title" ($.T "list.groupby") "rows" .GroupRows "disabled" (not .GroupRows) "priority" 30 "class" "group-overflow") }}
-    <div class="actions-pagination" data-swipe-nav data-priority="31" data-yield="split">
-      {{ template "pager-link" (dict "step" (dict "href" (printf "?month=%s%s" .PrevPage $suffix) "title" ($.GlobalData.MonthName .PrevTime) "name" ($.T "calendar.prevmonth")) "icon" "prev" "go" "p") }}
-      {{if not .ThisMonth}}
-      {{/* localhref, or html/template escapes the whole query as one value. */}}
-      {{ $today := (url "calendar.month") }}{{ if $suffix }}{{ $today = printf "%s?%s" (url "calendar.month") (slice $suffix 1) }}{{ end }}
-      <a href="{{ localhref $today }}" class="button-link" hx-replace-url="true">{{$.T "calendar.today"}}</a>
-      {{else}}
-      <span class="button-link" aria-disabled="true">{{$.T "calendar.today"}}</span>
-      {{end}}
-      {{ template "pager-link" (dict "step" (dict "href" (printf "?month=%s%s" .NextPage $suffix) "title" ($.GlobalData.MonthName .NextTime) "name" ($.T "calendar.nextmonth")) "icon" "next" "go" "n") }}
-    </div>
+    {{ $today := (url "calendar.month") }}{{ if $suffix }}{{ $today = printf "%s?%s" (url "calendar.month") (slice $suffix 1) }}{{ end }}
+    {{ template "calendar-pager" (dict "g" $ "today" $today "istoday" .ThisMonth
+       "prev" (dict "href" (printf "?month=%s%s" .PrevPage $suffix) "title" ($.GlobalData.MonthName .PrevTime) "name" ($.T "calendar.prevmonth"))
+       "next" (dict "href" (printf "?month=%s%s" .NextPage $suffix) "title" ($.GlobalData.MonthName .NextTime) "name" ($.T "calendar.nextmonth"))) }}
     {{/* With the phone bar the month's pager outranks the view toggle. */}}
     <div class="actions-pagination" data-priority="32" data-phone-priority="19" data-tour="calendar">
       {{ template "toggle" (dict "items" (tuple

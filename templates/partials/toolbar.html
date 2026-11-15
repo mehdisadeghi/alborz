@@ -158,9 +158,9 @@
 {{ if .href }}<a href="{{localhref .href}}" class="button-link pager-link" data-priority="2" data-yield="word" data-swipe-step="{{$.icon}}"{{ with $.go }} data-go="{{.}}"{{ end }}{{ template "swaps" (dict "target" $.target "href" (localhref .href)) }}>{{ else }}<span class="button-link pager-link" aria-disabled="true" data-priority="2" data-yield="word" data-swipe-step="{{$.icon}}">{{ end }}{{ if eq $.icon "prev" }}{{ template "icon" $.icon }}{{ end }}<span>{{.label}}</span>{{ if eq $.icon "next" }}{{ template "icon" $.icon }}{{ end }}{{ if .href }}</a>{{ else }}</span>{{ end }}
 {{ else }}
 {{ if .href }}
-<a href="{{localhref .href}}" class="icon-button" title="{{.title}}"{{ if not .name }} aria-label="{{.title}}"{{ end }} data-swipe-step="{{$.icon}}"{{ with $.go }} data-go="{{.}}"{{ end }}{{ template "swaps" (dict "target" $.target "href" (localhref .href)) }}>{{ template "icon" $.icon }}{{ with .name }}<span class="label">{{.}}</span>{{ end }}</a>
+<a href="{{localhref .href}}" class="icon-button" title="{{.title}}" aria-label="{{ or .name .title }}" data-swipe-step="{{$.icon}}"{{ with $.go }} data-go="{{.}}"{{ end }}{{ template "swaps" (dict "target" $.target "href" (localhref .href)) }}>{{ template "icon" $.icon }}{{ with .name }}<span class="label">{{.}}</span>{{ end }}</a>
 {{ else }}
-<span class="icon-button" aria-disabled="true" title="{{.title}}"{{ if not .name }} aria-label="{{.title}}"{{ end }} data-swipe-step="{{$.icon}}">{{ template "icon" $.icon }}{{ with .name }}<span class="label">{{.}}</span>{{ end }}</span>
+<span class="icon-button" aria-disabled="true" title="{{.title}}" aria-label="{{ or .name .title }}" data-swipe-step="{{$.icon}}">{{ template "icon" $.icon }}{{ with .name }}<span class="label">{{.}}</span>{{ end }}</span>
 {{ end }}
 {{ end }}
 {{ end }}

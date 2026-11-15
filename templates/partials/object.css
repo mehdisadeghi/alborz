@@ -1,23 +1,22 @@
-main.contact .details,
-main.task .details,
-main.entry .details,
-main.event .details {
+/* One card: an object's page box (a contact's, a task's, an event's, an entry's). */
+main .object-card {
   width: min(calc(100% - 2 * var(--space-4)), var(--content-reading));
   margin: var(--space-4);
+  padding: var(--space-4);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-raised);
 }
 
-main.contact .details h1,
-main.task .details h1,
-main.entry .details h1,
-main.event .details h1 {
+main .object-card h1 {
   margin: 0 0 var(--space-4);
   font-size: var(--text-xl);
   line-height: 1.3;
 }
 
-main.contact dl,
-main.task dl,
-main.entry dl {
+/* The meta grid: one labelled dl per object page, fields in a fixed order. */
+.object-meta {
   display: grid;
   /* minmax(0, ...), or a long address widens the track past the card. */
   grid-template-columns: auto minmax(0, 1fr);
@@ -25,26 +24,92 @@ main.entry dl {
   margin: 0;
 }
 
-main.contact dl dt,
-main.task dl dt,
-main.entry dl dt {
+.object-meta dt {
   font-weight: 500;
   color: var(--fg-muted);
 }
 
-main.contact dl dd,
-main.task dl dd,
-main.entry dl dd {
+.object-meta dd {
   margin: 0;
   min-width: 0;
   overflow-wrap: anywhere;
 }
 
-main.contact dl dd.contact-address {
+/* The head: the title block and, on a contact, its photo side by side;
+   the crumb takes a full line above them. */
+.object-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-2) var(--space-4);
+  margin: 0 0 var(--space-4);
+}
+
+.object-header .context-crumb {
+  flex: 1 1 100%;
+}
+
+.object-header .subject-row {
+  width: auto;
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+}
+
+.object-header .subject-row > h1 {
+  margin: 0;
+}
+
+.contact-photo {
+  flex: none;
+  width: 7.5rem;
+  height: 7.5rem;
+  object-fit: cover;
+  border-radius: var(--radius-lg);
+}
+
+/* Standalone user text below the meta grid: a labelled block, set off by a rule. */
+.object-note {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-light);
+}
+
+.object-note > h2 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--fg-muted);
+}
+
+/* The task's quick edit: one row of selects under the description, before the subtasks. */
+.quick-edit {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-light);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.quick-edit label {
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.attendee-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.contact-address {
   white-space: pre-line;
 }
 
-main.contact dl dd.contact-groups {
+.contact-groups {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-1);
@@ -74,31 +139,6 @@ main.contact .chip button {
   line-height: 1;
 }
 
-main.event .details table {
-  border-collapse: collapse;
-}
-
-main.event .details th,
-main.event .details td {
-  padding: 0.3rem 0.5rem;
-  text-align: start;
-}
-
-main.event .details th {
-  color: var(--fg-muted);
-  font-weight: 500;
-}
-
-.contact-photo {
-  float: inline-end;
-  width: 120px;
-  height: 120px;
-  aspect-ratio: 1;
-  object-fit: cover;
-  border-radius: 8px;
-  margin-inline-start: 1rem;
-}
-
 .followups .action-group {
   margin-inline-start: 0;
 }
@@ -107,14 +147,15 @@ main.event .details th {
   margin-inline-start: 0.3rem;
 }
 
-main.task .details h1.completed {
+main.task .object-card h1.completed {
   text-decoration: line-through;
   color: var(--fg-faint);
 }
 
 @media (width <= 600px) {
-  main:is(.contact, .task, .entry, .event) .details {
+  main .object-card {
     width: calc(100% - 2 * var(--space-2));
     margin: var(--space-2);
+    padding: var(--space-3);
   }
 }

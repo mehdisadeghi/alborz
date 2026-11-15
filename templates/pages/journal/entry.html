@@ -7,9 +7,9 @@
          "move" (printf "%s%s" (url "calendar.entry.move" .Path) $acct)) }}
 
       {{ if .Collection.Writable }}{{ template "next-form" (dict "id" "entry-color-form" "next" $.GlobalData.URL.RequestURI) }}{{ end }}
-      <section class="details">
+      <section class="details object-card">
         {{ template "object-title" (dict "g" $ "crumb" (dict "g" $ "section" ($.T "nav.journal") "home" (url "calendar.journal") "field" "cal" "collection" .Collection.Name "path" .Collection.Path) "title" .Summary "form" "entry-color-form" "action" (printf "%s%s" (url "calendar.entry.color" .Path) $acct) "current" .Star "readonly" (not .Collection.Writable)) }}
-        <dl>
+        <dl class="object-meta">
           {{ if not .Date.IsZero }}
           <dt>{{$.T "journal.date"}}</dt>
           <dd>{{ if .Timed }}{{ template "date-full" (dict "g" $.Global "time" .Date) }}{{ else }}{{ template "date-day" (dict "g" $.Global "time" .Date) }}{{ end }}</dd>
@@ -22,11 +22,13 @@
           <dt>{{$.T "aside.categories"}}</dt>
           <dd>{{ range $i, $word := . }}{{ if $i }}, {{ end }}<a href="{{url "calendar.journal"}}?category={{$word | qv}}{{ account "&" $.GlobalData.URLAccount }}" dir="auto">{{$word}}</a>{{ end }}</dd>
           {{ end }}
-          {{ with .Text }}
-          <dt>{{$.T "common.description"}}</dt>
-          <dd>{{ template "user-text" . }}</dd>
-          {{ end }}
         </dl>
+        {{ with .Text }}
+        <section class="object-note">
+          <h2>{{$.T "common.description"}}</h2>
+          {{ template "user-text" . }}
+        </section>
+        {{ end }}
         {{ template "object-dates" (dict "g" $.Global
            "created" (.Journal.Props.DateTime "CREATED" nil)
            "modified" (.Journal.Props.DateTime "LAST-MODIFIED" nil)

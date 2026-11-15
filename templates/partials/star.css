@@ -116,12 +116,12 @@
   min-width: 0;
 }
 
-main .details > .subject-row {
+main .object-card > .subject-row {
   width: auto;
   margin: 0 0 var(--space-4);
 }
 
-main .details > .subject-row > h1 {
+main .object-card > .subject-row > h1 {
   margin: 0;
 }
 

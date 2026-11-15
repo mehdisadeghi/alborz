@@ -9,45 +9,54 @@
       {{ if not .Event.ReadOnly }}
       {{ template "next-form" (dict "id" "event-color-form" "next" $.GlobalData.URL.RequestURI) }}
       {{ end }}
-      <section class="details">
+      <section class="details object-card">
         {{ if .Event.Data.Events }}{{$event := index .Event.Data.Events 0}}
         {{ template "object-title" (dict "g" $ "crumb" (dict "g" $ "section" ($.T "nav.calendar") "home" (url "calendar.month") "field" "cal" "collection" .Collection.Name "path" .Collection.Path) "title" ($event.Props.Text "SUMMARY") "form" "event-color-form" "action" (printf "%s%s" (url "calendar.event.color" .Event.Path) $acct) "current" .Star "readonly" .Event.ReadOnly) }}
-        <table>
-          <tr>
-            <th scope="row">{{$.T "calendar.startdate"}}</th>
-            <td>{{ template "date-full" (dict "g" .Global "time" ($event.DateTimeStart nil)) }}</td>
-          </tr>
-          <tr>
-            <th scope="row">{{$.T "calendar.enddate"}}</th>
-            <td>{{ template "date-full" (dict "g" .Global "time" ($event.DateTimeEnd nil)) }}</td>
-          </tr>
+        {{$start := $event.DateTimeStart $.GlobalData.Timezone}}
+        {{$end := $event.DateTimeEnd $.GlobalData.Timezone}}
+        {{$startProp := $event.Props.Get "DTSTART"}}
+        {{$allDay := and $startProp (eq (len $startProp.Value) 8)}}
+        {{$lastDay := $end}}{{ if $allDay }}{{$lastDay = $end.AddDate 0 0 -1}}{{ end }}
+        <dl class="object-meta">
+          <dt>{{$.T "calendar.startdate"}}</dt>
+          <dd>{{ if $allDay }}{{ template "date-day" (dict "g" $.Global "time" $start) }}{{ else }}{{ template "date-full" (dict "g" $.Global "time" $start) }}{{ end }}</dd>
+          {{ if $lastDay.After $start }}
+          <dt>{{$.T "calendar.enddate"}}</dt>
+          <dd>{{ if $allDay }}{{ template "date-day" (dict "g" $.Global "time" $lastDay) }}{{ else }}{{ template "date-full" (dict "g" $.Global "time" $end) }}{{ end }}</dd>
+          {{ end }}
           {{ with .Repeats }}
-          <tr>
-            <th scope="row">{{$.T "calendar.repeat"}}</th>
-            <td>{{.}}{{ with $.RepeatsUntil }} {{ template "ltr" . }}{{ end }}</td>
-          </tr>
+          <dt>{{$.T "calendar.repeat"}}</dt>
+          <dd>{{.}}{{ with $.RepeatsUntil }} {{ template "ltr" . }}{{ end }}</dd>
           {{ end }}
-          <!-- TODO: List of attendees, room -->
+          {{ with $event.Props.Values "ATTENDEE" }}
+          <dt>{{$.T "calendar.attendees"}}</dt>
+          <dd>
+            <ul class="attendee-list">
+              {{ range . }}
+              {{ $addr := .Value }}
+              {{ if and (ge (len $addr) 7) (eq (lower (slice $addr 0 7)) "mailto:") }}{{ $addr = slice $addr 7 }}{{ end }}
+              <li><a href="mailto:{{ $addr }}">{{ template "ltr" $addr }}</a></li>
+              {{ end }}
+            </ul>
+          </dd>
+          {{ end }}
           {{ with .Event.Alarms }}
-          <tr>
-            <th scope="row">{{$.T "calendar.reminders"}}</th>
-            <td>
-              <ul class="alarm-list">
-                {{ range . }}
-                <li>{{ template "date-full" (dict "g" $.Global "time" .At) }}</li>
-                {{ end }}
-              </ul>
-              {{ template "hint" (dict "text" ($.T "calendar.remindersnote")) }}
-            </td>
-          </tr>
+          <dt>{{$.T "calendar.reminders"}}</dt>
+          <dd>
+            <ul class="alarm-list">
+              {{ range . }}
+              <li>{{ template "date-full" (dict "g" $.Global "time" .At) }}</li>
+              {{ end }}
+            </ul>
+            {{ template "hint" (dict "text" ($.T "calendar.remindersnote")) }}
+          </dd>
           {{ end }}
-        </table>
-        {{ template "user-text" ($event.Props.Text "DESCRIPTION") }}
-        {{ if not .Event.ReadOnly }}
-        {{ template "note-box" (dict
-           "action" (printf "%s%s" (url "calendar.event.note" .Event.Path) $acct)
-           "next" .GlobalData.URL.RequestURI
-           "label" ($.T "common.addnote") "add" ($.T "common.add")) }}
+        </dl>
+        {{ with $event.Props.Text "DESCRIPTION" }}
+        <section class="object-note">
+          <h2>{{$.T "common.description"}}</h2>
+          {{ template "user-text" . }}
+        </section>
         {{ end }}
         {{ template "object-dates" (dict "g" .Global
            "created" ($event.Props.DateTime "CREATED" nil)

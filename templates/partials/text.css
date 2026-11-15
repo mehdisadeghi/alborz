@@ -55,3 +55,8 @@ main.message pre {
 [dir="rtl"] textarea[dir="auto"]:placeholder-shown {
   direction: rtl;
 }
+
+/* Dates line up down a column and across rows: digits keep one width. */
+.num {
+  font-variant-numeric: tabular-nums;
+}

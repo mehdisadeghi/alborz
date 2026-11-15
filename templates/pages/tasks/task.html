@@ -27,28 +27,31 @@
          "move" (printf "%s%s" (url "calendar.task.move" .Task.Path) $acct)) }}
 
       {{ if .Collection.Writable }}{{ template "next-form" (dict "id" "task-color-form" "next" $.GlobalData.URL.RequestURI) }}{{ end }}
-      <section class="details">
+      <section class="details object-card">
         {{ template "object-title" (dict "g" $ "crumb" (dict "g" $ "section" ($.T "nav.tasks") "home" (url "calendar.tasks") "field" "cal" "collection" .Collection.Name "path" .Collection.Path) "title" $summary "class" (and (eq $status "COMPLETED") "completed") "form" "task-color-form" "action" (printf "%s%s" (url "calendar.task.color" .Task.Path) $acct) "current" .Star "readonly" (not .Collection.Writable)) }}
-        <dl>
-          {{ with .Parent }}
-          <dt>{{$.T "tasks.subtask.parent"}}</dt>
-          <dd><a href="{{.Href}}" dir="auto">{{.Summary}}</a></dd>
-          {{ end }}
+        <dl class="object-meta">
           <dt>{{$.T "tasks.status"}}</dt>
           <dd>{{if eq $status "COMPLETED"}}{{$.T "tasks.completed"}}{{else}}{{$.T "tasks.pending"}}{{end}}</dd>
           {{ with .Priority }}
           <dt>{{$.T "tasks.priority"}}</dt>
           <dd>{{ $.T (printf "tasks.priority.%s" .) }}</dd>
           {{ end }}
-          {{if $due}}
+          {{ if $due }}
+          {{$dueAt := $due.DateTime $.GlobalData.Timezone}}
           <dt>{{$.T "tasks.duedate"}}</dt>
-          <dd>{{$due.Value}}</dd>
-          {{end}}
-          {{if $desc}}
-          <dt>{{$.T "common.description"}}</dt>
-          <dd>{{ template "user-text" $desc }}</dd>
-          {{end}}
+          <dd>{{ if eq (len $due.Value) 8 }}{{ template "date-day" (dict "g" $.Global "time" $dueAt) }}{{ else }}{{ template "date-full" (dict "g" $.Global "time" $dueAt) }}{{ end }}</dd>
+          {{ end }}
+          {{ with .Parent }}
+          <dt>{{$.T "tasks.subtask.parent"}}</dt>
+          <dd><a href="{{.Href}}" dir="auto">{{.Summary}}</a></dd>
+          {{ end }}
         </dl>
+        {{ with $desc }}
+        <section class="object-note">
+          <h2>{{$.T "common.description"}}</h2>
+          {{ template "user-text" . }}
+        </section>
+        {{ end }}
         {{ with .Children }}
         <section class="subtasks">
           <h2>{{$.T "tasks.subtask.children"}}</h2>
@@ -58,10 +61,24 @@
           <p class="hint">{{$.T "tasks.subtask.independent"}}</p>
         </section>
         {{ end }}
-        {{ if .Collection.Writable }}{{ template "note-box" (dict
-           "action" (printf "%s%s" (url "calendar.task.note" .Task.Path) $acct)
-           "next" .GlobalData.URL.RequestURI
-           "label" ($.T "common.addnote") "add" ($.T "common.add")) }}{{ end }}
+        {{ if .Collection.Writable }}
+        <form class="quick-edit" method="post" action="{{printf "%s%s" (url "calendar.task.quick" .Task.Path) $acct}}">
+          {{ template "next-field" .GlobalData.URL.RequestURI }}
+          <label for="quick-status">{{$.T "tasks.status"}}</label>
+          <select name="status" id="quick-status">
+            <option value="NEEDS-ACTION"{{ if not (eq $status "COMPLETED") }} selected{{ end }}>{{$.T "tasks.pending"}}</option>
+            <option value="COMPLETED"{{ if eq $status "COMPLETED" }} selected{{ end }}>{{$.T "tasks.completed"}}</option>
+          </select>
+          <label for="quick-priority">{{$.T "tasks.priority"}}</label>
+          <select name="priority" id="quick-priority">
+            <option value=""{{ if not .Priority }} selected{{ end }}>{{$.T "tasks.priority.none"}}</option>
+            {{ range .PriorityBands }}
+            <option value="{{.}}"{{ if eq . $.Priority }} selected{{ end }}>{{ $.T (printf "tasks.priority.%s" .) }}</option>
+            {{ end }}
+          </select>
+          <button type="submit">{{$.T "common.save"}}</button>
+        </form>
+        {{ end }}
         {{ template "object-dates" (dict "g" $.Global
            "created" ($todo.Props.DateTime "CREATED" nil)
            "modified" ($todo.Props.DateTime "LAST-MODIFIED" nil)

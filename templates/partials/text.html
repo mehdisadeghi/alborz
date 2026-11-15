@@ -17,10 +17,10 @@
 {{/* dict: items. Render a compact list of related hints consistently. */}}
 {{ define "hint-list" }}{{ range .items }}<p class="hint list-option">{{.}}</p>{{ end }}{{ end }}
 
-{{/* dict: g time. */}}
-{{ define "date-full" }}{{ .g.FormatDate .time }}{{ with .g.SecondaryDate .time }} <span class="date-secondary">{{.}}</span>{{ end }}{{ end }}
+{{/* dict: g time. The .num class keeps digits fixed-width, so dates line up down a column. */}}
+{{ define "date-full" }}{{ with .g.FormatDate .time }}<time class="num" datetime="{{$.time.Format "2006-01-02T15:04:05Z07:00"}}">{{.}}{{ with $.g.SecondaryDate $.time }} <span class="date-secondary">{{.}}</span>{{ end }}</time>{{ end }}{{ end }}
 
-{{ define "date-day" }}{{ .g.LongDate .time }}{{ with .g.SecondaryDate .time }} <span class="date-secondary">{{.}}</span>{{ end }}{{ end }}
+{{ define "date-day" }}{{ with .g.LongDate .time }}<time class="num" datetime="{{$.time.Format "2006-01-02"}}">{{.}}{{ with $.g.SecondaryDate $.time }} <span class="date-secondary">{{.}}</span>{{ end }}</time>{{ end }}{{ end }}
 
 {{/* dict: g [created createdLabel] [modified modifiedLabel] [authors bylabel]. */}}
 {{ define "object-dates" }}

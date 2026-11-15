@@ -49,11 +49,18 @@
 }
 
 /* In a card the crumb is the card's first line, not a bar. */
-:is(form, section) > .context-crumb {
+:is(form, section, .object-header) > .context-crumb {
   min-height: 0;
   margin-bottom: var(--space-4);
   padding: 0 0 var(--space-2);
   background: transparent;
+}
+
+/* Contact view wraps the crumb in the object header; header gap supplies
+   the rest, so only a small margin is needed (index.css loads crumb.css
+   after object.css, so this wins at equal specificity). */
+.object-header > .context-crumb {
+  margin-bottom: var(--space-2);
 }
 
 main.drop-into {

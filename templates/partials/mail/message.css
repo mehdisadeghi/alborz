@@ -1,20 +1,16 @@
-main.message table,
-main.event table {
+main.message table {
   background-color: var(--bg);
 }
 
-main.message th,
-main.event th {
+main.message th {
   width: 5%; padding-inline: 0.5rem;
 }
 
-main.message h1,
-main.event h1 {
+main.message h1 {
   font-size: 1.2rem; padding: 0.5rem 0;
 }
 
-main.message td,
-main.event td {
+main.message td {
   padding-inline-start: 0;
 }
 
@@ -67,8 +63,7 @@ main.message .tabs a:hover {
 }
 
 main.message pre,
-main.message iframe,
-main.event pre {
+main.message iframe {
   flex: 1 auto;
   padding: 1rem;
   margin: 0;
@@ -84,8 +79,7 @@ main.message iframe {
   background-color: white;
 }
 
-main.message pre,
-main.event pre {
+main.message pre {
   white-space: pre-wrap;
   word-break: normal;
   overflow-wrap: anywhere;
@@ -169,7 +163,7 @@ main.message .message-header .parts li {
     margin: var(--space-2) 0;
   }
 
-  main.message th, main.event th {
+  main.message th {
     width: auto;
   }
 

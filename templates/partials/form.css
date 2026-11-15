@@ -4,12 +4,11 @@ main.create-update {
   background: var(--bg-well);
 }
 
-/* One card: a form's, a settings block's and an object's box. */
+/* One card: a form's and a settings block's box; an object's is object.css's. */
 main.create-update > form,
 main.create-update > section.collection-file,
 main.settings form,
-main.settings > .info-card,
-main:is(.contact, .task, .entry, .event) .details {
+main.settings > .info-card {
   padding: var(--space-4);
   background: var(--bg);
   border: 1px solid var(--border);
@@ -262,8 +261,7 @@ select[multiple] {
   main.create-update > form,
   main.create-update > section.collection-file,
   main.settings form,
-  main.settings > .info-card,
-  main:is(.contact, .task, .entry, .event) .details {
+  main.settings > .info-card {
     padding: var(--space-3);
   }
 }

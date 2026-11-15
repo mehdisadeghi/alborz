@@ -1,4 +1,4 @@
-//go:build preview
+//go:build preview && unix
 
 package preview_test
 
@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -121,10 +122,14 @@ func startChrome(t *testing.T) browser {
 		bin = findChrome(t)
 	}
 	cmd := exec.Command(bin, "--headless=new", "--remote-allow-origins=*", "--hide-scrollbars", "--remote-debugging-port="+strconv.Itoa(*port), "--user-data-dir="+t.TempDir(), "about:blank")
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
+	t.Cleanup(func() {
+		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		_ = cmd.Wait()
+	})
 	b := browser{*port}
 	for range 100 {
 		if resp, err := http.Get(b.url("/json/version")); err == nil {

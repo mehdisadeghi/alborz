@@ -44,22 +44,12 @@
       </form>
 
       {{ if .Storage.Host }}
-      <details class="list-card">
-        <summary>{{$.T "settings.storagewhere"}}</summary>
-        <p>{{ if .Storage.OnServer }}{{$.T "settings.storageserver"}}{{ else }}{{$.T "settings.storagealborz"}}{{ end }} {{ template "ltr" .Storage.Host }}</p>
-        {{ if .Storage.Entries }}
-        <ul class="storage-entries" dir="ltr">
-          {{ range .Storage.Entries }}<li>{{ . }}</li>{{ end }}
-        </ul>
-        {{ end }}
-        {{ if .Storage.Entries }}
-        <form method="post" action="{{url "mail.account.forget"}}{{$aq}}">
-          <button class="button-danger">{{$.T "settings.forget"}}</button>
-          {{ template "hint" (dict "text" ($.T "settings.forgethint")) }}
-        </form>
-        {{ else }}
-        {{ template "hint" (dict "text" ($.T "settings.storagenothing")) }}
-        {{ end }}
-      </details>
+      <p class="hint">{{ if .Storage.OnServer }}{{ $.Tf "settings.storageserver" .Storage.Host }}{{ else }}{{ $.Tf "settings.storagealborz" .Storage.Host }}{{ end }}</p>
+      {{ if .Storage.Entries }}
+      <form class="danger-zone" method="post" action="{{url "mail.account.forget"}}{{$aq}}">
+        <button class="button-danger">{{$.T "settings.reset"}}</button>
+        {{ template "hint" (dict "text" ($.T "settings.resethint")) }}
+      </form>
+      {{ end }}
       {{ end }}
 {{ end }}

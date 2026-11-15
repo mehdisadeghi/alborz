@@ -28,13 +28,24 @@ func Pooled[C any](ctx *web.Context, p *dav.Provider, load func(context.Context,
 	var down, refused []string
 	// answered counts servers that refused other than over the password.
 	answered := map[string]int{}
-	fail := func(username string, err error) {
-		if code, ok := webdav.HTTPErrorCode(err); ok {
-			answered[username] = code
+	// hosts is, per account, the host of its first server, as the notices name it.
+	hosts := map[string]string{}
+	fail := func(s *alborz.Login, err error) {
+		// A throttle names the server that answered and the status it gave.
+		var throttle *dav.ThrottledError
+		if errors.As(err, &throttle) {
+			hosts[s.Username()], answered[s.Username()] = throttle.Host, throttle.StatusCode
 			return
 		}
-		if !slices.Contains(down, username) {
-			down = append(down, username)
+		if _, ok := hosts[s.Username()]; !ok {
+			hosts[s.Username()] = sourceHost(ctx, p, s)
+		}
+		if code, ok := webdav.HTTPErrorCode(err); ok {
+			answered[s.Username()] = code
+			return
+		}
+		if !slices.Contains(down, s.Username()) {
+			down = append(down, s.Username())
 		}
 	}
 	// A refusal stands until the reader changes something, so it is said once per browser.
@@ -42,6 +53,11 @@ func Pooled[C any](ctx *web.Context, p *dav.Provider, load func(context.Context,
 		if ctx.Session().Once("davrefused:" + p.Kind.Name + ":" + username) {
 			refused = append(refused, username)
 		}
+	}
+	// The account answers, so what was said of it before is said again if it goes wrong anew.
+	saidAgain := func(s *alborz.Login) {
+		ctx.Session().Heard("davanswered:" + p.Kind.Name + ":" + s.Username())
+		ctx.Session().Heard("unreachable:" + s.Username())
 	}
 	results := dav.Across(ctx.Request().Context(), ctx.Logins(), (*alborz.Login).Username, func(reqCtx context.Context, s *alborz.Login) (pim.Account[C], error) {
 		reqCtx, cancel := context.WithTimeout(reqCtx, accountLoadBudget)
@@ -55,6 +71,7 @@ func Pooled[C any](ctx *web.Context, p *dav.Provider, load func(context.Context,
 		// An account with nothing of the kind keeps its place, empty, so the first one can be made.
 		if errors.Is(err, none) {
 			accounts = append(accounts, pim.Account[C]{Name: s.Username(), Login: s, Client: c})
+			saidAgain(s)
 			continue
 		}
 		// A refused password keeps the account's place, empty, and tells the reader.
@@ -66,7 +83,7 @@ func Pooled[C any](ctx *web.Context, p *dav.Provider, load func(context.Context,
 		}
 		if err != nil {
 			lastErr = err
-			fail(s.Username(), err)
+			fail(s, err)
 			ctx.Logger().Printf("%s: skipping %q in the pooled view: %v", p.Kind.Name, s.Username(), err)
 			continue
 		}
@@ -75,13 +92,18 @@ func Pooled[C any](ctx *web.Context, p *dav.Provider, load func(context.Context,
 			owned[i].Account = s.Username()
 		}
 		accounts = append(accounts, pim.Account[C]{Name: s.Username(), Login: s, Client: c, Collections: owned})
-		for _, trouble := range p.Troubles(s.Username()) {
+		troubles := p.Troubles(s.Username())
+		for _, trouble := range troubles {
 			ctx.Logger().Printf("%s: %q in the pooled view without a source: %v", p.Kind.Name, s.Username(), trouble)
 			if errors.As(trouble, &no) {
 				refuse(s.Username())
 			} else {
-				fail(s.Username(), trouble)
+				fail(s, trouble)
 			}
+		}
+		// The account answers whole, so what was said of it before is said again if it goes wrong anew.
+		if len(troubles) == 0 {
+			saidAgain(s)
 		}
 	}
 	if len(accounts) == 0 {
@@ -90,25 +112,45 @@ func Pooled[C any](ctx *web.Context, p *dav.Provider, load func(context.Context,
 		}
 		return nil, none
 	}
-	ctx.Unreachable(down)
-	for _, username := range slices.Sorted(maps.Keys(answered)) {
-		code := answered[username]
-		key, action := "notice.davanswered", &web.NoticeAction{Label: ctx.T("settings.account"), Path: web.AccountURL(ctx.Path("mail.account"), username)}
-		// A 403 stays a permission answer, with the way to the password beside it.
-		if code == http.StatusForbidden {
-			key, action = "notice.davforbidden", &web.NoticeAction{Label: ctx.T("servers.dav"), Path: web.AccountURL(ctx.Path("pim.server"), username)}
-		}
-		ctx.Notify(web.Notice{Kind: web.NoticeWarning,
-			Text:    fmt.Sprintf(ctx.T(key), username, fmt.Sprintf("%d %s", code, http.StatusText(code))),
-			Actions: []*web.NoticeAction{action}})
-	}
-	// A refusal is the one the reader can end, so it wins when both happened.
+	// A view's warnings are background, so they never replace what an action said, and each is
+	// said once per while, so a page's visits do not repeat it. A refusal is the one the reader
+	// can end, so it is said first and wins over an answer, which wins over a silence.
 	if len(refused) > 0 {
-		ctx.Notify(web.Notice{Kind: web.NoticeWarning,
+		ctx.NotifyBackground(web.Notice{Kind: web.NoticeWarning,
 			Text:    ctx.Tf("notice.davrefused", len(refused), strings.Join(refused, ", ")),
 			Actions: []*web.NoticeAction{{Label: ctx.T("servers.dav"), Path: web.AccountURL(ctx.Path("pim.server"), refused[0])}}})
 	}
+	for _, username := range slices.Sorted(maps.Keys(answered)) {
+		if ctx.NoticeWaiting() {
+			break
+		}
+		if !ctx.Session().OnceFor("davanswered:"+p.Kind.Name+":"+username, web.NoticeCooldown) {
+			continue
+		}
+		code := answered[username]
+		status := fmt.Sprintf("%d %s", code, http.StatusText(code))
+		args := []any{p.Kind.Label, username, hosts[username], status}
+		key, action := "notice.davanswered", &web.NoticeAction{Label: ctx.T("settings.account"), Path: web.AccountURL(ctx.Path("mail.account"), username)}
+		// A 403 stays a permission answer, with the way to the password beside it.
+		if code == http.StatusForbidden {
+			key, args, action = "notice.davforbidden", []any{username, status}, &web.NoticeAction{Label: ctx.T("servers.dav"), Path: web.AccountURL(ctx.Path("pim.server"), username)}
+		}
+		ctx.NotifyBackground(web.Notice{Kind: web.NoticeWarning,
+			Text:    fmt.Sprintf(ctx.T(key), args...),
+			Actions: []*web.NoticeAction{action}})
+	}
+	ctx.Unreachable(p.Kind.Label, down, hosts)
 	return accounts, nil
+}
+
+// sourceHost names the account's first server's host, as the provider's sources hold it: homes asks
+// that server first, so it is the one a trouble is about.
+func sourceHost(ctx *web.Context, p *dav.Provider, l *alborz.Login) string {
+	sources := p.Sources(ctx.Request().Context(), l)
+	if len(sources) == 0 {
+		return ""
+	}
+	return sources[0].URL.Host
 }
 
 // Only is the set a URL asks to see through field, overriding stored visibility for that request.

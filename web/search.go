@@ -199,6 +199,6 @@ func (ctx *Context) searchSections(searchers []Searcher, q search.Query, view st
 		blocks[i].Total, blocks[i].All = found[i].Total, found[i].All
 	}
 	slices.Sort(down)
-	ctx.Unreachable(slices.Compact(down))
+	ctx.Unreachable(ctx.T("servers.mail"), slices.Compact(down), nil)
 	return blocks, nil
 }

@@ -29,7 +29,7 @@ func (p *plugin) handleSearch(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
-	ctx.Unreachable(down)
+	ctx.Unreachable(ctx.T("servers.mail"), down, nil)
 
 	title := ctx.T("search.title")
 	heading := fmt.Sprintf("%s: %s", title, ask.Query)

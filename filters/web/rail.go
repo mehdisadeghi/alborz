@@ -59,6 +59,6 @@ func rail(ctx *web.Context) map[string][]web.RailRow {
 		}
 		rows[account.Username] = append([]web.RailRow{scripts}, pages...)
 	}
-	ctx.Unreachable(down)
+	ctx.Unreachable(ctx.T("servers.mail"), down, nil)
 	return rows
 }

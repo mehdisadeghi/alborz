@@ -916,7 +916,7 @@
 "folder.emptyask" = "حذف كل شيء في %s؟"
 "folder.emptydo" = "حذف الكل"
 "notice.loginfailed" = "رُفض العنوان أو كلمة المرور."
-"notice.davanswered" = "ردّ خادم التقويم وجهات الاتصال لـ %s بـ %s."
+"notice.davanswered" = "ردّ خادم %s لـ %s (%s) بـ %s."
 "notice.davforbidden" = "ردّ خادم التقويم وجهات الاتصال لـ %s بـ %s. تحقّق من كلمة المرور."
 "notice.loginerror" = "فشل تسجيل الدخول: %s"
 "notice.loginmissing" = "العنوان أو كلمة المرور مفقودة."
@@ -1328,8 +1328,8 @@ one = "تعذّرت قراءة جزء من %[2]s."
 other = "تعذّرت قراءة أجزاء من %[2]s."
 
 ["notice.unreachable"]
-one = "لم يستجب خادم %[2]s."
-other = "لم تستجب خوادم %[2]s."
+one = "لم يستجب خادم %[2]s لـ %[3]s."
+other = "لم تستجب خوادم %[2]s لـ %[3]s."
 
 ["notice.deleted"]
 one = "حُذفت رسالة واحدة."

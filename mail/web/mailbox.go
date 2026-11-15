@@ -79,7 +79,7 @@ func (p *plugin) handleUnifiedMailbox(ctx *web.Context) error {
 			return err
 		}
 	}
-	ctx.Unreachable(down)
+	ctx.Unreachable(ctx.T("servers.mail"), down, nil)
 	if !found {
 		return alborz.NotFound("notfound.folder", role)
 	}

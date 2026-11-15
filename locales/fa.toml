@@ -913,7 +913,7 @@
 "folder.emptyask" = "همه‌چیز در %s حذف شود؟"
 "folder.emptydo" = "حذف همه"
 "notice.loginfailed" = "نشانی یا گذرواژه پذیرفته نشد."
-"notice.davanswered" = "سرور تقویم و مخاطبان %s پاسخ داد: %s"
+"notice.davanswered" = "سرور %s برای %s (%s) پاسخ داد: %s"
 "notice.davforbidden" = "سرور تقویم و مخاطبان %s پاسخ داد: %s. گذرواژه را بررسی کنید."
 "notice.loginerror" = "ورود ناموفق بود: %s"
 "notice.loginmissing" = "نشانی یا گذرواژه وارد نشده است."
@@ -1328,8 +1328,8 @@ one = "بخشی از %[2]s خوانده نشد."
 other = "بخش‌هایی از %[2]s خوانده نشد."
 
 ["notice.unreachable"]
-one = "سرور %[2]s پاسخ نداد."
-other = "سرورهای %[2]s پاسخ ندادند."
+one = "سرور %[2]s برای %[3]s پاسخ نداد."
+other = "سرورهای %[2]s برای %[3]s پاسخ ندادند."
 
 
 ["notice.deleted"]

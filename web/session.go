@@ -43,7 +43,9 @@ type Session struct {
 	// pendingProfiles holds accounts whose settings the reader has not chosen yet.
 	pendingProfiles map[string]bool
 	// said holds conditions already told once.
-	said            map[string]bool
+	said map[string]bool
+	// cooling holds keys in their notice cooldown, each with when it may be said again.
+	cooling         map[string]time.Time
 	lock            alborz.Lock
 	active          time.Time
 	locked          bool
@@ -348,6 +350,30 @@ func (s *Session) Once(key string) bool {
 	return true
 }
 
+// OnceFor reports whether this is the first time the session hears of key
+// within ttl; after ttl it hears it again.
+func (s *Session) OnceFor(key string, ttl time.Duration) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	now := time.Now()
+	if until, ok := s.cooling[key]; ok && now.Before(until) {
+		return false
+	}
+	if s.cooling == nil {
+		s.cooling = map[string]time.Time{}
+	}
+	s.cooling[key] = now.Add(ttl)
+	return true
+}
+
+// Heard forgets key's cooldown, so the session says it again: what has stopped
+// and gone right anew is worth saying when it goes wrong once more.
+func (s *Session) Heard(key string) {
+	s.mu.Lock()
+	delete(s.cooling, key)
+	s.mu.Unlock()
+}
+
 // notify records what the next page tells the reader.
 func (s *Session) notify(n Notice) {
 	// An empty notice means the action speaks for itself.
@@ -591,6 +617,22 @@ func (ctx *Context) Notify(n Notice) {
 		return
 	}
 	ctx.Session().notify(n)
+}
+
+// NoticeWaiting reports whether a notice already waits for the next page.
+func (ctx *Context) NoticeWaiting() bool {
+	s := ctx.lookupSession()
+	return s != nil && s.hasNotice()
+}
+
+// NotifyBackground records what the next page tells the reader about something
+// other than the request itself, as a view's warning is, only when no notice
+// waits: what an action said is never replaced by what a page came across.
+func (ctx *Context) NotifyBackground(n Notice) {
+	if ctx.NoticeWaiting() {
+		return
+	}
+	ctx.Notify(n)
 }
 
 // PutNotice says a request did what it was asked.

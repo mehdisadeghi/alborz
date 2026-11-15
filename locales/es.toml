@@ -923,7 +923,7 @@
 "folder.emptyask" = "¿Eliminar todo en %s?"
 "folder.emptydo" = "Eliminar todo"
 "notice.loginfailed" = "Dirección o contraseña rechazadas."
-"notice.davanswered" = "El servidor de calendarios y contactos de %s respondió %s."
+"notice.davanswered" = "El servidor %s de %s (%s) respondió %s."
 "notice.davforbidden" = "El servidor de calendarios y contactos de %s respondió %s. Revisa la contraseña."
 "notice.loginerror" = "No se pudo iniciar sesión: %s"
 "notice.loginmissing" = "Falta la dirección o la contraseña."
@@ -1329,8 +1329,8 @@ one = "No se pudo leer parte de %[2]s."
 other = "No se pudieron leer partes de %[2]s."
 
 ["notice.unreachable"]
-one = "El servidor de %[2]s no respondió."
-other = "Los servidores de %[2]s no respondieron."
+one = "El servidor %[2]s de %[3]s no respondió."
+other = "Los servidores %[2]s de %[3]s no respondieron."
 
 
 ["notice.deleted"]

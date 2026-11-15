@@ -517,26 +517,32 @@ func TestAServerDownCostsItsRowsNotThePage(t *testing.T) {
 	}
 
 	elsewhere.Close()
-	for _, list := range [][]any{{"mail.mailbox", "INBOX"}, {"mail.search", url.Values{"query": {"example"}}}} {
-		route := list[0].(string)
-		// The loss is noticed a moment after Close returns; until then the cache answers.
-		var body string
-		for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(50 * time.Millisecond) {
-			c.Post(t, "mail.mailbox.refresh", nil, "INBOX")
-			body = c.Page(t, route, list[1:]...)
-			if Says(t, body, "notice.unreachable", 1, Any) {
-				break
-			}
-			if time.Now().After(deadline) {
-				t.Fatalf("%s: nothing says a server did not answer: %s", route, NoticeBar(body))
-			}
+	// The loss is noticed a moment after Close returns; until then the cache answers.
+	var body string
+	for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(50 * time.Millisecond) {
+		c.Post(t, "mail.mailbox.refresh", nil, "INBOX")
+		body = c.Page(t, "mail.mailbox", "INBOX")
+		if Says(t, body, "notice.unreachable", 1, "Mail", Any) {
+			break
 		}
-		if !strings.Contains(NoticeBar(body), Elsewhere) {
-			t.Errorf("%s: the notice does not name the account: %s", route, NoticeBar(body))
+		if time.Now().After(deadline) {
+			t.Fatalf("the inbox: nothing says a server did not answer: %s", NoticeBar(body))
 		}
-		if rows := rowAccounts(body); rows[User] == 0 || rows[Elsewhere] != 0 {
-			t.Errorf("%s: rows by account are %v", route, rows)
-		}
+	}
+	if !strings.Contains(NoticeBar(body), Elsewhere) {
+		t.Errorf("the inbox: the notice does not name the account: %s", NoticeBar(body))
+	}
+	if rows := rowAccounts(body); rows[User] == 0 || rows[Elsewhere] != 0 {
+		t.Errorf("the inbox: rows by account are %v", rows)
+	}
+	// A warning is said once per while, so the next page does not repeat it; its rows still cost nothing.
+	c.Post(t, "mail.mailbox.refresh", nil, "INBOX")
+	body = c.Page(t, "mail.search", url.Values{"query": {"example"}})
+	if Says(t, body, "notice.unreachable", 1, "Mail", Any) {
+		t.Errorf("the search repeats the warning the inbox just said: %s", NoticeBar(body))
+	}
+	if rows := rowAccounts(body); rows[User] == 0 || rows[Elsewhere] != 0 {
+		t.Errorf("the search: rows by account are %v", rows)
 	}
 }
 

@@ -54,7 +54,7 @@ func (p *plugin) mergedNeighbours(ctx *web.Context, settings *mail.Settings, o *
 	if err != nil {
 		return web.Neighbours{}, err
 	}
-	ctx.Unreachable(down)
+	ctx.Unreachable(ctx.T("servers.mail"), down, nil)
 	if position == 0 {
 		return web.Neighbours{}, nil
 	}

@@ -916,7 +916,7 @@
 "folder.emptyask" = "Delete everything in %s?"
 "folder.emptydo" = "Delete all"
 "notice.loginfailed" = "Address or password refused."
-"notice.davanswered" = "The calendar and contacts server for %s answered %s."
+"notice.davanswered" = "The %s server for %s (%s) answered %s."
 "notice.davforbidden" = "The calendar and contacts server for %s answered %s. Check the password."
 "notice.loginerror" = "Sign-in failed: %s"
 "notice.loginmissing" = "Address or password missing."
@@ -1328,8 +1328,8 @@ one = "Part of %[2]s could not be read."
 other = "Parts of %[2]s could not be read."
 
 ["notice.unreachable"]
-one = "The server for %[2]s did not answer."
-other = "The servers for %[2]s did not answer."
+one = "The %[2]s server for %[3]s did not answer."
+other = "The %[2]s servers for %[3]s did not answer."
 
 
 ["notice.deleted"]

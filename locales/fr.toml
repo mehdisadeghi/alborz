@@ -916,7 +916,7 @@
 "folder.emptyask" = "Tout supprimer dans %s ?"
 "folder.emptydo" = "Tout supprimer"
 "notice.loginfailed" = "Adresse ou mot de passe refusé."
-"notice.davanswered" = "Le serveur de calendriers et de contacts pour %s a répondu %s."
+"notice.davanswered" = "Le serveur %s pour %s (%s) a répondu %s."
 "notice.davforbidden" = "Le serveur de calendriers et de contacts pour %s a répondu %s. Vérifie le mot de passe."
 "notice.loginerror" = "Échec de la connexion : %s"
 "notice.loginmissing" = "Adresse ou mot de passe manquant."
@@ -1328,8 +1328,8 @@ one = "Une partie de %[2]s n’a pas pu être lue."
 other = "Des parties de %[2]s n’ont pas pu être lues."
 
 ["notice.unreachable"]
-one = "Le serveur pour %[2]s n’a pas répondu."
-other = "Les serveurs pour %[2]s n’ont pas répondu."
+one = "Le serveur %[2]s pour %[3]s n’a pas répondu."
+other = "Les serveurs %[2]s pour %[3]s n’ont pas répondu."
 
 ["notice.deleted"]
 one = "%d message supprimé."

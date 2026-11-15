@@ -465,8 +465,9 @@ h1.no-word .title-short {
   .contact-list .actions,
   .task-list .actions,
   .journal-list .actions,
-  main.calendar .actions,
-  main.list .actions {
+  /* A titlerow toolbar wraps, for its title is a full-width row that cannot shrink. */
+  main.calendar .actions:not(:has(> .toolbar-title)),
+  main.list .actions:not(:has(> .toolbar-title)) {
     flex-wrap: nowrap;
     align-items: flex-start;
     padding-inline: 0.5rem 0.3rem;
@@ -554,7 +555,8 @@ h1.no-word .title-short {
     display: none;
   }
 
-  :root[data-phone="bar"] section.actions {
+  /* A titlerow toolbar wraps, for its title is a full-width row that cannot shrink. */
+  :root[data-phone="bar"] section.actions:not(:has(> .toolbar-title)) {
     z-index: 11;
     flex-wrap: nowrap;
     padding-block-start: max(var(--space-1), env(safe-area-inset-top));

@@ -47,6 +47,7 @@
 "form.birthday" = "تاريخ الميلاد هذا ليس تاريخاً صالحاً."
 "form.datehint" = "تاريخ بصيغة"
 "form.datetimehint" = "تاريخ ووقت بصيغة"
+"form.moreoptions" = "خيارات أكثر"
 "common.cancel" = "إلغاء"
 "common.delete" = "حذف"
 "common.edit" = "تعديل"

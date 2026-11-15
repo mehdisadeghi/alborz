@@ -214,6 +214,7 @@ func (p *plugin) updateEvent(ctx *web.Context) error {
 				return p.rejectQuickEvent(ctx, quickInput, message)
 			}
 			event.Props.SetText(ical.PropSummary, summary)
+			setDescription(event.Component, description, true)
 			rail, err := p.eventRail(ctx)
 			if err != nil {
 				return err
@@ -221,6 +222,7 @@ func (p *plugin) updateEvent(ctx *web.Context) error {
 			return ctx.Render(http.StatusUnprocessableEntity, "calendar/event-edit", &UpdateEventRenderData{
 				UpdateCalendarObjectRenderData: pimweb.NewEditRenderData(ctx, ctx.T("calendar.createtitle"), rail, e.groups, e.collection, e.object, message),
 				Event:                          event,
+				Attendees:                      ctx.FormValue("attendees"),
 				AllDay:                         ctx.FormValue("allday") != "",
 				StartTime:                      ctx.DateField("start"),
 				EndTime:                        ctx.DateField("end"),

@@ -48,6 +48,7 @@
 "form.birthday" = "That birthday is not a date."
 "form.datehint" = "A date as"
 "form.datetimehint" = "A date and time as"
+"form.moreoptions" = "More options"
 "common.cancel" = "Cancel"
 "common.delete" = "Delete"
 "common.edit" = "Edit"

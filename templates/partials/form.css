@@ -104,6 +104,41 @@ textarea {
   }
 }
 
+/* A folded block keeps the card's rhythm: its summary reads as a small heading, its fields as the others. */
+main.create-update form .more-options > summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--fg-dim);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+main.create-update form .more-options > summary::-webkit-details-marker {
+  display: none;
+}
+
+main.create-update form .more-options > summary::before {
+  display: inline-block;
+  width: 0.75rem;
+}
+
+main.create-update form .more-options[open] > summary {
+  margin-bottom: var(--space-3);
+}
+
+/* The attendees hint sits right before the description field; give it breathing room. */
+main.create-update form .more-options > .hint {
+  margin-bottom: var(--space-2);
+}
+
+/* Repeat and its until date read as one question: a tighter gap between them than between fields. */
+main.create-update form .repeat-fields > .field {
+  margin-bottom: var(--space-2);
+}
+
 .hint {
   display: block;
   margin-top: 0.15rem;

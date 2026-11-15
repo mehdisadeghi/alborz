@@ -47,6 +47,7 @@
 "form.birthday" = "Cet anniversaire n’est pas une date."
 "form.datehint" = "Une date comme"
 "form.datetimehint" = "Date et heure comme"
+"form.moreoptions" = "Plus d’options"
 "common.cancel" = "Annuler"
 "common.delete" = "Supprimer"
 "common.edit" = "Modifier"

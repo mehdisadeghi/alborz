@@ -1,6 +1,7 @@
 package web_test
 
 import (
+	"fmt"
 	"html"
 	"net/http"
 	"net/mail"
@@ -186,6 +187,51 @@ func TestABookWithAnUnreadableCardStillShowsTheRest(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// contactPage PUTs a VCARD as a DAV client would and opens its edit form.
+func contactPage(t *testing.T, a *App, c *Client, book, name, extra string) string {
+	t.Helper()
+	a.Put(t, book+name+".vcf", "text/vcard",
+		"BEGIN:VCARD\r\nVERSION:3.0\r\nUID:"+name+"\r\nFN:Ada Lovelace\r\n"+extra+"END:VCARD\r\n")
+	return c.Page(t, "contacts.contact.edit", Here+book+name+".vcf")
+}
+
+// The contact form folds channels and details away: closed on an empty
+// create form and when editing a card that fills none of them, auto-opened
+// when editing one that fills any.
+func TestContactFormMoreOptions(t *testing.T) {
+	a, c := SignedIn(t, User)
+	book := c.CreateBook(t, "People")
+
+	if page := c.Page(t, "contacts.contact.create"); strings.Contains(page, `<details class="more-options" open`) {
+		t.Errorf("an empty create form opens the more-options block")
+	}
+
+	for i, open := range []struct{ what, extra string }{
+		{"an email", "EMAIL:ada@example.org\r\n"},
+		{"a phone", "TEL:+49 151 2345678\r\n"},
+		{"an organization", "ORG:Analytical Engines\r\n"},
+		{"a job title", "TITLE:Mathematician\r\n"},
+		{"a birthday", "BDAY:18121210\r\n"},
+		{"a website", "URL:https://example.org/ada\r\n"},
+		{"an address", "ADR;TYPE=HOME:;;1 Example Street;London;;12345;UK\r\n"},
+		{"a category", "CATEGORIES:friends\r\n"},
+		{"a note", "NOTE:First programmer\r\n"},
+	} {
+		page := contactPage(t, a, c, book, fmt.Sprintf("open-%d", i), open.extra)
+		if !strings.Contains(page, `<details class="more-options" open`) {
+			t.Errorf("editing a contact with %s does not open the more-options block", open.what)
+		}
+	}
+
+	page := contactPage(t, a, c, book, "plain", "")
+	if strings.Contains(page, `<details class="more-options" open`) {
+		t.Errorf("editing a contact with nothing to show still opens the more-options block")
+	}
+	if !strings.Contains(page, `<details class="more-options">`) {
+		t.Errorf("the more-options block is missing from the edit form")
 	}
 }
 

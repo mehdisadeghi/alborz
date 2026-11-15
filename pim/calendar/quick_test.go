@@ -121,3 +121,52 @@ func TestQuickEventRejectsNonHourlyClockChanges(t *testing.T) {
 		}
 	}
 }
+
+func TestQuickEventIgnoresUhrSuffix(t *testing.T) {
+	loc, err := time.LoadLocation("Europe/Berlin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 10, 23, 10, 0, 0, 0, loc)
+	words := QuickWords{Today: "heute", Tomorrow: "morgen", At: "um"}
+	base, err := ParseQuickEvent("Lunch 18-19", now, words)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The suffix must not change the parsed times or leak into the summary.
+	for _, input := range []string{"Lunch 18-19Uhr", "Lunch 18-19 Uhr"} {
+		got, err := ParseQuickEvent(input, now, words)
+		if err != nil {
+			t.Fatalf("%q: %v", input, err)
+		}
+		if got.Summary != base.Summary || !got.Start.Equal(base.Start) || !got.End.Equal(base.End) {
+			t.Fatalf("%q = %#v, want times of %#v", input, got, base)
+		}
+	}
+	// With a date word, the suffix is ignored just the same (no silent all-day event).
+	for _, input := range []string{"Lunch tomorrow 18-19Uhr", "Lunch tomorrow 18-19 Uhr"} {
+		got, err := ParseQuickEvent(input, now, words)
+		if err != nil {
+			t.Fatalf("%q: %v", input, err)
+		}
+		if got.Summary != "Lunch" || got.AllDay ||
+			got.Start.Format("2006-01-02T15:04") != "2026-10-24T18:00" ||
+			got.End.Format("2006-01-02T15:04") != "2026-10-24T19:00" {
+			t.Fatalf("%q = %#v", input, got)
+		}
+	}
+	// An attached suffix licenses a bare hour.
+	got, err := ParseQuickEvent("Meeting 19Uhr", now, words)
+	if err != nil || got.Summary != "Meeting" || got.AllDay ||
+		got.Start.Format("2006-01-02T15:04") != "2026-10-23T19:00" ||
+		got.End.Format("2006-01-02T15:04") != "2026-10-23T20:00" {
+		t.Fatalf("Meeting 19Uhr = %#v, %v", got, err)
+	}
+	// Unrecognized timing-shaped tokens still reject to the full editor,
+	// with or without a date word, and never reach the summary.
+	for _, input := range []string{"Lunch 18-19km", "Lunch tomorrow 18-19km", "Lunch tomorrow 19km", "Lunch Uhr"} {
+		if got, err := ParseQuickEvent(input, now, words); err == nil {
+			t.Errorf("accepted %q as %#v", input, got)
+		}
+	}
+}

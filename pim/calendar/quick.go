@@ -24,10 +24,14 @@ var ErrQuickEvent = errors.New("event needs a title and an unambiguous date and 
 // ParseQuickEvent extracts date, clock/range and duration independently of their
 // position in the title (ISO YYYY-MM-DD, DD.MM.YYYY, localized today/tomorrow,
 // English weekdays and month names, "in N days", noon/midnight, 12h/24h clocks,
-// ranges, and "for N minutes/hours", normalizing localized digits). Date-only
-// input creates an all-day event; timed events default to 1 hour. Conflicting
-// dates/clocks, recurrence phrases, and ambiguous or nonexistent DST local
-// times return ErrQuickEvent so uncertain timing goes to the full event editor.
+// ranges, and "for N minutes/hours", normalizing localized digits). Clocks are
+// HH, HH:MM, HH-HH, or HH:MM-HH:MM with an optional am/pm; a German "Uhr"
+// suffix, attached ("19Uhr") or separate ("19 Uhr"), is consumed and ignored.
+// Date-only input creates an all-day event; timed events default to 1 hour.
+// Conflicting dates/clocks, recurrence phrases, other unrecognized timing words
+// (for example "18-19km" or a stray "Uhr"), and ambiguous or nonexistent DST
+// local times return ErrQuickEvent so uncertain timing goes to the full event
+// editor.
 func ParseQuickEvent(text string, now time.Time, words QuickWords) (QuickEvent, error) {
 	p := quickParser{original: strings.Fields(text), now: now}
 	for _, token := range p.original {
@@ -143,13 +147,28 @@ type quickParser struct {
 }
 
 var quickDateLike = regexp.MustCompile(`^\d+[./-]\d+[./-]\d+$`)
-var quickClockLike = regexp.MustCompile(`^\d+(:\d+|am|pm)`)
+
+// quickClockLike spots clock-shaped tokens that failed to parse anywhere in the
+// input, so "18-19km" after a valid date fails fast instead of silently
+// becoming an all-day event. Bare digits stay allowed in titles ("Route 66");
+// digit runs need a dash range or attached letters to look like timing.
+var quickClockLike = regexp.MustCompile(`^\d+(:\d+|am|pm)|^\d+(-\d+)+[a-zäöüß]*$|^\d+[a-zäöüß]+$`)
 var quickClockToken = regexp.MustCompile(`^(\d{1,2})(?::(\d{2}))?(am|pm)?$`)
 var quickDayToken = regexp.MustCompile(`^\d{1,2}(st|nd|rd|th)?$`)
 
+// quickClockShaped reports whether v is a single clock token or a dash range
+// of two ("19", "19:30", "18-19", "18:30-19").
+func quickClockShaped(v string) bool {
+	if quickClockToken.MatchString(v) {
+		return true
+	}
+	left, right, ranged := strings.Cut(v, "-")
+	return ranged && quickClockToken.MatchString(left) && quickClockToken.MatchString(right)
+}
+
 func quickTimingWord(v string) bool {
 	switch v {
-	case "at", "from", "until", "every", "tonight", "yesterday", "next", "am", "pm", "utc", "gmt", "cet", "cest", "pst", "pdt", "est", "edt":
+	case "at", "from", "until", "every", "tonight", "yesterday", "next", "am", "pm", "uhr", "utc", "gmt", "cet", "cest", "pst", "pdt", "est", "edt":
 		return true
 	}
 	return false
@@ -344,6 +363,15 @@ func (p *quickParser) clock(words QuickWords) (string, string, bool, error) {
 				break
 			}
 		}
+		// A whitelisted German "Uhr" suffix is consumed and ignored: attached
+		// ("19Uhr", whose strip also licenses a bare hour) or as its own token
+		// ("19 Uhr", consumed below once a clock actually parses).
+		uhr := false
+		if at < len(p.tokens) && strings.HasSuffix(p.tokens[at], "uhr") {
+			if bare := strings.TrimSuffix(p.tokens[at], "uhr"); quickClockShaped(bare) {
+				p.tokens[at], uhr = bare, true
+			}
+		}
 		var a, b string
 		end := at
 		if at < len(p.tokens) && !p.used[at] {
@@ -353,7 +381,7 @@ func (p *quickParser) clock(words QuickWords) (string, string, bool, error) {
 			}
 		}
 		if a == "" {
-			a, end = p.readClock(at, explicit)
+			a, end = p.readClock(at, explicit || uhr)
 			if a != "" && end < len(p.tokens) && !p.used[end] && (p.tokens[end] == "to" || p.tokens[end] == "-" || p.tokens[end] == "–") {
 				b, end = p.readClock(end+1, true)
 				if b == "" {
@@ -386,6 +414,9 @@ func (p *quickParser) clock(words QuickWords) (string, string, bool, error) {
 			if quickClockToken.MatchString(b) && !strings.Contains(b, ":") && !strings.HasSuffix(b, "am") && !strings.HasSuffix(b, "pm") {
 				b += ":00"
 			}
+		}
+		if end < len(p.tokens) && !p.used[end] && p.tokens[end] == "uhr" {
+			end++
 		}
 		p.mark(first, end)
 		from, to, i = a, b, end-1

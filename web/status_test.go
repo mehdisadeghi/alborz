@@ -1,6 +1,7 @@
 package web_test
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -49,9 +50,6 @@ func TestPollingIsNotTheReaderActing(t *testing.T) {
 		t.Fatalf("signing in answered %s", resp.Status)
 	}
 	turnOn(t, c, "date-gregorian")
-	if page := c.Page(t, "mail.mailbox", "INBOX"); !strings.Contains(page, `hx-headers='{"Alborz-Unasked": "1"}'`) {
-		t.Fatal("the bar's segments do not say the page asked by itself")
-	}
 	session := c.Cookie("alborz_session")
 	if session == nil {
 		t.Fatal("signing in set no session cookie")
@@ -65,6 +63,28 @@ func TestPollingIsNotTheReaderActing(t *testing.T) {
 		return rec.Device
 	}
 
+	// The bar tells the browser to ask as the page, not the reader. Take the
+	// declaration from the page itself: a page that stops declaring it fails
+	// here, and a server that stops honouring it fails below.
+	page := c.Page(t, "mail.mailbox", "INBOX")
+	declared := http.Header{}
+	for _, m := range regexp.MustCompile(`hx-(?:headers|request-headers)=(?:'([^']*)'|"([^"]*)")`).FindAllStringSubmatch(page, -1) {
+		value := m[1] + m[2]
+		var headers map[string]string
+		if json.Unmarshal([]byte(html.UnescapeString(value)), &headers) != nil {
+			continue
+		}
+		if headers["Alborz-Unasked"] == "1" {
+			for k, v := range headers {
+				declared.Set(k, v)
+			}
+			break
+		}
+	}
+	if len(declared) == 0 {
+		t.Fatal("no segment declares the page's self-asked request")
+	}
+
 	ask := func(header http.Header) {
 		req, err := http.NewRequest(http.MethodGet, a.URL+a.Path("core.status", "date-gregorian"), nil)
 		if err != nil {
@@ -75,13 +95,15 @@ func TestPollingIsNotTheReaderActing(t *testing.T) {
 			t.Fatalf("the segment answered %s", resp.Status)
 		}
 	}
-	ask(http.Header{"User-Agent": {"poller"}, "Alborz-Unasked": {"1"}})
-	if got := device(); got == "poller" {
-		t.Fatal("a poll was taken for the reader acting")
+	ask(http.Header{"User-Agent": {"reader"}})
+	if got := device(); got != "reader" {
+		t.Fatalf("the reader asking was not noted, the session holds %q", got)
 	}
-	ask(http.Header{"User-Agent": {"poller"}})
-	if got := device(); got != "poller" {
-		t.Fatalf("the reader asking was not noted, the session holds %q; the check above proves nothing", got)
+	poll := declared.Clone()
+	poll.Set("User-Agent", "poller")
+	ask(poll)
+	if got := device(); got != "reader" {
+		t.Fatalf("a declared poll was taken for the reader acting, the session holds %q", got)
 	}
 }
 

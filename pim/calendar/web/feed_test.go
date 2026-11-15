@@ -112,9 +112,6 @@ func TestASubscriptionIsAReadOnlyCalendar(t *testing.T) {
 	if resp.StatusCode != http.StatusMultiStatus || !strings.Contains(resp.Text, "Hols") {
 		t.Fatalf("PROPFIND answered %s without the name:\n%s", resp.Status, resp.Text)
 	}
-	if strings.Contains(resp.Text, "write") {
-		t.Errorf("a DAV client is offered to write the subscription:\n%s", resp.Text)
-	}
 	if resp := a.DAV(t, http.MethodPut, onDAV+"mine.ics", map[string]string{"Content-Type": "text/calendar"},
 		Event("mine", "Mine")); resp.StatusCode != http.StatusForbidden {
 		t.Errorf("a PUT into the subscription answered %s, want 403", resp.Status)

@@ -63,12 +63,16 @@ func TestListCollectionsReadsWhatTheServerSaid(t *testing.T) {
 	if len(listed) != 2 {
 		t.Fatalf("the home set itself was listed as a collection: %d listed", len(listed))
 	}
-	// Sorted by name, canonical paths, writable only by a granted privilege or a silent server.
-	if listed[0].Name != "Family" || listed[0].Path != "/cal/u/Family Days/" || !listed[0].Writable {
-		t.Errorf("first: %+v", listed[0])
+	// Canonical paths, and writable only by a granted privilege or a silent server.
+	byName := map[string]Collection{}
+	for _, cal := range listed {
+		byName[cal.Name] = cal
 	}
-	if listed[1].Name != "Work" || listed[1].Writable {
-		t.Errorf("a read-only collection was offered for writing: %+v", listed[1])
+	if family := byName["Family"]; family.Path != "/cal/u/Family Days/" || !family.Writable {
+		t.Errorf("Family: %+v", family)
+	}
+	if work := byName["Work"]; work.Writable {
+		t.Errorf("a read-only collection was offered for writing: %+v", work)
 	}
 }
 

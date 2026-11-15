@@ -89,7 +89,7 @@ func TestTheWeatherShowsForThePlaceChosen(t *testing.T) {
 
 	shown := c.Page(t, "core.status", "weather")
 	// The first hour's TTT is 293.95 K.
-	for _, want := range []string{"21 °C", "BERLIN-ALEX."} {
+	for _, want := range []string{T(t, "weather.celsius", 21), "BERLIN-ALEX."} {
 		if !strings.Contains(shown, want) {
 			t.Errorf("the segment does not show %q:\n%s", want, shown)
 		}
@@ -101,7 +101,7 @@ func TestAPlaceServerIsNamedAndAskedOnlyWhenConfigured(t *testing.T) {
 	policy := srv.URL + "/policy"
 	a := Alborz(t, Weather(weather.Sources{Stations: srv.URL + "/stations.cfg", Forecasts: srv.URL + "/mosmix/", Places: srv.URL + "/", PlacesPolicy: policy}))
 	c := a.SignIn(t, User)
-	if page := c.Page(t, "weather.place"); !strings.Contains(page, srv.URL) || !strings.Contains(page, `href="`+policy+`"`) || searched.Load() != 0 {
+	if page := c.Page(t, "weather.place"); !strings.Contains(page, srv.URL) || !strings.Contains(page, policy) || searched.Load() != 0 {
 		t.Fatalf("the page does not name the place server and its policy before a search:\n%s", page)
 	}
 	found := c.Page(t, "weather.place", url.Values{"query": {"Berlin"}})

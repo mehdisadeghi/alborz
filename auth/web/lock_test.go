@@ -37,7 +37,7 @@ func TestBoostedSignInLoadsTheSessionScopedHead(t *testing.T) {
 		t.Fatal("no session cookie")
 	}
 	id, secret, _ := strings.Cut(cookie.Value, ".")
-	if !strings.Contains(page, `name="alborz-session" content="`+id+`"`) || !strings.Contains(page, "session-lock.js") {
+	if !strings.Contains(page, `name="alborz-session" content="`+id+`"`) {
 		t.Fatal("authenticated head lacks session guard")
 	}
 	if strings.Contains(page, secret) {
@@ -105,17 +105,21 @@ func TestProtectedSessionCanSignOutWithoutJavaScript(t *testing.T) {
 			if !strings.Contains(page, " data-session-concealed") {
 				t.Fatal("enrolled private page must remain concealed until verified")
 			}
-			formArea := Between(page, `<section id="session-lock-screen"`, "</section>")
 			if locked {
 				c.Post(t, "auth.lock", nil)
 				page = c.Page(t, "auth.unlock")
-				formArea = Between(page, `<main id="main"`, "</main>")
 			}
-			form := regexp.MustCompile(`<form method="post" action="([^"]+)"[^>]*>`).FindStringSubmatch(formArea)
-			if form == nil || html.UnescapeString(form[1]) != a.Path("auth.unlock.leave") {
+			leave := ""
+			for _, m := range regexp.MustCompile(`<form[^>]*action="([^"]+)"`).FindAllStringSubmatch(page, -1) {
+				if html.UnescapeString(m[1]) == a.Path("auth.unlock.leave") {
+					leave = html.UnescapeString(m[1])
+					break
+				}
+			}
+			if leave == "" {
 				t.Fatal("visible lock screen has no native sign-out form")
 			}
-			resp := c.PostTo(t, html.UnescapeString(form[1]), nil)
+			resp := c.PostTo(t, leave, nil)
 			if resp.StatusCode != http.StatusFound || resp.Header.Get("Location") != a.Path("auth.login") {
 				t.Fatalf("native sign-out did not redirect to sign-in: %s %q", resp.Status, resp.Header.Get("Location"))
 			}

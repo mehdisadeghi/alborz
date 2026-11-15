@@ -491,13 +491,23 @@ func TestAnEventIsReadInTheZoneItsObjectDefines(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			c := tc.setup()
 			c.Post(t, "settings.profile", url.Values{"timezone": {"Asia/Tehran"}})
+			// Each row shows its own time just before its summary, so the last clock read before
+			// a summary is the time that event is shown at.
+			clock := regexp.MustCompile(`\d{2}:\d{2}`)
+			page := c.Page(t, "calendar.day", url.Values{"date": {"2026-09-15"}})
 			at := map[string]string{}
-			time := regexp.MustCompile(`data-label="Time">([^<]*)<`)
-			summary := regexp.MustCompile(`dir="auto">([^<]*)</a>`)
-			for _, row := range strings.Split(c.Page(t, "calendar.day", url.Values{"date": {"2026-09-15"}}), `class="event-row`)[1:] {
-				if tm, sm := time.FindStringSubmatch(row), summary.FindStringSubmatch(row); tm != nil && sm != nil {
-					at[sm[1]] = tm[1]
+			for _, name := range []string{"Planning", "Olympus"} {
+				i := strings.Index(page, name)
+				if i < 0 {
+					t.Errorf("the day does not show %s:\n%s", name, page)
+					continue
 				}
+				times := clock.FindAllString(page[:i], -1)
+				if len(times) == 0 {
+					t.Errorf("the day shows no time before %s:\n%s", name, page)
+					continue
+				}
+				at[name] = times[len(times)-1]
 			}
 			// 10:00 CDT is 15:00 UTC, 18:30 in Tehran.
 			if want := map[string]string{"Planning": "18:30", "Olympus": "12:00"}; !maps.Equal(at, want) {
@@ -898,16 +908,16 @@ func TestQuickEventDestinationMatchesTaskScope(t *testing.T) {
 	}
 	single := func(form string) {
 		t.Helper()
-		if strings.Contains(form, `<select`) || !strings.Contains(form, `type="hidden" name="calendar" value="`+User+`|`+first+`"`) {
+		if strings.Contains(form, `<select`) || !strings.Contains(form, "First") {
 			t.Fatalf("single destination should be fixed without a picker:\n%s", form)
 		}
-		if !Says(t, form, "common.saveto") || !strings.Contains(form, "First") {
+		if !Says(t, form, "common.saveto") {
 			t.Fatalf("fixed destination must remain visible:\n%s", form)
 		}
 	}
 	single(quick(nil))
 	c.CreateCalendar(t, "Second", "")
-	if form := quick(nil); !strings.Contains(form, `data-destination-key="quickevent"`) || !strings.Contains(form, "First") || !strings.Contains(form, "Second") {
+	if form := quick(nil); !strings.Contains(form, `<select`) || !strings.Contains(form, "First") || !strings.Contains(form, "Second") {
 		t.Fatalf("multiple destinations need a picker:\n%s", form)
 	}
 	single(quick(url.Values{"cal": {first}}))

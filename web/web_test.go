@@ -208,8 +208,8 @@ func TestNoticeReachesTheReaderFromAnyScope(t *testing.T) {
 		t.Fatal("the second account has no message to act on")
 	}
 	c.Post(t, "mail.messages.move", url.Values{"uids": {uids[0]}, "to": {"Archive"}, "next": {a.Path("mail.mailbox", "INBOX")}}, "INBOX", scoped)
-	if !strings.Contains(c.Page(t, "mail.mailbox", "INBOX"), "notice-text") {
-		t.Error("the merged view did not carry the notice the action raised")
+	if page := c.Page(t, "mail.mailbox", "INBOX"); !Says(t, page, "notice.movedto", 1, Any) {
+		t.Errorf("the merged view did not carry the notice the action raised: %q", NoticeBar(page))
 	}
 }
 

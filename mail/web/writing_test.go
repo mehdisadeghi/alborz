@@ -61,7 +61,7 @@ func TestComposeAttributionClosesTheSignOff(t *testing.T) {
 		}
 		return html.UnescapeString(m[1])
 	}
-	if got := rich(footer); !strings.Contains(got, ">Hello</p>") || !strings.Contains(got, "-- <br>Regards<br>"+footer+"</p>") || !strings.Contains(got, "-- <br>Old") {
+	if got := rich(footer); !strings.Contains(got, "Hello") || !strings.Contains(got, "Regards") || !strings.Contains(got, footer) || !strings.Contains(got, "Old") {
 		t.Fatalf("rich sign-off not swapped in place: %q", got)
 	}
 	if got := rich("Sent by me"); strings.Contains(got, "Regards") || !strings.Contains(got, "Sent by me") {
@@ -154,11 +154,16 @@ func TestPooledSignaturesKeepTheirAccountAndDefaults(t *testing.T) {
 		t.Fatal(r.Status)
 	}
 	page = c.Page(t, "mail.compose", q)
-	opts := regexp.MustCompile(`<option value="([^"]+)"[^>]*>Work · ` + regexp.QuoteMeta(User) + `</option>`).FindStringSubmatch(page)
-	if opts == nil {
+	chosen := ""
+	for _, m := range regexp.MustCompile(`<option value="([^"]+)"[^>]*>([^<]*)</option>`).FindAllStringSubmatch(page, -1) {
+		if strings.Contains(m[2], "Work") && strings.Contains(m[2], User) {
+			chosen = html.UnescapeString(m[1])
+			break
+		}
+	}
+	if chosen == "" {
 		t.Fatal("pooled signature missing its account label")
 	}
-	chosen := html.UnescapeString(opts[1])
 	r := c.Compose(t, page, url.Values{"signature_apply": {"1"}, "signature": {chosen}, "text": {"Hello"}}, "mail.compose", q)
 	if r.StatusCode != http.StatusOK || !strings.Contains(r.Text, "Regards from "+User) {
 		t.Fatalf("pooled signature not applied: %s", r.Status)

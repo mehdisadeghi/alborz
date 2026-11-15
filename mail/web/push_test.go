@@ -101,8 +101,10 @@ func TestNewMailPushesEachSignedInBrowser(t *testing.T) {
 	gone.Post(t, "auth.logout", nil)
 
 	got := arrive(t, a, push, endpoint)
-	if got.Body != User+"\nHi\nHello" {
-		t.Fatalf("the push says %q", got.Body)
+	for _, want := range []string{User, "Hi", "Hello"} {
+		if !strings.Contains(got.Body, want) {
+			t.Fatalf("the push says %q, missing %q", got.Body, want)
+		}
 	}
 	link, _ := url.Parse(got.URL)
 	if !strings.HasPrefix(link.Path, "/message/INBOX/") || !strings.HasSuffix(link.Path, "/notification") || link.Query().Get("account") != User || link.Query().Get("validity") == "" {

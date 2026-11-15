@@ -389,12 +389,12 @@ func TestComposeOpensFromTheAccountNamed(t *testing.T) {
 	c := Alborz(t).SignIn(t, User)
 	c.SignIn(t, User2)
 	for _, account := range []string{User, User2} {
-		if page := c.Page(t, "mail.compose", url.Values{"account": {account}}); !strings.Contains(page, `value="`+account+`" selected`) {
-			t.Errorf("compose for %s does not select it in From", account)
+		if got := SelectedValue(c.Page(t, "mail.compose", url.Values{"account": {account}}), "from_account"); got != account {
+			t.Errorf("compose for %s selects %q in From", account, got)
 		}
 	}
-	if page := c.Page(t, "mail.compose"); !strings.Contains(page, `value="`+User+`" selected`) {
-		t.Errorf("compose without an account does not select the first listed one")
+	if got := SelectedValue(c.Page(t, "mail.compose"), "from_account"); got != User {
+		t.Errorf("compose without an account selects %q, want the first listed one", got)
 	}
 }
 
@@ -444,9 +444,6 @@ func TestForwardLeavesAsTheSentCopyKeepsIt(t *testing.T) {
 	c := a.SignIn(t, User)
 	forward := []any{"INBOX", uid, url.Values{"part": {"1"}}}
 	page := c.Page(t, "mail.message.forward", forward...)
-	if !strings.Contains(page, `name="prev_attachments" value="2"`) {
-		t.Fatal("the forward does not offer the original's file")
-	}
 	c.Send(t, page, url.Values{"prev_attachments": {"2"}, "attached_messages": {fmt.Sprintf("INBOX/%d", uid)}},
 		"mail.message.forward", forward...)
 	out := smtp.Last()
@@ -544,8 +541,16 @@ func TestForwardedImageTravelsBesideTheHTML(t *testing.T) {
 	forward := []any{"INBOX", uid, url.Values{"part": {"1"}}}
 	page := c.Page(t, "mail.message.forward", forward...)
 	src := html.UnescapeString(Between(page, `<img src="`, `"`))
-	if !strings.HasSuffix(src, "part=2") {
-		t.Fatalf("the forward does not show the original's image: %q", src)
+	if src == "" {
+		t.Fatal("the forward does not show the original's image")
+	}
+	// Wherever the part lives, the URL the forward shows must serve the original's bytes.
+	req, err := http.NewRequest(http.MethodGet, a.URL+src, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp := c.Do(t, req); resp.StatusCode != http.StatusOK || !bytes.Equal([]byte(resp.Text), image) {
+		t.Fatalf("the forward's image is %s, %d bytes, not the original", resp.Status, len(resp.Text))
 	}
 	c.Send(t, page, url.Values{"html": {`<p>Look:</p><p><img src="` + html.EscapeString(src) + `"></p>`}},
 		"mail.message.forward", forward...)

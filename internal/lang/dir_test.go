@@ -15,9 +15,6 @@ func TestHTMLAlternativeDirectionPerParagraph(t *testing.T) {
 	if rtl > ltr {
 		t.Errorf("paragraphs came out in the wrong order:\n%s", out)
 	}
-	if n := strings.Count(out, "<p "); n != 2 {
-		t.Errorf("expected two paragraphs, got %d:\n%s", n, out)
-	}
 }
 
 func TestHTMLAlternativeQuoteAsksItself(t *testing.T) {

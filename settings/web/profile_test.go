@@ -73,14 +73,11 @@ func TestProfileSavesFromTwoBrowsersBothStay(t *testing.T) {
 	wg.Wait()
 
 	page := a.SignIn(t, User).Page(t, "settings.profile")
-	if !strings.Contains(page, `id="theme"`) {
-		t.Fatal("the settings page shows no theme")
-	}
 	if !strings.Contains(page, `<html lang="de"`) {
 		t.Error("the language chosen in one browser is gone")
 	}
-	if !strings.Contains(page, `<option value="ink" selected`) {
-		t.Error("the theme chosen in the other browser is gone")
+	if got := SelectedValue(page, "theme"); got != "ink" {
+		t.Errorf("the theme chosen in the other browser is %q, want ink", got)
 	}
 }
 
@@ -118,7 +115,7 @@ func TestSigningInAskedAboutAnotherProfile(t *testing.T) {
 			}
 
 			var fields url.Values
-			for _, f := range regexp.MustCompile(`(?s)<form method="post" action="([^"]+)" class="notice-action">(.*?)</form>`).FindAllStringSubmatch(bar, -1) {
+			for _, f := range regexp.MustCompile(`(?s)<form[^>]*action="([^"]+)"[^>]*>(.*?)</form>`).FindAllStringSubmatch(bar, -1) {
 				if f[1] != a.Path(answer.route) {
 					continue
 				}

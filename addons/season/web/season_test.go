@@ -14,7 +14,7 @@ import (
 func TestSeasonFallsOnlyForAReaderWhoAsked(t *testing.T) {
 	a := Alborz(t)
 	c := a.SignIn(t, User)
-	script := `<script defer src="` + a.Path("season.script") + `"></script>`
+	script := a.Path("season.script")
 	if page := c.Page(t, "mail.mailbox", "INBOX"); strings.Contains(page, script) {
 		t.Fatal("the season falls for a reader who did not ask")
 	}

@@ -1,5 +1,8 @@
 // Package alborztest serves alborz, and the servers it talks to, to tests. Each fixture takes the
 // test and options, and goes when the test ends.
+//
+// The package is test support: it is imported only from _test.go files and never linked into the
+// binary. TestTheHarnessIsTestOnly keeps it that way.
 package alborztest
 
 import (

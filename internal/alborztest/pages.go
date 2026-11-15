@@ -76,6 +76,29 @@ func Shown(page string) string {
 	return html.UnescapeString(m[1])
 }
 
+var (
+	optionTag = regexp.MustCompile(`(?s)<option\b([^>]*)>`)
+	selected  = regexp.MustCompile(`\bselected\b`)
+	valueAttr = regexp.MustCompile(`value="([^"]*)"`)
+)
+
+// SelectedValue is the value of the option a page's named select marks selected, or "".
+func SelectedValue(page, name string) string {
+	block := regexp.MustCompile(`(?s)<select[^>]*name="` + regexp.QuoteMeta(name) + `"[^>]*>(.*?)</select>`).FindStringSubmatch(page)
+	if block == nil {
+		return ""
+	}
+	for _, tag := range optionTag.FindAllStringSubmatch(block[1], -1) {
+		if !selected.MatchString(tag[1]) {
+			continue
+		}
+		if v := valueAttr.FindStringSubmatch(tag[1]); v != nil {
+			return html.UnescapeString(v[1])
+		}
+	}
+	return ""
+}
+
 // NoticeBar is the page's notice, or "".
 func NoticeBar(page string) string { return noticeBar.FindString(page) }
 

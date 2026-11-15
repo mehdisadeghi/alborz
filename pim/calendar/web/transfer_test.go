@@ -472,15 +472,19 @@ func TestCopyingATaskIsUndoneByDeletingTheCopy(t *testing.T) {
 	}
 
 	page := html.UnescapeString(c.Follow(t, landed))
-	undo := regexp.MustCompile(`<form method="post" action="([^"]+/delete[^"]*)" class="notice-action">\s*((?:<input[^>]+>)+)`).FindStringSubmatch(page)
-	if undo == nil {
+	tag := regexp.MustCompile(`<form[^>]*action="([^"]+/delete[^"]*)"[^>]*>`).FindStringSubmatch(page)
+	if tag == nil {
 		t.Fatal("the copy's notice offers no undo")
 	}
+	block := page[strings.Index(page, tag[0])+len(tag[0]):]
+	if end := strings.Index(block, "</form>"); end >= 0 {
+		block = block[:end]
+	}
 	fields := url.Values{}
-	for _, in := range regexp.MustCompile(`name="([^"]+)" value="([^"]*)"`).FindAllStringSubmatch(undo[2], -1) {
+	for _, in := range regexp.MustCompile(`name="([^"]+)" value="([^"]*)"`).FindAllStringSubmatch(block, -1) {
 		fields.Add(in[1], in[2])
 	}
-	if resp := c.PostTo(t, undo[1], fields); resp.StatusCode != http.StatusFound || resp.Header.Get("Location") != fields.Get("next") {
+	if resp := c.PostTo(t, tag[1], fields); resp.StatusCode != http.StatusFound || resp.Header.Get("Location") != fields.Get("next") {
 		t.Fatalf("the undo answered %s to %s", resp.Status, resp.Header.Get("Location"))
 	}
 	u, err := url.Parse(landed)

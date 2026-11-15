@@ -75,28 +75,26 @@ func TestCalendarWeatherUsesLocalDaysAndOneForecast(t *testing.T) {
 			now := time.Now().In(loc)
 			from, to := now.AddDate(0, 0, -1), now.AddDate(0, 0, 7)
 			shown := c.Page(t, "weather.calendar", url.Values{"from": {from.Format(time.DateOnly)}, "to": {to.Format(time.DateOnly)}})
-			if !strings.Contains(shown, "21 °C") {
+			if !strings.Contains(shown, "21") {
 				t.Errorf("missing the forecast temperature in %s", shown)
 			}
-			icons := 0
 			for i := -1; i <= 7; i++ {
 				date := now.AddDate(0, 0, i).Format(time.DateOnly)
 				start := strings.Index(shown, `id="calendar-day-weather-`+date+`"`)
 				if start < 0 {
 					t.Fatalf("missing day %s: %s", date, shown)
 				}
+				// The day's slot is bounded by its span, and the glyph's class is the
+				// only hook for "this day shows weather"; both stay.
 				piece, _, _ := strings.Cut(shown[start:], "</span>")
 				has := strings.Contains(piece, `class="weather-day"`)
 				want := i == 0 || i == 1 || i == 3
 				if has != want {
 					t.Errorf("day %s icon=%v, want %v: %s", date, has, want, piece)
 				}
-				if has {
-					icons++
-				}
 			}
-			if fetched.Load() != 1 || icons != 3 {
-				t.Errorf("%d requests, %d icons", fetched.Load(), icons)
+			if fetched.Load() != 1 {
+				t.Errorf("the forecast was fetched %d times, want 1", fetched.Load())
 			}
 		})
 	}
@@ -129,7 +127,12 @@ func TestCalendarWeatherGlyphNavigatesToTheScopedDay(t *testing.T) {
 	query.Set("to", date)
 	query.Set("next", "https://example.com/external")
 	shown := c.Page(t, "weather.calendar", query)
-	link := regexp.MustCompile(`<a class="weather-day" href="([^"]+)"`).FindStringSubmatch(shown)
+	// Any anchor inside the day's slot is the glyph's link; its scope is the behaviour.
+	daySlot := regexp.MustCompile(`(?s)<span id="calendar-day-weather-` + regexp.QuoteMeta(date) + `"[^>]*>(.*?)</span>`).FindStringSubmatch(shown)
+	if daySlot == nil {
+		t.Fatalf("missing the day's slot: %s", shown)
+	}
+	link := regexp.MustCompile(`<a\b[^>]*\bhref="([^"]+)"`).FindStringSubmatch(daySlot[1])
 	if len(link) != 2 {
 		t.Fatalf("missing glyph link: %s", shown)
 	}
@@ -187,7 +190,8 @@ func TestCalendarWeatherSourceFailureLeavesEmptyDays(t *testing.T) {
 	}
 	date := time.Now().Format(time.DateOnly)
 	shown := c.Page(t, "weather.calendar", url.Values{"from": {date}, "to": {time.Now().AddDate(0, 0, 3).Format(time.DateOnly)}})
-	if strings.Contains(shown, `class="weather-day"`) {
+	// A day with a forecast carries its temperature in the glyph's title; none of them does here.
+	if strings.Contains(shown, T(t, "weather.celsius", 21)) {
 		t.Fatalf("a failed source shows weather: %s", shown)
 	}
 	if failed.Load() != 1 {

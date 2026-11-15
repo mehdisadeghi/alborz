@@ -40,8 +40,8 @@ func TestPasswordChange(t *testing.T) {
 	a = Alborz(t, opts...)
 	back := a.Client()
 	back.HTTP.Jar = here.HTTP.Jar
-	if page := back.Page(t, "settings.password"); !strings.Contains(page, `name="current"`) {
-		t.Fatalf("after a restart the remembered login did not come back:\n%s", NoticeBar(page))
+	if resp := back.Get(t, "settings.password"); resp.StatusCode != http.StatusOK {
+		t.Fatalf("after a restart the remembered login did not come back: %s", resp.Status)
 	}
 }
 

@@ -18,6 +18,7 @@ run: build
 # Rebuild and restart on Go changes; reload templates in the running
 # server (SIGUSR1, keeps sessions) on template changes.
 watch:
+	@command -v entr >/dev/null || { echo "missing: entr (for watch) — install entr, see make doctor"; exit 1; }
 	find templates -name '*.html' | entr -n pkill -USR1 -x alborz & \
 	find . -name '*.go' | entr -nr $(MAKE) run
 
@@ -92,7 +93,7 @@ packages:
 include contrib/packaging/desktop/desktop.mk
 
 # Check commands used by the targets in this Makefile without installing anything.
-DOCTOR_NEEDS = go:build,test,lint node:test-js,lint-web npx:lint-web git:version,release-next openssl:login-key
+DOCTOR_NEEDS = go:build,test,lint node:test-js,lint-web npx:lint-web git:version,release-next openssl:login-key entr:watch
 CHROMES = chrome-headless-shell google-chrome chromium chromium-browser chrome
 CHROME_APPS = '/Applications/Google Chrome.app' /Applications/Chromium.app
 

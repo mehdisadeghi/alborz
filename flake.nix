@@ -27,6 +27,15 @@
           };
         in { inherit alborz; default = alborz; });
 
+      # Tools expected by `make doctor` and the `watch` target.
+      devShells = each (system:
+        let pkgs = nixpkgs.legacyPackages.${system};
+        in {
+          default = pkgs.mkShell {
+            packages = with pkgs; [ go nodejs git openssl entr ];
+          };
+        });
+
       nixosModules.default = { config, lib, pkgs, ... }:
         let cfg = config.services.alborz;
         in {

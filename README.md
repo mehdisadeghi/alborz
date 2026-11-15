@@ -74,7 +74,7 @@ In addition to the protocols above:
 ## Install
 
 Linux binaries (`amd64`, `arm64`, `armv7`), both complete (`alborz`) and without
-add-ons (`alborz-minimal`), along with macOS and Windows desktop packages, are
+add-ons (`alborz-minimal`), along with macOS and Windows [desktop packages](docs/desktop.md), are
 attached to every [release]. See [INSTALLATION.md](INSTALLATION.md) for a
 systemd unit, reverse-proxy setup and building from source.
 

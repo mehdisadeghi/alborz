@@ -7,11 +7,14 @@ returns to the browser. **Quit Alborz** stops the local server. The normal
 
 Closing the browser leaves Alborz running; launching again opens the same instance.
 The desktop server listens only on
-`127.0.0.1:1323`, with the browser address `http://localhost:1323`. A conflicting
+`127.0.0.1:1323` by default (override with `-addr 127.0.0.1:<port>` or `addr` in
+`config.toml`), with the browser address `http://localhost:1323`. A conflicting
 process on that port produces an explicit startup error.
 
 First launch shows a one-time setup code. Copy it into the browser setup page.
-**Copy setup code** remains in the native menu until setup finishes.
+**Copy setup code** remains in the native menu until setup finishes. The native
+menu and setup dialog currently use English; the browser interface uses Alborz's
+existing language settings.
 
 ## Data and recovery
 
@@ -51,7 +54,8 @@ Outputs go to `dist/`; override with `DESKTOP_OUT`. Set `DESKTOP_VERSION` to the
 numeric release version.
 
 Each ZIP has a SHA-256 sidecar. On macOS, move `Alborz.app` from the ZIP or DMG
-to `~/Applications` or `/Applications`. On Windows, unzip and run `Alborz.exe`.
+to `~/Applications` or `/Applications` (replace the existing bundle when upgrading).
+On Windows, unzip and run `Alborz.exe`.
 
 Windows icon embedding downloads the pinned `github.com/akavel/rsrc` build tool.
 Native icons derive from `templates/assets/icon-512.png`.
@@ -73,13 +77,12 @@ does not run on ordinary pull requests.
 
 ## Signing and validation
 
-Artifacts are unsigned by default. Set `DESKTOP_SIGN_IDENTITY` for macOS Developer
+Artifacts are unsigned by default. On macOS, clear the quarantine attribute
+(`xattr -dr com.apple.quarantine Alborz.app`) or right-click **Open** on first
+launch; on Windows, confirm the SmartScreen prompt. Set `DESKTOP_SIGN_IDENTITY` for macOS Developer
 ID signing with the hardened runtime and bundle verification. Notarization and
 stapling remain separate steps, as does Windows Authenticode signing.
 
 Before distributing, test each OS and architecture: first launch and setup, tray/menu
 actions, code copying, browser opening, second launch, restart with existing data,
 Quit, installer upgrade/uninstall, and configuration-file permissions.
-
-The native menu and setup dialog currently use English. The browser interface
-uses Alborz's existing language settings.

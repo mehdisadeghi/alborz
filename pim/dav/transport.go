@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -331,6 +332,64 @@ type RefusedError struct {
 
 func (e *RefusedError) Error() string { return e.Host + " refused the account's password" }
 
+// ThrottledError is a DAV server's 429 or 5xx answer to a read, which asked to be asked later
+// (RFC 9110 10.2.3); At is zero when it named no delay. A memo's backoff reads it by name.
+type ThrottledError struct {
+	Host       string
+	StatusCode int
+	// At is when the server asked to be asked again.
+	At time.Time
+}
+
+func (e *ThrottledError) Error() string {
+	if e.At.IsZero() {
+		return fmt.Sprintf("%s answered %d", e.Host, e.StatusCode)
+	}
+	return fmt.Sprintf("%s answered %d, asked to be asked after %s", e.Host, e.StatusCode, time.Until(e.At).Round(time.Second))
+}
+
+// RetryAfter is when the server asked to be asked again; the memo package reads it by name.
+func (e *ThrottledError) RetryAfter() time.Time { return e.At }
+
+// retryAfter reads a Retry-After header, delay seconds or the date to ask after (RFC 9110 10.2.3);
+// zero when absent, unparsable, or already past.
+func retryAfter(h string, now time.Time) time.Time {
+	if h == "" {
+		return time.Time{}
+	}
+	if s, err := strconv.Atoi(h); err == nil {
+		if s <= 0 {
+			return time.Time{}
+		}
+		return now.Add(time.Duration(s) * time.Second)
+	}
+	if d, err := http.ParseTime(h); err == nil && d.After(now) {
+		return d
+	}
+	return time.Time{}
+}
+
+// readMethods are the requests whose answers a throttle can stand in for: discovery and reads,
+// whose callers treat a bad status as an error anyway. A write's answer stays a response, which
+// the mirror reads to undo the copy it applied.
+var readMethods = []string{"GET", "HEAD", "OPTIONS", "PROPFIND", "REPORT"}
+
+// throttled is the server's 429 or 5xx answer as an error naming when to ask again, nil when the
+// request or status is none it applies to.
+func throttled(req *http.Request, resp *http.Response) error {
+	if !slices.Contains(readMethods, req.Method) {
+		return nil
+	}
+	if resp.StatusCode != http.StatusTooManyRequests && resp.StatusCode < 500 {
+		return nil
+	}
+	return &ThrottledError{
+		Host:       req.URL.Host,
+		StatusCode: resp.StatusCode,
+		At:         retryAfter(resp.Header.Get("Retry-After"), time.Now()),
+	}
+}
+
 // ServerRefused says whether err is a DAV server's answer rather than a failure to get one:
 // a status it sent, its refusal of the password, or a scale it does not list.
 func ServerRefused(err error) bool {
@@ -364,6 +423,10 @@ func (r sourceRouter) send(req *http.Request, src Source) (*http.Response, error
 		if resp.StatusCode == http.StatusUnauthorized {
 			resp.Body.Close()
 			return nil, &RefusedError{Host: req.URL.Host}
+		}
+		if t := throttled(req, resp); t != nil {
+			resp.Body.Close()
+			return nil, t
 		}
 		loc := resp.Header.Get("Location")
 		if resp.StatusCode < 300 || resp.StatusCode >= 400 || loc == "" {

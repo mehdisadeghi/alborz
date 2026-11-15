@@ -498,10 +498,11 @@ func (p *Provider) Collections(ctx context.Context, login *alborz.Login) ([]Coll
 	if err := p.awaitDiscovery(ctx, login.Domain()); err != nil {
 		return nil, err
 	}
-	// A listing missing a server is kept but asked again after the retry delay, or the failure would stay until restart.
+	// A listing missing a server is kept but asked again after the retry delay, or the failure would stay
+	// until restart; a server that throttled a probe says when, and the memo serves stale until then.
 	defer func() {
 		if len(p.Troubles(login.Username())) > 0 {
-			p.collections.Retry(strings.ToLower(login.Username()))
+			p.collections.Retry(strings.ToLower(login.Username()), nextRetry(p.Troubles(login.Username())))
 		}
 	}()
 	return p.collections.Get(strings.ToLower(login.Username()), func() ([]Collection, error) {
@@ -628,6 +629,21 @@ func (p *Provider) Troubles(username string) []error {
 	failed, _ := p.troubles.Load(username)
 	troubles, _ := failed.([]error)
 	return troubles
+}
+
+// nextRetry is when the soonest throttled trouble asks to be probed again; zero when none does.
+func nextRetry(troubles []error) time.Time {
+	var at time.Time
+	for _, err := range troubles {
+		var t *ThrottledError
+		if !errors.As(err, &t) {
+			continue
+		}
+		if r := t.RetryAfter(); !r.IsZero() && (at.IsZero() || r.Before(at)) {
+			at = r
+		}
+	}
+	return at
 }
 
 // HTTPClient talks to the login's server through the mirror, with the account's credentials.

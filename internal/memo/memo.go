@@ -1,6 +1,8 @@
 package memo
 
 import (
+	"errors"
+	"math/rand/v2"
 	"sync"
 	"time"
 )
@@ -21,6 +23,11 @@ type memoEntry[T any] struct {
 	loading    chan struct{}
 	version    uint64
 	retryAfter time.Time
+	// failures counts the loads that failed in a row, delay the last one put the entry off by,
+	// and err the last failure, answered again while the entry is off and has nothing to serve.
+	failures int
+	delay    time.Duration
+	err      error
 }
 
 func (m *Memo[T]) entry(user string) *memoEntry[T] {
@@ -43,7 +50,11 @@ func (m *Memo[T]) held(user string) *memoEntry[T] {
 // The caller holds e.mu.
 func (e *memoEntry[T]) settle(version uint64, val T, err error) {
 	if err == nil && version == e.version {
-		e.val, e.fetched = val, time.Now()
+		e.val, e.fetched, e.err = val, time.Now(), nil
+		// A load that answered ends the backoff its forerunner earned.
+		e.failures, e.delay, e.retryAfter = 0, 0, time.Time{}
+	} else if err != nil {
+		e.err = err
 	}
 	close(e.loading)
 	e.loading = nil
@@ -82,13 +93,20 @@ func (m *Memo[T]) Get(user string, load func() (T, error)) (T, error) {
 			<-done
 			continue
 		}
+		// Off after a failure and nothing to serve, the stored failure is answered until its delay is up.
+		if e.fetched.IsZero() && e.err != nil && time.Now().Before(e.retryAfter) {
+			err := e.err
+			e.mu.Unlock()
+			var zero T
+			return zero, err
+		}
 		e.loading = make(chan struct{})
 		version := e.version
 		e.mu.Unlock()
 		val, err := load()
-		e.mu.Lock()
-		e.settle(version, val, err)
+		m.loaded(e, version, val, err)
 		// A first load overtaken by Stale returns what it read without keeping it.
+		e.mu.Lock()
 		if err == nil && !e.fetched.IsZero() {
 			val = e.val
 		}
@@ -97,8 +115,45 @@ func (m *Memo[T]) Get(user string, load func() (T, error)) (T, error) {
 	}
 }
 
-// Failed background reads back off so a busy page cannot hammer an outage.
-const memoRetryDelay = 5 * time.Second
+// Failed background reads back off so a busy page cannot hammer an outage: the delay doubles per
+// failure to the cap, with jitter, unless the error says when to ask again, as a server answering
+// 429 does with its Retry-After (RFC 9110 10.2.3).
+const (
+	memoRetryDelay = 30 * time.Second
+	memoRetryCap   = 5 * time.Minute
+)
+
+// Retrier is an error that says when the read it failed may be asked again. A load's error that
+// names one puts the memo off until then instead of the default backoff.
+type Retrier interface {
+	RetryAfter() time.Time
+}
+
+// The caller holds e.mu: the delay the entry is currently put off by, the default before any failure.
+func (e *memoEntry[T]) retryDelay() time.Duration {
+	if e.delay == 0 {
+		return memoRetryDelay
+	}
+	return e.delay
+}
+
+// backoff is how long the failed load puts the entry off, and records it against the next failure.
+// The caller holds e.mu.
+func backoff[T any](e *memoEntry[T], err error) time.Duration {
+	var r Retrier
+	if errors.As(err, &r) {
+		if d := time.Until(r.RetryAfter()); d > 0 {
+			// The server said when; its word ends the doubling.
+			e.failures, e.delay = 0, d
+			return d
+		}
+	}
+	e.failures++
+	d := min(memoRetryDelay<<uint(min(e.failures-1, 4)), memoRetryCap)
+	d = d * time.Duration(80+rand.IntN(41)) / 100 // a fifth either way, so retries do not sync up
+	e.delay = d
+	return d
+}
 
 func (m *Memo[T]) start(e *memoEntry[T], load func() (T, error)) {
 	if e.loading != nil || time.Now().Before(e.retryAfter) {
@@ -108,13 +163,18 @@ func (m *Memo[T]) start(e *memoEntry[T], load func() (T, error)) {
 	version := e.version
 	go func() {
 		val, err := load()
-		e.mu.Lock()
-		if err != nil {
-			e.retryAfter = time.Now().Add(memoRetryDelay)
-		}
-		e.settle(version, val, err)
-		e.mu.Unlock()
+		m.loaded(e, version, val, err)
 	}()
+}
+
+// loaded records a finished load, earning the entry its backoff when it failed.
+func (m *Memo[T]) loaded(e *memoEntry[T], version uint64, val T, err error) {
+	e.mu.Lock()
+	if err != nil {
+		e.retryAfter = time.Now().Add(backoff(e, err))
+	}
+	e.settle(version, val, err)
+	e.mu.Unlock()
 }
 
 // Warm returns what is cached for the user without waiting, loading in the background when missing or stale.
@@ -167,14 +227,18 @@ func (m *Memo[T]) Forget(user string) {
 	m.mu.Unlock()
 }
 
-// Retry keeps the user's value but lets it go stale after the retry delay.
-func (m *Memo[T]) Retry(user string) {
+// Retry keeps the user's value but lets it go stale after the retry delay; until, when not zero,
+// is a server's own ask to be asked no sooner, which holds even against the doubled backoff.
+func (m *Memo[T]) Retry(user string, until time.Time) {
 	e := m.held(user)
 	if e == nil {
 		return
 	}
 	e.mu.Lock()
-	if soon := time.Now().Add(memoRetryDelay - m.ttl); e.fetched.After(soon) {
+	if until.After(e.retryAfter) {
+		e.retryAfter = until
+	}
+	if soon := time.Now().Add(e.retryDelay() - m.ttl); e.fetched.After(soon) {
 		e.fetched = soon
 	}
 	e.mu.Unlock()

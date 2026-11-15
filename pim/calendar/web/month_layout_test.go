@@ -52,6 +52,39 @@ func TestMonthWeeksSpanAndContinueAcrossWeeks(t *testing.T) {
 	}
 }
 
+// A squeezed week plans each day on its own: a day with one event shows it
+// even when another day of the same week needs a count.
+func TestMonthWeeksSqueezeEachDayOnItsOwn(t *testing.T) {
+	dates := monthLayoutDates(7)
+	on := make(map[time.Time][]calendar.Occurrence)
+	single := monthLayoutEvent("a", "/single.ics", dates[0].Add(9*time.Hour), dates[0].Add(10*time.Hour))
+	on[dates[0]] = []calendar.Occurrence{single}
+	for i := range 2 {
+		start := dates[1].Add(time.Duration(9+i) * time.Hour)
+		event := monthLayoutEvent("a", fmt.Sprintf("/crowded%d.ics", i), start, start.Add(30*time.Minute))
+		on[dates[1]] = append(on[dates[1]], event)
+	}
+	week := monthWeeks(dates, on)[0]
+
+	for _, e := range week.Events {
+		if e.Path == "/single.ics" && e.Fit != 1 {
+			t.Errorf("a lone event needs %d lines, want 1", e.Fit)
+		}
+	}
+	counts := make(map[int]int)
+	for _, o := range week.Counts() {
+		if o.Fit == 1 {
+			counts[o.Column] = o.Count
+		}
+	}
+	if count, ok := counts[1]; ok {
+		t.Errorf("a day with one event counts %d more", count)
+	}
+	if counts[2] != 2 {
+		t.Errorf("the crowded day counts %d more on its one line, want 2", counts[2])
+	}
+}
+
 // Whatever the lane count, a week shows each event only on its own days,
 // never stacks two in one place, and counts on each day what it hides.
 func TestMonthWeeksAccountForEveryEvent(t *testing.T) {
@@ -228,5 +261,35 @@ func TestOccurrenceDays(t *testing.T) {
 				t.Errorf("covered days must be midnight in the user's zone: %s through %s", first, last)
 			}
 		})
+	}
+}
+
+// On a window that fits one line, a day holding a single event shows the
+// event itself rather than a count taking the same slot.
+func TestSqueezeShowsLoneEventOnOneLine(t *testing.T) {
+	var occupied [monthLanes][7]bool
+	occupied[0][0] = true
+	occupied[0][1] = true
+	occupied[1][1] = true
+	dates := monthLayoutDates(7)
+	week := &MonthWeek{Dates: dates, Events: []MonthEvent{
+		{Column: 1, Row: 1}, {Column: 2, Row: 1}, {Column: 2, Row: 2},
+	}}
+	squeeze(week, occupied, [7]int{})
+
+	if week.Events[0].Fit != 1 {
+		t.Errorf("a lone event keeps its lane on one line, got Fit %d", week.Events[0].Fit)
+	}
+	if week.Events[1].Fit != 2 || week.Events[2].Fit != 2 {
+		t.Errorf("both events of a stacked day move below the count: %#v", week.Events[1:])
+	}
+	if week.Events[2].Fit != 2 {
+		t.Errorf("the second event of a stacked day moves below the count, got Fit %d", week.Events[2].Fit)
+	}
+	if len(week.Squeezed) != 1 || week.Squeezed[0].Column != 2 || week.Squeezed[0].Fit != 1 {
+		t.Errorf("only the stacked day counts on one line: %#v", week.Squeezed)
+	}
+	if len(week.Overflow) != 0 {
+		t.Errorf("a single line hides nothing beyond itself: %#v", week.Overflow)
 	}
 }

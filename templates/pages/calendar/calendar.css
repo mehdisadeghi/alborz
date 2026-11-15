@@ -70,48 +70,51 @@ main.calendar .month-overflow:not([data-fit="6"]) {
   display: none;
 }
 
-@container month-lanes (height < 9.625rem) {
-  main.calendar .month-lanes > [data-fit="6"] { display: none; }
-}
+/* Desktop lane sizes only; on a phone the 1.15rem lanes below use their own thresholds. */
+@media (width > 600px) {
+  @container month-lanes (height < 9.625rem) {
+    main.calendar .month-lanes > [data-fit="6"] { display: none; }
+  }
 
-@container month-lanes (height < 8rem) {
-  main.calendar .month-lanes > .month-event[data-fit="5"] { display: none; }
-}
+  @container month-lanes (height < 8rem) {
+    main.calendar .month-lanes > .month-event[data-fit="5"] { display: none; }
+  }
 
-@container month-lanes (height < 6.375rem) {
-  main.calendar .month-lanes > .month-event[data-fit="4"] { display: none; }
-}
+  @container month-lanes (height < 6.375rem) {
+    main.calendar .month-lanes > .month-event[data-fit="4"] { display: none; }
+  }
 
-@container month-lanes (height < 4.75rem) {
-  main.calendar .month-lanes > .month-event[data-fit="3"] { display: none; }
-}
+  @container month-lanes (height < 4.75rem) {
+    main.calendar .month-lanes > .month-event[data-fit="3"] { display: none; }
+  }
 
-@container month-lanes (height < 3.125rem) {
-  main.calendar .month-lanes > .month-event[data-fit="2"] { display: none; }
-}
+  @container month-lanes (height < 3.125rem) {
+    main.calendar .month-lanes > .month-event[data-fit="2"] { display: none; }
+  }
 
-@container month-lanes (height < 1.5rem) {
-  main.calendar .month-lanes > .month-event[data-fit="1"] { display: none; }
-}
+  @container month-lanes (height < 1.5rem) {
+    main.calendar .month-lanes > .month-event[data-fit="1"] { display: none; }
+  }
 
-@container month-lanes (8rem <= height < 9.625rem) {
-  main.calendar .month-lanes > .month-overflow[data-fit="5"] { display: block; }
-}
+  @container month-lanes (8rem <= height < 9.625rem) {
+    main.calendar .month-lanes > .month-overflow[data-fit="5"] { display: block; }
+  }
 
-@container month-lanes (6.375rem <= height < 8rem) {
-  main.calendar .month-lanes > .month-overflow[data-fit="4"] { display: block; }
-}
+  @container month-lanes (6.375rem <= height < 8rem) {
+    main.calendar .month-lanes > .month-overflow[data-fit="4"] { display: block; }
+  }
 
-@container month-lanes (4.75rem <= height < 6.375rem) {
-  main.calendar .month-lanes > .month-overflow[data-fit="3"] { display: block; }
-}
+  @container month-lanes (4.75rem <= height < 6.375rem) {
+    main.calendar .month-lanes > .month-overflow[data-fit="3"] { display: block; }
+  }
 
-@container month-lanes (3.125rem <= height < 4.75rem) {
-  main.calendar .month-lanes > .month-overflow[data-fit="2"] { display: block; }
-}
+  @container month-lanes (3.125rem <= height < 4.75rem) {
+    main.calendar .month-lanes > .month-overflow[data-fit="2"] { display: block; }
+  }
 
-@container month-lanes (1.5rem <= height < 3.125rem) {
-  main.calendar .month-lanes > .month-overflow[data-fit="1"] { display: block; }
+  @container month-lanes (1.5rem <= height < 3.125rem) {
+    main.calendar .month-lanes > .month-overflow[data-fit="1"] { display: block; }
+  }
 }
 
 main.calendar .date {
@@ -279,10 +282,17 @@ main.calendar .date h3 .day-label {
 
 main.calendar .date h3 .day-secondary {
   grid-area: 2 / 2;
-  justify-self: end;
+  /* Stretched, so the box equals its track and a long label ellipsizes at its
+     inline end; end-aligned, it would overflow past the cell's inline start. */
+  justify-self: stretch;
+  text-align: end;
   padding-inline: 0.25rem;
   font-size: var(--text-xs);
   color: var(--fg-faint);
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Contained, so a second month longer than the first does not widen the title. */
@@ -371,5 +381,55 @@ main.calendar .date.active h3 .day-num {
 
   main.calendar .month-event.continues-after {
     margin-inline-end: 0;
+  }
+
+  /* Thinner lanes fit one or two on a phone; the container thresholds match 1.15rem lines 1px apart. */
+  main.calendar .month-lanes {
+    grid-auto-rows: 1.15rem;
+    row-gap: 1px;
+  }
+
+  @container month-lanes (height < 1.15rem) {
+    main.calendar .month-lanes > .month-event[data-fit="1"] { display: none; }
+  }
+
+  @container month-lanes (height < 2.3625rem) {
+    main.calendar .month-lanes > .month-event[data-fit="2"] { display: none; }
+  }
+
+  @container month-lanes (height < 3.575rem) {
+    main.calendar .month-lanes > .month-event[data-fit="3"] { display: none; }
+  }
+
+  @container month-lanes (height < 4.7875rem) {
+    main.calendar .month-lanes > .month-event[data-fit="4"] { display: none; }
+  }
+
+  @container month-lanes (height < 6rem) {
+    main.calendar .month-lanes > .month-event[data-fit="5"] { display: none; }
+  }
+
+  @container month-lanes (height < 7.2125rem) {
+    main.calendar .month-lanes > [data-fit="6"] { display: none; }
+  }
+
+  @container month-lanes (1.15rem <= height < 2.3625rem) {
+    main.calendar .month-lanes > .month-overflow[data-fit="1"] { display: block; }
+  }
+
+  @container month-lanes (2.3625rem <= height < 3.575rem) {
+    main.calendar .month-lanes > .month-overflow[data-fit="2"] { display: block; }
+  }
+
+  @container month-lanes (3.575rem <= height < 4.7875rem) {
+    main.calendar .month-lanes > .month-overflow[data-fit="3"] { display: block; }
+  }
+
+  @container month-lanes (4.7875rem <= height < 6rem) {
+    main.calendar .month-lanes > .month-overflow[data-fit="4"] { display: block; }
+  }
+
+  @container month-lanes (6rem <= height < 7.2125rem) {
+    main.calendar .month-lanes > .month-overflow[data-fit="5"] { display: block; }
   }
 }

@@ -213,48 +213,68 @@ func monthWeeks(dates []time.Time, on map[time.Time][]calendar.Occurrence) []Mon
 	return weeks
 }
 
-// squeeze plans the week for a window that fits fewer than monthLanes+1
-// lines, as Apple Calendar does: with n lines the week shows n lanes when
-// nothing beyond them is hidden, else n-1 lanes and a count on line n.
-// The stylesheet picks the plan with a container query on the lane area.
+// squeeze plans each day for a window that fits fewer than monthLanes+1
+// lines, as Apple Calendar does: with n lines a day shows n lanes when
+// nothing beyond them is hidden, else n-1 lanes and a count on line n. The
+// plan is per day, so a day with one event shows it even when another day
+// of the week is crowded enough to need a count. The stylesheet picks the
+// plan with a container query on the lane area.
 func squeeze(week *MonthWeek, occupied [monthLanes][7]bool, hidden [7]int) {
-	beyond := func(lanes int) bool {
-		for col := range hidden {
-			if hidden[col] > 0 {
+	beyond := func(col, lanes int) bool {
+		if hidden[col] > 0 {
+			return true
+		}
+		for row := lanes; row < monthLanes; row++ {
+			if occupied[row][col] {
 				return true
-			}
-			for row := lanes; row < monthLanes; row++ {
-				if occupied[row][col] {
-					return true
-				}
 			}
 		}
 		return false
 	}
-	// shown[n] is how many lanes n lines show.
-	var shown [monthLanes + 2]int
-	shown[monthLanes+1] = monthLanes
-	for n := 1; n <= monthLanes; n++ {
-		shown[n] = n
-		if beyond(n) {
-			shown[n] = n - 1
-			for col := range hidden {
-				count := hidden[col]
-				for row := n - 1; row < monthLanes; row++ {
+	// shown[col][n] is how many lanes day col shows with n lines.
+	var shown [7][monthLanes + 2]int
+	for col := range shown {
+		shown[col][monthLanes+1] = monthLanes
+		for n := 1; n <= monthLanes; n++ {
+			shown[col][n] = n
+			// A day holding one event alone shows it even on a single
+			// line; a count would only take the same slot.
+			if n == 1 && hidden[col] == 0 && occupied[0][col] {
+				lone := true
+				for row := 1; row < monthLanes; row++ {
 					if occupied[row][col] {
-						count++
+						lone = false
 					}
 				}
-				if count > 0 {
-					week.Squeezed = append(week.Squeezed, MonthOverflow{week.Dates[col], col + 1, count, n})
+				if lone {
+					continue
 				}
+			}
+			if beyond(col, n) {
+				shown[col][n] = n - 1
+			}
+		}
+	}
+	for n := 1; n <= monthLanes; n++ {
+		for col := range hidden {
+			if shown[col][n] == n {
+				continue
+			}
+			count := hidden[col]
+			for row := n - 1; row < monthLanes; row++ {
+				if occupied[row][col] {
+					count++
+				}
+			}
+			if count > 0 {
+				week.Squeezed = append(week.Squeezed, MonthOverflow{week.Dates[col], col + 1, count, n})
 			}
 		}
 	}
 	for i := range week.Events {
 		e := &week.Events[i]
 		e.Fit = e.Row
-		if shown[e.Row] < e.Row {
+		if shown[e.Column-1][e.Row] < e.Row {
 			e.Fit = e.Row + 1
 		}
 	}

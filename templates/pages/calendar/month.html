@@ -53,7 +53,7 @@
         </a>
         {{end}}
         {{range .Counts}}
-        <a class="month-overflow" style="--column:{{.Column}};--row:{{.Fit}}" data-fit="{{.Fit}}" href="{{localhref (printf "%s?date=%s%s" (url "calendar.day") (.Date.Format "2006-01-02") $scope)}}">{{$base.GlobalData.Tf "calendar.more" .Count}}</a>
+        <a class="month-overflow" style="--column:{{.Column}};--row:{{.Fit}}" data-fit="{{.Fit}}" href="{{localhref (printf "%s?date=%s%s" (url "calendar.day") (.Date.Format "2006-01-02") $scope)}}" dir="ltr" aria-label="{{$base.GlobalData.Tf "calendar.more" .Count}}">+{{.Count}}</a>
         {{end}}
         </div>
         </div>

@@ -908,11 +908,11 @@ func TestQuickEventDestinationMatchesTaskScope(t *testing.T) {
 	}
 	single := func(form string) {
 		t.Helper()
-		if strings.Contains(form, `<select`) || !strings.Contains(form, "First") {
+		if strings.Contains(form, `<select`) || !strings.Contains(form, `<input type="hidden" name="calendar" value=`) {
 			t.Fatalf("single destination should be fixed without a picker:\n%s", form)
 		}
-		if !Says(t, form, "common.saveto") {
-			t.Fatalf("fixed destination must remain visible:\n%s", form)
+		if Says(t, form, "common.saveto") {
+			t.Fatalf("fixed destination must stay hidden like the tasks quick add:\n%s", form)
 		}
 	}
 	single(quick(nil))
@@ -921,6 +921,30 @@ func TestQuickEventDestinationMatchesTaskScope(t *testing.T) {
 		t.Fatalf("multiple destinations need a picker:\n%s", form)
 	}
 	single(quick(url.Values{"cal": {first}}))
+}
+
+// A failed quick add offers the full editor with the draft intact. The link
+// prefills the day only from the day page, where the user targeted that day;
+// the month list's d.Time is the first of the month and must not leak in.
+func TestQuickEditorPrefillsOnlyTheDayPage(t *testing.T) {
+	a, c := SignedIn(t, User)
+	cal := c.CreateCalendar(t, "First", "")
+	form := url.Values{"quick": {"event"}, "summary": {"Keep this ambiguous 03/04/2026"}, "calendar": {User + "|" + Here + cal}}
+	editor := func(resp *Response) string {
+		t.Helper()
+		if resp.StatusCode != http.StatusUnprocessableEntity {
+			t.Fatalf("an ambiguous quick event answered %s, want it refused", resp.Status)
+		}
+		return html.UnescapeString(Between(resp.Text, `id="event-quick-error"`, `</p>`))
+	}
+	form.Set("next", a.Path("calendar.day", url.Values{"date": {"2026-11-03"}})+"#quick-add")
+	if link := editor(c.Post(t, "calendar.event.create", form)); !strings.Contains(link, "date=2026-11-03") {
+		t.Fatalf("day page editor link must carry the day:\n%s", link)
+	}
+	form.Set("next", a.Path("calendar.month")+"#quick-add")
+	if link := editor(c.Post(t, "calendar.event.create", form)); strings.Contains(link, "date=") {
+		t.Fatalf("month list editor link must not prefill a date:\n%s", link)
+	}
 }
 
 func TestQuickEventCreatesInChosenCalendarAndKeepsInvalidInput(t *testing.T) {

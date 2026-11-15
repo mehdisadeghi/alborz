@@ -71,7 +71,15 @@ func calendarPageData(ctx *web.Context, title string, collections []dav.Collecti
 		Quick: quickDestination(ctx, collections, calendar.SupportsEvent), QuickTimezone: web.UserLocation(ctx).String()}
 	if failure, ok := ctx.Request().Context().Value(quickFailureKey{}).(quickFailure); ok {
 		d.QuickInput, d.QuickError = failure.Input, failure.Message
-		d.QuickEditor = web.QueryPath(ctx.Path("calendar.event.create"), url.Values{"summary": {failure.Input}, "calendar": {failure.Destination}, "next": {ctx.Request().URL.RequestURI()}})
+		editor := url.Values{"summary": {failure.Input}, "calendar": {failure.Destination}, "next": {ctx.Request().URL.RequestURI()}}
+		if ctx.Request().URL.Path == ctx.Path("calendar.day") {
+			// On the day page the user targeted that day, so prefill the editor
+			// with it even when the failed text holds partial date hints (the
+			// quick parser is all-or-nothing). The month list omits the date so
+			// its d.Time (the first of the month) never leaks into the form.
+			editor.Set("date", d.Time.Format(datePageLayout))
+		}
+		d.QuickEditor = web.QueryPath(ctx.Path("calendar.event.create"), editor)
 		if d.Quick != nil {
 			for _, group := range d.Quick.Lists {
 				for _, col := range group.Collections {

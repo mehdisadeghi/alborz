@@ -8,7 +8,6 @@
     hx-get="{{url "calendar.quick.preview"}}{{account "?" $.GlobalData.URLAccount}}" hx-trigger="input changed delay:400ms" hx-target="#event-quick-preview" hx-sync="this:replace" hx-push-url="false" hx-replace-url="false">
   {{ if .Only }}
   <input type="hidden" name="calendar" value="{{.Account}}|{{.Path}}">
-  <span class="hint">{{$.T "common.saveto"}}: <bdi>{{.Name}}</bdi>{{if $.GlobalData.Unified}} · {{template "ltr" ($.GlobalData.AccountLabel .Account)}}{{end}}</span>
   {{ else }}
   {{ template "collection-picker" (dict "label" ($.T "common.saveto") "name" "calendar" "key" "quickevent" "groups" .Lists "account" .Account "path" .Path "multi" (gt (len .Lists) 1) "quiet" true) }}
   {{ end }}

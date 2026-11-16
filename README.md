@@ -68,6 +68,7 @@ In addition to the protocols above:
 | 4918, 7232 | WebDAV dead properties and ETag preconditions |
 | 6578 | WebDAV collection sync (client) |
 | 3676, 5322 | `format=flowed`, References, Reply-To, signature delimiter |
+| 5890, 5891, 6531, 6532 | Internationalized domain names and SMTPUTF8 addresses |
 | 6350, 6186 | vCard, SRV service discovery |
 | WebAuthn | Passkey session lock |
 

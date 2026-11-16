@@ -50,8 +50,9 @@ pageWrap.addEventListener("dragleave", ev => {
 		writeArea.removeAttribute("data-dragging");
 	}
 });
+// Captured: the editor stops an image drop before it bubbles here.
+pageWrap.addEventListener("drop", () => writeArea.removeAttribute("data-dragging"), true);
 pageWrap.addEventListener("drop", ev => {
-	writeArea.removeAttribute("data-dragging");
 	// A drop on the mail rail imports; one on the file field is the field's own.
 	if (ev.target.closest("aside[data-mail-sidebar], input[type='file']")) {
 		return;

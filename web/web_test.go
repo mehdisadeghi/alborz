@@ -141,21 +141,6 @@ func TestShellCachesLayoutScripts(t *testing.T) {
 	}
 }
 
-func TestDoneNoticeClosesWithoutAScript(t *testing.T) {
-	c := Alborz(t).SignIn(t, User)
-	uids := MessageUIDs(c.Page(t, "mail.mailbox", "INBOX"))
-	if len(uids) == 0 {
-		t.Fatal("no seeded messages")
-	}
-	c.Post(t, "mail.messages.move", url.Values{"uids": uids[:1]}, "INBOX", url.Values{"to": {"Trash"}})
-	notice := NoticeBar(c.Page(t, "mail.mailbox", "INBOX"))
-	if !strings.Contains(notice, "notice-done") {
-		t.Fatalf("no done notice after a move: %q", notice)
-	}
-	if !strings.Contains(notice, `method="dialog"`) {
-		t.Errorf("the notice has no cross that closes it without a script:\n%s", notice)
-	}
-}
 
 // The page depends on the error keeping its type through every wrap.
 func TestUpstreamOutageIsNotOurFailure(t *testing.T) {

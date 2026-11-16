@@ -290,6 +290,8 @@ func (ctx *Context) profileDiff(theirs, ours alborz.Profile) []profileChange {
 		return selectedLabels(g, ctx.Server.Addons, p.Display.Addons, func(a Addon) string { return a.Name }, ".addon")
 	})
 	add("settings.place", func(p alborz.Profile) string { return or(p.Place.Name, "settings.placenone") })
+	// Its labels are the clock add-on's, as the place's are the weather's: a build without it sets none.
+	add("settings.clocks", func(p alborz.Profile) string { return or(strings.Join(p.Clocks, ", "), "settings.clocksnone") })
 	add("settings.phonebar", func(p alborz.Profile) string { return onOff(p.Display.PhoneBar) })
 	add("settings.language", func(p alborz.Profile) string {
 		return or(locale.Name(p.Display.Language), "settings.langauto")

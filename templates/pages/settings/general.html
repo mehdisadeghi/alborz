@@ -117,7 +117,8 @@
 
         <section class="settings-section" aria-labelledby="datetime">
           <h2 id="datetime">{{$.T "settings.datetime"}}</h2>
-          {{ template "field" (dict "label" ($.T "settings.timezone") "name" "timezone" "dir" "ltr" "value" .Reading.Timezone "placeholder" ($.T "settings.tzauto") "hint" ($.T "settings.tzhint")) }}
+          {{ template "field" (dict "label" ($.T "settings.timezone") "name" "timezone" "dir" "ltr" "value" .Reading.Timezone "list" "zones" "placeholder" ($.T "settings.tzauto") "hint" ($.T "settings.tzhint")) }}
+          {{ template "zone-list" }}
 
           <div class="field">
             <label for="first_day_of_week">{{$.T "settings.firstday"}}</label>

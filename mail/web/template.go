@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/internal/dates"
 	"git.mehdix.org/alborz/internal/lang"
 	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/web"
@@ -154,6 +155,8 @@ var TemplateFuncs = template.FuncMap{
 		}
 	},
 	"join": strings.Join,
+	// The zones a zone field suggests, for the zone-list datalist.
+	"zones": func() []string { return dates.Zones },
 	// An id built from data, as an address: htmx finds some ids by an unescaped selector, which an @ or a . ends.
 	"idpart": func(s string) string { return hex.EncodeToString([]byte(s)) },
 }

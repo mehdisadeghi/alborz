@@ -32,6 +32,8 @@ type AddressObjectRenderData struct {
 	// In are the groups naming this contact, Groups the others.
 	In     []contacts.AddressObject
 	Groups []contacts.AddressObject
+	// ZoneNow is what an add-on says of the card's TZ at this moment, such as the time there; empty for nothing.
+	ZoneNow string
 }
 
 type UpdateAddressObjectRenderData struct {
@@ -122,7 +124,7 @@ func (p *plugin) contact(ctx *web.Context) error {
 	}
 	// A birthday with no date stays zero and is shown as written.
 	birthday, _ := ao.Card.Birthday()
-	return ctx.Render(http.StatusOK, "contacts/contact", &AddressObjectRenderData{
+	data := &AddressObjectRenderData{
 		ObjectRenderData: pimweb.NewObjectRenderData(ctx, contacts.AddressObject{AddressObject: ao}.DisplayName(), rail, addressBook,
 			p.DAV.Authors(object.Path, ctx.Login.Username()), cmp.Or(ctx.From(), web.QueryPath(ctx.Path("contacts.list"), web.ReadListState(ctx).Keep(contactListParams...))), "", web.Neighbours{}),
 		In:            in,
@@ -131,7 +133,11 @@ func (p *plugin) contact(ctx *web.Context) error {
 		Birthday:      contacts.Birthday(ao.Card),
 		BirthdayDate:  birthday,
 		Modified:      contacts.Modified(ao),
-	})
+	}
+	if err := web.Extended(ctx, data); err != nil {
+		return err
+	}
+	return ctx.Render(http.StatusOK, "contacts/contact", data)
 }
 func (p *plugin) updateContact(ctx *web.Context) error {
 	addressObjectPath := ctx.Param("path")
@@ -233,6 +239,23 @@ func (p *plugin) updateContact(ctx *web.Context) error {
 			birthday = day.Format("20060102")
 		}
 		setValue(card, vcard.FieldBirthday, birthday)
+		// TZ is an IANA name (RFC 6350 6.5.1); one the card holds already, an offset perhaps, is kept as
+		// written, and so is any TZ when the form sent no field for it.
+		params, err := ctx.FormParams()
+		if err != nil {
+			return err
+		}
+		if sent, ok := params["tz"]; ok && strings.TrimSpace(sent[0]) != card.PreferredValue(vcard.FieldTimezone) {
+			tz := strings.TrimSpace(sent[0])
+			// A new field: a VALUE=utc-offset parameter of the old one would mislabel the name.
+			delete(card, vcard.FieldTimezone)
+			if tz != "" {
+				card.Add(vcard.FieldTimezone, &vcard.Field{Value: tz})
+			}
+			if _, err := time.LoadLocation(tz); tz != "" && (err != nil || tz == "Local") {
+				return reject(ctx.T("form.timezone"))
+			}
+		}
 		setValue(card, vcard.FieldURL, strings.TrimSpace(ctx.FormValue("url")))
 		setValue(card, vcard.FieldNote, strings.TrimSpace(ctx.FormValue("note")))
 		// CATEGORIES is a comma list (RFC 6350 6.7.1).

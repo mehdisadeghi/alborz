@@ -45,6 +45,7 @@
 "form.endbeforestart" = "النهاية تسبق البداية."
 "form.duedate" = "تاريخ الاستحقاق هذا ليس تاريخاً صالحاً."
 "form.birthday" = "تاريخ الميلاد هذا ليس تاريخاً صالحاً."
+"form.timezone" = "هذه المنطقة الزمنية ليست منطقة IANA."
 "form.datehint" = "تاريخ بصيغة"
 "form.datetimehint" = "تاريخ ووقت بصيغة"
 "form.moreoptions" = "خيارات أكثر"

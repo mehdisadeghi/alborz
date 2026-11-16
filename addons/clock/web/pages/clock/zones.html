@@ -1,0 +1,33 @@
+{{ define "rail" }}
+  {{ template "settings-rail" . }}
+{{ end }}
+
+{{ define "main-class" }} class="settings"{{ end }}
+
+{{ define "main" }}
+      {{ template "settings-head" (dict "g" $ "title" ($.T "clock.status") "path" (url "clock.zones")) }}
+
+      <form method="post" action="{{url "clock.zones"}}">
+        <section class="list-items">
+          {{ range .Rows }}
+          <div class="list-item">
+            <div class="list-content">
+              <span class="list-summary" dir="auto">{{.City}}</span>
+              <span class="list-detail">{{ template "ltr" .Zone }}{{ with .Now }} · {{ template "ltr" . }}{{ end }}</span>
+            </div>
+            <button class="button-danger" name="remove" value="{{.Zone}}">{{$.T "clock.remove"}}</button>
+          </div>
+          {{ else }}
+          <div class="list-item">
+            <div class="list-content"><span class="list-summary">{{$.T "clock.none"}}</span></div>
+          </div>
+          {{ end }}
+        </section>
+      </form>
+
+      <form method="post" action="{{url "clock.zones"}}">
+        {{ template "field" (dict "label" ($.T "clock.add") "name" "add" "value" .Typed "dir" "ltr" "list" "zones" "required" true "placeholder" "Europe/Berlin") }}
+        {{ template "zone-list" }}
+        <button type="submit" class="button-primary">{{$.T "common.add"}}</button>
+      </form>
+{{ end }}

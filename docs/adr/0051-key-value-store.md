@@ -1,7 +1,8 @@
 # ADR 51: Key-value interface to the data file
 
-Status: accepted, amended by ADR 70 (keyed names and sealed values) and
-ADR 72 (per-account and per-collection keys).
+Status: accepted, amended by ADR 70 (keyed names and sealed values),
+ADR 72 (per-account and per-collection keys) and ADR 107 (device
+passwords).
 
 ## Context
 
@@ -27,6 +28,7 @@ storage engine.
    | `keys.go` | `alborz.keys/<account>` |
    | `setup.go` | `alborz.setup/<key>` |
    | `push.go` | `alborz.push/vapid`, `alborz.push/devices/<account>/<endpoint>`, `alborz.push/sent/<endpoint>/<item>` |
+   | `devices.go` | `alborz.devices/<account>` |
    | `mail` | `alborz.mail.send/<claim>` |
    | `pim/store` | `alborz.pim/collections/<owner>/<id>`, `alborz.pim/objects/<owner>/<id>/<name>`, `alborz.pim/shares/<owner>/<id>\x00<to>`, `alborz.pim/received/<to>\x00<owner>/<id>`, `alborz.pim/uids/<owner>/<id>\x00<uid>`, `alborz.pim/public/<secret>`, `alborz.pim/dropped/<owner>/<id>`, `alborz.pim/keys/<scope>`, `alborz.pim/ctag` |
 
@@ -48,7 +50,7 @@ storage engine.
 
 ## References
 
-- ADR 26, ADR 70, ADR 72, ADR 74, ADR 87, ADR 98
+- ADR 26, ADR 70, ADR 72, ADR 74, ADR 87, ADR 98, ADR 107
 - `internal/kv/kv.go`, `internal/kv/bolt/bolt.go`, `data.go`,
-  `records.go`, `keys.go`, `push.go`, `setup.go`,
+  `records.go`, `keys.go`, `push.go`, `devices.go`, `setup.go`,
   `mail/send_claim.go`, `pim/store/store.go`

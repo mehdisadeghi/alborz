@@ -378,6 +378,15 @@ func (r *Ring) Lease(name string, d time.Duration) {
 	}
 }
 
+// Lend holds own, an account's own key opened without a login, for d (ADR 107); the lease is set first, as no
+// login holds the key against expiry.
+func (r *Ring) Lend(name string, own []byte, d time.Duration) error {
+	r.mu.Lock()
+	r.get(name).until = time.Now().Add(d)
+	r.mu.Unlock()
+	return r.Turn(name, own, true)
+}
+
 // On reports whether the account's new values go under its own key.
 func (r *Ring) On(name string) bool {
 	r.mu.Lock()

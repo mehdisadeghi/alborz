@@ -376,13 +376,17 @@ func SettingsRail(ctx *Context) map[string][]RailRow {
 		return out
 	}
 	rows[MergedRows] = list(ctx.Unified, "")
+	sessions := 1 + slices.IndexFunc(lists, func(l struct{ label, route string }) bool { return l.route == "settings.sessions" })
 	for _, account := range ctx.Accounts() {
 		scoped := !ctx.Unified && ctx.Login != nil && account.Username == ctx.Login.Username()
 		q := AccountQuery(account.Username)
 		form := func(label, route string) RailRow {
 			return RailRow{Label: ctx.T(label), Href: ctx.Path(route) + q, Active: scoped && path == ctx.Path(route)}
 		}
-		rows[account.Username] = append(append([]RailRow{form("settings.account", "mail.account")}, list(scoped, q)...),
+		// Device passwords are the account's own, beside the sessions signed in to it.
+		devices := RailRow{Label: ctx.T("devices.title"), Href: ctx.Path("settings.devices") + q, Active: scoped && strings.HasPrefix(path, ctx.Path("settings.devices"))}
+		own := slices.Insert(list(scoped, q), sessions, devices)
+		rows[account.Username] = append(append([]RailRow{form("settings.account", "mail.account")}, own...),
 			form("settings.password", "settings.password"), form("settings.data", "settings.data"), form("settings.encryption", "settings.encryption"))
 	}
 	return rows

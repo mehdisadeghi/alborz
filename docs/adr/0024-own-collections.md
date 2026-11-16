@@ -2,7 +2,8 @@
 
 Status: accepted, amended by ADR 26 (kept in `alborz.db`), ADR 28
 (`here` source), ADR 32 (what a publication shows), ADR 62 (subscribed
-calendars), ADR 70 (sealed) and ADR 72 (per-collection keys).
+calendars), ADR 70 (sealed), ADR 72 (per-collection keys) and ADR 107
+(device passwords).
 Supersedes ADR 15.
 
 ## Context
@@ -27,9 +28,10 @@ no calendars, tasks or contacts, and accounts cannot share any.
    CalDAV and CardDAV handlers serve it over backends on the store; the
    root and principal name both home sets. A request body over 16 MiB
    (`maxObject`) is refused with 413.
-3. DAV clients authenticate with HTTP Basic: the mail address and
-   password, checked by an IMAP login. Verdicts, refusals included, are
-   cached for 5 minutes (`davPasswordLife`).
+3. DAV clients authenticate with HTTP Basic: the mail address and a
+   device password (ADR 107) or the mail password, checked by an IMAP
+   login. Mail-password verdicts and all refusals are cached for
+   5 minutes (`davPasswordLife`).
 4. alborz's own pages reach the store in-process as the session's
    account, through the same DAV client code as remote servers (ADR
    28's `here` source), so a share is visible at once.
@@ -63,7 +65,7 @@ no calendars, tasks or contacts, and accounts cannot share any.
 ## References
 
 - RFC 4791, RFC 6352, RFC 6764, RFC 5545
-- ADR 26, ADR 28, ADR 32, ADR 51, ADR 62, ADR 70
+- ADR 26, ADR 28, ADR 32, ADR 51, ADR 62, ADR 70, ADR 72, ADR 107
 - `pim/store/` (`store.go`: `Collection`, `Share`, `Name`;
   `handler.go`: `Handler`, `maxObject`; `paths.go`: `Prefix`,
   `aliasSep`; `public.go`: `PublicPrefix`),

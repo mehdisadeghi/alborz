@@ -1,8 +1,8 @@
 # ADR 70: Sealing, keyed names and the account archive
 
 Status: accepted, amended by ADR 72 (format byte 2 for values sealed
-under an account or collection key) and ADR 97 (60-day remembered
-session lifetime). Amends ADR 5, ADR 26, ADR 27, ADR 51, ADR 59 and
+under an account or collection key), ADR 97 (60-day remembered
+session lifetime) and ADR 107 (device passwords). Amends ADR 5, ADR 26, ADR 27, ADR 51, ADR 59 and
 ADR 65.
 
 ## Context
@@ -25,7 +25,7 @@ a portable export/import archive for data stored on the instance.
 3. `-login-key` is 32 bytes in base64. Purpose-specific keys are derived
    via HKDF-SHA256 with info `"alborz seal " + purpose`
    (`alborz.sessions`, `alborz.settings`, `alborz.pim`, `alborz.keys`,
-   `alborz.push`, `alborz.mail.send`, `alborz.setup`, `dav.mirror`,
+   `alborz.push`, `alborz.devices`, `alborz.mail.send`, `alborz.setup`, `dav.mirror`,
    `alborz.keycheck`). Nothing is sealed directly under `-login-key`.
 4. Every key segment derived from an address, collection or object name,
    UID, publication secret, endpoint or URL MUST be
@@ -55,8 +55,8 @@ a portable export/import archive for data stored on the instance.
        collections/<id>/collection.json  collection, share and object metadata
        collections/<id>/<object>         raw object data (.ics, .vcf)
 
-   Mail, remote server data, the HTTP password and the `key` entry
-   (ADR 72) are excluded.
+   Mail, remote server data, the HTTP password, the `key` entry
+   (ADR 72) and device passwords (ADR 107) are excluded.
 7. `/settings/data` reads the archive in memory (capped at 256 MiB
    uncompressed), verifies `alborz.json`, and restores each settings
    entry and collection for the importing account without deleting
@@ -73,7 +73,7 @@ a portable export/import archive for data stored on the instance.
 ## References
 
 - RFC 5869 (HKDF); ADR 5, ADR 26, ADR 27, ADR 51, ADR 59, ADR 65,
-  ADR 72, ADR 97
-- `internal/seal/seal.go`, `records.go`, `secret.go`, `web/session.go`,
+  ADR 72, ADR 97, ADR 107
+- `internal/seal/seal.go`, `devices.go`, `records.go`, `secret.go`, `web/session.go`,
   `pim/store/store.go`, `pim/dav/mirror.go`, `archive.go`,
   `pim/store/archive.go`, `settings/web/data.go`

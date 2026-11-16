@@ -15,6 +15,8 @@ type Profile struct {
 	Toured bool
 	// Place is where the reader said they are; an empty Name is none (ADR 79).
 	Place Place
+	// Clocks are the IANA zones the reader keeps a clock for, in the order chosen.
+	Clocks []string
 }
 
 // Place is a point on Earth under the name the reader chose it by.

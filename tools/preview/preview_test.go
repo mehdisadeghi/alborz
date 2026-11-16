@@ -56,7 +56,7 @@ func TestPreview(t *testing.T) {
 	a.Put(t, tasks+"child.ics", "text/calendar", "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\nBEGIN:VTODO\r\nUID:child\r\nDTSTAMP:20261027T080000Z\r\nDTSTART;VALUE=DATE:20261027\r\nRRULE:FREQ=WEEKLY\r\nSUMMARY:Child task\r\nRELATED-TO:task0\r\nEND:VTODO\r\nEND:VCALENDAR\r\n")
 	a.Put(t, tasks+"done.ics", "text/calendar", "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\nBEGIN:VTODO\r\nUID:done\r\nDTSTAMP:20261027T080000Z\r\nSUMMARY:Completed task\r\nDUE;VALUE=DATE:20261028\r\nSTATUS:COMPLETED\r\nCOMPLETED:20261027T100000Z\r\nEND:VTODO\r\nEND:VCALENDAR\r\n")
 	a.Put(t, journal+"record.ics", "text/calendar", "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\nBEGIN:VJOURNAL\r\nUID:journal\r\nDTSTAMP:20261027T080000Z\r\nDTSTART;VALUE=DATE:20261027\r\nSUMMARY:Review a long product design proposal\r\nDESCRIPTION:Some text\r\nEND:VJOURNAL\r\nEND:VCALENDAR\r\n")
-	a.Put(t, book+"record.vcf", "text/vcard", "BEGIN:VCARD\r\nVERSION:3.0\r\nUID:contact\r\nFN:Alex Product Design Example\r\nN:Example;Alex;;;\r\nEMAIL:alex@example.org\r\nTEL:+49 123456789\r\nEND:VCARD\r\n")
+	a.Put(t, book+"record.vcf", "text/vcard", "BEGIN:VCARD\r\nVERSION:3.0\r\nUID:contact\r\nFN:Alex Product Design Example\r\nN:Example;Alex;;;\r\nEMAIL:alex@example.org\r\nTEL:+49 123456789\r\nTZ:America/Los_Angeles\r\nEND:VCARD\r\n")
 	// Sent to many, so the Sent list shows where its recipients are cut.
 	a.IMAP.Append(t, "Sent", "From: <"+User+">\r\nTo: Alice Example <alice@example.org>, Bob Example <bob@example.org>, "+
 		"Carol Example <carol@example.org>, \"Sadeghi, Mehdi\" <mehdi@example.org>, سارا احمدی <sara@example.org>\r\n"+

@@ -44,6 +44,10 @@
           <dt>{{$.T "contacts.address"}}</dt>
           <dd class="contact-address">{{.StreetAddress}}</dd>
           {{end}}
+          {{with .AddressObject.Card.PreferredValue "TZ"}}
+          <dt>{{$.T "settings.timezone"}}</dt>
+          <dd>{{ template "ltr" . }}{{ with $.ZoneNow }} <span class="date-secondary">{{ template "ltr" . }}</span>{{ end }}</dd>
+          {{end}}
           {{with .AddressObject.Categories}}
           <dt>{{$.T "contacts.categories"}}</dt>
           <dd>{{ range $i, $word := . }}{{ if $i }}, {{ end }}<a href="{{url "contacts.list"}}?category={{$word | qv}}{{ account "&" $.GlobalData.URLAccount }}" dir="auto">{{$word}}</a>{{ end }}</dd>

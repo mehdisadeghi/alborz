@@ -46,6 +46,7 @@
 "form.endbeforestart" = "پایان پیش از آغاز است."
 "form.duedate" = "آن سررسید تاریخ نیست."
 "form.birthday" = "آن زادروز تاریخ نیست."
+"form.timezone" = "آن منطقهٔ زمانی در فهرست IANA نیست."
 "form.datehint" = "تاریخ به شکل"
 "form.datetimehint" = "تاریخ و ساعت به شکل"
 "form.moreoptions" = "گزینه‌های بیشتر"

@@ -46,6 +46,7 @@
 "form.endbeforestart" = "Das Ende liegt vor dem Beginn."
 "form.duedate" = "Dieses Fälligkeitsdatum ist kein Datum."
 "form.birthday" = "Dieser Geburtstag ist kein Datum."
+"form.timezone" = "Diese Zeitzone ist keine IANA-Zone."
 "form.datehint" = "Ein Datum wie"
 "form.datetimehint" = "Datum und Uhrzeit wie"
 "form.moreoptions" = "Weitere Optionen"

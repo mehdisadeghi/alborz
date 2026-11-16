@@ -20,7 +20,10 @@ and render on signed-out pages.
    with the `key` entry stored separately under the instance key
    (ADR 72).
 2. `METADATA` reads are memoised for the duration of a single HTTP
-   request only.
+   request, and held by the login for at most one minute. Every write
+   through alborz (`Put`, `Update`, `Forget`) MUST drop what all logins
+   of the account hold; `Update` and `Put` read the entry from the
+   server, never from what is held.
 3. Store write refusals re-render the form with an alert
    (`SaveRefusal`), never a 500 error page.
 
@@ -61,6 +64,8 @@ and render on signed-out pages.
 ## Consequences
 
 - No single account is designated as primary.
+- A change another program or another alborz makes to the entries shows
+  here up to a minute late.
 - Forgetting an account's settings resets its profile copy while keeping
   its `key` entry (ADR 72).
 

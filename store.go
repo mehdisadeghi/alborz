@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"git.mehdix.org/alborz/internal/record"
 	"github.com/emersion/go-imap/v2"
@@ -43,8 +44,9 @@ func (l *Login) Update(ctx context.Context, key string, v any, edit func() error
 	mu, _ := l.manager.turns.LoadOrStore(turn{l.username, key}, new(sync.Mutex))
 	mu.(*sync.Mutex).Lock()
 	defer mu.(*sync.Mutex).Unlock()
-	// What this request read before its turn may be what the change before it overwrote.
+	// What this request, or this login, read before its turn may be what the change before it overwrote.
 	memoOf(ctx).forget(l, key)
+	l.manager.forgetStored(l.username)
 	if err := l.store.Get(ctx, key, v); err != nil && err != ErrNoStoreEntry {
 		return err
 	}
@@ -88,6 +90,82 @@ func (sm *loginManager) newStore(login *Login) (Store, error) {
 
 type imapMetadataStore struct {
 	login *Login
+
+	// held are the entries this login read, so a page does not ask the server for them again;
+	// gen counts the writes, so a read that crossed one is not kept; reading are the fetches under way.
+	mu      sync.Mutex
+	held    map[string]heldEntry
+	reading map[string]chan struct{}
+	gen     uint64
+}
+
+type heldEntry struct {
+	v  []byte
+	at time.Time
+}
+
+// storeHeldFor bounds how late a change another program made to the server's entries shows.
+const storeHeldFor = time.Minute
+
+// forget drops what the login holds, after a write to any entry.
+func (s *imapMetadataStore) forget() {
+	s.mu.Lock()
+	s.gen++
+	s.held = nil
+	s.mu.Unlock()
+}
+
+// forgetStored drops what every login of account holds of its entries, so a write made through
+// one is read by all.
+func (sm *loginManager) forgetStored(account string) {
+	sm.locker.Lock()
+	defer sm.locker.Unlock()
+	for l := range sm.logins {
+		if s, ok := l.store.(*imapMetadataStore); ok && l.username == account {
+			s.forget()
+		}
+	}
+}
+
+// read is the entry as this login last read it, else as the server holds it now; pages asking at
+// once share one fetch.
+func (s *imapMetadataStore) read(ctx context.Context, key string) ([]byte, error) {
+	for {
+		s.mu.Lock()
+		if e, ok := s.held[key]; ok && time.Since(e.at) < storeHeldFor {
+			s.mu.Unlock()
+			return e.v, nil
+		}
+		if wait, ok := s.reading[key]; ok {
+			s.mu.Unlock()
+			select {
+			case <-wait:
+				continue
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+		}
+		if s.reading == nil {
+			s.reading = map[string]chan struct{}{}
+		}
+		done := make(chan struct{})
+		s.reading[key] = done
+		gen := s.gen
+		s.mu.Unlock()
+
+		v, err := s.fetch(ctx, key)
+		s.mu.Lock()
+		delete(s.reading, key)
+		close(done)
+		if err == nil && s.gen == gen {
+			if s.held == nil {
+				s.held = map[string]heldEntry{}
+			}
+			s.held[key] = heldEntry{v, time.Now()}
+		}
+		s.mu.Unlock()
+		return v, err
+	}
 }
 
 func (s *imapMetadataStore) key(key string) string {
@@ -155,7 +233,7 @@ func (s *imapMetadataStore) Get(ctx context.Context, key string, out any) error 
 	}
 	if !memoised {
 		var err error
-		if v, err = s.fetch(ctx, key); err != nil {
+		if v, err = s.read(ctx, key); err != nil {
 			return err
 		}
 		if m != nil {
@@ -181,6 +259,7 @@ func (s *imapMetadataStore) Get(ctx context.Context, key string, out any) error 
 // compare-and-set, so a concurrent write may still be lost.
 func (s *imapMetadataStore) Put(ctx context.Context, key string, v any) error {
 	defer memoOf(ctx).forget(s.login, key)
+	defer s.login.manager.forgetStored(s.login.username)
 	was, err := s.fetch(ctx, key)
 	if err != nil {
 		return err
@@ -252,6 +331,7 @@ func (s *imapMetadataStore) Forget(ctx context.Context) error {
 		for _, name := range names {
 			memoOf(ctx).forget(s.login, strings.TrimPrefix(name, vendorRoot+"/"))
 		}
+		s.login.manager.forgetStored(s.login.username)
 	}()
 	err = s.login.DoIMAPContext(ctx, RoundTripTimeout, func(c *imapclient.Client) error {
 		return c.SetMetadata("", entries).Wait()

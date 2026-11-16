@@ -199,9 +199,15 @@ Behind nginx with TLS (certificates via certbot):
         }
 
         listen 443 ssl;
+        http2 on;
         ssl_certificate /etc/letsencrypt/live/webmail.example.org/fullchain.pem;
         ssl_certificate_key /etc/letsencrypt/live/webmail.example.org/privkey.pem;
     }
+
+HTTP/2 (`http2 on;`, nginx 1.25.1 or later; `listen 443 ssl http2;` before)
+is optional and faster: a browser opens at most six HTTP/1.1 connections per
+host, so many tabs queue their requests behind each other, and the tabs share
+one live-update stream instead of holding one each.
 
 Run alborz with `-trusted-proxy 127.0.0.1` behind it: `X-Forwarded-Proto` and
 `X-Forwarded-For` are believed only from a trusted proxy, and behind TLS

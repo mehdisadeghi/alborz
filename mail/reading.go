@@ -419,8 +419,8 @@ type ReadAsk struct {
 	Named      bool
 	List       ListAsk
 	PreferHTML bool
-	// Partial says the page is swapped in place, so its context can follow.
-	Partial bool
+	// Deferrable says the browser runs the page's script, so the place and the thread can follow the page.
+	Deferrable bool
 	// Merged says the list the message was opened from spans accounts or folders, and is read back elsewhere.
 	Merged     bool
 	MoneyWords []string
@@ -486,11 +486,11 @@ func (p *Mailboxes) Read(ctx context.Context, r ReadAsk) (*Opened, error) {
 		threadAlgorithm imap.ThreadAlgorithm
 		err             error
 	)
-	// A flag change evicts the listing but not the held body, so the sidebar may load below.
+	// A flag change evicts the listing but not the held body, so the sidebar may load below. The rail
+	// as last read serves where one is held: reading it again would cost a LIST and a STATUS per folder.
 	if cached != nil {
 		sb = cached.sb
-	}
-	if held != nil && cached == nil {
+	} else if held != nil || p.accountSidebars.Held(r.Login.Username()) {
 		sb, err = p.Rail(r.Login)
 		if err != nil {
 			return nil, err
@@ -506,12 +506,16 @@ func (p *Mailboxes) Read(ctx context.Context, r ReadAsk) (*Opened, error) {
 		authResults = readAuthResults(messageRootHeader(msg), trusted)
 	}
 	sent := sentFolder(sb.Mailboxes)
-	needsThread := msg != nil && (len(msg.Envelope.InReplyTo) > 0 || msg.References != "" || (sent != "" && r.Mailbox == sent))
-	deferContext := held != nil && sb.Active != nil && r.Partial && (!placed || needsThread || r.Merged)
+	needsThread := func() bool {
+		return msg != nil && (len(msg.Envelope.InReplyTo) > 0 || msg.References != "" || (sent != "" && r.Mailbox == sent))
+	}
+	// Left to the page, the place and the thread take a queue turn of their own instead of holding the body up.
+	deferContext := func() bool { return r.Deferrable && (!placed || needsThread() || r.Merged) }
+	deferred := held != nil && sb.Active != nil && deferContext()
 	if cached != nil {
 		threadAlgorithm = cached.threadAlgorithm
 	}
-	if held == nil || sb.Active == nil || (!deferContext && (!placed || needsThread)) {
+	if held == nil || sb.Active == nil || (!deferred && (!placed || needsThread())) {
 		err = r.Login.DoIMAPContext(ctx, alborz.RoundTripTimeout, func(c *imapclient.Client) error {
 			var load *sidebarLoad
 			var err error
@@ -519,6 +523,7 @@ func (p *Mailboxes) Read(ctx context.Context, r ReadAsk) (*Opened, error) {
 				if load, err = startSidebar(c, r.Mailbox, r.Mailbox, r.Settings.Subscriptions); err != nil {
 					return err
 				}
+				sent = sentFolder(load.sb.Mailboxes)
 			}
 			if held == nil {
 				if msg, part, err = fetchMessagePart(c, r.Mailbox, r.UID, partPath, true); err != nil {
@@ -530,16 +535,15 @@ func (p *Mailboxes) Read(ctx context.Context, r ReadAsk) (*Opened, error) {
 					p.messageRead(r.Login.Username(), r.Mailbox, r.UID)
 				}
 			}
-			if !placed {
-				if place, err = p.placeInList(c, r.Login.Username(), r.Settings, r.Mailbox, r.UID, r.List); err != nil {
-					return err
-				}
-			}
 			threadAlgorithm = ThreadAlgorithm(c)
-			if load != nil {
-				sent = sentFolder(load.sb.Mailboxes)
+			if deferred = deferContext(); !deferred {
+				if !placed {
+					if place, err = p.placeInList(c, r.Login.Username(), r.Settings, r.Mailbox, r.UID, r.List); err != nil {
+						return err
+					}
+				}
+				inReplyTo, answers = readThread(p.server.Logger(), c, r.Mailbox, sent, msg)
 			}
-			inReplyTo, answers = readThread(p.server.Logger(), c, r.Mailbox, sent, msg)
 			if held == nil {
 				authResults = readAuthResults(messageRootHeader(msg), trusted)
 			}
@@ -586,7 +590,7 @@ func (p *Mailboxes) Read(ctx context.Context, r ReadAsk) (*Opened, error) {
 	}
 	opened := &Opened{Message: msg, Part: part, PartPath: partPath, Rail: sb, PermanentFlags: permanentFlags,
 		AuthResults: authResults, InReplyTo: inReplyTo, Answers: answers,
-		ThreadAlgorithm: threadAlgorithm, Place: place, DeferContext: deferContext, Warnings: warnings, Mark: mark,
+		ThreadAlgorithm: threadAlgorithm, Place: place, DeferContext: deferred, Warnings: warnings, Mark: mark,
 		DeliveredTo: deliveredTo, ForwardedBy: ForwardedBy(msg.rootHeader, trusted, msg.ListID),
 		Unsubscribe: unsubscribeMail(r.Settings, trust, msg)}
 	if held != nil {

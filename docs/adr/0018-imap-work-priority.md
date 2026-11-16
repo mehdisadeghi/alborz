@@ -27,13 +27,14 @@ must not delay them, and no cache write may overwrite newer state.
    one callback. On release, the first waiting non-background call
    runs next, else the first background one. A queue holds at most 64
    waiters; further callers are refused immediately.
-4. The bound covers waiting and running, from the call. A call still
-   queued at its bound reports the server as slow (ADR 33); one whose
-   reader left returns cancelled. Neither touches the connection.
+4. The bound applies twice: once to waiting, from the call, and once
+   afresh to running, from the moment the callback starts. A call
+   still queued at its bound reports the server as slow (ADR 33); one
+   whose reader left returns cancelled. Neither touches the connection.
 5. Once a callback runs, the reader leaving does not stop it: a
-   half-sent command would leave the connection unusable. Only the
-   bound or the login ending stops it; the connection is then closed
-   and the next call dials a new one.
+   half-sent command would leave the connection unusable. Only its own
+   running bound or the login ending stops it; the connection is then
+   closed and the next call dials a new one.
 6. Speculative listings carry a start check (`WithIMAPStart`): if a
    reader took the page over while it queued, it releases the
    connection unused. A reader joining a queued speculative listing
@@ -61,7 +62,7 @@ must not delay them, and no cache write may overwrite newer state.
 
     | Change | Cache operation |
     |---|---|
-    | Automatic `\Seen` on opening a cached body | Register a pending token before returning the page; check it on the interactive connection; STORE, then update listing and body flags before release. |
+    | Automatic `\Seen` on opening a cached body | Register a pending token before returning the page; one store per account and mailbox is queued at a time, and opens arriving meanwhile join it. On the interactive connection it takes the tokens still pending, sends one UID STORE for them, then updates listing and body flags before release. |
     | Explicit read/unread or flag replacement | Cancel pending automatic-read tokens first; on success `listings.flags` (updates bodies too). |
     | Other confirmed flag change | `listings.flags`: plain pages patched, filtered and merged listings invalidated; in-flight body fetches for those UIDs lose their tokens. |
     | MOVE, EXPUNGE, mailbox membership change | `evict`/`evictAll` the listings; `bodies.discard` the bodies and tokens (the whole mailbox for EXPUNGE). |

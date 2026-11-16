@@ -29,7 +29,8 @@ message costs.
 4. The message page MUST serve from the held body and ask the server
    only for what it does not contain.
 5. Opening a held message sets `\Seen` with a UID STORE that the
-   response does not wait for.
+   response does not wait for. Held messages of one mailbox opened
+   while that STORE is queued share it (ADR 18).
 6. Opening a message not held sends UID STORE when its fetched flags
    are unread, including when the first request only fetches its header.
 7. A UID shown by a listing on another IMAP connection may not yet be
@@ -47,8 +48,8 @@ message costs.
 
 - RFC 9051 6.4.5 (FETCH, BODY.PEEK), 6.4.6 (STORE), 2.3.1.1
   (UIDVALIDITY)
-- ADR 6, ADR 60
-- `mail/bodies.go` (`prefetchBodies`, `markHeldSeen`, `bodyKeepPerUser`,
+- ADR 6, ADR 18, ADR 60
+- `mail/bodies.go` (`prefetchBodies`, `markHeldSeen`, `storeHeldSeen`, `bodyKeepPerUser`,
   `bodyMaxPartSize`, `bodyFetchBatch`, `bodyMaxBytes`), `mail/listing.go`,
   `mail/watch.go` (`Warm`)
 - `web/accounts.go` (`AddAccount`, restore), `mail/web/plugin.go`,

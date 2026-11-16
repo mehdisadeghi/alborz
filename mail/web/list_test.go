@@ -89,6 +89,32 @@ func TestCachedMessageAndSidebarWithoutUpstream(t *testing.T) {
 	read(a.Path("mail.sidebar", url.Values{"path": {a.Path("mail.message", "INBOX", uids[0])}}), "aside")
 }
 
+// A page that left its place to the script still steps for a browser that no longer runs it (ADR 13).
+func TestDeferredPlaceStepsWithoutScript(t *testing.T) {
+	a := Alborz(t)
+	c := a.SignIn(t, User)
+	base, _ := url.Parse(a.URL)
+	c.HTTP.Jar.SetCookies(base, []*http.Cookie{{Name: "alborz_tz", Value: "Europe/Berlin", Path: "/"}})
+	uids := MessageUIDs(c.Page(t, "mail.mailbox", "INBOX"))
+	if len(uids) < 3 {
+		t.Fatalf("need three seeded messages, found %d", len(uids))
+	}
+	// A search no listing holds yet leaves the place to the page.
+	page := c.Page(t, "mail.message", "INBOX", uids[1], url.Values{"query": {"from:example"}})
+	next := regexp.MustCompile(`href="([^"]*step=next[^"]*)"`).FindStringSubmatch(page)
+	if next == nil {
+		t.Fatal("the deferred page offers no Next that works without script")
+	}
+	req, _ := http.NewRequest(http.MethodGet, a.URL+html.UnescapeString(next[1]), nil)
+	resp := c.Do(t, req)
+	to := resp.Header.Get("Location")
+	if resp.StatusCode != http.StatusFound || strings.Contains(to, "step=") ||
+		!strings.HasPrefix(to, strings.TrimSuffix(a.Path("mail.message", "INBOX", uids[1]), uids[1])) ||
+		strings.HasPrefix(to, a.Path("mail.message", "INBOX", uids[1])+"?") {
+		t.Fatalf("Next answered %s to %q", resp.Status, to)
+	}
+}
+
 func TestStarStickToTheScopedAccount(t *testing.T) {
 	a := Alborz(t)
 	c := a.SignIn(t, User)

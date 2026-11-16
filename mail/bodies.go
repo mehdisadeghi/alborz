@@ -43,7 +43,7 @@ type mailboxKey struct{ user, mailbox string }
 
 func newBodyCache(keepFor time.Duration) *bodyCache {
 	return &bodyCache{keepFor: keepFor, entries: make(map[bodyKey]*cachedBody), fetching: make(map[bodyKey]uint64),
-		validity: make(map[mailboxKey]uint32), seen: make(map[bodyKey]uint64)}
+		validity: make(map[mailboxKey]uint32), seen: make(map[bodyKey]uint64), seenQueued: make(map[seenBatch]bool)}
 }
 
 type bodyCache struct {
@@ -54,6 +54,8 @@ type bodyCache struct {
 	next     uint64
 	validity map[mailboxKey]uint32
 	seen     map[bodyKey]uint64
+	// seenQueued are the mailboxes with a \Seen store queued that has not yet taken its tokens.
+	seenQueued map[seenBatch]bool
 }
 
 func (bc *bodyCache) claim(k bodyKey, part []int) uint64 {
@@ -290,40 +292,78 @@ func (bc *bodyCache) cancelSeen(user, mailbox string, uids []imap.UID) {
 	maps.DeleteFunc(bc.seen, func(k bodyKey, _ uint64) bool { return k.user == user && k.mbox == mailbox && among[k.uid] })
 }
 
+// seenBatch is a mailbox whose automatic \Seen tokens one queued store takes together.
+type seenBatch struct {
+	user, mbox string
+	validity   uint32
+}
+
+// markHeldSeen registers a pending \Seen token; the opens of one mailbox that arrive while a store
+// for it is queued join that store, so many open messages cost one UID STORE per queue turn.
 func (p *Mailboxes) markHeldSeen(s *alborz.Login, mailbox string, uid imap.UID, validity uint32) {
 	k := bodyKey{s.Username(), mailbox, validity, uid}
+	batch := seenBatch{k.user, mailbox, validity}
 	p.bodies.mu.Lock()
 	if p.bodies.seen[k] != 0 {
 		p.bodies.mu.Unlock()
 		return
 	}
 	p.bodies.next++
-	token := p.bodies.next
-	p.bodies.seen[k] = token
+	p.bodies.seen[k] = p.bodies.next
+	queued := p.bodies.seenQueued[batch]
+	p.bodies.seenQueued[batch] = true
 	p.bodies.mu.Unlock()
-	go func() {
-		defer func() {
-			p.bodies.mu.Lock()
-			if p.bodies.seen[k] == token {
+	if !queued {
+		go p.storeHeldSeen(s, batch)
+	}
+}
+
+// storeHeldSeen stores \Seen on the batch's tokens still current when its turn comes, and updates
+// the caches only once the server confirmed (ADR 18).
+func (p *Mailboxes) storeHeldSeen(s *alborz.Login, batch seenBatch) {
+	in := func(k bodyKey) bool {
+		return k.user == batch.user && k.mbox == batch.mbox && k.validity == batch.validity
+	}
+	ran := false
+	err := s.DoIMAP(func(c *imapclient.Client) error {
+		p.bodies.mu.Lock()
+		ran = true
+		// Opens from here on queue a store of their own.
+		delete(p.bodies.seenQueued, batch)
+		taken := make(map[imap.UID]uint64)
+		for k, token := range p.bodies.seen {
+			if in(k) {
+				taken[k.uid] = token
+			}
+		}
+		p.bodies.mu.Unlock()
+		if len(taken) == 0 {
+			return nil
+		}
+		uids := slices.Sorted(maps.Keys(taken))
+		err := storeFlags(c, batch.mbox, imap.UIDSetNum(uids...), imap.StoreFlagsAdd, []imap.Flag{imap.FlagSeen})
+		if err == nil {
+			for _, uid := range uids {
+				p.messageRead(batch.user, batch.mbox, uid)
+			}
+		}
+		p.bodies.mu.Lock()
+		for uid, token := range taken {
+			if k := (bodyKey{batch.user, batch.mbox, batch.validity, uid}); p.bodies.seen[k] == token {
 				delete(p.bodies.seen, k)
 			}
-			p.bodies.mu.Unlock()
-		}()
-		err := s.DoIMAP(func(c *imapclient.Client) error {
-			p.bodies.mu.Lock()
-			current := p.bodies.seen[k] == token
-			p.bodies.mu.Unlock()
-			if !current {
-				return nil
-			}
-			if err := storeFlags(c, mailbox, imap.UIDSetNum(uid), imap.StoreFlagsAdd, []imap.Flag{imap.FlagSeen}); err != nil {
-				return err
-			}
-			p.messageRead(s.Username(), mailbox, uid)
-			return nil
-		})
-		if err != nil {
-			log.Printf("mark seen %s: %v", s.Username(), err)
 		}
-	}()
+		p.bodies.mu.Unlock()
+		return err
+	})
+	if !ran {
+		// The store never ran: the opens that joined it stay unread, as one that failed does.
+		p.bodies.mu.Lock()
+		delete(p.bodies.seenQueued, batch)
+		maps.DeleteFunc(p.bodies.seen, func(k bodyKey, _ uint64) bool { return in(k) })
+		p.bodies.mu.Unlock()
+	}
+	if err != nil {
+		log.Printf("mark seen %s: %v", s.Username(), err)
+	}
 }

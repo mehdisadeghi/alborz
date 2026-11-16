@@ -127,6 +127,8 @@
 "nav.allaccounts" = "All accounts"
 "nav.dismiss" = "Dismiss"
 "nav.drawer" = "Folders and account"
+"nav.hiderail" = "Hide sidebar"
+"nav.showrail" = "Show sidebar"
 "nav.back" = "Back"
 "aside.compose" = "Compose mail"
 "aside.starred" = "Starred"

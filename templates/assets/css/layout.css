@@ -19,6 +19,13 @@ aside {
   border-inline-end: 1px solid var(--border-light);
 }
 
+/* The header's rail toggle; a phone keeps its drawer whatever the state. */
+@media (width > 600px) {
+  :root[data-rail="hidden"] #page-rail {
+    display: none;
+  }
+}
+
 main {
   flex: 1 100%;
   display: flex;

@@ -30,6 +30,16 @@ const applyScheme = scheme => {
 // Applied before the first paint so the other scheme never shows first (ADR 50).
 applyScheme(sessionStorage.getItem("scheme") || "system");
 
+// The rail's state, per browser, so a hidden rail never shows first; with no script none is set and the rail stays.
+const railState = () => {
+	try {
+		return localStorage.getItem("rail") === "hidden" ? "hidden" : "shown";
+	} catch {
+		return "shown";
+	}
+};
+document.documentElement.dataset.rail = railState();
+
 document.addEventListener("DOMContentLoaded", () => {
 	schemeStylesReady = true;
 	syncThemeColor();

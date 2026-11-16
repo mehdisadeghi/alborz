@@ -126,6 +126,8 @@
 "nav.allaccounts" = "جميع الحسابات"
 "nav.dismiss" = "إغلاق"
 "nav.drawer" = "المجلدات والحساب"
+"nav.hiderail" = "إخفاء الشريط الجانبي"
+"nav.showrail" = "إظهار الشريط الجانبي"
 "aside.compose" = "إنشاء رسالة"
 "aside.starred" = "المميّزة بنجمة"
 "aside.unread" = "غير المقروءة"

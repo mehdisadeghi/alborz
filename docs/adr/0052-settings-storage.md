@@ -34,8 +34,10 @@ and render on signed-out pages.
    language, status bar segments, add-ons), `Place` (ADR 79) and
    `Toured` (acknowledged first desktop tour). Partial profile form
    submissions MUST NOT reset checkboxes that were not rendered on the
-   submitted form. The per-tab scheme override (ADR 50) and session
-   passkey lock (ADR 25) are not part of the profile.
+   submitted form. The per-tab scheme override (ADR 50), the session
+   passkey lock (ADR 25) and the per-browser hidden rail
+   (`localStorage` `rail`, applied as `data-rail` by `scheme.js`
+   before first paint) are not part of the profile.
 5. Saving the profile writes the `profile` entry to every signed-in
    account, failing only if every account refuses the write.
 6. The session holds the active profile (persisted in

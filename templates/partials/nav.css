@@ -196,13 +196,41 @@ header nav .nav-utilities .icon {
   display: none;
 }
 
+/* At the header's start on every page; a page without a rail keeps the slot, so the brand never moves. */
+header nav .rail-toggle {
+  display: flex;
+  flex-shrink: 0;
+}
+
+header nav .rail-toggle .icon-button {
+  width: 1.75rem;
+  height: 1.75rem;
+  min-width: 1.75rem;
+  min-height: 1.75rem;
+}
+
+header nav .rail-toggle .icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+body:not(:has(#page-rail)) .rail-toggle {
+  visibility: hidden;
+}
+
+/* With no script the root names no state, and neither shows. */
+:root:not([data-rail="shown"]) .rail-toggle [data-rail="shown"],
+:root:not([data-rail="hidden"]) .rail-toggle [data-rail="hidden"] {
+  display: none;
+}
+
 :root:not([data-phone="bar"]) header nav.is-icons .nav-language > .overflow {
   display: flex; flex: 1 1 0;
 }
 
-/* The drawer holds the accounts and the settings on a phone. */
+/* The drawer holds the accounts and the settings on a phone; the ☰ opens the rail there. */
 @media (width <= 600px) {
-  header nav :is(.nav-language, .nav-person) {
+  header nav :is(.nav-language, .nav-person, .rail-toggle) {
     display: none;
   }
 }

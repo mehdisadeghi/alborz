@@ -124,6 +124,8 @@
 "nav.allaccounts" = "Todas las cuentas"
 "nav.dismiss" = "Cerrar"
 "nav.drawer" = "Carpetas y cuenta"
+"nav.hiderail" = "Ocultar barra lateral"
+"nav.showrail" = "Mostrar barra lateral"
 "nav.back" = "Volver"
 "aside.compose" = "Redactar"
 "aside.starred" = "Destacados"

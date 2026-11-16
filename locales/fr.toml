@@ -126,6 +126,8 @@
 "nav.allaccounts" = "Tous les comptes"
 "nav.dismiss" = "Fermer"
 "nav.drawer" = "Dossiers et compte"
+"nav.hiderail" = "Masquer la barre latérale"
+"nav.showrail" = "Afficher la barre latérale"
 "aside.compose" = "Nouveau message"
 "aside.starred" = "Suivis"
 "aside.unread" = "Non lus"

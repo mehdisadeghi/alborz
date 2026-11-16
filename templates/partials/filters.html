@@ -4,7 +4,7 @@
 {{ $new := dict "href" (printf "%s%s" (url "filters.create") $aq) "label" (.g.T "filters.new") "active" .newactive }}{{ if .nonew }}{{ $new = false }}{{ end }}
 {{ $import := false }}{{ if .import }}{{ $import = dict "href" (printf "%s%s" (url "filters.import") $aq) "label" (.g.T "filters.import") "active" .importactive }}{{ end }}
 {{ if not .g.GlobalData.Swap }}
-<aside>
+<aside id="page-rail">
   {{ template "scope-rail" (dict "g" .g "kind" "rows" "path" (url "filters.list") "urlaccount" .g.GlobalData.URLAccount "accounts" .g.GlobalData.Accounts "data" (dict "rows" .g.Rail) "allrows" (index .g.Rail "*") "new" $new "import" $import) }}
 </aside>
 {{ end }}

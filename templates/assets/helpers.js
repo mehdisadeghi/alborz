@@ -583,6 +583,27 @@ document.addEventListener("click", ev => {
 	}
 });
 
+// The root's state decides, not the button: the [ key presses the first of the two.
+document.addEventListener("click", ev => {
+	const button = ev.target.closest(".rail-toggle button");
+	if (!button) {
+		return;
+	}
+	const root = document.documentElement;
+	const next = root.dataset.rail === "hidden" ? "shown" : "hidden";
+	root.dataset.rail = next;
+	try {
+		if (next === "hidden") {
+			localStorage.setItem("rail", next);
+		} else {
+			localStorage.removeItem("rail");
+		}
+	} catch {}
+	if (document.activeElement === button) {
+		button.parentElement.querySelector(`[data-rail="${next}"]`).focus();
+	}
+});
+
 // The rail stays; only its mark moves, matched by path, account and view.
 const railPlace = href => {
 	const u = new URL(href, location.href);

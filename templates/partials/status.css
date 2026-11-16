@@ -35,12 +35,12 @@
   margin-inline-start: auto;
 }
 
-/* The last segment at the start has nothing after it, so it yields when the line is full. */
+/* The dates never yield; the start's segments do, the longest the most, each cut with an ellipsis. */
 .status-segment {
   flex: none;
 }
 
-.status-start > .status-segment:last-child {
+.status-start > .status-segment {
   flex: 0 1 auto;
   min-inline-size: 0;
 }

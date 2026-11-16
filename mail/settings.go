@@ -40,6 +40,11 @@ type Settings struct {
 	// IndexedSearch is the reader stating the server has a full-text index it does not announce.
 	IndexedSearch bool
 
+	// NoJunkRescue turns off moving vouched-for mail from contacts out of Junk (ADR 106).
+	NoJunkRescue bool
+	// JunkRescuePrevious counts Previous recipients as contacts for it: a reply is not trust.
+	JunkRescuePrevious bool
+
 	// Unmerged are the merged folders, by role, this account is left out of (ADR 80).
 	Unmerged []string
 }

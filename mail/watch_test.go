@@ -96,7 +96,7 @@ func TestNotifyAdvertisedButRefused(t *testing.T) {
 	if armNotify(c) {
 		t.Fatal("a refused NOTIFY was taken as armed")
 	}
-	if err := New(&alborz.Server{Options: &alborz.Options{Cache: true}}).folderSweep("u", c, nil)(); err != nil {
+	if err := New(&alborz.Server{Options: &alborz.Options{Cache: true}}).folderSweep("u", c, nil, nil)(); err != nil {
 		t.Fatalf("the sweep failed after a refused NOTIFY: %v", err)
 	}
 	idle, err := c.Idle()
@@ -167,7 +167,7 @@ func TestWithoutIdleTheSweepNoticesNewMail(t *testing.T) {
 		p.listings.storeAt("u", name, &listingEntry{perPage: 25}, p.listings.epoch("u"))
 	}
 	done, swept := make(chan struct{}), make(chan struct{})
-	sweep := p.folderSweep("u", c, &alborz.Changes{})
+	sweep := p.folderSweep("u", c, &alborz.Changes{}, nil)
 	go sweepEvery(done, func() error {
 		err := sweep()
 		select {

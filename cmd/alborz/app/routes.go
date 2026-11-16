@@ -41,7 +41,8 @@ func Mount(s *web.Server, options Options) error {
 	web.PublicRoutes(public)
 	web.EventRoutes(events)
 	authweb.Mount(public.Group("", "auth"), unlock, app.Group("", "auth"))
-	if err := mailweb.Mount(app.Group("", "mail")); err != nil {
+	mailboxes, err := mailweb.Mount(app.Group("", "mail"))
+	if err != nil {
 		return err
 	}
 	settingsweb.Mount(app.Group("", "settings"))
@@ -53,9 +54,12 @@ func Mount(s *web.Server, options Options) error {
 	if err := calendarweb.Mount(app.Group("", "calendar"), st); err != nil {
 		return err
 	}
-	if err := contactsweb.Mount(app.Group("", "contacts"), st); err != nil {
+	books, err := contactsweb.Mount(app.Group("", "contacts"), st)
+	if err != nil {
 		return err
 	}
+	// Mail from a contact is moved out of Junk (ADR 106).
+	mailboxes.ContactAddresses = books.Addresses
 	filtersweb.Mount(app.Group("/filters", "filters"))
 	web.StatusRoutes(app)
 	web.TourRoutes(app)

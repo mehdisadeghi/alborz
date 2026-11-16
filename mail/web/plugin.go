@@ -21,15 +21,15 @@ type plugin struct {
 	composed *bluemonday.Policy
 }
 
-// Mount serves mail.
-func Mount(g *web.Group) error {
+// Mount serves mail and returns the mailboxes it serves.
+func Mount(g *web.Group) (*mail.Mailboxes, error) {
 	s := g.Server()
 	p := &plugin{Mailboxes: mail.New(s.Server)}
 	p.registerRoutes(g)
 	s.Searchers = append(s.Searchers, web.Searcher{Kind: "mail", Answers: imapsearch.Keys(), Rows: "mail-found", Search: p.found, Held: p.held})
 	images, err := localImage(s)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	p.images, p.composed = images, mail.ComposedPolicy(images)
 	p.NewMail = func(account string, validity uint32, newest imap.UID) {
@@ -66,7 +66,7 @@ func Mount(g *web.Group) error {
 	s.OnAccountReady = append(s.OnAccountReady, p.watchAccount, p.warmAccount)
 	s.OnAccountGone = append(s.OnAccountGone, p.ForgetAccount)
 	s.Status = append(s.Status, web.Segment{Name: "mail", Show: p.showUnread})
-	return nil
+	return p.Mailboxes, nil
 }
 
 func (p *plugin) watchAccount(ctx *web.Context, s *alborz.Login) {

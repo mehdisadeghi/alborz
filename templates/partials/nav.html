@@ -8,7 +8,8 @@
   {{ range tuple "message" "compose" "mail" "import" "new-mailbox" "rename-mailbox" "delete-mailbox" }}{{ if eq $page . }}{{ $section = "mailbox" }}{{ end }}{{ end }}
   <nav>
     {{ if .GlobalData.LoggedIn }}
-    <label for="sidebar" class="sidebar-button" aria-hidden="true" data-tour="rail accounts settings">☰</label>
+    <label for="sidebar" class="sidebar-button" aria-hidden="true" data-tour="rail accounts settings">{{ template "icon" "menu" }}</label>
+    {{ template "rail-toggle" $ }}
     <span class="header-brand">{{ template "brand" (dict "g" $ "build" .GlobalData.Revision) }}</span>
     {{ end }}
     {{$q := account "?" .GlobalData.Scope}}
@@ -169,6 +170,16 @@
           title="{{$.T "scheme.tosystem"}}" aria-label="{{$.T "scheme.tosystem"}}">{{ template "icon" "moon" }}</button>
 </span>
 {{ end }}
+{{ end }}
+
+{{/* Both buttons render; CSS shows the one for the root's data-rail, which only scheme.js sets. */}}
+{{ define "rail-toggle" }}
+<span class="rail-toggle">
+  <button type="button" class="icon-button" data-rail="shown" data-key="b" aria-controls="page-rail" aria-expanded="true"
+          title="{{$.T "nav.hiderail"}}" aria-label="{{$.T "nav.hiderail"}}">{{ template "icon" "menu" }}</button>
+  <button type="button" class="icon-button" data-rail="hidden" data-key="b" aria-controls="page-rail" aria-expanded="false"
+          title="{{$.T "nav.showrail"}}" aria-label="{{$.T "nav.showrail"}}">{{ template "icon" "menu" }}</button>
+</span>
 {{ end }}
 
 {{/* dict: g build. */}}

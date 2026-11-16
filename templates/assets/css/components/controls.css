@@ -135,7 +135,9 @@ form[aria-busy="true"] button[disabled] {
 [dir="rtl"] .icon-reply-all,
 [dir="rtl"] .icon-forward,
 [dir="rtl"] .icon-prev,
-[dir="rtl"] .icon-next {
+[dir="rtl"] .icon-next,
+[dir="rtl"] .icon-panel-left-close,
+[dir="rtl"] .icon-panel-left-open {
   transform: scaleX(-1);
 }
 

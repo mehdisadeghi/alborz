@@ -23,6 +23,8 @@ page-specific scripts.
    - `g` then `m`, `l`, `c`, `k`, `j`, `f`, `s`: go to mail, calendar,
      contacts, tasks, journal, filters, starred;
    - `g` then `p`, `n`: previous and next page;
+   - `b`: hide or show the rail on desktop widths (a letter: `[` needs
+     AltGr on some layouts);
    - `?`: open the keyboard shortcut dialog.
 2. `keys.js` has no page-specific logic: `data-key` binds a single key
    to a control, and `data-go` binds a `g <key>` chord.

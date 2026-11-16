@@ -217,7 +217,7 @@
 
 {{ define "settings-rail" }}
 {{ if not .GlobalData.Swap }}
-<aside>
+<aside id="page-rail">
   {{ template "scope-rail" (dict "g" . "kind" "rows" "path" (url "mail.account") "urlaccount" .GlobalData.URLAccount "accounts" .GlobalData.Accounts "data" (dict "rows" .Rail) "homes" (index .Rail "") "allrows" (index .Rail "*")) }}
 </aside>
 {{ end }}
@@ -225,7 +225,7 @@
 
 {{ define "mail-rail" }}
 {{ if not .GlobalData.Swap }}
-<aside data-tour="rail" data-mail-sidebar="{{url "mail.sidebar"}}" data-unread="{{.Unread}}" data-importing="{{$.T "folder.dropimporting"}}" data-importing-many="{{$.T "folder.dropimportingmany"}}" data-importing-adding="{{$.T "folder.dropadding"}}" data-importing-none="{{$.T "folder.dropnomail"}}" data-importing-failed="{{$.T "folder.dropfailed"}}" data-importing-where="{{$.T "folder.dropwhere"}}" data-importing-which="{{$.T "folder.dropwhich"}}" data-live-arrived="{{$.T "list.mailarrived"}}" data-live-show="{{$.T "list.showarrived"}}">
+<aside id="page-rail" data-tour="rail" data-mail-sidebar="{{url "mail.sidebar"}}" data-unread="{{.Unread}}" data-importing="{{$.T "folder.dropimporting"}}" data-importing-many="{{$.T "folder.dropimportingmany"}}" data-importing-adding="{{$.T "folder.dropadding"}}" data-importing-none="{{$.T "folder.dropnomail"}}" data-importing-failed="{{$.T "folder.dropfailed"}}" data-importing-where="{{$.T "folder.dropwhere"}}" data-importing-which="{{$.T "folder.dropwhich"}}" data-live-arrived="{{$.T "list.mailarrived"}}" data-live-show="{{$.T "list.showarrived"}}">
 {{ template "scope-rail" (dict "g" $ "kind" "mail" "path" (url "mail.mailbox" "INBOX") "urlaccount" .GlobalData.Scope "accounts" .GlobalData.Accounts "data" . "new" (dict "href" (url "mail.mailbox.create") "label" ($.T "aside.newfolder") "active" (eq .GlobalData.URL.Path (url "mail.mailbox.create"))) "import" (dict "href" (url "mail.import") "label" ($.T "aside.import") "active" (eq .GlobalData.URL.Path (url "mail.import")))) }}
 </aside>
 {{ end }}
@@ -363,7 +363,7 @@
      [keep follow import views groups categories invitations]. */}}
 {{ define "pim-rail" }}
 {{/* A swap into main takes the marked rows out of this rail by their ids; htmx drops the rest. */}}
-{{ if .g.GlobalData.Swap }}<template>{{ else }}<aside>{{ end }}
+{{ if .g.GlobalData.Swap }}<template>{{ else }}<aside id="page-rail">{{ end }}
   {{ template "scope-rail" (dict "g" .g "kind" "dav" "path" .path "urlaccount" .urlaccount "accounts" .g.GlobalData.Accounts "new" .new "follow" .follow "import" .import "data" (dict "keep" .keep "items" .items "field" .field "itemclass" .itemclass "action" .action "apply" (.g.T "common.apply") "shown" (.g.T "common.shown") "edit" .edit "editlabel" (.g.T "common.edit") "next" .g.GlobalData.URL.RequestURI) "views" .views "groups" .groups "categories" .categories "invitations" .invitations) }}
 {{ if .g.GlobalData.Swap }}</template>{{ else }}</aside>{{ end }}
 {{ end }}

@@ -124,6 +124,8 @@
 "nav.allaccounts" = "Alle Konten"
 "nav.dismiss" = "Schließen"
 "nav.drawer" = "Ordner und Konto"
+"nav.hiderail" = "Seitenleiste ausblenden"
+"nav.showrail" = "Seitenleiste einblenden"
 "nav.back" = "Zurück"
 "aside.compose" = "Neue E-Mail"
 "aside.starred" = "Markiert"

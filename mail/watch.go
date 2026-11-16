@@ -61,6 +61,8 @@ func (p *Mailboxes) Watch(s *alborz.Login, log *log.Logger, changes *alborz.Chan
 }
 
 func (p *Mailboxes) watch(s *alborz.Login, log *log.Logger, changes *alborz.Changes) {
+	rescue := newJunkRescue()
+	go p.rescueJunk(s, log, changes, rescue)
 	backoff := idleRetry
 	for {
 		select {
@@ -69,7 +71,7 @@ func (p *Mailboxes) watch(s *alborz.Login, log *log.Logger, changes *alborz.Chan
 		default:
 		}
 
-		err := p.follow(s, changes)
+		err := p.follow(s, log, changes, rescue)
 		if err != nil {
 			log.Printf("watch %s: %v (retrying in %v)", s.Username(), err, backoff)
 			select {
@@ -84,7 +86,7 @@ func (p *Mailboxes) watch(s *alborz.Login, log *log.Logger, changes *alborz.Chan
 	}
 }
 
-func (p *Mailboxes) follow(s *alborz.Login, changes *alborz.Changes) error {
+func (p *Mailboxes) follow(s *alborz.Login, log *log.Logger, changes *alborz.Changes, rescue *junkRescue) error {
 	user := s.Username()
 	changed := make(chan struct{}, 1)
 	var overflowed atomic.Bool
@@ -99,6 +101,7 @@ func (p *Mailboxes) follow(s *alborz.Login, changes *alborz.Changes) error {
 		if mailbox != "INBOX" {
 			p.mailboxStale(user, mailbox)
 			changes.Announce(user, mailbox)
+			rescue.grew(mailbox)
 		}
 	}, func() {
 		overflowed.Store(true)
@@ -108,6 +111,10 @@ func (p *Mailboxes) follow(s *alborz.Login, changes *alborz.Changes) error {
 		return fmt.Errorf("failed to connect: %w", err)
 	}
 	defer c.Close()
+	// Only what arrives after the watcher began is a candidate; a failure costs the rescue, not the watch.
+	if err := p.observeJunk(c, rescue); err != nil {
+		log.Printf("junk rescue %s: %v", user, err)
+	}
 
 	idle := c.Caps().Has(imap.CapIdle)
 	var validity uint32
@@ -124,12 +131,12 @@ func (p *Mailboxes) follow(s *alborz.Login, changes *alborz.Changes) error {
 		return err
 	}
 	if !idle {
-		return sweepEvery(s.Done(), p.folderSweep(user, c, changes), idleWindow)
+		return sweepEvery(s.Done(), p.folderSweep(user, c, changes, rescue.grew), idleWindow)
 	}
 
 	window, sweep := idleWindow, (func() error)(nil)
 	if !armNotify(c) {
-		window, sweep = sweepWindow, p.folderSweep(user, c, changes)
+		window, sweep = sweepWindow, p.folderSweep(user, c, changes, rescue.grew)
 		// Baseline now, or what a rule files before the first wake is never announced.
 		if err := sweep(); err != nil {
 			return err
@@ -169,7 +176,8 @@ func armNotify(c *imapclient.Client) bool {
 	return err == nil && cmd.Wait() == nil
 }
 
-func (p *Mailboxes) folderSweep(user string, c *imapclient.Client, changes *alborz.Changes) func() error {
+// grew, when set, is told of each folder that gained mail.
+func (p *Mailboxes) folderSweep(user string, c *imapclient.Client, changes *alborz.Changes, grew func(mailbox string)) func() error {
 	seen := map[string]imap.UID{}
 	// The selected folder is IDLE's to report; without IDLE none is selected.
 	var selected string
@@ -198,6 +206,9 @@ func (p *Mailboxes) folderSweep(user string, c *imapclient.Client, changes *albo
 				// UIDNEXT grows only with a message added (RFC 9051 section 2.3.1.1).
 				if strings.EqualFold(f.Mailbox, "INBOX") && status.UIDNext > last {
 					p.newMail(user, status.UIDValidity, status.UIDNext-1)
+				}
+				if grew != nil && status.UIDNext > last {
+					grew(f.Mailbox)
 				}
 			}
 		}

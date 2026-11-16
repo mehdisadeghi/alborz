@@ -85,6 +85,9 @@ func (p *Mailboxes) moveAct(to func(*imapclient.Client, Ref) (string, error), la
 					return err
 				}
 			}
+			if err := p.markJunk(c, key.Account, key.Mailbox, dest, uids); err != nil {
+				return err
+			}
 			moved, err := p.moveMessages(c, key.Account, key.Mailbox, dest, uids)
 			for _, uid := range uidNums(moved) {
 				*landed = append(*landed, Ref{Account: key.Account, Mailbox: dest, UID: uid, Origin: key.Mailbox})
@@ -121,6 +124,35 @@ func (p *Mailboxes) moveMessages(c *imapclient.Client, account, from, to string,
 	}
 	p.messagesMoved(account, from, to, uids)
 	return moved, nil
+}
+
+var junkKeywords = []imap.Flag{"$Junk", "Junk"}
+
+// markJunk keeps the reader's verdict on a move into Junk, or out of it to INBOX, as the keywords
+// other clients and filters read (RFC 5788); a folder whose PERMANENTFLAGS lack \* keeps none.
+func (p *Mailboxes) markJunk(c *imapclient.Client, account, from, to string, uids []imap.UID) error {
+	junk, err := p.resolveRole(c, account, "Junk")
+	if err != nil || junk == "" {
+		return err
+	}
+	add, del := junkKeywords[:1], notJunkKeywords
+	switch {
+	case to == junk && from != junk:
+	case from == junk && to == "INBOX":
+		add, del = notJunkKeywords[:1], junkKeywords
+	default:
+		return nil
+	}
+	if err := ensureMailboxSelected(c, from); err != nil {
+		return err
+	}
+	if !slices.Contains(c.Mailbox().PermanentFlags, imap.FlagWildcard) {
+		return nil
+	}
+	if err := p.writeFlags(c, account, from, uids, imap.StoreFlagsDel, del); err != nil {
+		return err
+	}
+	return p.writeFlags(c, account, from, uids, imap.StoreFlagsAdd, add)
 }
 
 func (p *Mailboxes) writeFlags(c *imapclient.Client, account, mailbox string, uids []imap.UID, op imap.StoreFlagsOp, flags []imap.Flag) error {

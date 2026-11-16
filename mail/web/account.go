@@ -30,7 +30,8 @@ type SettingsRenderData struct {
 // shownSettings is the part of s the account form shows.
 func shownSettings(s *mail.Settings) (string, error) {
 	b, err := json.Marshal(mail.Settings{From: s.From, Identities: s.Identities, Subscriptions: s.Subscriptions,
-		TrustedAuthServ: s.TrustedAuthServ, IndexedSearch: s.IndexedSearch})
+		TrustedAuthServ: s.TrustedAuthServ, IndexedSearch: s.IndexedSearch, NoJunkRescue: s.NoJunkRescue,
+		JunkRescuePrevious: s.JunkRescuePrevious})
 	return string(b), err
 }
 
@@ -282,6 +283,8 @@ func (p *plugin) handleSettings(ctx *web.Context) error {
 		mine.From = ctx.FormValue("from")
 		mine.TrustedAuthServ = strings.TrimSpace(ctx.FormValue("trusted_authserv"))
 		mine.IndexedSearch = ctx.FormValue("indexed_search") != ""
+		mine.NoJunkRescue = ctx.FormValue("junk_rescue") == ""
+		mine.JunkRescuePrevious = ctx.FormValue("junk_rescue_previous") != ""
 		mine.Identities = mail.ParseIdentities(ctx.FormValue("identities"))
 		mine.Subscriptions = params["subscriptions"]
 		reject := func(message string) error {

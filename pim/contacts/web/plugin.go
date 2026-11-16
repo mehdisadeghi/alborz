@@ -27,12 +27,12 @@ func (p *plugin) pooledBooks(ctx *web.Context) ([]pim.Account[*carddav.Client], 
 
 type plugin struct{ *contacts.Books }
 
-// Mount serves contacts.
-func Mount(g *web.Group, st *store.Store) error {
+// Mount serves contacts and returns the address books it serves.
+func Mount(g *web.Group, st *store.Store) (*contacts.Books, error) {
 	srv := g.Server()
 	b, err := contacts.New(srv.Server, st)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	p := &plugin{b}
 
@@ -101,7 +101,7 @@ func Mount(g *web.Group, st *store.Store) error {
 		return entries
 	})
 
-	return nil
+	return b, nil
 }
 
 func (p *plugin) writableBookGroups(ctx *web.Context) ([]dav.Group, error) {

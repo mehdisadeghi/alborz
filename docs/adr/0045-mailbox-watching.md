@@ -1,6 +1,6 @@
 # ADR 45: Watching every mailbox
 
-Status: accepted. Amends ADR 6.
+Status: accepted, amended by ADR 106. Amends ADR 6.
 
 ## Context
 
@@ -41,7 +41,7 @@ Sieve (RFC 5228) rules is not noticed.
 ## References
 
 - RFC 2177, RFC 5465, RFC 9051 section 6.3.11 (STATUS)
-- ADR 6, ADR 18
+- ADR 6, ADR 18, ADR 106
 - `mail/watch.go` (`follow`, `armNotify`, `folderSweep`, `sweepEvery`,
   `idleOnce`, `sweepWindow`, `idleWindow`), `mail/cacheevents.go`
   (`accountChanged`)

@@ -23,6 +23,18 @@
           {{ template "hint" (dict "text" ($.T "settings.indexedsearchhint")) }}
         </div>
 
+        <div class="action-group">
+          <label for="junk_rescue" class="checkbox">
+            <input type="checkbox" name="junk_rescue" id="junk_rescue" value="1"{{if not .Settings.NoJunkRescue}} checked{{end}}>
+            {{$.T "settings.junkrescue"}}
+          </label>
+          {{ template "hint" (dict "text" ($.T "settings.junkrescuehint")) }}
+          <label for="junk_rescue_previous" class="checkbox">
+            <input type="checkbox" name="junk_rescue_previous" id="junk_rescue_previous" value="1"{{if .Settings.JunkRescuePrevious}} checked{{end}}>
+            {{$.T "settings.junkrescueprevious"}}
+          </label>
+        </div>
+
         <div class="field">
           <label for="subscriptions">{{$.T "settings.subs"}}</label>
           <select name="subscriptions" id="subscriptions" multiple>

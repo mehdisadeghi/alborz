@@ -93,4 +93,5 @@ func (p *Mailboxes) ForgetAccount(user string) {
 	p.senderBooks.Forget(user)
 	p.unifiedFolders.Forget(user)
 	p.authServGuesses.Forget(user)
+	p.contacts.Forget(user)
 }

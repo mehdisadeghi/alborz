@@ -8,6 +8,7 @@ import (
 	"io"
 	netmail "net/mail"
 	"path"
+	"slices"
 	"strings"
 	"uuid"
 
@@ -155,6 +156,37 @@ func Emails(ctx context.Context, c *carddav.Client, books []dav.Collection) ([]*
 		}
 	}
 	return out, errors.Join(errs...)
+}
+
+// Addresses are the addresses the login's address books hold, and apart those only Previous
+// recipients holds; none where it has no book.
+func (p *Books) Addresses(ctx context.Context, s *alborz.Login) (contacts, recipients []string, err error) {
+	c, books, err := p.Open(ctx, s)
+	if errors.Is(err, ErrNoAddressBook) {
+		return nil, nil, nil
+	} else if err != nil {
+		return nil, nil, err
+	}
+	was, err := loadPrevious(ctx, s)
+	if err != nil {
+		return nil, nil, err
+	}
+	own := slices.DeleteFunc(slices.Clone(books), func(b dav.Collection) bool { return b.Path == was.Book })
+	addresses := func(books []dav.Collection) ([]string, error) {
+		held, err := Emails(ctx, c, books)
+		out := make([]string, len(held))
+		for i, a := range held {
+			out[i] = a.Address
+		}
+		return out, err
+	}
+	if contacts, err = addresses(own); err != nil {
+		return nil, nil, err
+	}
+	if prev := dav.At(books, was.Book); prev != nil {
+		recipients, err = addresses([]dav.Collection{*prev})
+	}
+	return contacts, recipients, err
 }
 
 // AddCard writes a new card for one address into book.

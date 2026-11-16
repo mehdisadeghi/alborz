@@ -1,6 +1,7 @@
 package mail
 
 import (
+	"context"
 	"sync"
 
 	"git.mehdix.org/alborz"
@@ -19,6 +20,7 @@ type Mailboxes struct {
 	unifiedFolders  *memo.Memo[map[string]string]
 	senderBooks     *memo.Memo[*senderBook]
 	authServGuesses *memo.Memo[string]
+	contacts        *memo.Memo[map[string]bool]
 	wkd             *wkdCache
 	watchers        sync.Map
 	sendStoreOnce   sync.Once
@@ -28,6 +30,9 @@ type Mailboxes struct {
 	sendActive      map[string]bool
 	// NewMail is told of mail arriving in an account's INBOX, named by the newest message's UID.
 	NewMail func(account string, validity uint32, newest imap.UID)
+	// ContactAddresses are the addresses in the account's address books, and apart those only
+	// Previous recipients holds; nil leaves Junk alone (ADR 106).
+	ContactAddresses func(ctx context.Context, s *alborz.Login) (contacts, recipients []string, err error)
 }
 
 // New keeps mail for the server, for as long as its options say.
@@ -44,6 +49,7 @@ func New(s *alborz.Server) *Mailboxes {
 		// Indexes, not cached answers: they stay with caching off.
 		senderBooks:     memo.New[*senderBook](senderBookTTL),
 		authServGuesses: memo.New[string](authSampleTTL),
+		contacts:        memo.New[map[string]bool](contactAddressesTTL),
 		wkd:             newWKDCache(o.CacheFor(wkdKeepFor)),
 	}
 	return p

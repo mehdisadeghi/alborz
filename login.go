@@ -240,8 +240,7 @@ func waitError(err error, bound time.Duration) error {
 
 func (l *Login) DoIMAPWork(ctx context.Context, class IMAPClass, bound time.Duration, f func(*imapclient.Client) error) (err error) {
 	defer AddTiming(ctx, "imap", time.Now())
-	deadline := time.Now().Add(bound)
-	waiting, stopWaiting := context.WithDeadline(ctx, deadline)
+	waiting, stopWaiting := context.WithTimeout(ctx, bound)
 	defer stopWaiting()
 	queue, conn := &l.imapLocker, &l.imapConn
 	if class == IMAPBackground || class == IMAPScan {
@@ -261,8 +260,9 @@ func (l *Login) DoIMAPWork(ctx context.Context, class IMAPClass, bound time.Dura
 	if start, ok := ctx.Value(imapStartKey{}).(func() bool); ok && !start() {
 		return context.Canceled
 	}
-	// A started command must be drained before the connection is reused.
-	ctx, cancel := context.WithDeadline(context.WithoutCancel(ctx), deadline)
+	// A started command must be drained before the connection is reused. The bound starts afresh:
+	// time spent queued must not cut the callback short and close the connection under it.
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), bound)
 	defer cancel()
 	go func() {
 		select {

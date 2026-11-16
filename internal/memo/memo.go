@@ -194,6 +194,17 @@ func (m *Memo[T]) Warm(user string, load func() (T, error)) T {
 	return e.val
 }
 
+// Held reports whether a value of the user's was read, which a background memo's Get serves without waiting.
+func (m *Memo[T]) Held(user string) bool {
+	e := m.held(user)
+	if e == nil {
+		return false
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return !e.fetched.IsZero()
+}
+
 // Put sets the user's value from a load the caller already made.
 func (m *Memo[T]) Put(user string, val T) {
 	if m.ttl == 0 {

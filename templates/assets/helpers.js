@@ -794,11 +794,7 @@ if ((rail || window.AlborzLock?.privatePage) && window.EventSource) {
 	// A lock taken in another tab.
 	const locked = () => window.AlborzLock ? window.AlborzLock.locked() : location.reload();
 	// A stream the server closed for good; the lock's script knows how to ask.
-	const failed = () => {
-		if (live.readyState === EventSource.CLOSED) {
-			document.dispatchEvent(new Event("alborz:streamclosed"));
-		}
-	};
+	const closed = () => document.dispatchEvent(new Event("alborz:streamclosed"));
 
 	// Back in mail, the page landed on was fetched after the mail came.
 	let away = false;
@@ -839,15 +835,65 @@ if ((rail || window.AlborzLock?.privatePage) && window.EventSource) {
 		}, 2000);
 	};
 
+	// Over HTTP/1.1 a host gets six connections and a stream per tab would take them all, so one tab holds
+	// the stream and relays it. Over HTTP/2 or 3, or without locks or channels, each tab holds its own.
+	const url = document.body.dataset.events;
+	const multiplexed = /^h[23]/.test(performance.getEntriesByType?.("navigation")[0]?.nextHopProtocol || "");
+	let channel = null;
+	try {
+		channel = multiplexed ? null : new BroadcastChannel("alborz-live");
+	} catch {}
+	const relay = (type, data) => channel?.postMessage({ type, data });
+	if (channel) {
+		channel.onmessage = ({ data: m }) => {
+			if (m.type === "mailbox") {
+				changed({ data: m.data });
+			} else if (m.type === "locked") {
+				locked();
+			} else if (m.type === "closed") {
+				closed();
+			}
+		};
+	}
+	let release = null;
+	let waiting = null;
+	const open = () => {
+		live = new EventSource(url);
+		live.addEventListener("locked", () => {
+			relay("locked");
+			locked();
+		});
+		live.addEventListener("error", () => {
+			if (live?.readyState === EventSource.CLOSED) {
+				relay("closed");
+				closed();
+			}
+		});
+		live.addEventListener("mailbox", ev => {
+			relay("mailbox", ev.data);
+			changed(ev);
+		});
+	};
 	const listen = () => {
-		live = new EventSource(document.body.dataset.events);
-		live.addEventListener("locked", locked);
-		live.addEventListener("error", failed);
-		live.addEventListener("mailbox", changed);
+		if (!channel || !navigator.locks) {
+			open();
+			return;
+		}
+		waiting = new AbortController();
+		navigator.locks.request("alborz-live", { signal: waiting.signal }, () => new Promise(done => {
+			release = done;
+			open();
+		})).catch(() => {});
 	};
 	listen();
-	// A page in the back-forward cache would hold its stream, and with it one of the host's few HTTP/1.1 connections.
-	window.addEventListener("pagehide", () => live.close());
+	// A page in the back-forward cache would hold its stream, or its place in line for it.
+	window.addEventListener("pagehide", () => {
+		live?.close();
+		live = null;
+		waiting?.abort();
+		release?.();
+		release = null;
+	});
 	window.addEventListener("pageshow", ev => {
 		if (ev.persisted) {
 			listen();

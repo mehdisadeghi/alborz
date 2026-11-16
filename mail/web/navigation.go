@@ -69,43 +69,87 @@ func (p *plugin) mergedNeighbours(ctx *web.Context, settings *mail.Settings, o *
 }
 
 func (p *plugin) handleMessageNavigation(ctx *web.Context) error {
-	mailbox, uid, err := MessageRef(ctx)
+	data, err := p.messageAround(ctx)
 	if err != nil {
 		return err
+	}
+	return ctx.Render(http.StatusOK, "message-context", data)
+}
+
+// handleMessageStep sends on to the neighbour a page that left its place to the script linked to,
+// for a browser that stepped before the place arrived or runs no script; with none that way, to the
+// message itself.
+func (p *plugin) handleMessageStep(ctx *web.Context, step string) error {
+	data, err := p.messageAround(ctx)
+	if err != nil {
+		return err
+	}
+	target := data.Neighbours.NextURL
+	if step == "prev" {
+		target = data.Neighbours.PrevURL
+	}
+	if target == "" {
+		mailbox, uid, err := MessageRef(ctx)
+		if err != nil {
+			return err
+		}
+		q := ctx.Request().URL.Query()
+		q.Del("step")
+		target = web.QueryPath(ctx.Path("mail.message", mailbox, uid), q)
+	}
+	return ctx.FoundRedirect(target)
+}
+
+// stepNeighbours are Previous and Next on a page that left its place to the script: each asks the
+// server to step from here.
+func stepNeighbours(ctx *web.Context, mailbox string, uid imap.UID) web.Neighbours {
+	step := func(way string) string {
+		q := ctx.Request().URL.Query()
+		q.Set("step", way)
+		return web.QueryPath(ctx.Path("mail.message", mailbox, uid), q)
+	}
+	return web.Neighbours{PrevURL: step("prev"), NextURL: step("next")}
+}
+
+// messageAround is a message's navigation: its place in its list and its thread.
+func (p *plugin) messageAround(ctx *web.Context) (*MessageRenderData, error) {
+	mailbox, uid, err := MessageRef(ctx)
+	if err != nil {
+		return nil, err
 	}
 	state := web.ReadListState(ctx)
 	view, err := readViewValue(state.View)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	sb, err := p.Rail(ctx.Login)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	sb = sb.Clone()
 	sb.Active = sb.Statuses[mailbox]
 	data := &MessageRenderData{Query: state.Query}
 	settings, err := mail.LoadSettings(ctx.Request().Context(), ctx.Login.Store())
 	if err != nil {
-		return err
+		return nil, err
 	}
 	merged := mergedOrigin(ctx)
 	list := mail.ListAsk{Page: alborz.Page{Size: state.PageSize(ctx)}, Query: data.Query, View: view,
 		Sort: state.Sort, Dir: state.Direction}
 	around, err := p.Around(ctx.Request().Context(), ctx.Login, settings, &sb, mailbox, uid, list, merged != nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	data.Message, data.ThreadSupported, data.InReplyTo, data.Answers = around.Message, around.ThreadSupported, around.InReplyTo, around.Answers
 	place := around.Place
 	data.Neighbours = neighbours(ctx, mailbox, place)
 	if merged != nil {
 		if data.Neighbours, err = p.mergedNeighbours(ctx, settings, merged, mailbox, uid); err != nil {
-			return err
+			return nil, err
 		}
 	}
 	data.IMAPBaseRenderData = *assembleIMAPBase(ctx, web.NewBaseRenderData(ctx), mailbox, sb, view)
-	return ctx.Render(http.StatusOK, "message-context", data)
+	return data, nil
 }
 
 func neighbours(ctx *web.Context, mboxName string, place mail.Place) web.Neighbours {

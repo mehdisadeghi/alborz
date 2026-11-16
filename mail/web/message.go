@@ -173,6 +173,9 @@ func (p *plugin) handleGetPart(ctx *web.Context) error {
 	if ctx.PartialFor("message-navigation") {
 		return p.handleMessageNavigation(ctx)
 	}
+	if step := ctx.QueryParam("step"); step == "prev" || step == "next" {
+		return p.handleMessageStep(ctx, step)
+	}
 	mboxName, uid, partPath, err := messagePartRef(ctx)
 	if err != nil {
 		return err
@@ -197,7 +200,7 @@ func (p *plugin) handleGetPart(ctx *web.Context) error {
 		Mailbox: mboxName, UID: uid, Part: partPath, Named: ctx.QueryParam("part") != "",
 		List: mail.ListAsk{Page: alborz.Page{Size: messagesPerPage}, Query: query, View: railView,
 			Sort: state.Sort, Dir: state.Direction},
-		PreferHTML: ctx.Reading().PreferHTML, Partial: ctx.Partial(), Merged: merged != nil,
+		PreferHTML: ctx.Reading().PreferHTML, Deferrable: ctx.Scripted(), Merged: merged != nil,
 		MoneyWords: strings.Split(ctx.T("indicator.moneywords"), ","),
 	})
 	if err != nil {
@@ -241,7 +244,9 @@ func (p *plugin) handleGetPart(ctx *web.Context) error {
 	mbox := ibase.Mailbox
 
 	nav := neighbours(ctx, mbox.Name(), shown.Place)
-	if merged != nil && !shown.DeferContext {
+	if shown.DeferContext {
+		nav = stepNeighbours(ctx, mboxName, uid)
+	} else if merged != nil {
 		if nav, err = p.mergedNeighbours(ctx, settings, merged, mboxName, uid); err != nil {
 			return err
 		}

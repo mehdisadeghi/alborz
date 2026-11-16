@@ -37,7 +37,14 @@ must continue working without JavaScript.
 7. Fragments (`Partial`, `PartialFor`) are used only for single-row
    marks, list swaps into `#main` under an unchanged toolbar or rail
    (carrying notices and rail tick updates out of band), and lazy pieces
-   (signature verification, status bar, month weather).
+   (signature verification, status bar, month weather, a message's
+   place and thread).
+   - A full page MAY leave a lazy piece to its fragment only when the
+     browser has shown it runs script (`Scripted`: an htmx request, or
+     the `alborz_tz` cookie that `helpers.js` writes). The piece's
+     placeholder MUST still work without script: a message's Previous
+     and Next carry `step`, and the server answers with a redirect to
+     the neighbour.
    - Actions that remove a row from the current view answer with
      `HX-Location` to refresh `#main` without pushing history.
    - Sign-in and unlock redirects answer fragment requests with
@@ -60,5 +67,6 @@ must continue working without JavaScript.
 - `templates/layout.html`, `templates/assets/helpers.js`,
   `templates/partials/toolbar.html` (`swaps`, `swap-main`),
   `web/htmx.go` (`Partial`,
-  `PartialFor`), `web/renderer.go`, `web/server.go` (`Relocate`,
+  `PartialFor`, `Scripted`), `mail/web/navigation.go`
+  (`stepNeighbours`, `handleMessageStep`), `web/renderer.go`, `web/server.go` (`Relocate`,
   `Redraw`), `web/middleware.go` (CSP)

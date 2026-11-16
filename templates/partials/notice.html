@@ -13,7 +13,8 @@
     <a class="notice-action" href="{{.Path}}">{{.Label}}</a>
     {{ end }}
   {{ end }}
-  <form method="dialog" class="notice-dismiss"><button title="{{.g.T "nav.dismiss"}}" aria-label="{{.g.T "nav.dismiss"}}">{{ template "icon" "x" }}</button></form>
+  {{/* A done notice leaves by itself (notice.css); what must be read stays until closed. */}}
+  {{ if ne .kind "done" }}<form method="dialog" class="notice-dismiss"><button title="{{.g.T "nav.dismiss"}}" aria-label="{{.g.T "nav.dismiss"}}">{{ template "icon" "x" }}</button></form>{{ end }}
 </dialog>
 {{ end }}
 

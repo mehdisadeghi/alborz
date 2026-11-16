@@ -529,10 +529,14 @@ document.addEventListener("htmx:historyCacheMissLoad", ev => {
 const unasked = "Alborz-Unasked";
 // Looked up per event: a boosted navigation replaces the body.
 const failedNotice = () => document.getElementById("request-failed");
+// show() would move the focus into the notice, away from what the reader is doing.
+const showQuietly = dialog => {
+	dialog.open = true;
+};
 const showScriptFailure = text => {
 	const notice = failedNotice();
 	notice.querySelector(".notice-text").textContent = text;
-	notice.show();
+	showQuietly(notice);
 };
 // Offline already says the server did not answer.
 const offlineShown = () => {
@@ -859,7 +863,7 @@ if ("serviceWorker" in navigator) {
 		const notice = document.getElementById("offline-notice");
 		if (notice) {
 			notice.querySelector(".notice-text").textContent = slow ? notice.dataset.slow : notice.dataset.offline;
-			offline ? notice.show() : notice.close();
+			offline ? showQuietly(notice) : notice.close();
 		}
 		const failed = failedNotice();
 		if (offline && failed) {

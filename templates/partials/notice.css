@@ -2,35 +2,46 @@
    its top holds the nav, the toolbar and the crumb, which a notice must not hide. */
 .notices {
   position: fixed;
-  inset-block-end: calc(var(--space-2) + env(safe-area-inset-bottom));
+  inset-block-end: calc(var(--space-3) + env(safe-area-inset-bottom));
   inset-inline: 0;
   z-index: 13;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--space-2);
-  padding-inline: var(--space-2);
+  padding-inline: max(var(--space-4), env(safe-area-inset-left)) max(var(--space-4), env(safe-area-inset-right));
   pointer-events: none;
 }
 
+/* One box for every kind in the theme's notice colours, one width, so a stack reads as one column. */
 .notice {
   position: relative;
   inset: auto;
   display: flex;
   align-items: center;
-  justify-content: center;
   gap: var(--space-3);
-  max-width: min(100%, 40rem);
+  box-sizing: border-box;
+  inline-size: min(28rem, 100%);
+  min-block-size: calc(var(--control-height) + 2 * var(--space-2));
   margin: 0;
-  padding: var(--space-2) var(--space-3);
+  padding-block: var(--space-2);
+  padding-inline: var(--space-4) var(--space-3);
   color: var(--notice-fg);
   background-color: var(--notice-bg);
   border: 1px solid var(--notice-border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-raised);
+  font-size: var(--text-md);
+  line-height: 1.4;
+  text-align: start;
   pointer-events: auto;
   animation: notice-in 120ms ease-out;
   transition: opacity 120ms ease-in, transform 120ms ease-in, display 120ms allow-discrete;
+}
+
+.notice-text {
+  flex: 1 1 auto;
+  min-inline-size: 0;
 }
 
 /* The rule above outranks the browser's own for a closed dialog. */
@@ -40,9 +51,14 @@ dialog.notice:not([open]) {
   transform: translateY(0.25rem);
 }
 
-/* A done notice leaves after six seconds; a warning or a failure stays. */
+/* A done notice leaves by itself, later when it offers an Undo; held while pointed at or focused.
+   A warning or a failure stays until closed. */
 .notice-done {
   animation: notice-in 120ms ease-out, notice-out 120ms ease-in 6s forwards;
+}
+
+.notice-done:has(.notice-action) {
+  animation: notice-in 120ms ease-out, notice-out 120ms ease-in 10s forwards;
 }
 
 .notice-done:is(:hover, :focus-within, :active) {
@@ -54,7 +70,26 @@ dialog.notice:not([open]) {
 }
 
 @keyframes notice-out {
-  to { opacity: 0; transform: translateY(0.25rem); visibility: hidden; }
+  to { opacity: 0; transform: translateY(0.25rem); visibility: hidden; display: none; }
+}
+
+@keyframes notice-gone {
+  to { visibility: hidden; display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notice {
+    animation: none;
+    transition: none;
+  }
+
+  .notice-done {
+    animation: notice-gone 1ms 6s forwards;
+  }
+
+  .notice-done:has(.notice-action) {
+    animation: notice-gone 1ms 10s forwards;
+  }
 }
 
 .notice-warning {
@@ -70,6 +105,7 @@ dialog.notice:not([open]) {
 }
 
 .notice-action {
+  flex: none;
   margin: 0;
 }
 
@@ -79,16 +115,25 @@ dialog.notice:not([open]) {
   color: inherit;
 }
 
+.notice-action.button-link,
 .notice-action .button-link {
-  padding: 0;
+  min-width: 0;
+  padding: 0 var(--space-1);
+  font-size: var(--text-md);
   font-weight: 600;
+  background: none;
+  border: 0;
+}
+
+.notice-action:hover,
+.notice-action .button-link:hover {
   text-decoration: underline;
 }
+
 
 /* Two answers beside a sentence crush it on a phone. */
 dialog.notice:has(> .notice-action + .notice-action) {
   flex-wrap: wrap;
-  justify-content: start;
 }
 
 dialog.notice:has(> .notice-action + .notice-action) > .notice-text {
@@ -117,11 +162,21 @@ a.notice-name {
 
 .notice-dismiss {
   display: inline-flex;
+  flex: none;
   margin: 0;
   line-height: 0;
 }
 
+/* The targets keep their size; the box does not grow round them. */
+.notice > .notice-action,
+.notice .notice-dismiss {
+  margin-block: calc(-1 * var(--space-2));
+}
+
 .notice-dismiss button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   padding: 0;
   line-height: 0;
   background: none;
@@ -166,5 +221,10 @@ a.notice-name {
   /* Above the bar, where the thumb that acted can reach Undo. */
   :root[data-phone="bar"] header .notices {
     inset-block: auto calc(var(--phone-bar) + env(safe-area-inset-bottom) + var(--space-2));
+  }
+
+  /* The phone's width, less the gutters. */
+  .notice {
+    inline-size: 100%;
   }
 }

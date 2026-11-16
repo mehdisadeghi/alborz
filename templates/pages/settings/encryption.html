@@ -38,6 +38,7 @@
         <h2>{{$.T "encryption.startover"}}</h2>
         <div class="action-group">
           {{ template "hint" (dict "text" ($.T "encryption.startoverhint")) }}
+          {{ template "hint" (dict "text" ($.T "encryption.devices")) }}
           <label for="confirm" class="checkbox">
             <input type="checkbox" name="confirm" id="confirm" value="1" required>
             {{$.T "encryption.startoverconfirm"}}
@@ -51,6 +52,7 @@
           <p class="hint">{{$.T "encryption.covers"}}</p>
           <p class="hint">{{$.T "encryption.notcovered"}}</p>
           <p class="hint">{{$.T "encryption.paused"}}</p>
+          <p class="hint">{{$.T "encryption.devices"}}</p>
           {{ if not .OnServer }}<p class="hint">{{$.T "encryption.offline"}}</p>{{ end }}
         </div>
         {{ template "field" (dict "label" ($.T "encryption.password") "name" "password" "type" "password" "dir" "ltr" "required" true) }}

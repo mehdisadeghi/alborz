@@ -1,7 +1,7 @@
 # ADR 72: Encryption at rest per account
 
 Status: accepted, amended by ADR 74 (push device records and logins kept
-alive for notifications). Amends ADR 5, ADR 52, ADR 65, ADR 68 and
+alive for notifications) and ADR 107 (device passwords). Amends ADR 5, ADR 52, ADR 65, ADR 68 and
 ADR 70.
 
 ## Context
@@ -36,8 +36,9 @@ collections, published calendars and DAV clients.
    key when off.
 5. The opened account key is held in memory while an account login is
    alive (including logins kept for push devices, ADR 74) and for
-   5 minutes after a DAV client request whose password opened it
-   (ADR 30). Otherwise the account is locked on the instance.
+   5 minutes after a DAV client request whose mail password or device
+   password (ADR 107) opened it (ADR 30). Otherwise the account is
+   locked on the instance.
 
 ### Scope of keys
 
@@ -50,6 +51,7 @@ collections, published calendars and DAV clients.
 | DAV mirror | `dav.mirror` | account key |
 | Private HPKE key | `alborz.keys` | account key |
 | Push devices (ADR 74) | `alborz.push` | account key |
+| Device passwords (ADR 107) | `alborz.devices` | `alborz.devices`, account key wrapped per password |
 | Sessions, passkeys, VAPID key, push claims, feed cache, indexes | instance / cookie secret | instance / cookie secret |
 
 6. Each collection of an encrypted account has a random key stored at
@@ -87,6 +89,7 @@ collections, published calendars and DAV clients.
 ## References
 
 - RFC 5869 (HKDF), RFC 9106 (Argon2), RFC 9180 (HPKE)
-- ADR 5, ADR 26, ADR 30, ADR 52, ADR 59, ADR 65, ADR 68, ADR 70, ADR 74
-- `internal/keyring/`, `keys.go`, `records.go`, `secret.go`, `store.go`,
+- ADR 5, ADR 26, ADR 30, ADR 52, ADR 59, ADR 65, ADR 68, ADR 70, ADR 74,
+  ADR 107
+- `internal/keyring/`, `keys.go`, `devices.go`, `records.go`, `secret.go`, `store.go`,
   `pim/store/sealed.go`, `pim/dav/mirror.go`, `settings/web/encryption.go`

@@ -1,6 +1,6 @@
 # ADR 30: Refused-password throttle
 
-Status: accepted.
+Status: accepted, amended by ADR 107 (device passwords).
 
 ## Context
 
@@ -22,8 +22,9 @@ the check before any refusal is recorded.
    LOGIN is sent, so concurrent tries are counted as they start.
 5. A result that is not an `AuthError` MUST release the reservation: an
    unreachable server is not a wrong password.
-6. DAV caches each verdict, accepted or refused, under a salted SHA-256
-   of username and password for `davPasswordLife` (5 min). A client
+6. DAV caches each mail-password verdict and each refusal under a
+   salted SHA-256 of username and password for `davPasswordLife`
+   (5 min); a device password's acceptance is not cached (ADR 107). A client
    retrying a stale password costs one try; a corrected password is a
    different digest and is checked at once.
 7. A paused DAV client MUST get 429 with `Retry-After`, not 401: a
@@ -47,4 +48,6 @@ the check before any refusal is recorded.
 - `accounts.go` (`refusals`, `readerKey`, `signInTries`,
   `refusalsHeld`, `PausedError`), `passwd.go` (`ChangePassword`),
   `pim/web/owndav.go` (`davPasswords`, `davPasswordLife`, `serveOwn`),
-  `web/accounts.go`, `login_test.go`
+  `devices.go` (`CheckDevicePassword`), `web/accounts.go`,
+  `login_test.go`
+- ADR 107

@@ -96,19 +96,41 @@ func (p *davPasswords) keep(username, password string, refused error, now time.T
 	p.checked[p.digest(username, password)] = davVerdict{refused, now}
 }
 
-// authenticate checks a DAV client's password the way signing in does, sharing its tries.
-func (p *davPasswords) authenticate(srv *web.Server, username, password, source string) error {
+// davAccess is what a DAV client's password gives: a device password, maybe for reading only, or the mail
+// password.
+type davAccess struct{ device, readOnly bool }
+
+// authenticate checks a DAV client's password: a device password of the account first, which is never cached
+// so a revoked one is refused at once, then the mail password the way signing in does (ADR 107). Both share
+// the sign-in tries.
+func (p *davPasswords) authenticate(srv *web.Server, username, password, source string) (davAccess, error) {
 	username = strings.ToLower(username)
 	now := time.Now()
-	if was, ok := p.known(username, password, now); ok {
-		return was.refused
+	if was, ok := p.known(username, password, now); ok && was.refused != nil {
+		return davAccess{}, was.refused
 	}
-	err := srv.CheckPassword(username, password, source)
+	device, err := srv.CheckDevicePassword(username, password, source, davPasswordLife)
+	switch {
+	case err == nil:
+		return davAccess{device: true, readOnly: device.ReadOnly}, nil
+	case errors.As(err, new(alborz.AuthError)):
+		p.keep(username, password, err, now)
+		return davAccess{}, err
+	case !errors.Is(err, alborz.ErrNoDevicePassword):
+		return davAccess{}, err
+	}
+	if _, ok := p.known(username, password, now); ok {
+		return davAccess{}, nil
+	}
+	err = srv.CheckPassword(username, password, source)
 	if err == nil || errors.As(err, new(alborz.AuthError)) {
 		p.keep(username, password, err, now)
 	}
-	return err
+	return davAccess{}, err
 }
+
+// readMethods are what a read-only device password may ask.
+var readMethods = []string{http.MethodGet, http.MethodHead, http.MethodOptions, "PROPFIND", "REPORT"}
 
 // serveOwn answers DAV clients by address and password on each request, with no session or cookie.
 func serveOwn(g *web.Group, srv *web.Server, st *store.Store) {
@@ -129,8 +151,10 @@ func serveOwn(g *web.Group, srv *web.Server, st *store.Store) {
 		w, r := ctx.Response(), ctx.Request()
 		w.Header().Set(alborz.InstanceHeader, srv.Instance)
 		username, password, ok := r.BasicAuth()
+		var access davAccess
 		if ok {
-			err := passwords.authenticate(srv, username, password, ctx.RealIP())
+			var err error
+			access, err = passwords.authenticate(srv, username, password, ctx.RealIP())
 			if _, ok := errors.AsType[alborz.UpstreamError](err); ok {
 				http.Error(w, err.Error(), http.StatusServiceUnavailable)
 				return nil
@@ -143,8 +167,9 @@ func serveOwn(g *web.Group, srv *web.Server, st *store.Store) {
 			}
 			ok = err == nil
 		}
-		// A phone syncing without a login in a browser opens the account's key itself (ADR 72).
-		if ok {
+		// A phone syncing without a login in a browser opens the account's key itself (ADR 72); a device
+		// password has opened it already.
+		if ok && !access.device {
 			if err := srv.Unlock(username, password, davPasswordLife); err != nil {
 				srv.Logger().Printf("%s: opening the account's key for a DAV client: %v", username, err)
 			}
@@ -152,6 +177,10 @@ func serveOwn(g *web.Group, srv *web.Server, st *store.Store) {
 		if !ok {
 			w.Header().Set("WWW-Authenticate", `Basic realm="`+davRealm+`", charset="UTF-8"`)
 			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+			return nil
+		}
+		if access.readOnly && !slices.Contains(readMethods, r.Method) {
+			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 			return nil
 		}
 		dav.ServeHTTP(w, r.WithContext(store.As(r.Context(), username)))

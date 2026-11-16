@@ -19,7 +19,7 @@ import (
 const metaKey = "alborz.meta"
 
 // formats are core's key owners, with each one's format; a feature notes its own through Server.Data.
-var formats = map[string]int{sessionsOwner: recordsFormat, settingsOwner: recordsFormat, keyring.Owner: keyring.Format, pushOwner: pushFormat}
+var formats = map[string]int{sessionsOwner: recordsFormat, settingsOwner: recordsFormat, keyring.Owner: keyring.Format, pushOwner: pushFormat, devicesOwner: devicesFormat}
 
 // maxOpened is enough builds to see a rollback and what it rolled back from.
 const maxOpened = 8

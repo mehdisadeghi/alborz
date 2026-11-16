@@ -1,0 +1,21 @@
+{{ define "main-class" }} class="create-update"{{ end }}
+
+{{ define "main" }}
+  {{ $aq := .GlobalData.AccountQuery }}
+      <form method="post" action="{{url "settings.devices.create"}}{{$aq}}">
+        {{ template "settings-crumb" (dict "g" $ "collection" ($.T "devices.title") "path" (url "settings.devices")) }}
+        <h1>{{$.T "devices.new"}}</h1>
+        {{ template "field" (dict "label" ($.T "common.name") "name" "name" "value" .Name "dir" "auto" "required" true "autofocus" true "hint" ($.T "devices.namehint")) }}
+        <fieldset class="action-group choices">
+          <legend>{{$.T "devices.access"}}</legend>
+          {{ range tuple (tuple "write" "devices.readwrite" false) (tuple "read" "devices.readonly" true) }}
+          {{ $v := index . 0 }}
+          <label for="access-{{$v}}" class="checkbox">
+            <input type="radio" name="access" id="access-{{$v}}" value="{{$v}}"{{ if eq $.ReadOnly (index . 2) }} checked{{ end }}>
+            {{$.T (index . 1)}}
+          </label>
+          {{ end }}
+        </fieldset>
+        {{ template "form-actions" (dict "save" ($.T "devices.create") "cancel" (printf "%s%s" (url "settings.devices") $aq) "cancelLabel" ($.T "common.cancel")) }}
+      </form>
+{{ end }}

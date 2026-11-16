@@ -101,6 +101,8 @@ type Server struct {
 
 	// Pushes keeps the devices notified and the key signing what they are sent.
 	Pushes *Pushes
+	// Devices keeps the device passwords DAV clients sign in with (ADR 107).
+	Devices *Devices
 	// KeepLogin holds a login past its idle limit while something needs it: a device to notify (ADR 74).
 	KeepLogin func(*Login) bool
 
@@ -200,6 +202,8 @@ func New(log *log.Logger, options Options) (*Server, error) {
 		return nil, err
 	}
 	s.Sealers = append(s.Sealers, Sealer{Reseal: s.Pushes.reseal, Drop: s.Pushes.drop})
+	s.Devices = openDevices(s.data, s.LoginKey, s.Keys)
+	s.Sealers = append(s.Sealers, Sealer{Reseal: s.Devices.prune, Drop: s.Devices.prune})
 	settings := openSettingsRecords(s.data, settingsKey, s.LoginKey.Names(), s.Keys)
 
 	s.domains = make(map[string]*domainUpstreams)
@@ -297,6 +301,7 @@ var notFoundMessages = map[string]string{
 	"notfound.calendar":    "no calendars found",
 	"notfound.collection":  "collection not found",
 	"notfound.contact":     "contact not found",
+	"notfound.device":      "device password not found",
 	"notfound.entry":       "journal entry not found",
 	"notfound.event":       "event not found",
 	"notfound.folder":      "folder %q not found",

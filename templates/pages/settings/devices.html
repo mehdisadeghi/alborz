@@ -1,0 +1,43 @@
+
+{{ define "main" }}
+  {{ $aq := .GlobalData.AccountQuery }}
+      {{ template "settings-head" (dict "g" $ "title" ($.T "devices.title") "path" (url "settings.devices") "newhref" (printf "%s%s" (url "settings.devices.create") $aq) "newlabel" ($.T "devices.new")) }}
+
+      {{ with .Made }}
+      <section class="info-card">
+        <dl>
+          <dt>{{$.T "settings.davhereaddress"}}</dt>
+          <dd>{{ template "ltr" .Address }}</dd>
+          <dt>{{$.T "settings.davhereuser"}}</dt>
+          <dd>{{ template "ltr" .Username }}</dd>
+          <dt>{{$.T "devices.password"}}</dt>
+          <dd><code dir="ltr">{{.Password}}</code></dd>
+        </dl>
+        {{ template "hint" (dict "text" ($.T "devices.shownonce")) }}
+      </section>
+      {{ end }}
+
+      <form method="post" action="{{url "settings.devices.only"}}{{$aq}}" class="aside-filter list-option">
+        <label class="checkbox">
+          <input type="checkbox" name="only" value="1"{{ if .Only }} checked{{ end }} data-submit-on-change>
+          {{$.T "devices.only"}}
+        </label>
+        <button>{{$.T "common.save"}}</button>
+      </form>
+
+      <section class="list-items">
+        {{ range .Devices }}
+        <div class="list-item">
+          <div class="list-content">
+            <span class="list-summary" dir="auto">{{.Name}}</span>
+            <span class="list-detail">{{ $.Tf "devices.created" ($.GlobalData.ShortDate .Created) }} · {{ if .LastUsed.IsZero }}{{$.T "devices.neverused"}}{{ else }}{{ $.Tf "devices.lastused" ($.GlobalData.ShortDate .LastUsed) }}{{ end }} · {{$.T (or (and .ReadOnly "devices.readonly") "devices.readwrite")}}</span>
+          </div>
+          {{ template "filter-action" (dict "g" $ "action" (printf "%s%s" (url "settings.devices.revoke") $aq) "fields" (tuple (dict "name" "device" "value" .ID)) "button" "devices.revoke" "class" "button-danger") }}
+        </div>
+        {{ end }}
+        {{ if not .Devices }}
+        <p class="empty-list">{{$.T "devices.none"}}</p>
+        {{ end }}
+      </section>
+      {{ template "hint-list" (dict "items" (list ($.T "devices.hint"))) }}
+{{ end }}

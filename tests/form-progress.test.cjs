@@ -27,6 +27,7 @@ function fixture() {
 	const document = {
 		addEventListener: on,
 		querySelector: () => bar,
+		getElementById: () => null,
 		querySelectorAll: selector => selector === 'form[data-busy]' ? [form] : [button],
 	};
 	vm.runInNewContext(helpers.slice(start, end), {

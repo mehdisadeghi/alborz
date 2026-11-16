@@ -962,9 +962,20 @@ document.addEventListener("htmx:afterRequest", ev => {
 		}
 	}
 });
+document.addEventListener("keydown", ev => {
+	const drawer = document.getElementById("sidebar");
+	if (ev.key === "Escape" && drawer?.checked) {
+		drawer.checked = false;
+	}
+});
 window.addEventListener("pageshow", ev => {
 	if (!ev.persisted) {
 		return;
+	}
+	// A page coming back from the back-forward cache shows its content, not the drawer it was left from.
+	const drawer = document.getElementById("sidebar");
+	if (drawer) {
+		drawer.checked = false;
 	}
 	for (const form of document.querySelectorAll("form[data-busy]")) {
 		clearBusy(form);

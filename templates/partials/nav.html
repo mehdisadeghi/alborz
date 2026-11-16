@@ -1,6 +1,7 @@
 {{ define "nav" }}
 {{ if .GlobalData.LoggedIn }}
-<input type="checkbox" id="sidebar" class="sidebar-toggle" aria-label="{{$.T "nav.drawer"}}">
+{{/* Off: a browser restoring form state would reopen the drawer on a reload. */}}
+<input type="checkbox" id="sidebar" class="sidebar-toggle" autocomplete="off" aria-label="{{$.T "nav.drawer"}}">
 {{ end }}
 <header>
   {{$page := (index .GlobalData.Path 0)}}

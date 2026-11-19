@@ -7,6 +7,8 @@
 - A default outgoing account in Settings: a new message started under All
   accounts is written from it.
 - Collection pickers show the chosen collection's colour.
+- An emoji picker in the compose editor's toolbar, with search and recently
+  used emoji, for rich and plain text.
 
 ### Fixed
 

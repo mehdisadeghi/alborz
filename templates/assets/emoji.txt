@@ -1,0 +1,985 @@
+# Emoji names from Unicode emoji-test.txt 17.0, keywords from Unicode CLDR 48 annotations/en.xml.
+# Copyright (c) 1991-2025 Unicode, Inc. Unicode License v3; see https://www.unicode.org/license.txt for the text.
+# A selection: no skin tones, no joined sequences, nothing newer than Emoji 15.1. Read when the picker first opens.
+# A line holds an emoji, its name and its keywords between tabs; @ opens a group.
+@smileys
+😀	grinning face	cheerful cheery happy laugh nice smile smiling teeth
+😃	grinning face with big eyes	awesome happy mouth open smile smiling teeth yay
+😄	grinning face with smiling eyes	happy laugh lol mouth open smile
+😁	beaming face with smiling eyes	grinning happy nice smile teeth
+😆	grinning squinting face	closed eyes hahaha happy laugh lol mouth open rofl smile smiling
+😅	grinning face with sweat	cold dejected excited mouth nervous open smile smiling stressed
+🤣	rolling on the floor laughing	crying face funny haha happy hehe hilarious joy lol roflmao tear
+😂	face with tears of joy	crying feels funny haha happy hehe hilarious laugh lol roflmao
+🙂	slightly smiling face	happy smile
+🙃	upside-down face	hehe smile
+🫠	melting face	disappear dissolve embarrassed haha heat hot liquid lol sarcasm sarcastic
+😉	winking face	flirt heartbreaker sexy slide tease winks
+😊	smiling face with smiling eyes	blush glad satisfied smile
+😇	smiling face with halo	angelic angels blessed fairytale fantasy happy innocent peaceful smile spirit
+🥰	smiling face with hearts	3 adore crush ily love romance smile you
+😍	smiling face with heart-eyes	143 bae feels hearts ily kisses love romance romantic smile xoxo
+🤩	star-struck	excited eyes face grinning smile starry-eyed wow
+😘	face blowing a kiss	adorbs bae flirt heart ily lover miss muah romantic smooch xoxo you
+☺️	smiling face	happy outlined relaxed smile
+🥲	smiling face with tear	glad grateful happy joy pain proud relieved smiley touched
+😋	face savoring food	delicious eat full hungry smile smiling tasty yummy
+😛	face with tongue	awesome cool nice party stuck-out sweet
+😜	winking face with tongue	crazy epic eye funny joke loopy nutty party stuck-out wacky weirdo yolo
+🤪	zany face	crazy eyes goofy large small
+😝	squinting face with tongue	closed eyes gross horrible omg stuck-out taste whatever yolo
+🤑	money-mouth face	paid
+🤗	smiling face with open hands	hugging
+🤭	face with hand over mouth	giggle giggling realization secret shock sudden surprise whoops
+🫢	face with open eyes and hand over mouth	amazement awe disbelief embarrass gasp omg quiet scared shock surprise
+🫣	face with peeking eye	captivated embarrass hide hiding peep scared shy stare
+🤫	shushing face	quiet shh
+🤔	thinking face	chin consider hmm pondering wondering
+🫡	saluting face	good luck ma’am OK respect salute sir troops yes
+🤐	zipper-mouth face	keep quiet secret shut
+🤨	face with raised eyebrow	disapproval disbelief distrust emoji hmm mild skeptical skepticism surprise what
+😐	neutral face	awkward blank deadpan expressionless fine jealous meh oh shade straight unamused unhappy unimpressed whatever
+😑	expressionless face	awkward dead fine inexpressive jealous meh not oh omg straight uh unhappy unimpressed whatever
+😶	face without mouth	awkward blank expressionless mouthless mute quiet secret silence silent speechless
+😏	smirking face	boss dapper flirt homie kidding leer shade slick sly smug snicker suave suspicious swag
+😒	unamused face	... bored fine jealous jelly pissed smh ugh uhh unhappy weird whatever
+🙄	face with rolling eyes	eyeroll shade ugh whatever
+😬	grimacing face	awkward dentist grimace grinning smile smiling
+🫨	shaking face	crazy daze earthquake omg panic shock surprise vibrate whoa wow
+😌	relieved face	calm peace relief zen
+😔	pensive face	awful bored dejected died disappointed losing lost sad sucks
+🤤	drooling face
+😴	sleeping face	bedtime goodnight nap tired whatever yawn zzz
+😷	face with medical mask	cold dentist dermatologist doctor dr germs medicine sick
+🤒	face with thermometer	ill sick
+🤕	face with head-bandage	hurt injury ouch
+🤢	nauseated face	gross nasty sick vomit
+🤮	face vomiting	barf gross puke sick spew throw up
+🤧	sneezing face	fever flu gesundheit sick sneeze
+🥵	hot face	dying feverish heat panting red-faced stroke sweating tongue
+🥶	cold face	blue-faced freezing frostbite icicles subzero teeth
+🥴	woozy face	dizzy drunk eyes intoxicated mouth tipsy uneven wavy
+😵	face with crossed-out eyes	dead dizzy feels knocked sick tired
+🤯	exploding head	explode mindblown no shocked way
+🤠	cowboy hat face	cowgirl
+🥳	partying face	bday birthday celebrate celebration excited happy hat hooray horn
+🥸	disguised face	eyebrow glasses incognito moustache mustache nose person spy tash
+😎	smiling face with sunglasses	awesome beach bright bro chilling cool rad relaxed shades slay smile style swag win
+🤓	nerd face	brainy clever expert geek gifted glasses intelligent smart
+🧐	face with monocle	classy fancy rich stuffy wealthy
+😕	confused face	befuddled confusing dunno frown hm meh not sad sorry sure
+🫤	face with diagonal mouth	confused confusion disappointed doubtful frustrated frustration meh skeptical unsure whatever wtv
+😟	worried face	anxious butterflies nerves nervous sad stressed surprised worry
+🙁	slightly frowning face	sad
+☹️	frowning face	sad
+😮	face with open mouth	believe forgot omg shocked surprised sympathy unbelievable unreal whoa wow you
+😲	astonished face	cost no omg shocked totally way
+😳	flushed face	amazed awkward crazy dazed dead disbelief embarrassed geez heat hot impressed jeez what wow
+🥺	pleading face	begging big eyes mercy not please pretty puppy sad why
+🥹	face holding back tears	admiration aww cry embarrassed feelings grateful gratitude joy please proud resist sad
+😨	fearful face	afraid anxious blame scared worried
+😰	anxious face with sweat	blue cold eek mouth nervous open rushed scared yikes
+😥	sad but relieved face	anxious call close complicated disappointed not sweat time whew
+😢	crying face	awful feels miss sad tear triste unhappy
+😭	loudly crying face	bawling sad sob tears unhappy
+😱	face screaming in fear	epic fearful munch scared screamer shocked surprised woah
+😞	disappointed face	awful blame dejected fail losing sad unhappy
+😓	downcast face with sweat	close cold feels headache nervous sad scared yikes
+😩	weary face	crying fail feels hungry mad nooo sad sleepy tired unhappy
+😫	tired face	cost feels nap sad sneeze
+🥱	yawning face	bedtime bored goodnight nap sleepy tired whatever zzz
+😤	face with steam from nose	anger angry feels fume fuming furious fury mad triumph unhappy won
+😡	enraged face	anger angry feels maddening pouting red shade unhappy upset
+😠	angry face	anger blame feels frustrated maddening rage shade unhappy upset
+🤬	face with symbols on mouth	censor cursing cussing mad pissed swearing
+😈	smiling face with horns	demon devil fairytale fantasy purple shade smile
+👿	angry face with horns	demon devil fairytale fantasy imp mischievous purple shade
+💀	skull	body dead death face fairytale i’m lmao monster yolo
+☠️	skull and crossbones	dead death face monster
+💩	pile of poo	bs comic doo dung face fml monster poop smelly smh stinks stinky turd
+🤡	clown face
+👻	ghost	boo creature excited face fairytale fantasy halloween haunting monster scary silly
+👽	alien	creature extraterrestrial face fairytale fantasy monster space ufo
+🤖	robot	face monster
+🙈	see-no-evil monkey	embarrassed face forbidden forgot gesture hide omg prohibited scared secret smh watch
+🙉	hear-no-evil monkey	animal ears face forbidden gesture listen not prohibited secret shh tmi
+🙊	speak-no-evil monkey	animal face forbidden gesture not oops prohibited quiet secret stealth
+💌	love letter	heart mail romance valentine
+💘	heart with arrow	143 adorbs cupid date emotion ily love romance valentine
+💝	heart with ribbon	143 anniversary emotion ily kisses valentine xoxo
+💖	sparkling heart	143 emotion excited good ily kisses morning night sparkle xoxo
+💗	growing heart	143 emotion excited heartpulse ily kisses muah nervous xoxo
+💓	beating heart	143 cardio emotion heartbeat ily love pulsating pulse
+💞	revolving hearts	143 adorbs anniversary emotion
+💕	two hearts	143 anniversary date dating emotion ily kisses love loving xoxo
+💟	heart decoration	143 emotion hearth purple white
+❣️	heart exclamation	heavy mark punctuation
+💔	broken heart	break crushed emotion heartbroken lonely sad
+❤️	red heart	emotion love
+🩷	pink heart	143 adorable cute emotion ily like love special sweet
+🧡	orange heart	143
+💛	yellow heart	143 cardiac emotion ily love
+💚	green heart	143 emotion ily love romantic
+💙	blue heart	143 emotion ily love romance
+🩵	light blue heart	143 cute cyan emotion ily like love sky special teal
+💜	purple heart	143 bestest emotion ily love
+🤎	brown heart	143
+🖤	black heart	evil wicked
+🩶	grey heart	143 emotion gray ily love silver slate special
+🤍	white heart	143
+💋	kiss mark	dating emotion heart kissing lips romance sexy
+💯	hundred points	100 a+ agree clearly definitely faithful fleek full keep perfect score TRUE truth yup
+💢	anger symbol	angry comic mad upset
+💥	collision	bomb boom collide comic explode
+💫	dizzy	comic shining shooting stars
+💦	sweat droplets	comic drip drops splashing squirt water wet workout
+💨	dashing away	cloud comic fart fast gone gotta running smoke
+💬	speech balloon	bubble comic dialog message sms talk text typing
+💭	thought balloon	bubble cartoon cloud comic daydream decisions idea invention realize think thoughts wonder
+💤	ZZZ	comic goodnight sleeping sleepy tired
+@people
+👋	waving hand	bye cya g2g greetings gtg hello hey hi later outtie ttfn ttyl wave you
+✋	raised hand	5 five high stop
+👌	OK hand	awesome bet dope fleek fosho gotcha legit okay pinch rad sure sweet three
+🤌	pinched fingers	gesture hand hold huh interrogation patience relax sarcastic ugh what zip
+🤏	pinching hand	amount bit fingers little small sort
+✌️	victory hand	peace
+🤞	crossed fingers	hand luck
+🫰	hand with index finger and thumb crossed	<3 expensive heart love money snap
+🤟	love-you gesture	fingers hand ILY three
+🤘	sign of the horns	finger hand rock-on
+🤙	call me hand	hang loose Shaka
+👈	backhand index pointing left	finger
+👉	backhand index pointing right	finger
+👆	backhand index pointing up	finger
+🖕	middle finger	hand
+👇	backhand index pointing down	finger
+☝️	index pointing up	finger hand this
+🫵	index pointing at the viewer	finger hand poke you
+👍	thumbs up	+1 good hand like yes
+👎	thumbs down	-1 bad dislike good hand nope
+✊	raised fist	clenched hand punch solidarity
+👊	oncoming fist	absolutely agree boom bro bruh bump clenched correct hand knuckle pound punch rock ttyl
+👏	clapping hands	applause approval awesome congrats congratulations excited good great homie job nice prayed well yay
+🙌	raising hands	celebration gesture hooray praise raised
+🫶	heart hands	<3 love you
+🤝	handshake	agreement deal meeting
+🙏	folded hands	appreciate ask beg blessed bow cmon five gesture high please pray thanks thx
+✍️	writing hand	write
+💅	nail polish	bored care cosmetics done makeup manicure whatever
+💪	flexed biceps	arm beast bench bodybuilder bro curls gains gym jacked muscle press ripped strong weightlift
+🧠	brain	intelligent smart
+👀	eyes	body face googly looking omg peep seeing
+👁️	eye	1 body one
+👅	tongue	body lick slurp
+👄	mouth	beauty body kissing lipstick
+👶	baby	babies children goo infant newborn pregnant young
+🧒	child	bright-eyed grandchild kid younger
+👦	boy	bright-eyed child grandson kid younger
+👧	girl	bright-eyed child granddaughter kid Virgo younger zodiac
+🧑	person	adult
+👨	man	adult bro
+👩	woman	adult lady
+🧓	older person	adult elderly grandparent wise
+👴	old man	adult bald elderly gramps grandfather grandpa wise
+👵	old woman	adult elderly grandma grandmother granny lady wise
+🙅	person gesturing NO	forbidden gesture hand not prohibit
+🙆	person gesturing OK	exercise gesture hand omg
+💁	person tipping hand	fetch flick flip gossip sarcasm sarcastic sassy seriously whatever
+🙋	person raising hand	gesture here know me pick question raise
+🙇	person bowing	apology ask beg favor forgive gesture meditate meditation pity regret sorry
+🤦	person facepalming	again bewilder disbelief exasperation not oh omg shock smh
+🤷	person shrugging	doubt dunno guess idk ignorance indifference knows maybe whatever who
+👮	police officer	apprehend arrest citation cop law pulled undercover
+👷	construction worker	fix hardhat man person rebuild remodel repair
+👼	baby angel	church face fairytale fantasy
+🎅	Santa Claus	celebration Christmas fairy fantasy father holiday merry tale xmas
+🤶	Mrs. Claus	celebration Christmas fairy fantasy holiday merry mother santa tale xmas
+🚶	person walking	amble gait hike man pace pedestrian stride stroll
+🏃	person running	fast hurry marathon move quick race racing rush speed
+💃	woman dancing	dancer elegant festive flair flamenco groove let’s salsa tango
+🕺	man dancing	dancer elegant festive flair flamenco groove let’s salsa tango
+🧘	person in lotus position	cross legged legs meditation peace relax serenity yoga yogi zen
+👭	women holding hands	bae bestie bff couple dating flirt friends girls sisters twins
+👫	woman and man holding hands	bae bestie bff couple dating flirt friends twins
+👬	men holding hands	bae bestie bff boys brothers couple dating flirt friends twins
+💏	kiss	anniversary babe bae couple date dating heart love mwah person romance together xoxo
+💑	couple with heart	anniversary babe bae dating kiss love person relationship romance together you
+🗣️	speaking head	face silhouette
+👤	bust in silhouette	mysterious shadow
+👥	busts in silhouette	bff everyone friends people
+🫂	people hugging	comfort embrace farewell friendship goodbye hello love thanks
+👣	footprints	barefoot clothing omw walk
+@animals
+🐵	monkey face	animal banana
+🐶	dog face	adorbs animal pet puppies puppy
+🐺	wolf	animal face
+🦊	fox	animal face
+🐱	cat face	animal kitten kitty pet
+🦁	lion	alpha animal face Leo mane order rawr roar safari strong zodiac
+🐯	tiger face	animal big cat predator
+🐴	horse face	animal dressage equine farm horses
+🦄	unicorn	face
+🐮	cow face	animal farm milk moo
+🐷	pig face	animal bacon farm pork
+🐑	ewe	animal baa farm female fluffy lamb sheep wool
+🐘	elephant	animal
+🐭	mouse face	animal
+🐹	hamster	animal face pet
+🐰	rabbit face	animal bunny pet
+🐻	bear	animal face grizzly growl honey
+🐨	koala	animal australia bear down face marsupial under
+🐼	panda	animal bamboo face
+🐾	paw prints	feet paws
+🐔	chicken	animal bird ornithology
+🐥	front-facing baby chick	animal bird newborn ornithology
+🐦	bird	animal ornithology
+🐧	penguin	animal antarctica bird ornithology
+🕊️	dove	bird fly ornithology peace
+🦅	eagle	animal bird ornithology
+🦉	owl	animal bird ornithology wise
+🐸	frog	animal face
+🐊	crocodile	animal zoo
+🐢	turtle	animal terrapin tortoise
+🐍	snake	animal bearer Ophiuchus serpent zodiac
+🐉	dragon	animal fairytale knights
+🦖	T-Rex	dinosaur Tyrannosaurus
+🐳	spouting whale	animal beach face ocean
+🐬	dolphin	animal beach flipper ocean
+🐟	fish	animal dinner fishes fishing Pisces zodiac
+🦈	shark	animal fish
+🐙	octopus	animal creature ocean
+🦀	crab	Cancer zodiac
+🐌	snail	animal escargot garden nature slug
+🦋	butterfly	insect pretty
+🐝	honeybee	animal bumblebee insect nature spring
+🐞	lady beetle	animal garden insect ladybird ladybug nature
+🕷️	spider	animal insect
+💐	bouquet	anniversary birthday date flower love plant romance
+🌸	cherry blossom	flower plant springtime
+🌹	rose	beauty elegant flower love plant red valentine
+🌺	hibiscus	flower plant
+🌻	sunflower	outdoors plant
+🌼	blossom	buttercup dandelion flower plant
+🌷	tulip	blossom flower growth plant
+🌱	seedling	plant sapling sprout young
+🌲	evergreen tree	christmas forest pine
+🌳	deciduous tree	forest green habitat shedding
+🌴	palm tree	beach plant tropical
+🌵	cactus	desert drought nature plant
+🍀	four leaf clover	4 four-leaf irish lucky plant
+🍁	maple leaf	falling
+🍄	mushroom	fungus toadstool
+@food
+🍇	grapes	Dionysus fruit
+🍉	watermelon	fruit
+🍊	tangerine	citrus fruit nectarine orange vitamin
+🍋	lemon	citrus fruit sour
+🍌	banana	fruit potassium
+🍎	red apple	diet food fruit health ripe
+🍑	peach	fruit
+🍒	cherries	berries cherry fruit red
+🍓	strawberry	fruit
+🍅	tomato	food fruit vegetable
+🥑	avocado	food fruit
+🍆	eggplant	aubergine vegetable
+🥕	carrot	food vegetable
+🌽	ear of corn	crops farm maize maze
+🌶️	hot pepper
+🥦	broccoli	cabbage wild
+🍞	bread	carbs food grain loaf restaurant toast wheat
+🥐	croissant	bread breakfast crescent food french roll
+🧀	cheese wedge
+🍗	poultry leg	bone chicken drumstick hungry turkey
+🍔	hamburger	eat fast food hungry
+🍟	french fries	fast food
+🍕	pizza	cheese food hungry pepperoni slice
+🥪	sandwich	bread
+🌮	taco	mexican
+🍳	cooking	breakfast easy egg frying over pan restaurant side sunny up
+🥗	green salad	food
+🍿	popcorn	movie
+🍚	cooked rice	food
+🍛	curry rice	food
+🍜	steaming bowl	chopsticks food noodle pho ramen soup
+🍝	spaghetti	food meatballs pasta restaurant
+🍣	sushi	food
+🍦	soft ice cream	dessert food icecream restaurant serve sweet
+🍩	doughnut	breakfast dessert donut food sweet
+🍪	cookie	chip chocolate dessert sweet
+🎂	birthday cake	bday celebration dessert happy pastry sweet
+🍰	shortcake	dessert pastry slice sweet
+🧁	cupcake	bakery dessert sprinkles sugar sweet treat
+🍫	chocolate bar	candy dessert halloween sweet tooth
+🍭	lollipop	candy dessert food restaurant sweet
+🥛	glass of milk	drink
+☕	hot beverage	cafe caffeine chai coffee drink morning steaming
+🍵	teacup without handle	beverage drink oolong
+🍾	bottle with popping cork	bar drink
+🍷	wine glass	alcohol bar beverage booze club drinking drinks restaurant
+🍹	tropical drink	alcohol bar booze club cocktail drinking drinks drunk mai party tropics
+🍺	beer mug	alcohol ale bar booze drinking drinks octoberfest oktoberfest pint stein summer
+🍻	clinking beer mugs	alcohol bar booze bottoms cheers drinking drinks
+🥂	clinking glasses	celebrate drink
+🥤	cup with straw	drink juice malt soda soft water
+🧋	bubble tea	boba food milk pearl
+🍽️	fork and knife with plate	cooking dinner eat
+🍴	fork and knife	breakfast breaky cooking cutlery delicious dinner eat feed food hungry lunch restaurant yummy
+🔪	kitchen knife	chef cooking hocho tool weapon
+@travel
+🌍	globe showing Europe-Africa	earth world
+🌎	globe showing Americas	earth world
+🌏	globe showing Asia-Australia	earth world
+🗺️	world map
+🏔️	snow-capped mountain	cold
+🌋	volcano	eruption mountain nature
+🏖️	beach with umbrella
+🏝️	desert island
+🏠	house	building country heart home ranch settle simple suburban suburbia where
+🏡	house with garden	building country heart home ranch settle simple suburban suburbia where
+🏢	office building	city cubical job
+🏥	hospital	building doctor medicine
+🏫	school	building
+🏭	factory	building
+🏰	castle	building European
+⛪	church	bless chapel Christian cross religion
+🕌	mosque	islam masjid Muslim religion
+🛕	hindu temple
+🕍	synagogue	Jewish judaism religion temple
+⛩️	shinto shrine	religion
+🕋	kaaba	hajj islam Muslim religion umrah
+⛺	tent	camping
+🌃	night with stars
+🌅	sunrise	morning nature
+🎡	ferris wheel	amusement park theme
+🚂	locomotive	caboose engine railway steam trains travel
+🚆	train	arrived choo railway
+🚇	metro	subway travel
+🚌	bus	school vehicle
+🚑	ambulance	emergency vehicle
+🚓	police car	5–0 cops patrol
+🚕	taxi	cabbie car drive vehicle yellow
+🚗	automobile	car driving vehicle
+🚚	delivery truck	car drive vehicle
+🚲	bicycle	bike class cycling cyclist gang ride spinning
+⛽	fuel pump	diesel fuelpump gasoline station
+🚨	police car light	alarm alert beacon emergency revolving siren
+🚦	vertical traffic light	drove intersection signal stoplight
+🛑	stop sign	octagonal
+🚧	construction	barrier
+⚓	anchor	ship tool
+⛵	sailboat	resort sailing sea yacht
+🚢	ship	boat passenger travel
+✈️	airplane	aeroplane flying jet travel
+🛫	airplane departure	aeroplane check-in departures
+🛬	airplane arrival	aeroplane arrivals arriving landing
+🚁	helicopter	roflcopter travel vehicle
+🚀	rocket	launch rockets space travel
+🧳	luggage	bag packing roller suitcase travel
+⌛	hourglass done	sand timer
+⏳	hourglass not done	flowing hours sand timer waiting yolo
+⌚	watch	clock time
+⏰	alarm clock	hours hrs late time waiting
+🌑	new moon	dark space
+🌕	full moon	space
+🌙	crescent moon	ramadan space
+☀️	sun	bright rays space sunny weather
+🌞	sun with face	beach bright day heat sunny sunshine weather
+⭐	star	astronomy medium stars white
+🌟	glowing star	glittery night shining sparkle
+☁️	cloud	weather
+⛅	sun behind cloud	cloudy weather
+⛈️	cloud with lightning and rain	thunderstorm
+🌧️	cloud with rain	weather
+🌨️	cloud with snow	cold weather
+🌪️	tornado	cloud weather whirlwind
+🌈	rainbow	gay genderqueer glbtq lesbian lgbtqia nature pride transgender weather
+☂️	umbrella	clothing rain
+☔	umbrella with rain drops	clothing weather
+⚡	high voltage	danger electricity lightning nature thunderbolt zap
+❄️	snowflake	cold weather
+⛄	snowman without snow	cold
+🔥	fire	burn flame hot litaf tool
+💧	droplet	cold comic nature sad sweat tear water weather
+🌊	water wave	nature ocean surfer surfing
+@activities
+🎃	jack-o-lantern	celebration halloween pumpkin
+🎄	Christmas tree	celebration
+🎆	fireworks	boom celebration entertainment yolo
+✨	sparkles	* magic star
+🎈	balloon	birthday celebrate celebration
+🎉	party popper	awesome birthday celebrate celebration excited hooray tada woohoo
+🎊	confetti ball	celebrate celebration party woohoo
+🎀	ribbon	celebration
+🎁	wrapped gift	birthday bow box celebration christmas present surprise
+🎫	ticket	admission stub
+🏆	trophy	champion champs prize slay sport victory winning
+🏅	sports medal	award gold winner
+🥇	1st place medal	first gold
+🥈	2nd place medal	second silver
+🥉	3rd place medal	bronze third
+⚽	soccer ball	football futbol sport
+⚾	baseball	sport
+🏀	basketball	hoop sport
+🏐	volleyball	game
+🏈	american football	bowl sport super
+🎾	tennis	ball racquet sport
+🎳	bowling	ball game sport strike
+🏓	ping pong	ball bat game paddle pingpong table tennis
+🥊	boxing glove
+⛳	flag in hole	golf sport
+🎿	skis	snow sport
+🎯	bullseye	dart direct entertainment game hit target
+🎱	pool 8 ball	8ball billiard eight game
+🔮	crystal ball	fairytale fantasy fortune future magic tool
+🎮	video game	controller entertainment
+🎰	slot machine	casino gamble gambling game slots
+🎲	game die	dice entertainment
+🧩	puzzle piece	clue interlocking jigsaw
+🧸	teddy bear	plaything plush stuffed toy
+♠️	spade suit	card game
+♥️	heart suit	card emotion game hearts
+♦️	diamond suit	card game
+♣️	club suit	card clubs game
+♟️	chess pawn	dupe expendable
+🃏	joker	game wildcard
+🎭	performing arts	actor actress entertainment mask theater theatre thespian
+🖼️	framed picture	art museum painting
+🎨	artist palette	artsy arty colorful creative entertainment museum painter painting
+@objects
+👓	glasses	clothing eyeglasses eyewear
+🕶️	sunglasses	dark eyewear
+👔	necktie	clothing employed serious shirt
+👕	t-shirt	blue casual clothes clothing collar dressed shopping tshirt weekend
+👗	dress	clothes clothing dressed fancy shopping
+👜	handbag	clothes clothing dress lady purse shopping
+🛍️	shopping bags	hotel
+🎒	backpack	backpacking bookbag education rucksack satchel school
+👟	running shoe	athletic clothes clothing fast kick shoes shopping sneaker tennis
+👑	crown	clothing family king medieval queen royalty win
+🎓	graduation cap	celebration clothing education hat scholar
+💍	ring	diamond engaged engagement married romance shiny sparkling wedding
+💎	gem stone	diamond engagement jewel money romance wedding
+🔇	muted speaker	quiet silent sound
+🔊	speaker high volume	loud music sound
+📢	loudspeaker	address communication public sound
+📣	megaphone	cheering sound
+🔔	bell	break church sound
+🔕	bell with slash	forbidden mute not prohibited quiet silent sound
+🎵	musical note	sound
+🎶	musical notes	sound
+🎤	microphone	karaoke music sing sound
+🎧	headphone	earbud sound
+📻	radio	entertainment tbt video
+🎺	trumpet	instrument music
+🎸	guitar	instrument music strat
+🎹	musical keyboard	instrument piano
+🎻	violin	instrument music
+🥁	drum	drumsticks music
+📱	mobile phone	cell communication telephone
+☎️	telephone
+📞	telephone receiver	communication voip
+🔋	battery
+🔌	electric plug	electricity
+💻	laptop	computer office pc personal
+🖥️	desktop computer	monitor
+🖨️	printer	computer
+⌨️	keyboard	computer
+🖱️	computer mouse
+💾	floppy disk	computer
+🎥	movie camera	bollywood cinema film hollywood record
+🎬	clapper board	action movie
+📺	television	tv video
+📷	camera	photo selfie snap tbt trip video
+📹	video camera	camcorder tbt
+🔍	magnifying glass tilted left	lab left-pointing science search tool
+💡	light bulb	comic electric idea
+🔦	flashlight	electric tool torch
+📕	closed book	education
+📖	open book	education fantasy knowledge library novels reading
+📚	books	education fantasy knowledge library novels reading school study
+📃	page with curl	document paper
+📜	scroll	paper
+📄	page facing up	document paper
+📰	newspaper	communication
+🔖	bookmark
+🏷️	label	tag
+💰	money bag	bank bet billion cash cost dollar gold million moneybag paid paying pot rich win
+💴	yen banknote	bill currency money
+💵	dollar banknote	bill currency money
+💶	euro banknote	100 bill currency money rich
+💷	pound banknote	billion cash currency money pounds
+💸	money with wings	banknote billion cash dollar fly million pay
+💳	credit card	bank cash charge money pay
+💹	chart increasing with yen	bank currency graph growth market money rise trend upward
+✉️	envelope	e-mail email letter
+📧	e-mail	email letter
+📨	incoming envelope	delivering e-mail email letter receive sent
+📩	envelope with arrow	communication down e-mail email letter outgoing send sent
+📤	outbox tray	email letter sent
+📥	inbox tray	email letter receive zero
+📦	package	box communication delivery parcel shipping
+📫	closed mailbox with raised flag	communication postbox
+📪	closed mailbox with lowered flag	postbox
+📬	open mailbox with raised flag	postbox
+📭	open mailbox with lowered flag	postbox
+📮	postbox	mailbox
+🗳️	ballot box with ballot
+✏️	pencil
+✒️	black nib	pen
+🖊️	pen	ballpoint
+🖌️	paintbrush	painting
+📝	memo	communication media notes pencil
+💼	briefcase	office
+📁	file folder
+📂	open file folder
+🗂️	card index dividers
+📅	calendar	date
+📆	tear-off calendar
+🗒️	spiral notepad
+🗓️	spiral calendar	pad
+📇	card index	old rolodex school
+📈	chart increasing	data graph growth right trend upward
+📉	chart decreasing	data downward graph negative trend
+📊	bar chart	data graph
+📋	clipboard	do list notes
+📌	pushpin	collage
+📍	round pushpin	location map
+📎	paperclip
+🖇️	linked paperclips
+📏	straight ruler	angle math straightedge
+📐	triangular ruler	math set slide triangle
+✂️	scissors	cutting paper tool
+🗃️	card file box
+🗄️	file cabinet	filing paper
+🗑️	wastebasket	can garbage trash
+🔒	locked	closed private
+🔓	unlocked	cracked open
+🔏	locked with pen	ink nib privacy
+🔐	locked with key	bike closed secure
+🔑	key	keys major password unlock
+🗝️	old key	clue lock
+🔨	hammer	home improvement repairs tool
+🛠️	hammer and wrench	spanner tool
+⚔️	crossed swords	weapon
+💣	bomb	boom comic dangerous explosion hot
+🛡️	shield	weapon
+🔧	wrench	home improvement spanner tool
+⚙️	gear	cogwheel tool
+⚖️	balance scale	justice Libra scales tool weight zodiac
+🔗	link	links
+🧰	toolbox	chest mechanic red
+🧲	magnet	attraction horseshoe magnetic negative positive shape u
+🧪	test tube	chemistry experiment lab science
+🧬	dna	biologist evolution genetics life
+🔬	microscope	experiment lab science tool
+🔭	telescope	contact extraterrestrial science tool
+📡	satellite antenna	aliens contact dish science
+💉	syringe	doctor flu medicine needle shot sick tool vaccination
+💊	pill	doctor drugs medicated medicine pills sick vitamin
+🩹	adhesive bandage
+🩺	stethoscope	doctor heart medicine
+🚪	door	back closet front
+🛏️	bed	hotel sleep
+🛋️	couch and lamp	hotel
+🚽	toilet	bathroom
+🚿	shower	water
+🛁	bathtub
+🧹	broom	cleaning sweeping witch
+🧼	soap	bar bathing cleaning lather soapdish
+🛒	shopping cart	trolley
+🚬	cigarette	smoking
+⚰️	coffin	dead death vampire
+🗿	moai	moyai statue stoneface travel
+@symbols
+♿	wheelchair symbol	access handicap
+🚻	restroom	bathroom lavatory toilet WC
+⚠️	warning	caution
+⛔	no entry	do fail forbidden not pass prohibited traffic
+🚫	prohibited	entry forbidden not smoke
+🚭	no smoking	forbidden not prohibited smoke
+🔞	no one under eighteen	18 forbidden not prohibited restriction underage
+☢️	radioactive	sign
+☣️	biohazard	sign
+⬆️	up arrow	cardinal direction north
+↗️	up-right arrow	direction intercardinal northeast
+➡️	right arrow	cardinal direction east
+↘️	down-right arrow	direction intercardinal southeast
+⬇️	down arrow	cardinal direction south
+↙️	down-left arrow	direction intercardinal southwest
+⬅️	left arrow	cardinal direction west
+↖️	up-left arrow	direction intercardinal northwest
+↕️	up-down arrow
+↔️	left-right arrow
+↩️	right arrow curving left
+↪️	left arrow curving right
+⤴️	right arrow curving up
+⤵️	right arrow curving down
+🔃	clockwise vertical arrows	refresh reload
+🔄	counterclockwise arrows button	again anticlockwise deja refresh rewindershins vu
+🛐	place of worship	pray religion
+⚛️	atom symbol	atheist
+🕉️	om	Hindu religion
+✡️	star of David	Jewish judaism religion
+☸️	wheel of dharma	Buddhist religion
+☯️	yin yang	difficult lives religion taoist total yinyang
+✝️	latin cross	Christian religion
+☦️	orthodox cross	Christian religion
+☪️	star and crescent	islam Muslim ramadan religion
+☮️	peace symbol	healing peaceful
+🕎	menorah	candelabrum candlestick hanukkah jewish judaism religion
+🔯	dotted six-pointed star	fortune jewish judaism
+🪯	khanda	Deg Fateh Khalsa religion Sikhism Tegh
+🔀	shuffle tracks button	arrow crossed
+🔁	repeat button	arrow clockwise
+▶️	play button	arrow right triangle
+⏩	fast-forward button	arrow double
+◀️	reverse button	arrow left triangle
+⏪	fast reverse button	arrow double rewind
+⏸️	pause button	bar double vertical
+⏹️	stop button	square
+⏺️	record button	circle
+♀️	female sign	woman
+♂️	male sign	man
+⚧️	transgender symbol
+✖️	multiply	× cancel multiplication sign x
+➕	plus	+
+➖	minus	- − heavy math sign
+➗	divide	÷ division heavy math sign
+🟰	heavy equals sign	answer equality math
+♾️	infinity	forever unbounded universal
+‼️	double exclamation mark	!! bangbang punctuation
+⁉️	exclamation question mark	!? interrobang punctuation
+❓	red question mark	? punctuation
+❔	white question mark	? outlined punctuation
+❕	white exclamation mark	! outlined punctuation
+❗	red exclamation mark	! punctuation
+💱	currency exchange	bank money
+💲	heavy dollar sign	billion cash charge currency million money pay
+⚕️	medical symbol	aesculapius medicine staff
+♻️	recycling symbol	recycle
+⚜️	fleur-de-lis	knights
+🔱	trident emblem	anchor poseidon ship tool
+🔰	Japanese symbol for beginner	chevron green leaf tool yellow
+⭕	hollow red circle	heavy large
+✅	check mark button	✓ checked checkmark completed done fixed tick
+☑️	check box with check	✓ ballot checked done off tick
+✔️	check mark	✓ checked checkmark done heavy tick
+❌	cross mark	× cancel multiplication multiply x
+❎	cross mark button	× multiplication multiply square x
+✳️	eight-spoked asterisk	*
+❇️	sparkle	*
+©️	copyright
+®️	registered
+™️	trade mark	TM trademark
+#️⃣	keycap: #
+*️⃣	keycap: *
+0️⃣	keycap: 0	zero
+1️⃣	keycap: 1	one
+2️⃣	keycap: 2	two
+3️⃣	keycap: 3	three
+4️⃣	keycap: 4	four
+5️⃣	keycap: 5	five
+6️⃣	keycap: 6	six
+7️⃣	keycap: 7	seven
+8️⃣	keycap: 8	eight
+9️⃣	keycap: 9	nine
+🔟	keycap: 10
+🆒	COOL button
+🆓	FREE button
+ℹ️	information
+🆔	ID button	identity
+🆕	NEW button
+🆗	OK button	okay
+🅿️	P button	parking
+🆘	SOS button	help
+🆙	UP! button	mark
+🆚	VS button	versus
+🔴	red circle	geometric
+🟠	orange circle
+🟡	yellow circle
+🟢	green circle
+🔵	blue circle	geometric
+🟣	purple circle
+🟤	brown circle
+⚫	black circle	geometric
+⚪	white circle	geometric
+🟥	red square	card penalty
+🟧	orange square
+🟨	yellow square	card penalty
+🟩	green square
+🟦	blue square
+🟪	purple square
+🟫	brown square
+⬛	black large square	geometric
+⬜	white large square	geometric
+🔶	large orange diamond	geometric
+🔷	large blue diamond	geometric
+🔸	small orange diamond	geometric
+🔹	small blue diamond	geometric
+🔺	red triangle pointed up	geometric
+🔻	red triangle pointed down	geometric
+@flags
+🏁	chequered flag	checkered finish flags game race racing sport win
+🚩	triangular flag	construction golf post
+🎌	crossed flags	celebration Japanese
+🏴	black flag	waving
+🏳️	white flag	waving
+🇦🇨	flag: Ascension Island
+🇦🇩	flag: Andorra
+🇦🇪	flag: United Arab Emirates
+🇦🇫	flag: Afghanistan
+🇦🇬	flag: Antigua & Barbuda
+🇦🇮	flag: Anguilla
+🇦🇱	flag: Albania
+🇦🇲	flag: Armenia
+🇦🇴	flag: Angola
+🇦🇶	flag: Antarctica
+🇦🇷	flag: Argentina
+🇦🇸	flag: American Samoa
+🇦🇹	flag: Austria
+🇦🇺	flag: Australia
+🇦🇼	flag: Aruba
+🇦🇽	flag: Åland Islands
+🇦🇿	flag: Azerbaijan
+🇧🇦	flag: Bosnia & Herzegovina
+🇧🇧	flag: Barbados
+🇧🇩	flag: Bangladesh
+🇧🇪	flag: Belgium
+🇧🇫	flag: Burkina Faso
+🇧🇬	flag: Bulgaria
+🇧🇭	flag: Bahrain
+🇧🇮	flag: Burundi
+🇧🇯	flag: Benin
+🇧🇱	flag: St. Barthélemy
+🇧🇲	flag: Bermuda
+🇧🇳	flag: Brunei
+🇧🇴	flag: Bolivia
+🇧🇶	flag: Caribbean Netherlands
+🇧🇷	flag: Brazil
+🇧🇸	flag: Bahamas
+🇧🇹	flag: Bhutan
+🇧🇻	flag: Bouvet Island
+🇧🇼	flag: Botswana
+🇧🇾	flag: Belarus
+🇧🇿	flag: Belize
+🇨🇦	flag: Canada
+🇨🇨	flag: Cocos (Keeling) Islands
+🇨🇩	flag: Congo - Kinshasa
+🇨🇫	flag: Central African Republic
+🇨🇬	flag: Congo - Brazzaville
+🇨🇭	flag: Switzerland
+🇨🇮	flag: Côte d’Ivoire
+🇨🇰	flag: Cook Islands
+🇨🇱	flag: Chile
+🇨🇲	flag: Cameroon
+🇨🇳	flag: China
+🇨🇴	flag: Colombia
+🇨🇵	flag: Clipperton Island
+🇨🇷	flag: Costa Rica
+🇨🇺	flag: Cuba
+🇨🇻	flag: Cape Verde
+🇨🇼	flag: Curaçao
+🇨🇽	flag: Christmas Island
+🇨🇾	flag: Cyprus
+🇨🇿	flag: Czechia
+🇩🇪	flag: Germany
+🇩🇬	flag: Diego Garcia
+🇩🇯	flag: Djibouti
+🇩🇰	flag: Denmark
+🇩🇲	flag: Dominica
+🇩🇴	flag: Dominican Republic
+🇩🇿	flag: Algeria
+🇪🇦	flag: Ceuta & Melilla
+🇪🇨	flag: Ecuador
+🇪🇪	flag: Estonia
+🇪🇬	flag: Egypt
+🇪🇭	flag: Western Sahara
+🇪🇷	flag: Eritrea
+🇪🇸	flag: Spain
+🇪🇹	flag: Ethiopia
+🇪🇺	flag: European Union
+🇫🇮	flag: Finland
+🇫🇯	flag: Fiji
+🇫🇰	flag: Falkland Islands
+🇫🇲	flag: Micronesia
+🇫🇴	flag: Faroe Islands
+🇫🇷	flag: France
+🇬🇦	flag: Gabon
+🇬🇧	flag: United Kingdom
+🇬🇩	flag: Grenada
+🇬🇪	flag: Georgia
+🇬🇫	flag: French Guiana
+🇬🇬	flag: Guernsey
+🇬🇭	flag: Ghana
+🇬🇮	flag: Gibraltar
+🇬🇱	flag: Greenland
+🇬🇲	flag: Gambia
+🇬🇳	flag: Guinea
+🇬🇵	flag: Guadeloupe
+🇬🇶	flag: Equatorial Guinea
+🇬🇷	flag: Greece
+🇬🇸	flag: South Georgia & South Sandwich Islands
+🇬🇹	flag: Guatemala
+🇬🇺	flag: Guam
+🇬🇼	flag: Guinea-Bissau
+🇬🇾	flag: Guyana
+🇭🇰	flag: Hong Kong SAR China
+🇭🇲	flag: Heard & McDonald Islands
+🇭🇳	flag: Honduras
+🇭🇷	flag: Croatia
+🇭🇹	flag: Haiti
+🇭🇺	flag: Hungary
+🇮🇨	flag: Canary Islands
+🇮🇩	flag: Indonesia
+🇮🇪	flag: Ireland
+🇮🇱	flag: Israel
+🇮🇲	flag: Isle of Man
+🇮🇳	flag: India
+🇮🇴	flag: British Indian Ocean Territory
+🇮🇶	flag: Iraq
+🇮🇷	flag: Iran
+🇮🇸	flag: Iceland
+🇮🇹	flag: Italy
+🇯🇪	flag: Jersey
+🇯🇲	flag: Jamaica
+🇯🇴	flag: Jordan
+🇯🇵	flag: Japan
+🇰🇪	flag: Kenya
+🇰🇬	flag: Kyrgyzstan
+🇰🇭	flag: Cambodia
+🇰🇮	flag: Kiribati
+🇰🇲	flag: Comoros
+🇰🇳	flag: St. Kitts & Nevis
+🇰🇵	flag: North Korea
+🇰🇷	flag: South Korea
+🇰🇼	flag: Kuwait
+🇰🇾	flag: Cayman Islands
+🇰🇿	flag: Kazakhstan
+🇱🇦	flag: Laos
+🇱🇧	flag: Lebanon
+🇱🇨	flag: St. Lucia
+🇱🇮	flag: Liechtenstein
+🇱🇰	flag: Sri Lanka
+🇱🇷	flag: Liberia
+🇱🇸	flag: Lesotho
+🇱🇹	flag: Lithuania
+🇱🇺	flag: Luxembourg
+🇱🇻	flag: Latvia
+🇱🇾	flag: Libya
+🇲🇦	flag: Morocco
+🇲🇨	flag: Monaco
+🇲🇩	flag: Moldova
+🇲🇪	flag: Montenegro
+🇲🇫	flag: St. Martin
+🇲🇬	flag: Madagascar
+🇲🇭	flag: Marshall Islands
+🇲🇰	flag: North Macedonia
+🇲🇱	flag: Mali
+🇲🇲	flag: Myanmar (Burma)
+🇲🇳	flag: Mongolia
+🇲🇴	flag: Macao SAR China
+🇲🇵	flag: Northern Mariana Islands
+🇲🇶	flag: Martinique
+🇲🇷	flag: Mauritania
+🇲🇸	flag: Montserrat
+🇲🇹	flag: Malta
+🇲🇺	flag: Mauritius
+🇲🇻	flag: Maldives
+🇲🇼	flag: Malawi
+🇲🇽	flag: Mexico
+🇲🇾	flag: Malaysia
+🇲🇿	flag: Mozambique
+🇳🇦	flag: Namibia
+🇳🇨	flag: New Caledonia
+🇳🇪	flag: Niger
+🇳🇫	flag: Norfolk Island
+🇳🇬	flag: Nigeria
+🇳🇮	flag: Nicaragua
+🇳🇱	flag: Netherlands
+🇳🇴	flag: Norway
+🇳🇵	flag: Nepal
+🇳🇷	flag: Nauru
+🇳🇺	flag: Niue
+🇳🇿	flag: New Zealand
+🇴🇲	flag: Oman
+🇵🇦	flag: Panama
+🇵🇪	flag: Peru
+🇵🇫	flag: French Polynesia
+🇵🇬	flag: Papua New Guinea
+🇵🇭	flag: Philippines
+🇵🇰	flag: Pakistan
+🇵🇱	flag: Poland
+🇵🇲	flag: St. Pierre & Miquelon
+🇵🇳	flag: Pitcairn Islands
+🇵🇷	flag: Puerto Rico
+🇵🇸	flag: Palestinian Territories
+🇵🇹	flag: Portugal
+🇵🇼	flag: Palau
+🇵🇾	flag: Paraguay
+🇶🇦	flag: Qatar
+🇷🇪	flag: Réunion
+🇷🇴	flag: Romania
+🇷🇸	flag: Serbia
+🇷🇺	flag: Russia
+🇷🇼	flag: Rwanda
+🇸🇦	flag: Saudi Arabia
+🇸🇧	flag: Solomon Islands
+🇸🇨	flag: Seychelles
+🇸🇩	flag: Sudan
+🇸🇪	flag: Sweden
+🇸🇬	flag: Singapore
+🇸🇭	flag: St. Helena
+🇸🇮	flag: Slovenia
+🇸🇯	flag: Svalbard & Jan Mayen
+🇸🇰	flag: Slovakia
+🇸🇱	flag: Sierra Leone
+🇸🇲	flag: San Marino
+🇸🇳	flag: Senegal
+🇸🇴	flag: Somalia
+🇸🇷	flag: Suriname
+🇸🇸	flag: South Sudan
+🇸🇹	flag: São Tomé & Príncipe
+🇸🇻	flag: El Salvador
+🇸🇽	flag: Sint Maarten
+🇸🇾	flag: Syria
+🇸🇿	flag: Eswatini
+🇹🇦	flag: Tristan da Cunha
+🇹🇨	flag: Turks & Caicos Islands
+🇹🇩	flag: Chad
+🇹🇫	flag: French Southern Territories
+🇹🇬	flag: Togo
+🇹🇭	flag: Thailand
+🇹🇯	flag: Tajikistan
+🇹🇰	flag: Tokelau
+🇹🇱	flag: Timor-Leste
+🇹🇲	flag: Turkmenistan
+🇹🇳	flag: Tunisia
+🇹🇴	flag: Tonga
+🇹🇷	flag: Türkiye
+🇹🇹	flag: Trinidad & Tobago
+🇹🇻	flag: Tuvalu
+🇹🇼	flag: Taiwan
+🇹🇿	flag: Tanzania
+🇺🇦	flag: Ukraine
+🇺🇬	flag: Uganda
+🇺🇲	flag: U.S. Outlying Islands
+🇺🇳	flag: United Nations
+🇺🇸	flag: United States
+🇺🇾	flag: Uruguay
+🇺🇿	flag: Uzbekistan
+🇻🇦	flag: Vatican City
+🇻🇨	flag: St. Vincent & Grenadines
+🇻🇪	flag: Venezuela
+🇻🇬	flag: British Virgin Islands
+🇻🇮	flag: U.S. Virgin Islands
+🇻🇳	flag: Vietnam
+🇻🇺	flag: Vanuatu
+🇼🇫	flag: Wallis & Futuna
+🇼🇸	flag: Samoa
+🇽🇰	flag: Kosovo
+🇾🇪	flag: Yemen
+🇾🇹	flag: Mayotte
+🇿🇦	flag: South Africa
+🇿🇲	flag: Zambia
+🇿🇼	flag: Zimbabwe

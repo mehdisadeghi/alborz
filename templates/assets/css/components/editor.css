@@ -13,7 +13,7 @@ body main .focus-write:is(:target, :has(:target)) {
 
 body main .focus-write:is(:target, :has(:target)) :is(textarea, .editor) { flex: 1; resize: none; }
 .field.focus-write > .focus-toggle { float: inline-end; align-self: flex-end; }
-.editor-toolbar > .focus-toggle { margin-inline-start: auto; }
+.editor-toolbar > .overflow { margin-inline-start: auto; }
 .focus-write:is(:target, :has(:target)) .focus-enter,
 .focus-write:not(:target, :has(:target)) .focus-exit { display: none; }
 
@@ -24,11 +24,15 @@ body main .focus-write:is(:target, :has(:target)) :is(textarea, .editor) { flex:
   margin-bottom: var(--space-1);
 }
 
+/* On a narrow phone the marks give up width before the row runs off the page. */
+.editor-toolbar > .icon-button { min-width: 0; }
+
 .editor-toolbar:not(.is-on) [data-act] { display: none; }
 
 /* Rich text is written in the script's editor. */
 @media (scripting: none) {
-  .editor-toolbar > button { display: none; }
+  .editor-toolbar { justify-content: flex-end; }
+  .editor-toolbar > :is(button, .overflow) { display: none; }
 }
 
 .editor-toolbar [aria-pressed="true"] {
@@ -37,6 +41,44 @@ body main .focus-write:is(:target, :has(:target)) :is(textarea, .editor) { flex:
 }
 
 .editor-toolbar [data-act="rtl"] { margin-inline-start: var(--space-2); }
+
+/* The emoji picker: the groups scroll in a box of one size, so a search moves nothing. */
+@media (width > 600px) {
+  .overflow-menu.emoji-picker[popover] { inline-size: 19rem; }
+}
+
+/* The buttons' offset parent: emoji.js finds the rows by their place. */
+.emoji-groups {
+  position: relative;
+  block-size: min(18rem, 45dvh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.emoji-groups strong {
+  display: block;
+  padding: 0.3rem;
+  color: var(--fg-dim);
+  font-size: var(--text-sm);
+}
+
+.emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+}
+
+/* A square cell of the grid's making; the shared button rules size a row of text. */
+.emoji-picker .emoji-grid > button {
+  min-inline-size: 0;
+  min-block-size: 0;
+  aspect-ratio: 1;
+  padding: 0;
+  font-size: var(--text-xl);
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+  outline-offset: -2px;
+}
 
 /* A zero basis: a long body scrolls inside, as the textarea's does, rather than lengthening the page. */
 main.create-update .text .editor {

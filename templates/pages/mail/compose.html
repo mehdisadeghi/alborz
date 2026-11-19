@@ -84,6 +84,22 @@
             {{ range tuple (tuple "bold" "editor.bold") (tuple "italic" "editor.italic") (tuple "list" "editor.list") (tuple "quote" "editor.quote") (tuple "link" "editor.link") (tuple "rtl" "editor.rtl") (tuple "ltr" "editor.ltr") (tuple "clear" "editor.clear") }}
             <button type="button" class="icon-button" data-act="{{ index . 0 }}"{{ if eq (index . 0) "link" }} data-prompt="{{$.T "editor.linkprompt"}}"{{ end }} title="{{$.T (index . 1)}}" aria-label="{{$.T (index . 1)}}" aria-pressed="false">{{ template "icon" (index . 0) }}</button>
             {{ end }}
+            {{/* emoji.js fills the groups from emoji.txt when the panel first opens; the names it gives are English. */}}
+            <div class="overflow">
+              <button type="button" class="icon-button" title="{{$.T "editor.emoji"}}" aria-label="{{$.T "editor.emoji"}}" popovertarget="menu-emoji">{{ template "icon" "emoji" }}</button>
+              <div class="overflow-menu emoji-picker" popover id="menu-emoji" data-src="{{call .GlobalData.Asset "emoji.txt"}}">
+                <input type="text" dir="auto" autocomplete="off" placeholder="{{$.T "search.title"}}" aria-label="{{$.T "search.title"}}">
+                <div class="emoji-groups">
+                  {{ range tuple (tuple "recent" "emoji.recent") (tuple "smileys" "emoji.smileys") (tuple "people" "emoji.people") (tuple "animals" "emoji.animals") (tuple "food" "emoji.food") (tuple "travel" "emoji.travel") (tuple "activities" "emoji.activities") (tuple "objects" "emoji.objects") (tuple "symbols" "emoji.symbols") (tuple "flags" "emoji.flags") }}
+                  <div role="group" aria-labelledby="emoji-{{ index . 0 }}" data-group="{{ index . 0 }}" hidden>
+                    <strong id="emoji-{{ index . 0 }}">{{$.T (index . 1)}}</strong>
+                    <div class="emoji-grid" lang="en"></div>
+                  </div>
+                  {{ end }}
+                  <p class="hint" hidden>{{$.T "search.none"}}</p>
+                </div>
+              </div>
+            </div>
             {{ template "focus-toggle" (dict "id" "write" "g" $) }}
           </div>
           <div class="editor body" hidden></div>
@@ -144,4 +160,5 @@
 <script src="{{call .GlobalData.Asset "recipients.js"}}"></script>
 <script src="{{call .GlobalData.Asset "squire.js"}}"></script>
 <script src="{{call .GlobalData.Asset "editor.js"}}"></script>
+<script src="{{call .GlobalData.Asset "emoji.js"}}"></script>
 {{ end }}

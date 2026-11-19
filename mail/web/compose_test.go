@@ -154,6 +154,39 @@ func TestSendHTMLFollowsWhatWasWritten(t *testing.T) {
 	}
 }
 
+// What the picker puts in the editor is text: both parts carry it as the characters, whatever the client.
+func TestSentEmojiIsTextInBothParts(t *testing.T) {
+	smtp := SMTP(t)
+	c := Alborz(t, WithSMTP(smtp)).SignIn(t, User)
+
+	// A single code point, one with a variation selector, a keycap and a flag.
+	const emoji = "\U0001F44D \u2764\ufe0f 1\ufe0f\u20e3 \U0001F1E9\U0001F1EA"
+	c.Send(t, c.Page(t, "mail.compose"), url.Values{"text": {"Thanks " + emoji + "\n"}, "html": {`<p dir="auto">Thanks ` + emoji + `</p>`}}, "mail.compose")
+	entity, err := message.Read(strings.NewReader(smtp.Last()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := map[string]string{}
+	entity.Walk(func(_ []int, part *message.Entity, err error) error {
+		if err != nil {
+			return err
+		}
+		if mediaType, _, _ := part.Header.ContentType(); strings.HasPrefix(mediaType, "text/") {
+			b, _ := io.ReadAll(part.Body)
+			found[mediaType] = string(b)
+		}
+		return nil
+	})
+	for _, mediaType := range []string{"text/plain", "text/html"} {
+		if !strings.Contains(found[mediaType], "Thanks "+emoji) {
+			t.Errorf("the %s part lost the emoji: %q\n%s", mediaType, found[mediaType], headOf(smtp.Last()))
+		}
+	}
+	if strings.Contains(found["text/html"], "<img") || strings.Contains(found["text/html"], "<span") {
+		t.Errorf("the HTML part wraps the emoji: %q", found["text/html"])
+	}
+}
+
 // The draft is the URL's account's; From only says who sends.
 func TestSendingAsAnotherAccountKeepsItsDraft(t *testing.T) {
 	smtp := SMTP(t)

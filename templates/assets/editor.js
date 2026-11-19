@@ -235,6 +235,20 @@ if (form && textarea && holder && toolbar && htmlInput && toggle && window.Squir
 		reflect();
 	});
 
+	// The picker (emoji.js) names the emoji; it goes in at the caret of the field that is shown.
+	toolbar.addEventListener("emoji", ev => {
+		if (editor) {
+			editor.insertPlainText(ev.detail, false);
+			editor.focus();
+		} else {
+			textarea.focus();
+			// The command keeps the field's undo history; setRangeText ends it.
+			if (!document.execCommand("insertText", false, ev.detail)) {
+				textarea.setRangeText(ev.detail, textarea.selectionStart, textarea.selectionEnd, "end");
+			}
+		}
+	});
+
 	// Anything but images falls through to the page, which attaches it.
 	const placeImages = (files, ev) => {
 		const images = [...files].filter(f => shownTypes.includes(f.type));

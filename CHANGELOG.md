@@ -25,6 +25,8 @@
   card and understands `-word` and quoted phrases.
 - Recipient suggestions match in any case, whatever the browser's language.
 - A search reads the Arabic `ي` and `ك` as the Persian `ی` and `ک`.
+- A calendar or task list opened from Tasks or Journal keeps that section: its
+  rail, breadcrumb and every action return there.
 
 ## [0.20.0] - 2026-10-31
 

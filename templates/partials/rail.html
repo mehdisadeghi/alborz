@@ -154,14 +154,15 @@
 <input type="hidden" name="next" value="{{$d.next}}">
 {{ range $d.items }}{{ if eq .Account $.account }}
 {{ if .Heads }}<div class="filter-row{{ if not $.single }} nested{{ end }} rail-group">{{ with .Host }}{{ template "ltr" . }}{{ else }}{{ $.g.T (printf "place.%s" .Source) }}{{ end }}</div>{{ end }}
-{{ template "dav-filter-item" (dict "item" . "field" $d.field "itemclass" $d.itemclass "action" $d.action "shown" $d.shown "keep" $d.keep "nested" (not $.single) "edit" $d.edit "editlabel" $d.editlabel "g" $.g) }}
+{{ template "dav-filter-item" (dict "item" . "field" $d.field "itemclass" $d.itemclass "action" $d.action "shown" $d.shown "keep" $d.keep "nested" (not $.single) "edit" $d.edit "for" $d.for "editlabel" $d.editlabel "g" $.g) }}
 {{ end }}{{ end }}
 <button>{{$d.apply}}</button>
 </form>
 {{ end }}
 
 {{/* dict: item field itemclass action shown keep nested
-     [edit editlabel]. The tick's id brings focus back to it when a swap redraws the row. */}}
+     [edit for editlabel]; for names the rail's section to the collection's page. The tick's id brings focus
+     back to it when a swap redraws the row. */}}
 {{ define "dav-filter-item" }}
 {{ $i := .item }}
 {{ $base := printf "%s?%s=%s" .action .field ($i.Path | qv) }}{{ with .keep }}{{ $base = printf "%s%s" $base . }}{{ end }}
@@ -170,7 +171,7 @@
     <span dir="auto">{{$i.Name}}</span>
     {{ template "collection-mark" (dict "g" $.g "c" $i) }}
   </a>
-  {{ $edit := printf "%s%s" (url .edit $i.Path) (account "?" $i.Account) }}
+  {{ $edit := printf "%s%s" (url .edit $i.Path) (account "?" $i.Account) }}{{ with .for }}{{ $edit = printf "%s%sfor=%s" $edit (qsep $edit) . }}{{ end }}
   <a class="filter-edit icon-button" href="{{ localhref (printf "%s%snext=%s" $edit (qsep $edit) (.g.GlobalData.URL.RequestURI | qv)) }}" title="{{.editlabel}}" aria-label="{{.editlabel}}" hx-boost="false">{{ template "icon" "edit" }}</a>
   <label class="filter-tick" title="{{.shown}}">
     <input type="hidden" name="shown" value="{{$i.Path}}">
@@ -192,7 +193,7 @@
 {{/* dict: g rail. */}}
 {{ define "dav-rail" }}
 {{ $g := .g }}{{ $r := .rail }}
-{{ template "pim-rail" (dict "g" $g "urlaccount" $g.GlobalData.Scope "path" $r.Path "items" $r.Items "field" $r.Field "itemclass" $r.ItemClass "action" $r.Action "edit" $r.Edit "invitations" $r.Invitations
+{{ template "pim-rail" (dict "g" $g "urlaccount" $g.GlobalData.Scope "path" $r.Path "items" $r.Items "field" $r.Field "itemclass" $r.ItemClass "action" $r.Action "edit" $r.Edit "for" $r.For "invitations" $r.Invitations
    "new" (dict "href" $r.NewHref "label" $r.NewLabel)
    "follow" (dict "href" $r.FollowHref "label" $r.FollowLabel "hidden" (not $r.FollowHref))
    "import" (dict "href" $r.ImportHref "label" $r.ImportLabel "hidden" (not $r.ImportHref) "active" (eq $g.GlobalData.URL.Path $r.ImportHref))
@@ -364,6 +365,6 @@
 {{ define "pim-rail" }}
 {{/* A swap into main takes the marked rows out of this rail by their ids; htmx drops the rest. */}}
 {{ if .g.GlobalData.Swap }}<template>{{ else }}<aside id="page-rail">{{ end }}
-  {{ template "scope-rail" (dict "g" .g "kind" "dav" "path" .path "urlaccount" .urlaccount "accounts" .g.GlobalData.Accounts "new" .new "follow" .follow "import" .import "data" (dict "keep" .keep "items" .items "field" .field "itemclass" .itemclass "action" .action "apply" (.g.T "common.apply") "shown" (.g.T "common.shown") "edit" .edit "editlabel" (.g.T "common.edit") "next" .g.GlobalData.URL.RequestURI) "views" .views "groups" .groups "categories" .categories "invitations" .invitations) }}
+  {{ template "scope-rail" (dict "g" .g "kind" "dav" "path" .path "urlaccount" .urlaccount "accounts" .g.GlobalData.Accounts "new" .new "follow" .follow "import" .import "data" (dict "keep" .keep "items" .items "field" .field "itemclass" .itemclass "action" .action "apply" (.g.T "common.apply") "shown" (.g.T "common.shown") "edit" .edit "for" .for "editlabel" (.g.T "common.edit") "next" .g.GlobalData.URL.RequestURI) "views" .views "groups" .groups "categories" .categories "invitations" .invitations) }}
 {{ if .g.GlobalData.Swap }}</template>{{ else }}</aside>{{ end }}
 {{ end }}

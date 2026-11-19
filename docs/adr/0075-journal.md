@@ -23,8 +23,14 @@ Evolution create them; alborz needs a section to read and edit them.
 2. When no collection supports `VJOURNAL`, the section renders empty
    with "New journal". A collection created from the journal rail has
    `VJOURNAL` as its sole component.
-3. A collection's settings page belongs to the first of calendar, tasks
-   and journal that its component set lists.
+3. A collection's settings page belongs to the section it was opened
+   from: a link to it from the tasks or the journal rail carries `for`
+   (`tasks`, `journal`), which MUST only choose among the sections whose
+   component the collection's set lists. Without `for`, or when the
+   collection does not show in the section it names, the page belongs
+   to the first of calendar, tasks and journal that its component set
+   lists. The page's rail, crumb and the list its actions return to are
+   that section's.
 4. Visible journals in the merged view are stored in CalDAV settings
    (`JournalFilter`, `VisibleJournals`, ADR 80).
 
@@ -72,5 +78,7 @@ Evolution create them; alborz needs a section to read and edit them.
 - ADR 49, ADR 53, ADR 69, ADR 80, ADR 88
 - `pim/calendar/caldav.go` (`SupportsJournal`, `FirstJournal`,
   `JournalQuery`), `pim/calendar/settings.go`,
+  `pim/web/pages.go` (`Section`, `Page.section`),
+  `pim/calendar/web/collections.go` (`collectionPage`),
   `pim/calendar/web/journal.go`, `pim/calendar/web/entry.go`,
   `templates/pages/journal/`, `templates/partials/journal/row.html`

@@ -8,10 +8,9 @@
         {{ template "share-offer" (dict "g" $ "offer" .Offer) }}
       </section>
       {{ else }}
-      <form method="post">
+      <form method="post" action="{{url .Collection .Path}}{{.Query}}">
         {{ template "section-crumb" (dict "g" $ "section" .BackLabel "home" .ListHref) }}
         <h1 dir="auto">{{.Name}}</h1>
-        <input type="hidden" name="next" value="{{.GlobalData.URL.RequestURI}}">
 
         {{ if .SharedBy }}
         {{ template "share-offer" (dict "g" $ "offer" .Offer) }}
@@ -56,14 +55,14 @@
             </div>
             <form method="post" class="list-actions">
               <input type="hidden" name="to" value="{{.To}}">
-              <button formaction="{{url (printf "%s.access" $.Collection) $.Path}}{{account "?" $.Account}}">{{$.T (or (and .Write "share.makeview") "share.makeedit")}}</button>
-              <button formaction="{{url (printf "%s.unshare" $.Collection) $.Path}}{{account "?" $.Account}}" class="button-danger">{{$.T "share.remove"}}</button>
+              <button formaction="{{url (printf "%s.access" $.Collection) $.Path}}{{$.Query}}">{{$.T (or (and .Write "share.makeview") "share.makeedit")}}</button>
+              <button formaction="{{url (printf "%s.unshare" $.Collection) $.Path}}{{$.Query}}" class="button-danger">{{$.T "share.remove"}}</button>
             </form>
           </div>
           {{ end }}
         </div>
         {{ end }}
-        <form method="post" action="{{url (printf "%s.share" $.Collection) $.Path}}{{account "?" $.Account}}#sharing">
+        <form method="post" action="{{url (printf "%s.share" $.Collection) $.Path}}{{$.Query}}#sharing">
           {{ template "field" (dict "label" ($.T "share.with") "name" "to" "type" "email" "value" .To "dir" "ltr" "required" true "hint" ($.T "share.withhint")) }}
           <fieldset class="action-group choices">
             <legend>{{$.T "share.access"}}</legend>
@@ -84,13 +83,13 @@
       <section class="collection-file" id="public">
         <h2>{{$.T "share.publictitle"}}</h2>
         {{ if .PublicURL }}
-        <form method="post" action="{{url (printf "%s.unpublish" $.Collection) $.Path}}{{account "?" $.Account}}">
+        <form method="post" action="{{url (printf "%s.unpublish" $.Collection) $.Path}}{{$.Query}}">
           {{ template "field" (dict "label" ($.T "share.publicaddress") "name" "public-url" "value" .PublicURL "dir" "ltr" "readonly" true "hint" ($.T "share.publichint")) }}
           <a hx-boost="false" class="button" href="{{.Subscribe}}">{{$.T "calendar.subscribedo"}}</a>
           <button class="button-danger">{{$.T "share.unpublish"}}</button>
         </form>
         {{ else }}
-        <form method="post" action="{{url (printf "%s.publish" $.Collection) $.Path}}{{account "?" $.Account}}">
+        <form method="post" action="{{url (printf "%s.publish" $.Collection) $.Path}}{{$.Query}}">
           {{ template "hint" (dict "text" ($.T "share.publishhint")) }}
           <button>{{$.T "share.publish"}}</button>
         </form>
@@ -100,8 +99,7 @@
       {{ end }}
 
       {{ if .Writable }}
-      <form method="post" enctype="multipart/form-data" hx-boost="false" action="{{url (printf "%s.import" .Collection) .Path}}{{account "?" .Account}}" class="collection-file">
-        <input type="hidden" name="next" value="{{.GlobalData.URL.RequestURI}}">
+      <form method="post" enctype="multipart/form-data" hx-boost="false" action="{{url (printf "%s.import" .Collection) .Path}}{{.Query}}" class="collection-file">
         <h2>{{$.T "collection.importtitle"}}</h2>
         <label>
           <span>{{ $.Tf "collection.importfile" .Ext }}</span>
@@ -112,6 +110,8 @@
       {{ end }}
       <form method="get" action="{{url (printf "%s.export" .Collection) .Path}}" class="collection-file" data-download hx-boost="false">
         {{ with .GlobalData.URLAccount }}<input type="hidden" name="account" value="{{.}}">{{ end }}
+        {{ with .For }}<input type="hidden" name="for" value="{{.}}">{{ end }}
+        {{ with .GlobalData.Back }}<input type="hidden" name="next" value="{{.}}">{{ end }}
         <h2>{{$.T "collection.exporttitle"}}</h2>
         {{ if .OffersRange }}
         {{ template "field" (dict "label" ($.T "collection.exportfrom") "name" "from" "type" "date") }}
@@ -120,7 +120,7 @@
         <button>{{ $.Tf "collection.exportdo" .Ext }}</button>
       </form>
 
-      <form class="danger-zone" method="post" action="{{url (printf "%s.delete" .Collection) .Path}}{{account "?" .Account}}">
+      <form class="danger-zone" method="post" action="{{url (printf "%s.delete" .Collection) .Path}}{{.Query}}">
         {{ if .SharedBy }}
         <h2>{{$.T "share.leavetitle"}}</h2>
         <button class="button-danger">{{ $.Tf "share.leavedo" .Name }}</button>

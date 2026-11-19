@@ -68,8 +68,9 @@ type Rail struct {
 	Field     string
 	ItemClass string
 	Action    string
-	// Edit is the route of a collection's own page.
+	// Edit is the route of a collection's own page, For the section its links name there.
 	Edit     string
+	For      string
 	Items    []dav.Collection
 	NewHref  string
 	NewLabel string

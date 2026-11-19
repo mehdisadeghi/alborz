@@ -32,6 +32,8 @@ type Offer struct {
 	Accept, Decline string
 	Answer          string
 	Next            string
+	// section is the list the collection shows in.
+	section Section
 }
 
 func (pg Page) kindKey(c *store.Collection) string {
@@ -78,11 +80,12 @@ func (pg Page) offer(ctx *web.Context, p *dav.Provider, collPath, account string
 		state = "left"
 	}
 	q := web.AccountQuery(account)
+	section := pg.section(ctx, c.Components)
 	return &Offer{
 		Kind: pg.kindKey(c), Name: c.Name, From: c.Owner, Write: sh.Write,
 		Expires: sh.Expires, Offered: sh.Created, Answered: sh.Answered, State: state,
 		Accept: ctx.Path(pg.Collection+".accept", collPath) + q, Decline: ctx.Path(pg.Collection+".decline", collPath) + q,
-		Answer: ctx.QueryParam("answer"), Next: ctx.Path(pg.List) + q,
+		Answer: ctx.QueryParam("answer"), Next: ctx.Path(section.List) + q, section: section,
 	}, nil
 }
 
@@ -142,7 +145,7 @@ func (pg Page) sharing(ctx *web.Context, p *dav.Provider, info dav.Collection) (
 
 func (pg Page) owned(ctx *web.Context, p *dav.Provider) (dav.Collection, store.Ref, error) {
 	collPath := pg.collectionPath(ctx)
-	info, _, _, _, err := pg.Lookup(ctx, collPath)
+	info, _, err := pg.Lookup(ctx, collPath)
 	if err != nil {
 		return info, store.Ref{}, err
 	}
@@ -151,10 +154,6 @@ func (pg Page) owned(ctx *web.Context, p *dav.Provider) (dav.Collection, store.R
 		return info, ref, web.NewError(http.StatusForbidden, "not one of this account's collections on alborz")
 	}
 	return info, ref, nil
-}
-
-func (pg Page) pageOf(ctx *web.Context, path string) string {
-	return ctx.URL(pg.Collection, path)
 }
 
 var (
@@ -304,17 +303,18 @@ func (pg Page) HandleAnswer(p *dav.Provider, accept bool) func(*web.Context) err
 		if err := p.Store.Answer(ref, account, accept); err != nil {
 			return err
 		}
+		back := ctx.NextOr(ctx.URL(pg.section(ctx, c.Components).List))
 		if !accept {
-			return ctx.NoticeRedirect(fmt.Sprintf(ctx.T("notice.sharedeclined"), c.Name), ctx.NextOr(ctx.URL(pg.List)))
+			return ctx.NoticeRedirect(fmt.Sprintf(ctx.T("notice.sharedeclined"), c.Name), back)
 		}
 		if err := pg.Show(ctx.Request().Context(), ctx.Login, dav.CanonicalCollectionPath(collPath)); err != nil {
-			return ctx.NotifyRedirect(Refused(ctx, err), ctx.NextOr(ctx.URL(pg.List)))
+			return ctx.NotifyRedirect(Refused(ctx, err), back)
 		}
 		// The name leads to the collection the account just accepted.
 		ctx.Notify(web.Notice{Kind: web.NoticeDone,
 			Text:   fmt.Sprintf(ctx.T("notice.shareaccepted"), c.Name),
-			Markup: template.HTML(fmt.Sprintf(ctx.T("notice.shareaccepted"), web.NoticeLink(c.Name, pg.pageOf(ctx, dav.CanonicalCollectionPath(collPath)))))})
-		return ctx.FoundRedirect(ctx.NextOr(ctx.URL(pg.List)))
+			Markup: template.HTML(fmt.Sprintf(ctx.T("notice.shareaccepted"), web.NoticeLink(c.Name, ctx.URL(pg.Collection, dav.CanonicalCollectionPath(collPath)))))})
+		return ctx.FoundRedirect(back)
 	}
 }
 

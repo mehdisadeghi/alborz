@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html/template"
 	"io"
 	"net/http"
 	"net/url"
@@ -32,10 +33,14 @@ type CollectionRenderData struct {
 	Path    string
 	Account string
 	Count   int // -1 when the server would not say
-	// Collection is the route of the page, whose actions are its routes beneath.
+	// Collection is the route of the page, whose actions are its routes beneath; Query is what the page's
+	// address hands each of them: its account, its section and the page it was opened from.
 	Collection string
-	ListHref   string
-	BackLabel  string
+	Query      template.URL
+	// For names the section the page is in, as the links to it do.
+	For       string
+	ListHref  string
+	BackLabel string
 	// Ext is the export and import file type; OffersRange says the export takes a date range.
 	Ext         string
 	OffersRange bool
@@ -168,6 +173,7 @@ func (pg Page) HandleCreate(p *dav.Provider, form func(*web.Context) (CreateForm
 		if login == nil {
 			return web.NewError(http.StatusBadRequest, "not signed in to that account")
 		}
+		sentence, list := f.Made(data.Holds)
 		path, err := p.Create(ctx.Request().Context(), login, data.Name, data.Color, data.Place, held[data.Holds])
 		if err != nil {
 			message := err.Error()
@@ -179,25 +185,36 @@ func (pg Page) HandleCreate(p *dav.Provider, form func(*web.Context) (CreateForm
 			return web.RenderRefused(ctx, "pim/collection-create", data, message)
 		}
 		if err := pg.Show(ctx.Request().Context(), login, path); err != nil {
-			return ctx.NotifyRedirect(Refused(ctx, err), ctx.URL(pg.List))
+			return ctx.NotifyRedirect(Refused(ctx, err), ctx.AccountPath(list))
 		}
 		account := ""
 		if data.Account != ctx.Login.Username() {
 			account = data.Account
 		}
-		sentence, list := f.Made(data.Holds)
 		return Made(ctx, sentence, data.Name, ctx.Path(pg.Collection, path), list, account)
 	}
+}
+
+// Section is one of a kind's lists: a calendar's events, its tasks or its journal, or the contacts.
+type Section struct {
+	// For names the section on a link to a collection's page; the kind's first has none.
+	For string
+	// List is the route of its list, Label the locale key of its name.
+	List, Label string
+	// Holds says whether a collection of these components shows there.
+	Holds func(components []string) bool
 }
 
 // Page is what a collection's own page needs from its kind; Collection is its route.
 type Page struct {
 	Collection string
-	// List is the route of the section's list, where an answered invitation lands; Section is its name's locale key.
-	List, Section string
-	Ext           string
-	Lookup        func(ctx *web.Context, path string) (info dav.Collection, count func() int, list, label string, err error)
-	Forget        func(username string)
+	// Sections are the kind's lists, the first where a collection that shows in none of them goes.
+	Sections []Section
+	// Field is the list parameter that narrows to one collection.
+	Field  string
+	Ext    string
+	Lookup func(ctx *web.Context, path string) (info dav.Collection, count func() int, err error)
+	Forget func(username string)
 	// Show ticks a just-accepted collection among those the account sees.
 	Show func(ctx context.Context, l *alborz.Login, path string) error
 	// Import writes an uploaded file's objects and counts them; Export renders the collection, or Range, as one file.
@@ -209,19 +226,64 @@ type Page struct {
 	Rail func(ctx *web.Context, list string) (Rail, error)
 }
 
-// LookupCollection opens a kind's collections and returns the named collection with its page label.
+// section is the list the page was opened from when the collection shows there, else the first it shows in:
+// "for" chooses among the kind's sections and names no address.
+func (pg Page) section(ctx *web.Context, components []string) Section {
+	asked, first := ctx.QueryParam("for"), -1
+	for i, s := range pg.Sections {
+		if !s.Holds(components) {
+			continue
+		}
+		if s.For == asked {
+			return s
+		}
+		if first < 0 {
+			first = i
+		}
+	}
+	return pg.Sections[max(first, 0)]
+}
+
+// pageOf is the collection's page as the request reached it.
+func (pg Page) pageOf(ctx *web.Context, path string) string {
+	return ctx.Path(pg.Collection, path) + pg.query(ctx)
+}
+
+// query is what a collection's page and its actions carry: the account, the section and the page it was opened from.
+func (pg Page) query(ctx *web.Context) string {
+	q := url.Values{}
+	for name, value := range map[string]string{"account": ctx.URLAccount(), "for": ctx.QueryParam("for"), "next": ctx.NextOr("")} {
+		if value != "" {
+			q.Set(name, value)
+		}
+	}
+	return web.QueryPath("", q)
+}
+
+// listOf is the section's list as the page was opened from it, no longer narrowed to the collection; opened
+// from elsewhere, the list in the collection's account.
+func (pg Page) listOf(ctx *web.Context, s Section) string {
+	list, next := ctx.Path(s.List), ctx.NextOr("")
+	for _, from := range []string{next, web.ReturnOf(next)} {
+		if u, err := url.Parse(from); err == nil && u.Path == list {
+			return Widened(from, pg.Field)
+		}
+	}
+	return ctx.AccountPath(list)
+}
+
+// LookupCollection opens a kind's collections and returns the named collection.
 // The open and count functions retain protocol-specific clients while this common boundary owns lookup errors.
-func LookupCollection[C any](ctx *web.Context, path string, open func(context.Context, *alborz.Login) (C, []dav.Collection, error), count func(context.Context, *alborz.Login, string) func() int, describe func(dav.Collection) (list, label string)) (dav.Collection, func() int, string, string, error) {
+func LookupCollection[C any](ctx *web.Context, path string, open func(context.Context, *alborz.Login) (C, []dav.Collection, error), count func(context.Context, *alborz.Login, string) func() int) (dav.Collection, func() int, error) {
 	_, collections, err := open(ctx.Request().Context(), ctx.Login)
 	if err != nil {
-		return dav.Collection{}, nil, "", "", err
+		return dav.Collection{}, nil, err
 	}
 	info := dav.At(collections, path)
 	if info == nil {
-		return dav.Collection{}, nil, "", "", alborz.NotFound("notfound.collection")
+		return dav.Collection{}, nil, alborz.NotFound("notfound.collection")
 	}
-	list, label := describe(*info)
-	return *info, count(ctx.Request().Context(), ctx.Login, info.Path), list, label, nil
+	return *info, count(ctx.Request().Context(), ctx.Login, info.Path), nil
 }
 
 // Handle is the collection's own page; renaming and recolouring are a PROPPATCH.
@@ -234,13 +296,14 @@ func (pg Page) Handle(p *dav.Provider) func(*web.Context) error {
 		}
 		// An unanswered invitation is not yet a collection: its page is the invitation.
 		if offer != nil && offer.State != "accepted" {
-			rail, err := pg.Rail(ctx, ctx.Path(pg.List))
+			list := ctx.Path(offer.section.List)
+			rail, err := pg.Rail(ctx, list)
 			if err != nil {
 				return err
 			}
 			return ctx.Render(http.StatusOK, "pim/collection", &CollectionRenderData{
 				PageData: *web.NewPageData(ctx, offer.Name, rail),
-				Name:     offer.Name, Collection: pg.Collection, ListHref: ctx.Path(pg.List), BackLabel: ctx.T(pg.Section),
+				Name:     offer.Name, Collection: pg.Collection, ListHref: list, BackLabel: ctx.T(offer.section.Label),
 				Account: ctx.Login.Username(), Offer: offer,
 			})
 		}
@@ -249,7 +312,6 @@ func (pg Page) Handle(p *dav.Provider) func(*web.Context) error {
 			return err
 		}
 		data.Offer = offer
-		list := data.ListHref
 
 		if ctx.Request().Method == http.MethodPost {
 			if data.SharedBy != "" {
@@ -281,7 +343,8 @@ func (pg Page) Handle(p *dav.Provider) func(*web.Context) error {
 				}
 			}
 			pg.Forget(ctx.Login.Username())
-			return ctx.FoundRedirect(ctx.NextOr(ctx.AccountPath(list)))
+			// The page is what was edited.
+			return ctx.QuietRedirect(pg.pageOf(ctx, collPath))
 		}
 		return ctx.Render(http.StatusOK, "pim/collection", data)
 	}
@@ -291,13 +354,19 @@ func (pg Page) Handle(p *dav.Provider) func(*web.Context) error {
 type shownCollection struct{ Name, Color string }
 
 func (pg Page) data(ctx *web.Context, p *dav.Provider, collPath string) (*CollectionRenderData, error) {
-	info, count, list, label, err := pg.Lookup(ctx, collPath)
+	info, count, err := pg.Lookup(ctx, collPath)
 	if err != nil {
 		return nil, err
 	}
+	section := pg.section(ctx, info.Components)
+	list := ctx.Path(section.List)
 	rail, err := pg.Rail(ctx, list)
 	if err != nil {
 		return nil, err
+	}
+	// The rail marks the collection the page is of.
+	for i := range rail.Items {
+		rail.Items[i].Only = rail.Items[i].Path == info.Path && rail.Items[i].Account == ctx.Login.Username()
 	}
 	sharing, err := pg.sharing(ctx, p, info)
 	if err != nil {
@@ -322,8 +391,10 @@ func (pg Page) data(ctx *web.Context, p *dav.Provider, collPath string) (*Collec
 		Account:     ctx.Login.Username(),
 		Count:       count(),
 		Collection:  pg.Collection,
+		Query:       template.URL(pg.query(ctx)),
+		For:         section.For,
 		ListHref:    list,
-		BackLabel:   label,
+		BackLabel:   ctx.T(section.Label),
 		Ext:         pg.Ext,
 		OffersRange: pg.Ext == ".ics",
 		Feed:        info.Feed,
@@ -350,10 +421,10 @@ func (pg Page) HandleImportTooLarge(ctx *web.Context) error {
 // HandleImport writes an uploaded file into the collection.
 func (pg Page) HandleImport(ctx *web.Context) error {
 	collPath := pg.collectionPath(ctx)
-	if _, _, _, _, err := pg.Lookup(ctx, collPath); err != nil {
+	if _, _, err := pg.Lookup(ctx, collPath); err != nil {
 		return err
 	}
-	back := ctx.NextOr(pg.pageOf(ctx, collPath))
+	back := pg.pageOf(ctx, collPath)
 	file, err := ctx.FormFile("file")
 	if err == nil && file.Size() > pim.MaxImportSize {
 		return ctx.NotifyRedirect(web.Notice{Kind: web.NoticeFailed, Text: importTooLarge(ctx)}, back)
@@ -742,7 +813,7 @@ func (pg Page) HandleImportPage(p *dav.Provider, list, section, title, hint, key
 // HandleExport sends the collection as one file; a date range narrows a calendar.
 func (pg Page) HandleExport(ctx *web.Context) error {
 	collPath := pg.collectionPath(ctx)
-	info, _, _, _, err := pg.Lookup(ctx, collPath)
+	info, _, err := pg.Lookup(ctx, collPath)
 	if err != nil {
 		return err
 	}
@@ -835,7 +906,7 @@ func (pg Page) HandleExportAll(list, filename string) func(*web.Context) error {
 func (pg Page) HandleDelete(p *dav.Provider) func(*web.Context) error {
 	return func(ctx *web.Context) error {
 		collPath := pg.collectionPath(ctx)
-		info, _, list, _, err := pg.Lookup(ctx, collPath)
+		info, _, err := pg.Lookup(ctx, collPath)
 		if err != nil {
 			return err
 		}
@@ -852,7 +923,7 @@ func (pg Page) HandleDelete(p *dav.Provider) func(*web.Context) error {
 		}
 		pg.Forget(ctx.Login.Username())
 		// A 2xx is not taken as proof; listing again shows what the reader will see.
-		if _, _, _, _, err := pg.Lookup(ctx, collPath); err == nil {
+		if _, _, err := pg.Lookup(ctx, collPath); err == nil {
 			ctx.Notify(web.Notice{Kind: web.NoticeFailed,
 				Text: fmt.Sprintf(ctx.T("notice.collectionnotdeleted"), info.Name)})
 			return back()
@@ -861,6 +932,6 @@ func (pg Page) HandleDelete(p *dav.Provider) func(*web.Context) error {
 		if info.SharedBy != "" {
 			done = "notice.shareleft"
 		}
-		return ctx.NoticeRedirect(fmt.Sprintf(ctx.T(done), info.Name), ctx.AccountPath(list))
+		return ctx.NoticeRedirect(fmt.Sprintf(ctx.T(done), info.Name), pg.listOf(ctx, pg.section(ctx, info.Components)))
 	}
 }

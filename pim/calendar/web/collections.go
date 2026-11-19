@@ -21,11 +21,15 @@ func (p *plugin) invitations(ctx *web.Context) (*pimweb.RailInvitations, error) 
 func (p *plugin) collectionPage() pimweb.Page {
 	return pimweb.Page{
 		Collection: "calendar.collection",
-		List:       "calendar.month",
-		Section:    "nav.calendar",
-		Ext:        ".ics",
-		Forget:     p.DAV.Forget,
-		Show:       calendar.Show,
+		Sections: []pimweb.Section{
+			{List: "calendar.month", Label: "nav.calendar", Holds: calendar.SupportsEvent},
+			{For: "tasks", List: "calendar.tasks", Label: "nav.tasks", Holds: calendar.SupportsTodo},
+			{For: "journal", List: "calendar.journal", Label: "nav.journal", Holds: calendar.SupportsJournal},
+		},
+		Field:  "cal",
+		Ext:    ".ics",
+		Forget: p.DAV.Forget,
+		Show:   calendar.Show,
 		Rail: func(ctx *web.Context, list string) (pimweb.Rail, error) {
 			switch list {
 			case ctx.Path("calendar.tasks"):
@@ -60,33 +64,10 @@ func (p *plugin) collectionPage() pimweb.Page {
 			}
 			return calendar.Export(ctx.Request().Context(), c, path, from, to)
 		},
-		Lookup: func(ctx *web.Context, path string) (dav.Collection, func() int, string, string, error) {
-			return pimweb.LookupCollection(ctx, path, p.Open, p.DAV.CountObjects, func(info dav.Collection) (string, string) {
-				list := collectionList(ctx, info)
-				label := ctx.T("nav.calendar")
-				switch list {
-				case ctx.Path("calendar.tasks"):
-					label = ctx.T("nav.tasks")
-				case ctx.Path("calendar.journal"):
-					label = ctx.T("nav.journal")
-				}
-				return list, label
-			})
+		Lookup: func(ctx *web.Context, path string) (dav.Collection, func() int, error) {
+			return pimweb.LookupCollection(ctx, path, p.Open, p.DAV.CountObjects)
 		},
 	}
-}
-
-// collectionList is the first of the calendar, tasks and journal that the collection holds.
-func collectionList(ctx *web.Context, info dav.Collection) string {
-	switch {
-	case calendar.SupportsEvent(info.Components):
-		return ctx.Path("calendar.month")
-	case calendar.SupportsTodo(info.Components):
-		return ctx.Path("calendar.tasks")
-	case calendar.SupportsJournal(info.Components):
-		return ctx.Path("calendar.journal")
-	}
-	return ctx.Path("calendar.tasks")
 }
 
 func (p *plugin) createForm(ctx *web.Context) (pimweb.CreateForm, error) {

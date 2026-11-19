@@ -30,7 +30,7 @@ func (p *plugin) journalRail(ctx *web.Context) (pimweb.Rail, error) {
 }
 
 func (p *plugin) calendarRail(ctx *web.Context, kind func([]string) bool, chosen func(*calendar.Settings) (*bool, *[]string), list, forParam, newLabel, importRoute, importLabel string, follow bool) (pimweb.Rail, error) {
-	rail := pimweb.Rail{Field: "cal", ItemClass: "calendar-item", Edit: "calendar.collection"}
+	rail := pimweb.Rail{Field: "cal", ItemClass: "calendar-item", Edit: "calendar.collection", For: forParam}
 	next := web.QueryValue(ctx.Request().URL.RequestURI())
 	rail.Path, rail.Action = ctx.Path(list), ctx.Path(list)
 	rail.NewHref = ctx.Path("calendar.calendars.create") + "?"

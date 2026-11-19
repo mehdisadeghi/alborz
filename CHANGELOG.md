@@ -9,6 +9,8 @@
 - Collection pickers show the chosen collection's colour.
 - An emoji picker in the compose editor's toolbar, with search and recently
   used emoji, for rich and plain text.
+- A brands add-on that warns when a sender's name says a known brand and the
+  address is at another domain.
 
 ### Fixed
 

@@ -237,6 +237,25 @@ func vouchedSender(from []imap.Address, results *AuthResults) (string, bool) {
 	return addr, true
 }
 
+// knownTo reports whether an address is in an address book of any of the accounts; a book that
+// cannot be read knows nobody.
+func (p *Mailboxes) knownTo(logins []*alborz.Login) func(addr string) bool {
+	if p.ContactAddresses == nil {
+		return nil
+	}
+	return func(addr string) bool {
+		addr = strings.ToLower(strings.TrimSpace(addr))
+		for _, s := range logins {
+			if known, err := p.contactAddresses(s); err == nil {
+				if _, ok := known[addr]; ok {
+					return true
+				}
+			}
+		}
+		return false
+	}
+}
+
 // contactAddresses maps the addresses the account's address books hold, lower case, to whether
 // a book of the reader's own holds them rather than Previous recipients alone.
 func (p *Mailboxes) contactAddresses(s *alborz.Login) (map[string]bool, error) {

@@ -1,6 +1,7 @@
 package mail
 
 import (
+	"html/template"
 	"regexp"
 	"slices"
 	"strconv"
@@ -39,9 +40,23 @@ type Score struct {
 	Text         string
 }
 
+// LTR is an argument that reads left to right whatever the page does: a domain, a name in Latin.
+type LTR string
+
 // Text is the indicator in the page's words.
-func (t Indicator) Text(words interface{ Tf(string, ...any) string }) string {
-	return words.Tf(t.Key, t.Args...)
+func (t Indicator) Text(words interface{ Tf(string, ...any) string }) template.HTML {
+	args := make([]any, len(t.Args))
+	for i, arg := range t.Args {
+		switch v := arg.(type) {
+		case LTR:
+			args[i] = `<bdi class="ltr">` + template.HTMLEscapeString(string(v)) + `</bdi>`
+		case string:
+			args[i] = template.HTMLEscapeString(v)
+		default:
+			args[i] = arg
+		}
+	}
+	return template.HTML(words.Tf(t.Key, args...))
 }
 
 // Evidence is what the checks read.
@@ -50,7 +65,11 @@ type Evidence struct {
 	Trusted string
 	Auth    *AuthResults
 	Subject string
-	From    string
+	// Name and From are the author's display name and address.
+	Name string
+	From string
+	// Known reports whether an address is in the reader's address books; nil where none are read.
+	Known func(addr string) bool
 	// Named is set when the author's name borrows a known domain.
 	Named *NamedDomain
 	// MoneyWords are the locale's words for money and access.
@@ -66,13 +85,23 @@ type check func(e *Evidence) []Indicator
 
 var checks = []check{scannerScore, twoScanners, failedAuthentication, weakAuthentication, namedElsewhere, moneySubject}
 
+// added are the checks build options bring.
+var added []check
+
+// AddCheck adds a check from an init, the seam of an add-on (ADR 82).
+func AddCheck(c func(e *Evidence) []Indicator) { added = append(added, c) }
+
 // Indicators runs every check over the evidence, alarms first.
 func Indicators(e *Evidence) []Indicator {
-	var out []Indicator
+	var out, more []Indicator
 	for _, s := range checks {
 		out = append(out, s(e)...)
 	}
-	if unvouchedRequest(e) {
+	for _, s := range added {
+		more = append(more, s(e)...)
+	}
+	out = append(out, more...)
+	if unvouchedRequest(e, more) {
 		for i := range out {
 			switch out[i].Key {
 			case "indicator.spfonly", "indicator.namedelsewhere", "indicator.moneysubject":
@@ -216,26 +245,34 @@ func weakAuthentication(e *Evidence) []Indicator {
 }
 
 // Authentication vouches for a domain, not for the name in front of it.
-func unvouchedRequest(e *Evidence) bool {
-	return len(moneySubject(e)) > 0 &&
-		(len(weakAuthentication(e)) > 0 || len(failedAuthentication(e)) > 0 || len(namedElsewhere(e)) > 0)
+func unvouchedRequest(e *Evidence, more []Indicator) bool {
+	return e.MoneySubject() && (len(weakAuthentication(e)) > 0 || len(failedAuthentication(e)) > 0 ||
+		len(namedElsewhere(e)) > 0 || len(Warnings(more)) > 0)
 }
 
 func namedElsewhere(e *Evidence) []Indicator {
 	if e.Named == nil {
 		return nil
 	}
-	return []Indicator{{Key: "indicator.namedelsewhere", Args: []any{e.Named.Word, e.Named.Known, e.Named.Sender}}}
+	return []Indicator{{Key: "indicator.namedelsewhere", Args: []any{e.Named.Word, LTR(e.Named.Known), LTR(e.Named.Sender)}}}
 }
 
 func moneySubject(e *Evidence) []Indicator {
+	if !e.MoneySubject() {
+		return nil
+	}
+	return []Indicator{{Key: "indicator.moneysubject"}}
+}
+
+// MoneySubject reports whether the subject holds a word for money or access.
+func (e *Evidence) MoneySubject() bool {
 	subject := strings.ToLower(e.Subject)
 	for _, word := range e.MoneyWords {
 		if word = strings.ToLower(strings.TrimSpace(word)); word != "" && strings.Contains(subject, word) {
-			return []Indicator{{Key: "indicator.moneysubject"}}
+			return true
 		}
 	}
-	return nil
+	return false
 }
 
 type senderBook struct {

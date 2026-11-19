@@ -1,0 +1,497 @@
+# The book of the brands add-on: the names scams borrow, and the domains each really sends from.
+# The package comment in brands.go says how a name is read against it.
+#
+# names    Names that count wherever they stand as whole words in a display name. The warning
+#          says the name as it is spelled here.
+# alone    Names that are also an ordinary word or a surname. They count only where nothing but
+#          service words stands beside them: "Wise Support", not "Penny Wise".
+# domains  Where the brand's mail is From; an entry covers its subdomains. A domain whose own name
+#          holds the name read needs no entry (amazon.de, paypal-communication.com, dhl-news.com):
+#          list the main one and those that do not (amazonaws.com). A missing domain is a wrong
+#          warning on real mail, so add a domain only from a message known to be the brand's, and
+#          never one where anyone can have an address (icloud.com, outlook.com, t-online.de).
+#
+# Left out on purpose: products people run on their own servers, where every instance signs with
+# the product's name (GitLab, WordPress, Nextcloud, Jira, SharePoint), names of mailbox services
+# (Gmail, Outlook), and names that are plain words with no telling context (Orange, O2, Free,
+# Otto, Uber, AT&T).
+
+# Words that name nobody: a name listed alone still counts beside these, and a display name made
+# of them alone lets the subject be read.
+service = [
+  "support", "team", "service", "services", "customer", "customers", "care", "help", "helpdesk",
+  "desk", "center", "centre", "billing", "payment", "payments", "pay", "invoice", "invoices",
+  "receipt", "account", "accounts", "security", "alert", "alerts", "notification", "notifications",
+  "notice", "info", "information", "update", "updates", "mail", "email", "online", "official",
+  "noreply", "no", "reply", "donotreply", "do", "not", "admin", "administrator", "department",
+  "verification", "id", "store", "shop", "order", "orders", "bank", "banking", "card", "cards",
+  "delivery", "shipping", "tracking", "parcel", "package", "express",
+  "the", "of", "for", "by", "from", "and", "inc", "llc", "ltd", "plc", "corp", "corporation", "co",
+  "gmbh", "ag", "se", "sa", "sas", "sl", "com", "net", "org", "de", "fr", "es", "uk", "us", "eu",
+  "deutschland", "germany", "france", "espana", "europe",
+  "kundenservice", "kundendienst", "kundenbetreuung", "kundencenter", "kunden", "hilfe",
+  "rechnung", "rechnungen", "zahlung", "zahlungen", "konto", "sicherheit", "hinweis",
+  "benachrichtigung", "mitteilung", "lieferung", "paket", "sendung", "sendungsverfolgung",
+  "versand", "bestellung", "ihr", "ihre", "dein", "deine", "mein", "meine", "von", "und",
+  "client", "clients", "clientele", "assistance", "aide", "facturation", "facture", "paiement",
+  "compte", "securite", "alerte", "livraison", "colis", "suivi", "commande", "equipe", "votre",
+  "ton", "mon", "espace", "le", "la", "les", "du", "des", "et",
+  "servicio", "servicios", "cliente", "clientes", "atencion", "al", "soporte", "ayuda",
+  "facturacion", "factura", "pago", "pagos", "cuenta", "seguridad", "alerta", "aviso",
+  "notificacion", "envio", "envios", "paquete", "entrega", "seguimiento", "pedido", "equipo",
+  "banco", "tu", "su", "el", "los", "y",
+  "پشتیبانی", "تیم", "خدمات", "مشتریان", "پرداخت", "حساب", "امنیت", "اعلان", "صورت‌حساب",
+  "دعم", "الدعم", "فريق", "خدمة", "العملاء", "الدفع", "الحساب", "الأمان", "تنبيه", "إشعار", "فاتورة",
+]
+
+# Domains that hold a brand's name and give an address or a host to anyone.
+open = ["googlemail.com", "onmicrosoft.com", "laposte.net"]
+
+# Cloud and hosting
+
+[[brand]]
+names = ["Amazon", "AWS", "Prime Video"]
+domains = [
+  "amazon.com", "amazonaws.com", "login.awsapps.com", "signin.aws", "primevideo.com",
+  "amazon.de", "amazon.co.uk", "amazon.fr", "amazon.es", "amazon.it", "amazon.nl", "amazon.se",
+  "amazon.pl", "amazon.com.be", "amazon.com.tr", "amazon.ca", "amazon.com.mx", "amazon.com.br",
+  "amazon.co.jp", "amazon.in", "amazon.com.au", "amazon.sg", "amazon.ae", "amazon.sa", "amazon.eg",
+]
+
+[[brand]]
+names = ["Microsoft", "Office 365", "Office365", "Azure", "OneDrive", "Skype", "Xbox"]
+domains = [
+  "microsoft.com", "microsoftonline.com", "office.com", "office365.com", "sharepointonline.com",
+  "onedrive.com", "azure.com", "skype.com", "xbox.com",
+]
+
+[[brand]]
+names = ["Google", "YouTube"]
+domains = ["google.com", "youtube.com"]
+
+[[brand]]
+names = [
+  "iCloud", "iTunes", "AppleCare", "Apple Music", "Apple TV", "Apple Card", "Apple Cash",
+  "Apple Developer", "Apple Books", "Apple Arcade", "Apple News", "Apple One",
+]
+alone = ["Apple"]
+domains = ["apple.com", "itunes.com"]
+
+[[brand]]
+names = ["Cloudflare"]
+domains = ["cloudflare.com"]
+
+[[brand]]
+names = ["Hetzner"]
+# first-ns.de: the domain registration robot.
+domains = ["hetzner.com", "hetzner.de", "first-ns.de"]
+
+[[brand]]
+names = ["OVH", "OVHcloud"]
+domains = ["ovh.com", "ovhcloud.com", "ovh.net"]
+
+[[brand]]
+names = ["IONOS"]
+domains = ["ionos.com", "ionos.de", "1und1.de", "1and1.com"]
+
+[[brand]]
+names = ["Strato"]
+domains = ["strato.de", "strato.com"]
+
+[[brand]]
+names = ["DigitalOcean", "Digital Ocean"]
+domains = ["digitalocean.com"]
+
+[[brand]]
+names = ["GoDaddy"]
+domains = ["godaddy.com"]
+
+[[brand]]
+names = ["Namecheap"]
+domains = ["namecheap.com"]
+
+# Payments and banks
+
+[[brand]]
+names = ["PayPal"]
+domains = ["paypal.com", "xoom.com", "zettle.com", "joinhoney.com"]
+
+[[brand]]
+names = ["Stripe"]
+domains = ["stripe.com"]
+
+[[brand]]
+names = ["TransferWise"]
+alone = ["Wise"]
+domains = ["wise.com", "transferwise.com"]
+
+[[brand]]
+names = ["Revolut"]
+domains = ["revolut.com"]
+
+[[brand]]
+names = ["Klarna"]
+domains = ["klarna.com"]
+
+[[brand]]
+alone = ["Visa"]
+domains = ["visa.com"]
+
+[[brand]]
+names = ["Mastercard"]
+domains = ["mastercard.com", "priceless.com"]
+
+[[brand]]
+names = ["American Express", "Amex"]
+domains = ["americanexpress.com", "aexp.com"]
+
+[[brand]]
+names = ["Western Union"]
+domains = ["westernunion.com"]
+
+[[brand]]
+names = ["Venmo"]
+domains = ["venmo.com"]
+
+[[brand]]
+names = ["JPMorgan Chase"]
+alone = ["Chase"]
+domains = ["chase.com", "jpmorgan.com", "jpmchase.com"]
+
+[[brand]]
+names = ["Bank of America"]
+domains = ["bankofamerica.com", "bofa.com"]
+
+[[brand]]
+names = ["Wells Fargo"]
+domains = ["wellsfargo.com", "wf.com"]
+
+[[brand]]
+names = ["Citibank", "Citi"]
+domains = ["citi.com", "citibank.com"]
+
+[[brand]]
+names = ["HSBC"]
+domains = ["hsbc.com"]
+
+[[brand]]
+names = ["Barclays", "Barclaycard"]
+domains = ["barclays.com", "barclays.co.uk", "barclaycard.co.uk", "barclaycard.de"]
+
+[[brand]]
+names = ["Banco Santander"]
+alone = ["Santander"]
+domains = ["santander.com", "santander.es", "santander.co.uk", "santander.de"]
+
+[[brand]]
+names = ["BBVA"]
+domains = ["bbva.com", "bbva.es"]
+
+[[brand]]
+names = ["CaixaBank"]
+domains = ["caixabank.com", "caixabank.es"]
+
+[[brand]]
+names = ["ING-DiBa"]
+alone = ["ING"]
+domains = ["ing.com", "ing.de", "ing.nl", "ing.es", "ing.be"]
+
+[[brand]]
+alone = ["Sparkasse"]
+domains = ["sparkasse.de"]
+
+[[brand]]
+names = ["Commerzbank"]
+domains = ["commerzbank.de", "commerzbank.com"]
+
+[[brand]]
+names = ["Deutsche Bank"]
+domains = ["deutsche-bank.de", "db.com"]
+
+[[brand]]
+names = ["Postbank"]
+domains = ["postbank.de"]
+
+[[brand]]
+names = ["N26"]
+domains = ["n26.com"]
+
+[[brand]]
+names = ["DKB"]
+domains = ["dkb.de"]
+
+[[brand]]
+names = ["comdirect"]
+domains = ["comdirect.de"]
+
+[[brand]]
+names = ["BNP Paribas"]
+domains = ["bnpparibas.com", "bnpparibas.fr", "bnpparibas.net"]
+
+[[brand]]
+names = ["Société Générale"]
+domains = ["societegenerale.com", "societegenerale.fr", "socgen.com"]
+
+[[brand]]
+names = ["La Banque Postale"]
+domains = ["labanquepostale.fr"]
+
+# Shops, streaming and subscriptions
+
+[[brand]]
+names = ["eBay"]
+domains = ["ebay.com"]
+
+[[brand]]
+names = ["Netflix"]
+domains = ["netflix.com"]
+
+[[brand]]
+names = ["Spotify"]
+domains = ["spotify.com"]
+
+[[brand]]
+names = ["Disney+", "Disney Plus", "DisneyPlus"]
+alone = ["Disney"]
+domains = ["disneyplus.com", "disney.com"]
+
+[[brand]]
+alone = ["Steam"]
+domains = ["steampowered.com", "steamcommunity.com", "valvesoftware.com"]
+
+[[brand]]
+names = ["PlayStation"]
+domains = ["playstation.com", "sonyentertainmentnetwork.com"]
+
+[[brand]]
+names = ["Nintendo"]
+domains = ["nintendo.com", "nintendo.net"]
+
+[[brand]]
+names = ["Zalando"]
+domains = ["zalando.de", "zalando.com"]
+
+[[brand]]
+names = ["AliExpress"]
+domains = ["aliexpress.com"]
+
+[[brand]]
+names = ["Temu"]
+domains = ["temu.com"]
+
+[[brand]]
+names = ["Booking.com"]
+domains = ["booking.com"]
+
+[[brand]]
+names = ["Airbnb"]
+domains = ["airbnb.com"]
+
+[[brand]]
+names = ["Mercado Libre", "MercadoLibre", "Mercado Pago", "MercadoPago"]
+domains = ["mercadolibre.com", "mercadopago.com"]
+
+[[brand]]
+names = ["Digikala", "دیجی‌کالا", "دیجی کالا"]
+domains = ["digikala.com"]
+
+[[brand]]
+names = ["Norton LifeLock", "NortonLifeLock", "Norton 360", "Norton Antivirus"]
+alone = ["Norton"]
+domains = ["norton.com", "nortonlifelock.com"]
+
+[[brand]]
+alone = ["McAfee"]
+domains = ["mcafee.com"]
+
+[[brand]]
+names = ["Geek Squad"]
+domains = ["geeksquad.com", "bestbuy.com"]
+
+# Social and work
+
+[[brand]]
+names = ["Facebook", "Instagram", "WhatsApp", "Meta Platforms", "Meta Business", "Meta Ads", "Meta Verified"]
+alone = ["Meta"]
+domains = ["facebook.com", "facebookmail.com", "fb.com", "instagram.com", "whatsapp.com", "meta.com"]
+
+[[brand]]
+names = ["LinkedIn"]
+domains = ["linkedin.com"]
+
+[[brand]]
+names = ["Twitter"]
+alone = ["X"]
+domains = ["x.com", "twitter.com"]
+
+[[brand]]
+names = ["TikTok"]
+domains = ["tiktok.com"]
+
+[[brand]]
+names = ["Discord"]
+domains = ["discord.com", "discordapp.com"]
+
+[[brand]]
+names = ["GitHub"]
+domains = ["github.com"]
+
+[[brand]]
+names = ["Dropbox"]
+domains = ["dropbox.com", "dropboxmail.com", "hellosign.com", "docsend.com"]
+
+[[brand]]
+names = ["DocuSign"]
+domains = ["docusign.com", "docusign.net"]
+
+[[brand]]
+names = ["Adobe"]
+domains = ["adobe.com", "adobesign.com", "echosign.com"]
+
+[[brand]]
+names = ["Zoom Video Communications"]
+alone = ["Zoom"]
+domains = ["zoom.us", "zoom.com"]
+
+[[brand]]
+alone = ["Slack"]
+domains = ["slack.com"]
+
+# Crypto
+
+[[brand]]
+names = ["Coinbase"]
+domains = ["coinbase.com"]
+
+[[brand]]
+names = ["Binance"]
+domains = ["binance.com"]
+
+[[brand]]
+alone = ["Kraken"]
+domains = ["kraken.com"]
+
+[[brand]]
+names = ["MetaMask"]
+domains = ["metamask.io"]
+
+[[brand]]
+alone = ["Ledger"]
+domains = ["ledger.com", "ledger.fr"]
+
+[[brand]]
+names = ["Trezor"]
+domains = ["trezor.io"]
+
+[[brand]]
+names = ["Crypto.com"]
+domains = ["crypto.com"]
+
+# Carriers
+
+[[brand]]
+names = ["DHL", "Deutsche Post"]
+domains = ["dhl.com", "dhl.de", "deutschepost.de", "dpdhl.com"]
+
+[[brand]]
+names = ["UPS My Choice"]
+alone = ["UPS"]
+domains = ["ups.com", "upsemail.com"]
+
+[[brand]]
+names = ["FedEx"]
+domains = ["fedex.com"]
+
+[[brand]]
+names = ["USPS"]
+domains = ["usps.com"]
+
+[[brand]]
+names = ["DPD"]
+domains = ["dpd.com", "dpd.de", "dpd.co.uk", "dpd.fr"]
+
+[[brand]]
+names = ["GLS"]
+domains = ["gls-group.com", "gls-group.eu", "gls-pakete.de"]
+
+[[brand]]
+alone = ["Hermes"]
+domains = ["myhermes.de", "hermesworld.com"]
+
+[[brand]]
+names = ["Evri"]
+domains = ["evri.com"]
+
+[[brand]]
+names = ["Royal Mail"]
+domains = ["royalmail.com"]
+
+[[brand]]
+names = ["Colissimo"]
+alone = ["La Poste"]
+# post.ch: Swiss Post writes in French as La Poste.
+domains = ["laposte.fr", "laposte.info", "colissimo.fr", "post.ch"]
+
+[[brand]]
+names = ["Chronopost"]
+domains = ["chronopost.fr", "chronopost.com"]
+
+[[brand]]
+names = ["Mondial Relay"]
+domains = ["mondialrelay.fr", "mondialrelay.com"]
+
+[[brand]]
+names = ["Correos Express"]
+alone = ["Correos"]
+domains = ["correos.es", "correos.com", "correosexpress.com"]
+
+[[brand]]
+names = ["SEUR"]
+domains = ["seur.com"]
+
+[[brand]]
+names = ["Aramex", "أرامكس"]
+domains = ["aramex.com"]
+
+# Telecoms
+
+[[brand]]
+names = ["Deutsche Telekom"]
+alone = ["Telekom"]
+domains = ["telekom.de", "telekom.com"]
+
+[[brand]]
+names = ["Vodafone"]
+domains = ["vodafone.com", "vodafone.de"]
+
+[[brand]]
+names = ["T-Mobile"]
+domains = ["t-mobile.com"]
+
+[[brand]]
+names = ["Verizon"]
+domains = ["verizon.com", "verizonwireless.com"]
+
+[[brand]]
+names = ["SFR"]
+domains = ["sfr.fr"]
+
+[[brand]]
+names = ["Bouygues Telecom"]
+domains = ["bouyguestelecom.fr"]
+
+[[brand]]
+names = ["Movistar", "Telefónica"]
+domains = ["movistar.es", "movistar.com", "telefonica.com", "telefonica.es"]
+
+[[brand]]
+names = ["Irancell", "ایرانسل"]
+domains = ["irancell.ir"]
+
+[[brand]]
+names = ["Etisalat"]
+domains = ["etisalat.ae"]
+
+[[brand]]
+names = ["Ooredoo"]
+domains = ["ooredoo.com", "ooredoo.qa"]

@@ -20,8 +20,9 @@ alone because startup checks every template's routes (ADR 55, ADR 66).
    name any add-on.
 3. The core MUST expose registration seams only: status segments
    (`web.Segment`), page add-ons (`web.Addon`), settings rail entries,
-   page extensions (`web.Extend`) and locale bundles
-   (`locale.RegisterFS`).
+   page extensions (`web.Extend`), locale bundles
+   (`locale.RegisterFS`) and checks for a message's warning signs
+   (`mail.AddCheck`).
 4. At startup the renderer and locale catalog merge each registered
    add-on's embedded files. A build omitting an add-on carries none of
    its routes, templates, strings or network clients.
@@ -43,4 +44,4 @@ alone because startup checks every template's routes (ADR 55, ADR 66).
 - ADR 26, ADR 55, ADR 59, ADR 66, ADR 67, ADR 79
 - `cmd/alborz/app/addon_*.go`, `cmd/alborz/app/noaddons_test.go`,
   `web/addons.go`, `web/status.go`, `internal/locale/locale.go`
-  (`RegisterFS`)
+  (`RegisterFS`), `mail/indicators.go` (`AddCheck`)

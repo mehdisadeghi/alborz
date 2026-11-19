@@ -565,13 +565,15 @@ func (p *Mailboxes) Read(ctx context.Context, r ReadAsk) (*Opened, error) {
 			Auth:       authResults,
 			Subject:    msg.Envelope.Subject,
 			From:       envelopeSender(msg.Envelope),
+			Known:      p.knownTo(r.Logins),
 			MoneyWords: r.MoneyWords,
 		}
 		if evidence.From != "" {
+			evidence.Name = msg.Envelope.From[0].Name
 			// Every signed-in account's inbox is asked: an imitation may reach a different address.
 			for _, s := range r.Logins {
 				if book := p.senderBookFor(s); book != nil && evidence.Named == nil {
-					evidence.Named = book.named(msg.Envelope.From[0].Name, evidence.From)
+					evidence.Named = book.named(evidence.Name, evidence.From)
 				}
 			}
 		}

@@ -26,6 +26,12 @@ func TestCoreBuildOmitsAddonFeatures(t *testing.T) {
 			}
 		}
 	}
+	// No book of brands: a borrowed name is no warning sign.
+	uid := a.IMAP.Append(t, "INBOX", "From: Aws Web Service <support@motulkzn.aynimarketing.co.za>\r\nTo: <"+User+">\r\n"+
+		"Subject: Action required - Your AWS account is overdue for payment\r\n\r\nPay now.\r\n")
+	if page := a.SignIn(t, User).Page(t, "mail.message", "INBOX", uid); !strings.Contains(page, "Pay now.") || strings.Contains(page, `id="facts"`) {
+		t.Error("core build shows warning signs for a brand name, or not the message")
+	}
 	for _, theme := range a.Server.Themes() {
 		for _, seasonal := range []string{"spring", "summer", "autumn", "winter"} {
 			if theme.Name == seasonal {

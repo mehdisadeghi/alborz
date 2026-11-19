@@ -26,7 +26,7 @@ import (
 )
 
 var (
-	routes = flag.String("route", "mail", "comma-separated route names (mail, tasks, journal, contacts, calendar, day, settings, filters, collection, copy, create, import) or paths")
+	routes = flag.String("route", "mail", "comma-separated route names (mail, tasks, journal, contacts, calendar, day, settings, filters, collection, copy, create, import, warning) or paths")
 	widths = flag.String("width", "1280,390", "comma-separated viewport widths; below 600 emulates a phone")
 	height = flag.Int("height", 900, "viewport height")
 	out    = flag.String("out", filepath.Join(os.TempDir(), "alborz-preview"), "directory for <route>-<width>.png")
@@ -72,6 +72,10 @@ func TestPreview(t *testing.T) {
 		"ATTENDEE;PARTSTAT=ACCEPTED:mailto:alice@example.org\r\nATTENDEE;PARTSTAT=NEEDS-ACTION:mailto:"+User+"\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n")
 	draft := a.IMAP.Append(t, "Drafts", "From: <"+User+">\r\nTo: Bob Example <bob@example.org>\r\nSubject: Notes\r\n"+
 		"Date: Mon, 02 Nov 2026 11:00:00 +0000\r\nMessage-ID: <draft@test>\r\nContent-Type: text/plain\r\n\r\nUnfinished.\r\n", imap.FlagDraft, imap.FlagSeen)
+	// A brand's name at another domain, asking for money: the message page's warning card. Outside the inbox, whose rows stay as they were.
+	warned := a.IMAP.Append(t, "Archive", "From: Aws Web Service <support@motulkzn.aynimarketing.co.za>\r\nTo: <"+User+">\r\n"+
+		"Subject: Action required - Your AWS account is overdue for payment\r\nDate: Mon, 02 Nov 2026 12:00:00 +0000\r\n"+
+		"Reply-To: Billing <billing@example.net>\r\nMessage-ID: <warned@test>\r\nContent-Type: text/plain\r\n\r\nPay within 24 hours.\r\n")
 	for _, name := range []string{"main", "holiday"} {
 		c.Post(t, "filters.list", url.Values{"name": {name}, "content": {"keep;\r\n"}}, url.Values{"account": {User}})
 	}
@@ -86,7 +90,7 @@ func TestPreview(t *testing.T) {
 		"contacts": a.Path("contacts.list"), "calendar": a.Path("calendar.month"), "day": a.Path("calendar.day", url.Values{"date": {today.Format(time.DateOnly)}}),
 		"settings": a.Path("settings.profile"), "filters": a.Path("filters.list", url.Values{"account": {User}}),
 		"invite": a.Path("mail.message", "INBOX", invite, url.Values{"account": {User}}), "draft": a.Path("mail.message", "Drafts", draft, url.Values{"account": {User}}),
-		"reply": a.Path("mail.message.reply", "Drafts", draft, url.Values{"account": {User}}), "compose": a.Path("mail.compose"),
+		"reply": a.Path("mail.message.reply", "Drafts", draft, url.Values{"account": {User}}), "compose": a.Path("mail.compose"), "warning": a.Path("mail.message", "Archive", warned, url.Values{"account": {User}}),
 		"collection": a.Path("calendar.collection", d.At()+DAVHome+"work/", url.Values{"account": {User}}),
 		"event":      a.Path("calendar.event", Here+calendar+"record.ics"), "task": a.Path("calendar.task", Here+tasks+"t1.ics"),
 		"tasksub": a.Path("calendar.task", Here+tasks+"t0.ics"), "taskdone": a.Path("calendar.task", Here+tasks+"done.ics"),

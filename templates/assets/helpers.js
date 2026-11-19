@@ -189,10 +189,13 @@ const enhance = () => {
 		narrowBy(primary, secondary, (el, v) => el.value === v);
 	}
 
+	// A destination picker opens on the collection last chosen and wears the chosen one's colour.
 	for (const select of document.querySelectorAll("select[data-destination-key]")) {
 		if (!once(select, "destination")) {
 			continue;
 		}
+		const paint = () => select.style.setProperty("--picked", select.selectedOptions[0]?.style.getPropertyValue("--collection") || "");
+		select.addEventListener("change", paint);
 		const key = "alborz.destination." + select.dataset.destinationKey;
 		try {
 			const saved = localStorage.getItem(key);
@@ -202,6 +205,7 @@ const enhance = () => {
 			select.addEventListener("change", () => localStorage.setItem(key, select.value));
 			select.form.addEventListener("submit", () => localStorage.setItem(key, select.value));
 		} catch {}
+		paint();
 	}
 
 	const submit_on_change = document.querySelectorAll("[data-submit-on-change]");

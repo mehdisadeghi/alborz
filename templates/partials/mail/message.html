@@ -27,7 +27,7 @@
 {{ define "attachment-import" }}
 <form method="post" action="{{.action}}" class="invitation-actions">
   {{ template "message-source-fields" (dict "mailbox" .mailbox "uid" .uid "part" .part "next" .next) }}
-  {{ template "collection-picker" (dict "groups" .groups "name" .name "label" .label "multi" (gt (len .g.GlobalData.Accounts) 1)) }}
+  {{ template "collection-picker" (dict "g" .g "groups" .groups "name" .name "label" .label "multi" (gt (len .g.GlobalData.Accounts) 1)) }}
   <button type="submit">{{.g.T .button}}</button>
 </form>
 {{ end }}

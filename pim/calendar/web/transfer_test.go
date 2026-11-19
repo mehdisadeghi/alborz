@@ -761,3 +761,49 @@ func TestBulkCopyWithoutSelectionReturnsToTheList(t *testing.T) {
 		}
 	}
 }
+
+// Two calendars of one name, one here and one on the domain's server, read apart in the picker.
+func TestThePickerNamesThePlaceOfEachCollection(t *testing.T) {
+	d := DAV(t, Calendar(DAVHome+"work/", "Work"))
+	a, c := SignedIn(t, User, WithDAV(d))
+	here := c.CreateCalendar(t, "Work", "")
+	a.Put(t, here+"object.ics", "text/calendar", Event("original", "Original"))
+	picker := Between(c.Page(t, "calendar.event.copy", Here+here+"object.ics"), `<select name="to"`, `</select>`)
+	labels := map[string]string{}
+	for _, m := range regexp.MustCompile(`<option value="([^"]+)"[^>]*>([^<]*)</option>`).FindAllStringSubmatch(picker, -1) {
+		labels[html.UnescapeString(m[1])] = strings.TrimSpace(html.UnescapeString(m[2]))
+	}
+	local, remote := labels[User+"|"+Here+here], labels[User+"|"+d.At()+DAVHome+"work/"]
+	if len(labels) != 2 || local == remote {
+		t.Fatalf("the two calendars read %q and %q among %v", local, remote, labels)
+	}
+	// The name stays first, for type-ahead; the host is a left-to-right run on any page.
+	if want := "Work · " + T(t, "place.here"); local != want {
+		t.Errorf("the calendar kept here reads %q, want %q", local, want)
+	}
+	if want := "Work · \u2066" + strings.TrimPrefix(d.URL, "http://") + "\u2069"; remote != want {
+		t.Errorf("the calendar on the server reads %q, want %q", remote, want)
+	}
+}
+
+// A calendar shared for writing names its owner among the guest's own.
+func TestThePickerNamesWhoSharesACollection(t *testing.T) {
+	a, owner := SignedIn(t, User)
+	shared := owner.CreateCalendar(t, "Work", "")
+	if resp := owner.Post(t, "calendar.collection.share", url.Values{"to": {User2}, "access": {"write"}}, Here+shared); resp.StatusCode != http.StatusFound {
+		t.Fatalf("sharing answered %s", resp.Status)
+	}
+	guest := a.SignIn(t, User2)
+	if resp := guest.Post(t, "calendar.collection.accept", url.Values{}, Here+CalendarsOf(User2)+"work~"+User+"/"); resp.StatusCode != http.StatusFound {
+		t.Fatalf("accepting answered %s", resp.Status)
+	}
+	if resp := guest.Post(t, "calendar.calendars.create", url.Values{"account": {User2}, "place": {"here"}, "name": {"Plans"}}); resp.StatusCode != http.StatusFound {
+		t.Fatalf("creating the guest's own answered %s", resp.Status)
+	}
+	picker := html.UnescapeString(Between(guest.Page(t, "calendar.event.create"), `<select name="calendar"`, `</select>`))
+	by := T(t, "share.marksharedby", "\u2066"+User+"\u2069")
+	// All in one place, so none names it.
+	if strings.Count(picker, "<option") != 2 || !strings.Contains(picker, ">Plans</option>") || !strings.Contains(picker, ">Work · "+by+"</option>") {
+		t.Errorf("the shared calendar and the guest's own read:\n%s", picker)
+	}
+}

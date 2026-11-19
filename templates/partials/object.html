@@ -63,6 +63,6 @@
         </h1>
         {{ if not .editing }}
         {{ $cur := $g.GlobalData.Username }}{{ with $g.GlobalData.URLAccount }}{{ $cur = . }}{{ end }}{{ with .collection.Account }}{{ $cur = . }}{{ end }}
-        {{ template "collection-picker" (dict "label" ($g.T "common.saveto") "name" .name "key" .key "groups" .groups "account" $cur "path" .collection.Path "multi" (gt (len $g.GlobalData.Accounts) 1)) }}
+        {{ template "collection-picker" (dict "g" $g "label" ($g.T "common.saveto") "name" .name "key" .key "groups" .groups "account" $cur "path" .collection.Path "multi" (gt (len $g.GlobalData.Accounts) 1)) }}
         {{ end }}
 {{ end }}

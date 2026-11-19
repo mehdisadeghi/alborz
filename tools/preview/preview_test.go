@@ -26,7 +26,7 @@ import (
 )
 
 var (
-	routes = flag.String("route", "mail", "comma-separated route names (mail, tasks, journal, contacts, calendar, day, settings, filters, collection) or paths")
+	routes = flag.String("route", "mail", "comma-separated route names (mail, tasks, journal, contacts, calendar, day, settings, filters, collection, copy, create, import) or paths")
 	widths = flag.String("width", "1280,390", "comma-separated viewport widths; below 600 emulates a phone")
 	height = flag.Int("height", 900, "viewport height")
 	out    = flag.String("out", filepath.Join(os.TempDir(), "alborz-preview"), "directory for <route>-<width>.png")
@@ -40,6 +40,9 @@ func TestPreview(t *testing.T) {
 	d := DAV(t, Calendar(DAVHome+"work/", "Work"), Book(DAVBooks+"team/", "Team"))
 	a, c := SignedIn(t, User, WithDAV(d), WithSieve(Sieve(t)))
 	calendar, tasks, journal, book := c.CreateCalendar(t, "Plans", ""), c.CreateCalendar(t, "Tasks", "tasks"), c.CreateCalendar(t, "Journal", "journal"), c.CreateBook(t, "People")
+	// Named as the server's are, so a picker has two of one name to tell apart.
+	c.CreateCalendar(t, "Work", "")
+	c.CreateBook(t, "Team")
 	// The event falls today, so the current month's pages always show it.
 	today := time.Now().UTC()
 	a.Put(t, calendar+"record.ics", "text/calendar", "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\nBEGIN:VEVENT\r\nUID:event\r\nDTSTAMP:20261027T080000Z\r\nDTSTART:"+today.Format("20060102")+"T120000Z\r\nDTEND:"+today.Format("20060102")+"T130000Z\r\nRRULE:FREQ=WEEKLY\r\nSUMMARY:Review a long product design proposal\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n")
@@ -88,6 +91,7 @@ func TestPreview(t *testing.T) {
 		"event":      a.Path("calendar.event", Here+calendar+"record.ics"), "task": a.Path("calendar.task", Here+tasks+"t1.ics"),
 		"tasksub": a.Path("calendar.task", Here+tasks+"t0.ics"), "taskdone": a.Path("calendar.task", Here+tasks+"done.ics"),
 		"contact": a.Path("contacts.contact", Here+book+"record.vcf"), "entry": a.Path("calendar.entry", Here+journal+"record.ics"),
+		"copy": a.Path("calendar.event.copy", Here+calendar+"record.ics"), "create": a.Path("calendar.event.create"), "import": a.Path("calendar.import"),
 		"monthlist": a.Path("calendar.month", url.Values{"view": {"list"}, "span": {"month"}}), "monthday": a.Path("calendar.month", url.Values{"view": {"list"}, "span": {"month"}, "group": {"day"}}), "search": a.Path("calendar.search", url.Values{"query": {"proposal"}}),
 	}
 	var js string

@@ -23,7 +23,11 @@ per-account bound.
 2. The mail rail keeps `details` per account; its rows are the
    subscribed mailboxes, bounded by the reader.
 3. Collection pickers stay a native `select` with an `optgroup` per
-   account (`collection-picker`); type-ahead is the search.
+   account (`collection-picker`); type-ahead is the search, so an
+   option MUST begin with its collection's name. Where an account has
+   collections in more than one place (ADR 28) each of its options
+   MUST name its place after the name: the host of a remote source,
+   `place.here` for this alborz.
 4. The mirror MUST keep each read collection's decoded objects in
    memory and drop them on any change to that collection (sync, own
    write, drop).
@@ -55,9 +59,10 @@ per-account bound.
 ## References
 
 - RFC 5545 3.1, RFC 4791 7.8
-- ADR 13, ADR 53
+- ADR 13, ADR 28, ADR 53
 - `templates/partials/rail.html` (`scope-rail`),
-  `templates/partials/form.html` (`collection-picker`)
+  `templates/partials/form.html` (`collection-picker`),
+  `pim/dav/provider.go` (`Group.Places`)
 - `pim/dav/mirror.go` (`hotMaxBytes`, `objects`, `hold`, `change`,
   `sizeOf`), `pim/dav/copy.go` (`beginsAll`, `holdsLine`),
   `pim/dav/each.go` (`MaxConcurrency`, `Each`, `Across`)

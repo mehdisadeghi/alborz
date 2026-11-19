@@ -66,17 +66,23 @@
 </label>
 {{ end }}
 
-{{/* dict: label name key groups account path multi. */}}
+{{/* dict: g label name key groups account path multi [quiet ask asklabel]. An account with collections in several
+     places names each option's, as the rail's headings do. An option holds no bdi, so a host is isolated by
+     character; the name stays first, for type-ahead. helpers.js paints the chosen option's colour on the select. */}}
 {{ define "collection-picker" }}
-<label{{ if .quiet }} class="picker-quiet"{{ end }}>
+<label class="collection-picker{{ if .quiet }} picker-quiet{{ end }}">
   <span{{ if .quiet }} class="visually-hidden"{{ end }}>{{.label}}</span>
   <select name="{{.name}}" data-destination-key="{{.key}}"{{ if .ask }} required{{ end }}>
     {{ if .ask }}<option value="" selected>{{ .asklabel }}</option>{{ end }}
     {{ range .groups }}
-    {{ $acct := .Account }}
+    {{ $acct := .Account }}{{ $places := .Places }}
     {{ if $.multi }}<optgroup label="{{.Account}}">{{ end }}
     {{ range .Collections }}
-    <option value="{{$acct}}|{{.Path}}"{{ if and (eq $acct $.account) (eq .Path $.path) }} selected{{ end }}>{{.Name}}</option>
+    <option value="{{$acct}}|{{.Path}}"{{ if and (eq $acct $.account) (eq .Path $.path) }} selected{{ end }}{{ with .Color }} style="--collection:{{.}}"{{ end }}>
+      {{- .Name }}
+      {{- if and $places .Source }} · {{ with .Host }}{{ printf "\u2066%s\u2069" . }}{{ else }}{{ $.g.T (printf "place.%s" .Source) }}{{ end }}{{ end }}
+      {{- with .SharedBy }} · {{ $.g.Tf "share.marksharedby" (printf "\u2066%s\u2069" .) }}{{ end -}}
+    </option>
     {{ end }}
     {{ if $.multi }}</optgroup>{{ end }}
     {{ end }}

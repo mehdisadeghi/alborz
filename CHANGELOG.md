@@ -6,6 +6,7 @@
 
 - A default outgoing account in Settings: a new message started under All
   accounts is written from it.
+- Collection pickers show the chosen collection's colour.
 
 ### Fixed
 
@@ -29,6 +30,7 @@
   rail, breadcrumb and every action return there.
 - Deleting a collection states what it holds, kind by kind, and names what it
   holds beyond the list it was opened from.
+- Collection pickers name each collection's place and who shares it.
 
 ## [0.20.0] - 2026-10-31
 

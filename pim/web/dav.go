@@ -19,12 +19,13 @@ func placeHost(ctx *web.Context, src dav.Source) string {
 }
 
 // PlaceLabel says what a place is rather than where: a host name alone tells the reader nothing.
+// It is an option's text, which holds no bdi, so the host is isolated by character.
 func PlaceLabel(ctx *web.Context, id, host string) string {
 	label := ctx.T("place." + id)
 	if host == "" {
 		return label
 	}
-	return label + " · " + host
+	return label + " · \u2066" + host + "\u2069"
 }
 
 // Places are where a new collection can go, grouped by account.

@@ -9,7 +9,7 @@
   {{ if .Only }}
   <input type="hidden" name="calendar" value="{{.Account}}|{{.Path}}">
   {{ else }}
-  {{ template "collection-picker" (dict "label" ($.T "common.saveto") "name" "calendar" "key" "quickevent" "groups" .Lists "account" .Account "path" .Path "multi" (gt (len .Lists) 1) "quiet" true) }}
+  {{ template "collection-picker" (dict "g" $ "label" ($.T "common.saveto") "name" "calendar" "key" "quickevent" "groups" .Lists "account" .Account "path" .Path "multi" (gt (len .Lists) 1) "quiet" true) }}
   {{ end }}
   <button>{{$.T "common.add"}}</button>
   <details class="quick-help">

@@ -604,6 +604,23 @@ type Group struct {
 	Collections []Collection
 }
 
+// Places says the account's collections are in more than one place, so a picker names each one's.
+func (g Group) Places() bool {
+	first := ""
+	for _, c := range g.Collections {
+		// A destination yet to be made is on no source.
+		if c.Source == "" {
+			continue
+		}
+		place := c.Source + "/" + c.Host
+		if first != "" && place != first {
+			return true
+		}
+		first = place
+	}
+	return false
+}
+
 // DefaultPlace is where the account's new collections go unless the reader picks another.
 func (p *Provider) DefaultPlace(ctx context.Context, s *alborz.Login) string {
 	sources := p.Sources(ctx, s)

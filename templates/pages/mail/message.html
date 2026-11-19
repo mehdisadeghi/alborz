@@ -160,7 +160,7 @@
               {{ range .Addresses }}<option value="{{.String}}" dir="auto">{{ if .Name }}{{.Name}} &lt;{{.Address}}&gt;{{ else }}{{.Address}}{{ end }}</option>{{ end }}
             </select>
           </label>
-          {{ template "collection-picker" (dict "groups" .Books "name" "addressbook" "label" ($.T "contacts.book") "multi" (gt (len $.GlobalData.Accounts) 1)) }}
+          {{ template "collection-picker" (dict "g" $ "groups" .Books "name" "addressbook" "label" ($.T "contacts.book") "multi" (gt (len $.GlobalData.Accounts) 1)) }}
           <button type="submit" class="button-primary">{{$.T "import.tocontacts"}}</button>
         </form>
       </dialog>
@@ -326,7 +326,7 @@
                 {{ else if $.InviteCalendars }}
                 <form method="post" action="{{url "calendar.frommessage"}}{{$aq}}" class="invitation-actions">
                   {{ template "message-source-fields" (dict "mailbox" $.Mailbox.Name "uid" $.Message.UID) }}
-                  {{ template "collection-picker" (dict "groups" $.InviteCalendars "name" "calendar" "label" ($.T "common.calendar") "multi" (gt (len $.GlobalData.Accounts) 1)) }}
+                  {{ template "collection-picker" (dict "g" $ "groups" $.InviteCalendars "name" "calendar" "label" ($.T "common.calendar") "multi" (gt (len $.GlobalData.Accounts) 1)) }}
                   <button type="submit">{{$.T "invite.addtocalendar"}}</button>
                 </form>
                 {{ end }}

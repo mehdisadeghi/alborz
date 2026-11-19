@@ -73,6 +73,19 @@ main.create-update > form > label > input[readonly] {
   background: var(--bg-inset);
 }
 
+/* The chosen collection's colour, the rows' dot, which helpers.js keeps in step; its slot stays for one with none. */
+.collection-picker > select:has(option[style]) {
+  padding-inline-start: calc(2 * var(--space-2) + 8px);
+  background-image: linear-gradient(var(--picked, transparent), var(--picked, transparent));
+  background-repeat: no-repeat;
+  background-position: left var(--space-2) center;
+  background-size: 8px 8px;
+}
+
+.collection-picker > select:has(option[style]):dir(rtl) {
+  background-position: right var(--space-2) center;
+}
+
 /* Never wider: widening drags a textarea out of its column. */
 textarea {
   resize: vertical;

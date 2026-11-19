@@ -365,6 +365,11 @@
 "collection.deleteunknown" = "لم يبلّغ الخادم عن محتوياتها."
 "collection.deletedo" = "حذف «%s» وكل ما فيها"
 "collection.deletedoempty" = "حذف «%s»"
+"collection.alsoholds" = "تحتوي أيضًا على"
+"collection.noevents" = "لا توجد أحداث"
+"collection.notasks" = "لا توجد مهام"
+"collection.noentries" = "لا توجد تدوينات"
+"collection.nocontacts" = "لا توجد جهات اتصال"
 "calendar.address" = "العنوان"
 "calendar.addresshint" = "عنوان الوب لتقويم (.ics) أو رابط صفحته. للقراءة فقط؛ يُؤخذ الاسم من التقويم نفسه."
 "calendar.subscribe" = "الاشتراك في تقويم"
@@ -1366,9 +1371,21 @@ other = "حُذفت %d رسائل."
 one = "إعادة توجيه: %d رسالة"
 other = "إعادة توجيه: %d رسائل"
 
-["collection.deletecount"]
-one = "تحتوي على عنصر واحد (%d) سيُحذف معها."
-other = "تحتوي على %d عناصر ستُحذف معها."
+["collection.events"]
+one = "حدث واحد (%d)"
+other = "%d أحداث"
+
+["collection.tasks"]
+one = "مهمة واحدة (%d)"
+other = "%d مهام"
+
+["collection.entries"]
+one = "تدوينة واحدة (%d)"
+other = "%d تدوينات"
+
+["collection.contacts"]
+one = "جهة اتصال واحدة (%d)"
+other = "%d جهات اتصال"
 
 ["mailbox.attachmore"]
 one = "%d مرفق"

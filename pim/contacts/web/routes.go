@@ -80,7 +80,7 @@ func (p *plugin) invitations(ctx *web.Context) (*pimweb.RailInvitations, error) 
 func (p *plugin) collectionPage() pimweb.Page {
 	return pimweb.Page{
 		Collection: "contacts.book",
-		Sections:   []pimweb.Section{{List: "contacts.list", Label: "nav.contacts", Holds: func([]string) bool { return true }}},
+		Sections:   []pimweb.Section{{List: "contacts.list", Label: "nav.contacts", Kind: "contacts", Holds: func([]string) bool { return true }}},
 		Field:      "book",
 		Ext:        ".vcf",
 		Forget:     p.DAV.Forget,
@@ -103,8 +103,11 @@ func (p *plugin) collectionPage() pimweb.Page {
 			}
 			return contacts.Export(ctx.Request().Context(), c, path)
 		},
-		Lookup: func(ctx *web.Context, path string) (dav.Collection, func() int, error) {
-			return pimweb.LookupCollection(ctx, path, p.Open, p.DAV.CountObjects)
+		Lookup: func(ctx *web.Context, path string) (dav.Collection, error) {
+			return pimweb.LookupCollection(ctx, path, p.Open)
+		},
+		Count: func(ctx *web.Context, info dav.Collection, _ string) (int, error) {
+			return p.DAV.CountObjects(ctx.Request().Context(), ctx.Login, info.Path)
 		},
 	}
 }

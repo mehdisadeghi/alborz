@@ -145,7 +145,7 @@ func (pg Page) sharing(ctx *web.Context, p *dav.Provider, info dav.Collection) (
 
 func (pg Page) owned(ctx *web.Context, p *dav.Provider) (dav.Collection, store.Ref, error) {
 	collPath := pg.collectionPath(ctx)
-	info, _, err := pg.Lookup(ctx, collPath)
+	info, err := pg.Lookup(ctx, collPath)
 	if err != nil {
 		return info, store.Ref{}, err
 	}

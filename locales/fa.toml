@@ -375,6 +375,11 @@
 "collection.deleteunknown" = "سرور محتوای آن را اعلام نکرد."
 "collection.deletedo" = "حذف «%s» و هرچه در آن است"
 "collection.deletedoempty" = "حذف «%s»"
+"collection.alsoholds" = "این‌ها را هم دارد"
+"collection.noevents" = "رویدادی ندارد"
+"collection.notasks" = "کاری ندارد"
+"collection.noentries" = "یادداشتی ندارد"
+"collection.nocontacts" = "مخاطبی ندارد"
 "calendar.address" = "نشانی"
 "calendar.addresshint" = "نشانی وب یک تقویم (.ics) یا پیوند صفحه‌اش. فقط‌خواندنی؛ نام از خود تقویم گرفته می‌شود."
 "calendar.subscribe" = "اشتراک یک تقویم"
@@ -1367,9 +1372,21 @@ other = "%d نامه حذف شد."
 one = "بازفرست: %d نامه"
 other = "بازفرست: %d نامه"
 
-["collection.deletecount"]
-one = "%d مورد دارد که با آن حذف می‌شود."
-other = "%d مورد دارد که با آن حذف می‌شود."
+["collection.events"]
+one = "%d رویداد"
+other = "%d رویداد"
+
+["collection.tasks"]
+one = "%d کار"
+other = "%d کار"
+
+["collection.entries"]
+one = "%d یادداشت"
+other = "%d یادداشت"
+
+["collection.contacts"]
+one = "%d مخاطب"
+other = "%d مخاطب"
 
 ["mailbox.attachmore"]
 one = "%d پیوست"

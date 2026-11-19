@@ -365,6 +365,11 @@
 "collection.deleteunknown" = "Le serveur n’a pas indiqué son contenu."
 "collection.deletedo" = "Supprimer « %s » et tout ce qu’elle contient"
 "collection.deletedoempty" = "Supprimer « %s »"
+"collection.alsoholds" = "Contient aussi"
+"collection.noevents" = "Aucun événement"
+"collection.notasks" = "Aucune tâche"
+"collection.noentries" = "Aucune entrée de journal"
+"collection.nocontacts" = "Aucun contact"
 "calendar.address" = "Adresse"
 "calendar.addresshint" = "L’adresse web d’un calendrier (.ics) ou le lien vers sa page. Lecture seule ; le nom provient du calendrier lui-même."
 "calendar.subscribe" = "S’abonner à un calendrier"
@@ -1366,9 +1371,21 @@ other = "%d messages supprimés."
 one = "Tr : %d message"
 other = "Tr : %d messages"
 
-["collection.deletecount"]
-one = "Elle contient %d entrée, qui sera également supprimée."
-other = "Elle contient %d entrées, qui seront également supprimées."
+["collection.events"]
+one = "%d événement"
+other = "%d événements"
+
+["collection.tasks"]
+one = "%d tâche"
+other = "%d tâches"
+
+["collection.entries"]
+one = "%d entrée de journal"
+other = "%d entrées de journal"
+
+["collection.contacts"]
+one = "%d contact"
+other = "%d contacts"
 
 ["mailbox.attachmore"]
 one = "%d pièce jointe"

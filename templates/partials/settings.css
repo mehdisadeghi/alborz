@@ -80,6 +80,10 @@ main.settings form > button + .list-items {
   font-size: var(--text-sm);
 }
 
+.danger-zone .warning-card {
+  margin-bottom: var(--space-2);
+}
+
 /* The storage footnote sits between the cards and shares their container, so its edges line up with theirs. */
 main.settings form,
 main.settings > .info-card,

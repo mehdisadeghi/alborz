@@ -27,6 +27,8 @@
 - A search reads the Arabic `ي` and `ك` as the Persian `ی` and `ک`.
 - A calendar or task list opened from Tasks or Journal keeps that section: its
   rail, breadcrumb and every action return there.
+- Deleting a collection states what it holds, kind by kind, and names what it
+  holds beyond the list it was opened from.
 
 ## [0.20.0] - 2026-10-31
 

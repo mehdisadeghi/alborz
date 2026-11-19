@@ -162,3 +162,72 @@ func TestACollectionsActionsReturnToTheSectionTheyCameFrom(t *testing.T) {
 		})
 	}
 }
+
+// The delete of a collection states what goes with it by kind, and sets apart what its section does not show.
+func TestDeletingACollectionStatesWhatItHoldsByKind(t *testing.T) {
+	a, c := SignedIn(t, User)
+	personal, chores := c.CreateCalendar(t, "Personal", "both"), c.CreateCalendar(t, "Chores", "tasks")
+	book := c.CreateBook(t, "People")
+	a.Put(t, personal+"dentist.ics", "text/calendar", Event("dentist", "Dentist"))
+	a.Put(t, personal+"review.ics", "text/calendar", Event("review", "Review"))
+	a.Put(t, personal+"milk.ics", "text/calendar", Todo("milk", "Milk"))
+	a.Put(t, book+"ada.vcf", "text/vcard", "BEGIN:VCARD\r\nVERSION:4.0\r\nUID:ada\r\nFN:Ada\r\nEND:VCARD\r\n")
+
+	zone := func(page string) (stated, also string) {
+		t.Helper()
+		form := Between(page, `<form class="danger-zone"`, `</form>`)
+		if form == "" {
+			t.Fatal("the page has no delete form")
+		}
+		return Between(form, `<p>`, `</p>`), Between(form, `<details class="list-card warning-card warning-caution" open>`, `</details>`)
+	}
+	for _, tc := range []struct {
+		name, route, path, section string
+		stated, also               string
+		rest                       bool
+	}{
+		{"events and tasks, from the tasks", "calendar.collection", Here + personal, "tasks", T(t, "collection.tasks", 1), T(t, "collection.events", 2), true},
+		{"events and tasks, from the calendar", "calendar.collection", Here + personal, "", T(t, "collection.events", 2), T(t, "collection.tasks", 1), true},
+		{"an empty task list", "calendar.collection", Here + chores, "tasks", T(t, "collection.notasks"), "", false},
+		{"an address book", "contacts.book", Here + book, "", T(t, "collection.contacts", 1), "", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			page := c.Page(t, tc.route, tc.path, url.Values{"for": {tc.section}})
+			stated, also := zone(page)
+			if stated != tc.stated {
+				t.Errorf("the delete states %q, want %q", stated, tc.stated)
+			}
+			if tc.also == "" && also != "" || tc.also != "" && (!strings.Contains(also, "<li>"+tc.also+"</li>") || !Says(t, also, "collection.alsoholds")) {
+				t.Errorf("what the section does not show is stated as %q, want %q", also, tc.also)
+			}
+			if Says(t, page, "collection.deletedo", Any) != tc.rest {
+				t.Errorf("the button says everything in it goes: %t, want %t", !tc.rest, tc.rest)
+			}
+		})
+	}
+
+	// The count is written in the reader's digits.
+	req, err := http.NewRequest(http.MethodGet, a.URL+a.Path("calendar.collection", Here+personal, url.Values{"for": {"tasks"}}), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Accept-Language", "fa")
+	if _, also := zone(c.Do(t, req).Text); !strings.Contains(also, TIn(t, "fa", "collection.events", 2)) || !strings.Contains(also, "۲") {
+		t.Errorf("in Persian the events are stated as %q", also)
+	}
+}
+
+// A collection on another server is counted by kind as one kept here is.
+func TestDeletingARemoteCollectionStatesWhatItHoldsByKind(t *testing.T) {
+	personal := DAVHome + "personal/"
+	d := DAV(t, Calendar(personal, "Personal"), Object(personal+"dentist.ics", Event("dentist", "Dentist")),
+		Object(personal+"review.ics", Event("review", "Review")), Object(personal+"milk.ics", Todo("milk", "Milk")))
+	c := Alborz(t, WithDAV(d)).SignIn(t, User)
+	form := Between(c.Page(t, "calendar.collection", d.At()+personal, url.Values{"for": {"tasks"}}), `<form class="danger-zone"`, `</form>`)
+	if stated := Between(form, `<p>`, `</p>`); stated != T(t, "collection.tasks", 1) {
+		t.Errorf("the delete states %q, want one task", stated)
+	}
+	if !strings.Contains(form, "<li>"+T(t, "collection.events", 2)+"</li>") {
+		t.Errorf("the delete does not set the two events apart: %s", form)
+	}
+}

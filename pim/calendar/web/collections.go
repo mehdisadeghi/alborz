@@ -12,6 +12,7 @@ import (
 	"git.mehdix.org/alborz/pim/dav"
 	pimweb "git.mehdix.org/alborz/pim/web"
 	"git.mehdix.org/alborz/web"
+	"github.com/emersion/go-ical"
 )
 
 func (p *plugin) invitations(ctx *web.Context) (*pimweb.RailInvitations, error) {
@@ -22,9 +23,9 @@ func (p *plugin) collectionPage() pimweb.Page {
 	return pimweb.Page{
 		Collection: "calendar.collection",
 		Sections: []pimweb.Section{
-			{List: "calendar.month", Label: "nav.calendar", Holds: calendar.SupportsEvent},
-			{For: "tasks", List: "calendar.tasks", Label: "nav.tasks", Holds: calendar.SupportsTodo},
-			{For: "journal", List: "calendar.journal", Label: "nav.journal", Holds: calendar.SupportsJournal},
+			{List: "calendar.month", Label: "nav.calendar", Kind: "events", Holds: calendar.SupportsEvent},
+			{For: "tasks", List: "calendar.tasks", Label: "nav.tasks", Kind: "tasks", Holds: calendar.SupportsTodo},
+			{For: "journal", List: "calendar.journal", Label: "nav.journal", Kind: "entries", Holds: calendar.SupportsJournal},
 		},
 		Field:  "cal",
 		Ext:    ".ics",
@@ -64,8 +65,16 @@ func (p *plugin) collectionPage() pimweb.Page {
 			}
 			return calendar.Export(ctx.Request().Context(), c, path, from, to)
 		},
-		Lookup: func(ctx *web.Context, path string) (dav.Collection, func() int, error) {
-			return pimweb.LookupCollection(ctx, path, p.Open, p.DAV.CountObjects)
+		Lookup: func(ctx *web.Context, path string) (dav.Collection, error) {
+			return pimweb.LookupCollection(ctx, path, p.Open)
+		},
+		Count: func(ctx *web.Context, info dav.Collection, kind string) (int, error) {
+			c, err := p.Client(ctx.Request().Context(), ctx.Login)
+			if err != nil {
+				return 0, err
+			}
+			comp := map[string]string{"events": ical.CompEvent, "tasks": ical.CompToDo, "entries": ical.CompJournal}[kind]
+			return calendar.Count(ctx.Request().Context(), c, info.Path, comp)
 		},
 	}
 }

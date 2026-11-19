@@ -32,7 +32,11 @@ type CollectionRenderData struct {
 	Shown   string
 	Path    string
 	Account string
-	Count   int // -1 when the server would not say
+	// Holds states what the page's section lists of the collection, empty when the server would not say;
+	// Also states each kind it holds besides, and Empty that it holds nothing.
+	Holds string
+	Also  []string
+	Empty bool
 	// Collection is the route of the page, whose actions are its routes beneath; Query is what the page's
 	// address hands each of them: its account, its section and the page it was opened from.
 	Collection string
@@ -201,6 +205,8 @@ type Section struct {
 	For string
 	// List is the route of its list, Label the locale key of its name.
 	List, Label string
+	// Kind names the objects it lists in the locale keys that count them: "events", "tasks".
+	Kind string
 	// Holds says whether a collection of these components shows there.
 	Holds func(components []string) bool
 }
@@ -213,7 +219,9 @@ type Page struct {
 	// Field is the list parameter that narrows to one collection.
 	Field  string
 	Ext    string
-	Lookup func(ctx *web.Context, path string) (info dav.Collection, count func() int, err error)
+	Lookup func(ctx *web.Context, path string) (dav.Collection, error)
+	// Count is how many objects of a section's kind the collection holds.
+	Count  func(ctx *web.Context, info dav.Collection, kind string) (int, error)
 	Forget func(username string)
 	// Show ticks a just-accepted collection among those the account sees.
 	Show func(ctx context.Context, l *alborz.Login, path string) error
@@ -272,18 +280,43 @@ func (pg Page) listOf(ctx *web.Context, s Section) string {
 	return ctx.AccountPath(list)
 }
 
+// held states what the collection holds, kind by kind: holds is what the section in lists of it, also each
+// kind it holds besides. A server that would not say leaves holds empty.
+func (pg Page) held(ctx *web.Context, info dav.Collection, in Section) (holds string, also []string, empty bool) {
+	empty = true
+	for _, s := range pg.Sections {
+		if s.Kind != in.Kind && !s.Holds(info.Components) {
+			continue
+		}
+		n, err := pg.Count(ctx, info, s.Kind)
+		if err != nil {
+			ctx.Logger().Printf("failed to count the %s of %s: %v", s.Kind, info.Path, err)
+			return "", nil, false
+		}
+		empty = empty && n == 0
+		switch {
+		case s.Kind == in.Kind && n == 0:
+			holds = ctx.T("collection.no" + s.Kind)
+		case s.Kind == in.Kind:
+			holds = ctx.Tf("collection."+s.Kind, n)
+		case n > 0:
+			also = append(also, ctx.Tf("collection."+s.Kind, n))
+		}
+	}
+	return holds, also, empty
+}
+
 // LookupCollection opens a kind's collections and returns the named collection.
-// The open and count functions retain protocol-specific clients while this common boundary owns lookup errors.
-func LookupCollection[C any](ctx *web.Context, path string, open func(context.Context, *alborz.Login) (C, []dav.Collection, error), count func(context.Context, *alborz.Login, string) func() int) (dav.Collection, func() int, error) {
+func LookupCollection[C any](ctx *web.Context, path string, open func(context.Context, *alborz.Login) (C, []dav.Collection, error)) (dav.Collection, error) {
 	_, collections, err := open(ctx.Request().Context(), ctx.Login)
 	if err != nil {
-		return dav.Collection{}, nil, err
+		return dav.Collection{}, err
 	}
 	info := dav.At(collections, path)
 	if info == nil {
-		return dav.Collection{}, nil, alborz.NotFound("notfound.collection")
+		return dav.Collection{}, alborz.NotFound("notfound.collection")
 	}
-	return *info, count(ctx.Request().Context(), ctx.Login, info.Path), nil
+	return *info, nil
 }
 
 // Handle is the collection's own page; renaming and recolouring are a PROPPATCH.
@@ -354,7 +387,7 @@ func (pg Page) Handle(p *dav.Provider) func(*web.Context) error {
 type shownCollection struct{ Name, Color string }
 
 func (pg Page) data(ctx *web.Context, p *dav.Provider, collPath string) (*CollectionRenderData, error) {
-	info, count, err := pg.Lookup(ctx, collPath)
+	info, err := pg.Lookup(ctx, collPath)
 	if err != nil {
 		return nil, err
 	}
@@ -380,6 +413,7 @@ func (pg Page) data(ctx *web.Context, p *dav.Provider, collPath string) (*Collec
 	if src, err := p.SourceOf(ctx.Request().Context(), ctx.Login, info.Path); err == nil {
 		place, host = src.ID, placeHost(ctx, src)
 	}
+	holds, also, empty := pg.held(ctx, info, section)
 	return &CollectionRenderData{
 		Place:       place,
 		Host:        host,
@@ -389,7 +423,9 @@ func (pg Page) data(ctx *web.Context, p *dav.Provider, collPath string) (*Collec
 		Shown:       string(shown),
 		Path:        info.Path,
 		Account:     ctx.Login.Username(),
-		Count:       count(),
+		Holds:       holds,
+		Also:        also,
+		Empty:       empty,
 		Collection:  pg.Collection,
 		Query:       template.URL(pg.query(ctx)),
 		For:         section.For,
@@ -421,7 +457,7 @@ func (pg Page) HandleImportTooLarge(ctx *web.Context) error {
 // HandleImport writes an uploaded file into the collection.
 func (pg Page) HandleImport(ctx *web.Context) error {
 	collPath := pg.collectionPath(ctx)
-	if _, _, err := pg.Lookup(ctx, collPath); err != nil {
+	if _, err := pg.Lookup(ctx, collPath); err != nil {
 		return err
 	}
 	back := pg.pageOf(ctx, collPath)
@@ -813,7 +849,7 @@ func (pg Page) HandleImportPage(p *dav.Provider, list, section, title, hint, key
 // HandleExport sends the collection as one file; a date range narrows a calendar.
 func (pg Page) HandleExport(ctx *web.Context) error {
 	collPath := pg.collectionPath(ctx)
-	info, _, err := pg.Lookup(ctx, collPath)
+	info, err := pg.Lookup(ctx, collPath)
 	if err != nil {
 		return err
 	}
@@ -902,11 +938,11 @@ func (pg Page) HandleExportAll(list, filename string) func(*web.Context) error {
 	}
 }
 
-// HandleDelete removes the collection and everything in it; the page above states how much.
+// HandleDelete removes the collection and everything in it; the page above states what, kind by kind.
 func (pg Page) HandleDelete(p *dav.Provider) func(*web.Context) error {
 	return func(ctx *web.Context) error {
 		collPath := pg.collectionPath(ctx)
-		info, _, err := pg.Lookup(ctx, collPath)
+		info, err := pg.Lookup(ctx, collPath)
 		if err != nil {
 			return err
 		}
@@ -923,7 +959,7 @@ func (pg Page) HandleDelete(p *dav.Provider) func(*web.Context) error {
 		}
 		pg.Forget(ctx.Login.Username())
 		// A 2xx is not taken as proof; listing again shows what the reader will see.
-		if _, _, err := pg.Lookup(ctx, collPath); err == nil {
+		if _, err := pg.Lookup(ctx, collPath); err == nil {
 			ctx.Notify(web.Notice{Kind: web.NoticeFailed,
 				Text: fmt.Sprintf(ctx.T("notice.collectionnotdeleted"), info.Name)})
 			return back()

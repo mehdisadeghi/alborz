@@ -293,6 +293,15 @@ func Export(ctx context.Context, client *caldav.Client, calendarPath string, fro
 	return Encode(children, left)
 }
 
+// Count is how many of the calendar's objects hold a comp.
+func Count(ctx context.Context, client *caldav.Client, calendarPath, comp string) (int, error) {
+	objects, err := client.QueryCalendar(ctx, calendarPath, &caldav.CalendarQuery{
+		CompRequest: caldav.CalendarCompRequest{Name: "VCALENDAR", Props: []string{"VERSION"}},
+		CompFilter:  caldav.CompFilter{Name: "VCALENDAR", Comps: []caldav.CompFilter{{Name: comp}}},
+	})
+	return len(objects), err
+}
+
 // Components are the components of comps the calendar holds; left says why each object that does not parse
 // was left out.
 func Components(ctx context.Context, client *caldav.Client, calendarPath string, comps []string, from, to time.Time) (out []*ical.Component, left []error, err error) {

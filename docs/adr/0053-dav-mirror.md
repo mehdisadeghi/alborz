@@ -71,7 +71,8 @@ collections (ADR 24).
 - A collection another client makes or restores is listed within the
   poll and one round, and synced on its first read. Each signed-in
   account's servers are asked for its list once per poll.
-- Counting members asks the server.
+- Counting an address book's members asks the server; a calendar's are
+  counted by kind, one calendar-query each (rule 3).
 
 ## References
 

@@ -126,12 +126,14 @@
         <button class="button-danger">{{ $.Tf "share.leavedo" .Name }}</button>
         {{ else }}
         <h2>{{$.T "collection.deletetitle"}}</h2>
-        {{ if gt .Count 0 }}
-        <p>{{ $.GlobalData.Tf "collection.deletecount" .Count }}</p>
-        {{ else if lt .Count 0 }}
-        <p>{{$.T "collection.deleteunknown"}}</p>
+        <p>{{ or .Holds ($.T "collection.deleteunknown") }}</p>
+        {{ with .Also }}
+        <details class="list-card warning-card warning-caution" open>
+          <summary>{{$.T "collection.alsoholds"}}</summary>
+          <ul>{{ range . }}<li>{{.}}</li>{{ end }}</ul>
+        </details>
         {{ end }}
-        <button class="button-danger">{{ if eq .Count 0 }}{{ $.Tf "collection.deletedoempty" .Name }}{{ else }}{{ $.Tf "collection.deletedo" .Name }}{{ end }}</button>
+        <button class="button-danger">{{ if .Empty }}{{ $.Tf "collection.deletedoempty" .Name }}{{ else }}{{ $.Tf "collection.deletedo" .Name }}{{ end }}</button>
         {{ end }}
       </form>
       {{ end }}

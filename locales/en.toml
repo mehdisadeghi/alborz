@@ -378,6 +378,11 @@
 "collection.deleteunknown" = "The server did not report its contents."
 "collection.deletedo" = "Delete “%s” and everything in it"
 "collection.deletedoempty" = "Delete “%s”"
+"collection.alsoholds" = "Also holds"
+"collection.noevents" = "No events"
+"collection.notasks" = "No tasks"
+"collection.noentries" = "No journal entries"
+"collection.nocontacts" = "No contacts"
 "calendar.address" = "Address"
 "calendar.addresshint" = "The web address of a calendar (.ics), or the link to its page. Read-only; the name comes from the calendar itself."
 "calendar.subscribe" = "Subscribe to a calendar"
@@ -1367,9 +1372,21 @@ other = "%d messages deleted."
 one = "Fwd: %d message"
 other = "Fwd: %d messages"
 
-["collection.deletecount"]
-one = "It contains %d entry, which will also be deleted."
-other = "It contains %d entries, which will also be deleted."
+["collection.events"]
+one = "%d event"
+other = "%d events"
+
+["collection.tasks"]
+one = "%d task"
+other = "%d tasks"
+
+["collection.entries"]
+one = "%d journal entry"
+other = "%d journal entries"
+
+["collection.contacts"]
+one = "%d contact"
+other = "%d contacts"
 
 ["mailbox.attachmore"]
 one = "%d attachment"

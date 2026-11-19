@@ -668,16 +668,9 @@ func (p *Provider) HTTPClient(ctx context.Context, login *alborz.Login) *http.Cl
 	return httpClient(ctx, p, login)
 }
 
-// CountObjects counts a collection's objects lazily; -1 means the server did not answer.
-func (p *Provider) CountObjects(ctx context.Context, login *alborz.Login, coll string) func() int {
-	return func() int {
-		n, err := CountObjects(ctx, p.HTTPClient(ctx, login), Base(), coll)
-		if err != nil {
-			p.log.Printf("%s: failed to count %s: %v", p.Kind.Name, coll, err)
-			return -1
-		}
-		return n
-	}
+// CountObjects counts a collection's objects.
+func (p *Provider) CountObjects(ctx context.Context, login *alborz.Login, coll string) (int, error) {
+	return CountObjects(ctx, p.HTTPClient(ctx, login), Base(), coll)
 }
 
 // Refresh asks each login's servers again.

@@ -20,7 +20,7 @@ hold one IMAP connection turn past its deadline.
    SEARCH result and drop those the envelope contradicts, before the
    page is cut. A full-text index may match addresses inside attached
    messages; the envelope comparison is name and address, as a header
-   SEARCH compares them.
+   SEARCH compares them, under `search.Fold` (ADR 69).
 3. **One turn per folder.** `/search` MUST run one `DoIMAPWork` per
    folder, each bounded by the listing budget (`RoundTripTimeout`,
    10 s; `ScanTimeout`, 2 min, for a query that searches text). Other

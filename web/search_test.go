@@ -109,13 +109,12 @@ func TestSearchFindsARedStarInEverySection(t *testing.T) {
 	}
 }
 
-// A word is matched by IMAP SEARCH, by the task and event fields, and by a CardDAV query.
+// A word is matched by IMAP SEARCH, and in the task, event and card fields.
 func TestSearchFindsAWordInEverySection(t *testing.T) {
 	a := Alborz(t)
 	c := a.SignIn(t, User)
 	sections(t, a, c, "Lantern", "Kettle")
 
-	// Capitalised: alborz's own CardDAV store matches text case-sensitively.
 	page := c.Page(t, "core.search", url.Values{"query": {"Lantern"}})
 	for _, kind := range []string{"events", "tasks", "contacts"} {
 		if b, _ := block(t, page, kind); !strings.Contains(b, "Lantern") || strings.Contains(b, "Kettle") {
@@ -136,6 +135,34 @@ func TestSearchFindsAWordInEverySection(t *testing.T) {
 	}
 	if b, _ := block(t, c.Page(t, "core.search", url.Values{"query": {"about kettle"}}), "tasks"); !strings.Contains(b, "Kettle task") {
 		t.Errorf("a task is not found by its description: %q", b)
+	}
+}
+
+// What alborz matches itself it folds (search.Fold); the rig's mail server folds as most do.
+func TestSearchFindsAWordInAnyCase(t *testing.T) {
+	a := Alborz(t)
+	c := a.SignIn(t, User)
+	sections(t, a, c, "Lantern", "Hauptstraße", "گزارش", "کیک")
+	for _, tc := range []struct{ query, found string }{
+		{"lantern", "Lantern"}, {"LANTERN", "Lantern"}, {"lAnTeRn", "Lantern"},
+		{"hauptstraße", "Hauptstraße"}, {"HAUPTSTRASSE", "Hauptstraße"}, {"HauptStrasse", "Hauptstraße"},
+		{"گزارش", "گزارش"}, {"كيك", "کیک"},
+	} {
+		page := c.Page(t, "core.search", url.Values{"query": {tc.query}})
+		for kind, row := range map[string]string{"events": " event", "tasks": " task", "contacts": " Person"} {
+			if b, _ := block(t, page, kind); strings.Count(b, row) != 1 || !strings.Contains(b, tc.found) {
+				t.Errorf("%s does not show %s alone for %q: %q", kind, tc.found, tc.query, b)
+			}
+		}
+	}
+	for _, query := range []string{"eve", "EVE", "from:Eve", "Subject:REDESIGN"} {
+		if b, _ := block(t, c.Page(t, "core.search", url.Values{"query": {query}}), "mail"); !strings.Contains(b, "Ideas for the redesign") {
+			t.Errorf("mail does not find Eve's message for %q: %q", query, b)
+		}
+		// The rows alborz holds answer while the reader types.
+		if resp := c.Get(t, "core.search", url.Values{"query": {query}, "section": {"mail"}, "held": {"1"}}); !strings.Contains(resp.Text, "Ideas for the redesign") {
+			t.Errorf("the held rows do not find Eve's message for %q", query)
+		}
 	}
 }
 

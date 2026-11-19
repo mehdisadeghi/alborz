@@ -12,6 +12,7 @@ import (
 	"git.mehdix.org/alborz/internal/kv/bolt"
 	"git.mehdix.org/alborz/internal/seal"
 	"git.mehdix.org/alborz/pim/store"
+	"git.mehdix.org/alborz/search"
 	"github.com/emersion/go-vcard"
 	"github.com/emersion/go-webdav/carddav"
 )
@@ -76,12 +77,7 @@ func TestAUIDIsMatchedExactlyAndANameRegardlessOfCase(t *testing.T) {
 	if got := cardPathByUID(ctx, client, book, "card-1"); got != "" {
 		t.Errorf("a UID differing in case found %q", got)
 	}
-	query := Query("ALICE")
-	found, err := client.QueryAddressBook(ctx, book, &query)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(found) != 1 {
-		t.Errorf("a search in another case found %d cards, want 1", len(found))
+	if ao := (AddressObject{AddressObject: &carddav.AddressObject{Card: card}}); !ao.Matches(search.Parse("ALICE")) {
+		t.Error("a search in another case did not find the card")
 	}
 }

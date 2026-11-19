@@ -48,3 +48,16 @@ test('touch selection inserts the address, and IME Enter does not accept a sugge
 	f.fire(f.menu.children[0], 'click');
 	assert.equal(f.input.value, '"Smith, Bob" <bob@example.org>');
 });
+test('a suggestion is found in any case, whatever the browser\'s language', () => {
+	const f = fixture(['علی کیا <ali@example.org>', 'Alice <Alice@Example.org>', 'Jürgen Weiß <jw@example.org>', 'İpek Işık <ipek@example.org>', 'Νίκος Οδός <nikos@example.org>']);
+	const first = typed => { f.type(typed); return f.menu.hidden ? undefined : f.menu.children[0].textContent; };
+	assert.equal(first('ALICE@EXAMPLE'), 'Alice <Alice@Example.org>');
+	assert.equal(first('WEISS'), 'Jürgen Weiß <jw@example.org>');
+	assert.equal(first('weiß'), 'Jürgen Weiß <jw@example.org>');
+	assert.equal(first('ipek ISIK'), undefined, 'a letter with a mark stays another letter');
+	assert.equal(first('ipek ışık'), 'İpek Işık <ipek@example.org>');
+	assert.equal(first('İPEK IŞIK'), 'İpek Işık <ipek@example.org>');
+	assert.equal(first('ΝΊΚΟΣ'), 'Νίκος Οδός <nikos@example.org>');
+	assert.equal(first('νίκοσ'), 'Νίκος Οδός <nikos@example.org>');
+	assert.equal(first('علي كيا'), 'علی کیا <ali@example.org>');
+});

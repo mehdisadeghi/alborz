@@ -4,6 +4,9 @@ const form = document.getElementById("compose-form");
 const addresses = [...document.getElementById("emails").options].map(option => option.value);
 const lifetime = new AbortController();
 const fields = [];
+// As the server's searches fold (search.Fold): by no language's rules, ß as ss, ς as σ, the Turkish İ and ı as i,
+// the Arabic yeh and kaf as the Persian ones.
+const fold = text => text.toLowerCase().replace(/i\u0307|ı/g, "i").replace(/ß/g, "ss").replace(/ς/g, "σ").replace(/ي/g, "ی").replace(/ك/g, "ک");
 
 // A quoted display name may contain a comma; only separators outside quotes split addresses.
 const tokenAt = (value, caret) => {
@@ -59,10 +62,10 @@ for (const input of form.querySelectorAll("[data-recipient]")) {
 	};
 	const show = () => {
 		const token = tokenAt(input.value, input.selectionStart ?? input.value.length);
-		const query = input.value.slice(token.start, token.end).trim().toLocaleLowerCase();
+		const query = fold(input.value.slice(token.start, token.end).trim());
 		close();
 		if (!query) return;
-		matches = addresses.filter(address => address.toLocaleLowerCase().includes(query) && address.toLocaleLowerCase() !== query).slice(0, 8);
+		matches = addresses.filter(address => fold(address).includes(query) && fold(address) !== query).slice(0, 8);
 		menu.replaceChildren(...matches.map((address, index) => {
 			const row = document.createElement("div");
 			row.id = menu.id + "-" + index;

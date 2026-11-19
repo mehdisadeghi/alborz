@@ -48,10 +48,23 @@ of the accounts in scope.
 9. Each result row carries its account, folder and UID, and links its
    folder chip to that folder's search with `in:` stripped.
 
+### Case
+
+10. Keys, `is:` and `in:` values and the units of `newer_than`,
+    `older_than`, `larger` and `smaller` are read in any case; a folder
+    name is compared under `search.Fold` (ADR 69).
+11. A term's text is matched by the IMAP server and folds as that
+    server folds it: RFC 9051 6.4.4 asks for case-insensitive matching
+    of ASCII (SHOULD) and leaves other text to the server. alborz MUST
+    NOT fetch messages to match them itself.
+
 ## Consequences
 
 - Cross-folder mail search costs one `SELECT`, `SEARCH` and `FETCH` turn
   per folder per account.
+- Whether `Ä` finds `ä`, or `STRASSE` finds `Straße`, in mail is the
+  server's doing; a server that matches ASCII case-sensitively answers
+  `Foo` and `foo` differently.
 
 ## References
 

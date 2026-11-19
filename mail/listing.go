@@ -509,8 +509,8 @@ func searchFolders(mailboxes []MailboxInfo, q search.Query) []string {
 func folderNamed(mbox *MailboxInfo, named string) bool {
 	role := mbox.Role()
 	last := mbox.Name()[strings.LastIndex(mbox.Name(), string(mbox.Delim))+1:]
-	return strings.EqualFold(named, role) || strings.EqualFold(named, mbox.Name()) || strings.EqualFold(named, last) ||
-		(role == "junk" && strings.EqualFold(named, "spam"))
+	named = search.Fold(named)
+	return named == role || named == search.Fold(mbox.Name()) || named == search.Fold(last) || (role == "junk" && named == "spam")
 }
 
 // searchWindow is a search's rows up to the page asked, from every folder it spans, merged as its page is.
@@ -587,7 +587,7 @@ func heldMatches(q search.Query, env *imap.Envelope) bool {
 				text += heldFields[key](env) + "\n"
 			}
 		}
-		if strings.Contains(strings.ToLower(text), strings.ToLower(term.Value)) == term.Not {
+		if strings.Contains(search.Fold(text), search.Fold(term.Value)) == term.Not {
 			return false
 		}
 	}

@@ -45,7 +45,9 @@ incremental results while typing, without issuing thousands of IMAP
    - **tasks**: matches `SUMMARY` and `DESCRIPTION`;
    - **journal**: matches `SUMMARY`, `DESCRIPTION` and `CATEGORIES`
      (ADR 75);
-   - **contacts**: runs the CardDAV `addressbook-query`.
+   - **contacts**: matches every `FN`, `N`, `NICKNAME`, `ORG` and
+     `EMAIL` of the cards the address books in scope hold, read whole
+     as the list reads them.
 
 ### Header search dialog
 
@@ -65,18 +67,36 @@ incremental results while typing, without issuing thousands of IMAP
    - the star/colour filter menu beside the input sets `view` for all
      sections.
 
+### Case
+
+9. Text alborz matches itself MUST be compared under `search.Fold`:
+   Unicode full case folding (`ß` is `ss`, `ς` is `σ`), with the Turkish
+   `İ` and `ı` read as `i` and the Arabic yeh (U+064A) and kaf (U+0643)
+   read as the Persian ones (U+06CC, U+06A9). A letter with a combining
+   mark stays another letter, and text is not normalized. This covers
+   events, tasks, the journal, contacts, mail's `Held` rows and the
+   envelopes of address terms (ADR 34).
+10. Mail's `Search` is matched by the IMAP server and folds as that
+    server folds it (ADR 21).
+
 ## Consequences
 
 - Typing in the search box sends zero IMAP commands until the reader
   pauses for 1 s or presses `Enter`.
 - Starting a new full mail search cancels the account's previous search
   at its next folder boundary.
+- A `Held` row found under `search.Fold` leaves the dialog when the
+  server's own search, which replaces it, folds less.
+- A contacts search costs what the contacts list costs: every card of
+  the books in scope, from the mirror (ADR 53) where one is kept.
 
 ## References
 
-- ADR 13, ADR 21, ADR 23, ADR 34, ADR 54, ADR 75
-- `search/query.go`, `web/search.go`, `web/filters_shown.go`
-  (`StarFilter`, `StarUnasked`), `mail/imapsearch/`, `mail/listing.go`
+- ADR 13, ADR 21, ADR 23, ADR 34, ADR 53, ADR 54, ADR 75
+- `search/query.go`, `search/fold.go`, `web/search.go`,
+  `web/filters_shown.go` (`StarFilter`, `StarUnasked`),
+  `mail/imapsearch/`, `mail/listing.go`
   (`Held`), `mail/cache.go` (`held`, `supersede`),
   `mail/web/searchall.go`, `pim/match.go`,
-  `pim/calendar/web/search.go`, `templates/partials/nav.html`
+  `pim/calendar/web/search.go`, `pim/contacts/carddav.go` (`Matches`),
+  `templates/partials/nav.html`

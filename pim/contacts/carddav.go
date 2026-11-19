@@ -21,6 +21,7 @@ import (
 	"git.mehdix.org/alborz/pim"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/pim/store"
+	"git.mehdix.org/alborz/search"
 	"github.com/emersion/go-vcard"
 	"github.com/emersion/go-webdav"
 	"github.com/emersion/go-webdav/carddav"
@@ -263,7 +264,7 @@ func (p *Books) WarmAccount(ctx context.Context, s *alborz.Login) error {
 	if err != nil {
 		return err
 	}
-	query := Query("")
+	query := Query()
 	for _, r := range dav.Each(ctx, books, func(ctx context.Context, book dav.Collection) (int, error) {
 		_, err := c.QueryAddressBook(ctx, book.Path, &query)
 		return 0, err
@@ -415,35 +416,19 @@ func WithValues(fields []*vcard.Field, values []string) []*vcard.Field {
 	return out
 }
 
-func Query(queryText string) carddav.AddressBookQuery {
-	// Every property: the list reads the colour, categories, revision and members.
-	query := carddav.AddressBookQuery{
-		DataRequest: carddav.AddressDataRequest{AllProp: true},
-	}
+// Query asks for every card whole: the list reads the colour, categories, revision and members, and
+// a search is matched here (Matches), not by the server.
+func Query() carddav.AddressBookQuery {
+	return carddav.AddressBookQuery{DataRequest: carddav.AddressDataRequest{AllProp: true}}
+}
 
-	if queryText != "" {
-		query.PropFilters = []carddav.PropFilter{
-			{
-				Name:        vcard.FieldFormattedName,
-				TextMatches: []carddav.TextMatch{{Text: queryText}},
-			},
-			{
-				Name:        vcard.FieldName,
-				TextMatches: []carddav.TextMatch{{Text: queryText}},
-			},
-			{
-				Name:        vcard.FieldNickname,
-				TextMatches: []carddav.TextMatch{{Text: queryText}},
-			},
-			{
-				Name:        vcard.FieldOrganization,
-				TextMatches: []carddav.TextMatch{{Text: queryText}},
-			},
-			{
-				Name:        vcard.FieldEmail,
-				TextMatches: []carddav.TextMatch{{Text: queryText}},
-			},
-		}
+var searched = []string{vcard.FieldFormattedName, vcard.FieldName, vcard.FieldNickname, vcard.FieldOrganization, vcard.FieldEmail}
+
+// Matches says whether a query finds the card in its names, organisation or addresses.
+func (ao AddressObject) Matches(q search.Query) bool {
+	var fields []string
+	for _, name := range searched {
+		fields = append(fields, ao.Card.Values(name)...)
 	}
-	return query
+	return pim.Matches(q, fields...)
 }

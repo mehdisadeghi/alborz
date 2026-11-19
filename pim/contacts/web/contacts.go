@@ -134,7 +134,7 @@ func (p *plugin) shownCards(ctx *web.Context, only map[string]bool, view string,
 	if err != nil {
 		return nil, nil, nil, nil, web.NewError(http.StatusBadRequest, err.Error())
 	}
-	query := contacts.Query(words.String())
+	query := contacts.Query()
 	results := pim.Present(p.DAV, dav.Across(ctx.Request().Context(), sites, pim.Site[*carddav.Client].Account, func(ctx context.Context, site pim.Site[*carddav.Client]) ([]carddav.AddressObject, error) {
 		return site.Client.QueryAddressBook(ctx, site.Collection.Path, &query)
 	}))
@@ -148,7 +148,7 @@ func (p *plugin) shownCards(ctx *web.Context, only map[string]bool, view string,
 			groups = append(groups, ao)
 			return contacts.AddressObject{}, nil, false
 		}
-		return ao, nil, starred(ao.Color())
+		return ao, nil, starred(ao.Color()) && ao.Matches(words)
 	})
 	return aos, groups, books, unread, nil
 }

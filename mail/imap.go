@@ -1408,7 +1408,7 @@ func envelopeCarries(envelope *imap.Envelope, wanted map[string][]string) bool {
 			found := false
 			for _, address := range fields[key] {
 				written := address.Name + " <" + address.Addr() + ">"
-				if strings.Contains(strings.ToLower(written), strings.ToLower(value)) {
+				if strings.Contains(search.Fold(written), search.Fold(value)) {
 					found = true
 					break
 				}

@@ -23,6 +23,54 @@ func TestABookOnAlborzListsItsCards(t *testing.T) {
 	}
 }
 
+// A search reads every name and address of a card, in any case, on alborz and on a server asked directly.
+func TestContactSearchMatchesInAnyCase(t *testing.T) {
+	cards := map[string]string{
+		"weiss":  "FN:Jürgen Weiß\r\nN:Weiß;Jürgen;;;\r\nORG:Hauptstraße GmbH\r\nEMAIL:jw@example.org\r\nEMAIL:Juergen@Example.net\r\n",
+		"ipek":   "FN:İpek Işık\r\nNICKNAME:Pekmez\r\n",
+		"maryam": "FN:مریم گزارش\r\n",
+	}
+	card := func(uid string) string {
+		return "BEGIN:VCARD\r\nVERSION:3.0\r\nUID:" + uid + "\r\n" + cards[uid] + "END:VCARD\r\n"
+	}
+	for name, setup := range map[string]func() *Client{
+		"on alborz": func() *Client {
+			a, c := SignedIn(t, User)
+			book := c.CreateBook(t, "People")
+			for uid := range cards {
+				a.Put(t, book+uid+".vcf", "text/vcard", card(uid))
+			}
+			return c
+		},
+		"on a server, asked directly": func() *Client {
+			opts := []DAVOption{Book(DAVBooks+"people/", "People")}
+			for uid := range cards {
+				opts = append(opts, Object(DAVBooks+"people/"+uid+".vcf", card(uid)))
+			}
+			return Alborz(t, NoCache(), WithDAV(DAV(t, opts...))).SignIn(t, User)
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			c := setup()
+			for _, tc := range []struct{ query, found string }{
+				{"jürgen", "Jürgen Weiß"}, {"JÜRGEN", "Jürgen Weiß"}, {"weiss", "Jürgen Weiß"}, {"WEIẞ", "Jürgen Weiß"},
+				{"hauptstrasse", "Jürgen Weiß"}, {"JW@EXAMPLE.ORG", "Jürgen Weiß"}, {"juergen@example.net", "Jürgen Weiß"},
+				{"jürgen -ipek", "Jürgen Weiß"},
+				{"ipek", "İpek Işık"}, {"IŞIK", "İpek Işık"}, {"PEKMEZ", "İpek Işık"},
+				{"گزارش", "مریم گزارش"},
+			} {
+				list := Between(html.UnescapeString(c.Page(t, "contacts.list", url.Values{"query": {tc.query}})), "<main", "</main>")
+				for uid, text := range cards {
+					fn := Between(text, "FN:", "\r\n")
+					if got, want := strings.Contains(list, fn), fn == tc.found; got != want {
+						t.Errorf("%q: %s (%s) listed %v, want %v", tc.query, fn, uid, got, want)
+					}
+				}
+			}
+		})
+	}
+}
+
 // bookCards are the cards of the account's book on alborz named name, as a DAV client reads them.
 func bookCards(t *testing.T, a *App, name string) string {
 	t.Helper()
@@ -167,8 +215,7 @@ func TestABookWithAnUnreadableCardStillShowsTheRest(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			c, cutCard, failing := tc.setup()
-			// A search the server runs leaves the cut card out itself.
-			for query, books := range map[string][]string{"": {"Friends", failing}, "Ada": {failing}} {
+			for query, books := range map[string][]string{"": {"Friends", failing}, "Ada": {"Friends", failing}} {
 				resp := c.Get(t, "contacts.list", url.Values{"query": {query}})
 				text := html.UnescapeString(resp.Text)
 				if resp.StatusCode != http.StatusOK || !strings.Contains(text, "Ada Lovelace") || strings.Contains(text, "Cut Short") {

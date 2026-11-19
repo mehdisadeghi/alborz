@@ -16,6 +16,15 @@
 - A calendar or address book that another client makes, or restores on its
   server, appears without a restart: within about two minutes for calendars
   and ten for address books.
+- `newer_than:2D` and `older_than:3W` are read like `2d` and `3w`.
+- Search in events, tasks, the journal and the mail rows shown while typing
+  ignores case in every script: `STRASSE` finds `Straße` and `ISTANBUL` finds
+  `İstanbul`. Mail text is matched by the IMAP server, as that server folds
+  it.
+- A contacts search ignores case the same way, reads every e-mail address of a
+  card and understands `-word` and quoted phrases.
+- Recipient suggestions match in any case, whatever the browser's language.
+- A search reads the Arabic `ي` and `ك` as the Persian `ی` and `ک`.
 
 ## [0.20.0] - 2026-10-31
 

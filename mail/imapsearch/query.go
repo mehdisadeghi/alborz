@@ -115,14 +115,14 @@ func queryAgo(value string, now time.Time) (time.Time, bool) {
 	if err != nil || n <= 0 {
 		return time.Time{}, false
 	}
-	switch value[len(value)-1] {
-	case 'd':
+	switch strings.ToLower(value[len(value)-1:]) {
+	case "d":
 		return now.AddDate(0, 0, -n), true
-	case 'w':
+	case "w":
 		return now.AddDate(0, 0, -7*n), true
-	case 'm':
+	case "m":
 		return now.AddDate(0, -n, 0), true
-	case 'y':
+	case "y":
 		return now.AddDate(-n, 0, 0), true
 	}
 	return time.Time{}, false

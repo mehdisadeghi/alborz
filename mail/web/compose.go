@@ -77,18 +77,23 @@ func (p *plugin) renderCompose(ctx *web.Context, status int, base *IMAPBaseRende
 	return ctx.Render(status, "mail/compose", data)
 }
 
-// The address written as is offered even when unlisted, so the dropdown can select it.
+// The address written as is offered even when no account lists it, so the dropdown can select it.
 func composeIdentities(ctx *web.Context, writtenAs string) []AccountIdentities {
 	var out []AccountIdentities
+	own := -1
 	for _, s := range ctx.Logins() {
 		entry := AccountIdentities{Account: s.Username()}
 		if settings, err := mail.LoadSettings(ctx.Request().Context(), s.Store()); err == nil {
 			entry.Addresses = settings.Identities
 		}
-		if s == ctx.Login && writtenAs != "" && !entry.offers(writtenAs) {
-			entry.Addresses = append(entry.Addresses, writtenAs)
+		if s == ctx.Login {
+			own = len(out)
 		}
 		out = append(out, entry)
+	}
+	offered := slices.ContainsFunc(out, func(a AccountIdentities) bool { return a.offers(writtenAs) })
+	if own >= 0 && writtenAs != "" && !offered {
+		out[own].Addresses = append(out[own].Addresses, writtenAs)
 	}
 	return out
 }

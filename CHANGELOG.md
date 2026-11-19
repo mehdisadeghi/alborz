@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- A draft written as another signed-in account reopens and is sent as that
+  account, not as the account that keeps the draft.
+
 ## [0.20.0] - 2026-10-31
 
 ### Added

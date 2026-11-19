@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -185,6 +186,41 @@ func TestSendingAsAnotherAccountKeepsItsDraft(t *testing.T) {
 	}
 	if n := len(MessageUIDs(c.Page(t, "mail.mailbox", "Sent", second))); n != 1 {
 		t.Errorf("the sent copy is not on the sending account; found %d", n)
+	}
+}
+
+// A draft kept on one account and written as another reopens, and leaves, as the one it was written as.
+func TestDraftWrittenAsAnotherAccountReopensAsIt(t *testing.T) {
+	smtp := SMTP(t)
+	a := Alborz(t, WithSMTP(smtp))
+	c := a.SignIn(t, User)
+	c.SignIn(t, User2)
+	for _, draft := range []struct{ on, as string }{{User, User2}, {User2, User}} {
+		q := url.Values{"account": {draft.on}}
+		before := MessageUIDs(c.Page(t, "mail.mailbox", "Drafts", q))
+		saved := c.Compose(t, c.Page(t, "mail.compose", q), url.Values{"save_as_draft": {"1"}, "from_account": {draft.as}}, "mail.compose", q)
+		if saved.StatusCode != http.StatusFound {
+			t.Fatalf("saving the draft on %s: %s", draft.on, saved.Status)
+		}
+		page := c.Follow(t, saved.Header.Get("Location"))
+		from := SelectedValue(page, "from_account")
+		if from != draft.as {
+			t.Errorf("the draft on %s written as %s reopens with From %q", draft.on, draft.as, from)
+		}
+		drafts := slices.DeleteFunc(MessageUIDs(c.Page(t, "mail.mailbox", "Drafts", q)), func(uid string) bool { return slices.Contains(before, uid) })
+		if len(drafts) != 1 {
+			t.Fatalf("%s keeps %d new drafts, want 1", draft.on, len(drafts))
+		}
+		c.Send(t, page, url.Values{"from_account": {from}}, "mail.message.edit", "Drafts", drafts[0], q)
+		if !strings.Contains(smtp.Last(), "From: <"+draft.as+">") {
+			t.Errorf("the draft on %s written as %s left as another:\n%s", draft.on, draft.as, headOf(smtp.Last()))
+		}
+	}
+	// A form sent back draws the same From list.
+	q := url.Values{"account": {User}}
+	back := c.Compose(t, c.Page(t, "mail.compose", q), url.Values{"signature_apply": {"1"}, "from_account": {User2}}, "mail.compose", q)
+	if got := SelectedValue(back.Text, "from_account"); got != User2 {
+		t.Errorf("a form written as %s came back with From %q", User2, got)
 	}
 }
 

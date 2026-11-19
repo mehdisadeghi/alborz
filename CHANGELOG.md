@@ -13,6 +13,9 @@
   account, not as the account that keeps the draft.
 - An identity two signed-in accounts list stays with the account chosen in
   From when the compose form comes back.
+- A calendar or address book that another client makes, or restores on its
+  server, appears without a restart: within about two minutes for calendars
+  and ten for address books.
 
 ## [0.20.0] - 2026-10-31
 

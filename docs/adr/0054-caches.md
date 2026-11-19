@@ -21,7 +21,7 @@ reminders) need a single server-owned scheduler.
    |---|---|---|---|
    | Mail listings (`mail/cache.go`) | mailbox view order and rows per account | IDLE/NOTIFY, changed `STATUS`, own writes (ADR 18) | memory; fresh 30 s, served stale, dropped after 24 h unused |
    | Message bodies (`mail/bodies.go`) | fetched text parts by `UIDVALIDITY` and UID | `UIDVALIDITY` change, expunge, flag writes | memory; 100 per account, 64 MiB total, parts <= 512 KiB |
-   | Memos (`internal/memo`) | folder counts, unified roles, DAV collection list | age or own write | memory; 30 s to 5 min |
+   | Memos (`internal/memo`) | folder counts, unified roles, DAV collection list | age or own write | memory; 30 s to 10 min |
    | WKD keys (`mail/wkd.go`) | sender OpenPGP key or absence | age | memory; 24 h |
    | DAV mirror (`pim/dav`) | synced remote collections (ADR 53) | sync token or ctag change, own writes | disk (`caldav.db`, `carddav.db`) + 128 MiB hot memory per kind |
 
@@ -39,7 +39,7 @@ reminders) need a single server-owned scheduler.
 5. `Server.Schedule` (`schedule.go`) runs periodic background jobs on
    dedicated goroutines, skipping overlapping ticks and stopping cleanly
    on server close:
-   - DAV mirror sync every 10 s (ADR 53);
+   - DAV mirror sync and collection lists every 10 s (ADR 53);
    - subscribed calendar feeds every 1 min (ADR 62);
    - calendar event reminders every 1 min (ADR 74).
 

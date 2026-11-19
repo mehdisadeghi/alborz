@@ -25,7 +25,8 @@ type Kind struct {
 	Name, Label string
 	// Schemes are the explicit upstream schemes, secure and plain.
 	Schemes [2]string
-	// Poll is how often a collection is asked whether it changed, since CalDAV and CardDAV push nothing.
+	// Poll is how often a collection, and an account's list of them, is asked whether it changed, since
+	// CalDAV and CardDAV push nothing.
 	Poll time.Duration
 	// Discover finds the service's URL for a domain by its SRV record.
 	Discover func(ctx context.Context, domain string) (string, error)
@@ -44,9 +45,6 @@ type Kind struct {
 	// Unnamed is the address of a new collection whose name gives none.
 	Unnamed string
 }
-
-// discoveryTTL is when a served collection list is reloaded in the background.
-const discoveryTTL = 5 * time.Minute
 
 // The load is detached from its requester, so only its own deadline stops a hung server wedging every waiter.
 const discoveryTimeout = 30 * time.Second
@@ -144,6 +142,7 @@ func NewProvider(srv *alborz.Server, st *store.Store, kind Kind) (*Provider, err
 		mirror = m
 		srv.Sealers = append(srv.Sealers, alborz.Sealer{Reseal: m.Reseal, Drop: m.Drop})
 		srv.Schedule.Add(tick, m.round)
+		srv.Schedule.Add(tick, func(ctx context.Context, _ time.Time) { p.Follow(ctx, srv.Logins()) })
 	}
 	here, err := hereSource(srv.PublicURL)
 	if err != nil {
@@ -151,7 +150,7 @@ func NewProvider(srv *alborz.Server, st *store.Store, kind Kind) (*Provider, err
 	}
 	p = &Provider{Kind: kind, urls: urls, found: found, hosts: hosts, mirror: mirror,
 		discovery:   make(map[string]<-chan struct{}, len(domains)),
-		collections: memo.NewBackground[[]Collection](srv.Options.CacheFor(discoveryTTL))}
+		collections: memo.NewBackground[[]Collection](srv.Options.CacheFor(kind.Poll))}
 	p.trusted, p.named, p.private = srv.Outgoing.Trusted, srv.Outgoing.Trusted, srv.Options.PrivateServices
 	if !p.private {
 		p.named = srv.Outgoing.Guarded
@@ -493,7 +492,7 @@ func (p *Provider) homes(ctx context.Context, login *alborz.Login) []Home {
 	return homes
 }
 
-// Collections is the account's list of the kind, found once per user; the load outlives the request that starts it.
+// Collections is the account's list of the kind, kept for the kind's poll and in step by Follow.
 func (p *Provider) Collections(ctx context.Context, login *alborz.Login) ([]Collection, error) {
 	if err := p.awaitDiscovery(ctx, login.Domain()); err != nil {
 		return nil, err
@@ -505,7 +504,12 @@ func (p *Provider) Collections(ctx context.Context, login *alborz.Login) ([]Coll
 			p.collections.Retry(strings.ToLower(login.Username()), nextRetry(p.Troubles(login.Username())))
 		}
 	}()
-	return p.collections.Get(strings.ToLower(login.Username()), func() ([]Collection, error) {
+	return p.collections.Get(strings.ToLower(login.Username()), p.listing(ctx, login))
+}
+
+// listing asks the account's servers for its list; the load outlives the request that starts it.
+func (p *Provider) listing(ctx context.Context, login *alborz.Login) func() ([]Collection, error) {
+	return func() ([]Collection, error) {
 		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), discoveryTimeout)
 		defer cancel()
 
@@ -521,7 +525,20 @@ func (p *Provider) Collections(ctx context.Context, login *alborz.Login) ([]Coll
 			infos[i].Feed = p.Feed(login.Username(), infos[i].Path)
 		}
 		return infos, nil
-	})
+	}
+}
+
+// Follow lists again, behind no request, each login's account whose list was read and has gone stale:
+// nothing else tells of a collection another client made or restored.
+func (p *Provider) Follow(ctx context.Context, logins []*alborz.Login) {
+	for _, login := range logins {
+		account := strings.ToLower(login.Username())
+		// A server that throttled the last listing said when to ask again.
+		if !p.collections.Held(account) || time.Now().Before(nextRetry(p.Troubles(login.Username()))) {
+			continue
+		}
+		p.collections.Warm(account, p.listing(alborz.Background(ctx), login))
+	}
 }
 
 // A first page must not cache an empty list while its server is still being found.

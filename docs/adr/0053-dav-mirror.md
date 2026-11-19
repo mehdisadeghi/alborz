@@ -58,18 +58,27 @@ collections (ADR 24).
     Opened collections are held in memory up to 128 MiB per kind, least
     recently read evicted.
 12. With `-cache=false` there is no mirror.
+13. An account's collection list is kept in memory for the kind's
+    poll. The 10 s round MUST list again, behind no request, each
+    signed-in account whose list was read since start and is older
+    than the poll, no sooner than a server that throttled the last
+    listing asked (RFC 9110 10.2.3). An own change, a 404 (rule 6) and
+    force refresh drop the list at once.
 
 ## Consequences
 
 - A collection's first read costs one sync.
-- Collection listing is memoised separately (5 min); counting members
-  asks the server.
+- A collection another client makes or restores is listed within the
+  poll and one round, and synced on its first read. Each signed-in
+  account's servers are asked for its list once per poll.
+- Counting members asks the server.
 
 ## References
 
 - RFC 6578; RFC 4791 5.3.4, 7.8, 7.9; RFC 6352 6.3.2.3, 8.6, 8.7;
-  RFC 9111; ADR 6, 20, 24, 28, 54, 59, 70
+  RFC 9110 10.2.3; RFC 9111; ADR 6, 20, 24, 28, 54, 59, 70
 - `pim/dav/mirror.go` (`Mirror`, `Principal`, `tripper`, `ready`,
   `wrote`, `round`, `Refresh`), `pim/dav/sync.go` (`pull`,
   `syncCollection`, `compare`), `pim/dav/transport.go` (`httpClient`,
-  `principal`), `pim/dav/provider.go` (`NewProvider`)
+  `principal`), `pim/dav/provider.go` (`NewProvider`, `Collections`,
+  `Follow`)

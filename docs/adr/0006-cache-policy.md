@@ -23,8 +23,9 @@ PROPFIND, an IMAP STATUS) on every page view after the entry ages.
    synced after the response. A collection not yet held is synced
    first, waiting at most 4 s before the request goes to the server.
 6. A scheduler round every 10 s syncs each collection read since start
-   before it goes stale. Poll intervals are per service: 2 min for
-   CalDAV, 10 min for CardDAV.
+   before it goes stale, and lists an account's collections again once
+   the list is older than the poll. Poll intervals are per service:
+   2 min for CalDAV, 10 min for CardDAV.
 7. The mirror is kept on disk, sealed under a key derived from the
    login key, so a restart is warm and shutdown does not sign out.
 8. Each DAV list page offers a forced refresh that syncs every held
@@ -48,6 +49,6 @@ PROPFIND, an IMAP STATUS) on every page view after the entry ages.
 - `mail/cache.go` (`listingFreshFor`, `listingKeepFor`,
   `listingChanged`), `mail/watch.go`
 - `pim/dav/mirror.go` (`ready`, `round`, `Refresh`, `OpenMirror`,
-  `syncWait`, `tick`), `pim/dav/provider.go`,
+  `syncWait`, `tick`), `pim/dav/provider.go` (`Follow`),
   `pim/calendar/caldav.go`, `pim/contacts/carddav.go` (`Poll`),
   `cmd/alborz/main.go` (`-cache`, cache directory)

@@ -82,7 +82,25 @@ func TestNewMailUnderAllAccountsUsesTheDefaultAccount(t *testing.T) {
 	}
 }
 
-// The URL's account outranks the stored default (ADR 1).
+// A default account and a URL's account are the account their address names (ADR 108).
+func TestDefaultAccountIsReadInAnyCapitals(t *testing.T) {
+	a := Alborz(t)
+	c := a.SignIn(t, User)
+	c.SignIn(t, User2)
+	typed := strings.ToUpper(User2[:1]) + User2[1:]
+	chooseDefaultAccount(t, c, typed)
+	if got := SelectedValue(c.Page(t, "settings.profile"), "default_account"); got != User2 {
+		t.Errorf("the settings mark %q as the default, want %q", got, User2)
+	}
+	want := a.Path("mail.compose", url.Values{"account": {User2}})
+	if to := c.Get(t, "mail.compose").Header.Get("Location"); to != want {
+		t.Errorf("compose under All accounts led to %q, want %q", to, want)
+	}
+	if got := SelectedValue(c.Page(t, "mail.compose", url.Values{"account": {typed}}), "from_account"); got != User2 {
+		t.Errorf("compose for %s: From = %q, want %q", typed, got, User2)
+	}
+}
+
 func TestDefaultAccountYieldsToTheAccountNamed(t *testing.T) {
 	a := Alborz(t)
 	c := a.SignIn(t, User)

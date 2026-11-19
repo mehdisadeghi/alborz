@@ -62,7 +62,7 @@ func handleLogin(ctx *web.Context) error {
 		ctx.AddAccount(s)
 
 		if remember == "on" {
-			if err := ctx.SetLoginToken(username, password); err != nil {
+			if err := ctx.SetLoginToken(s.Username(), password); err != nil {
 				return err
 			}
 		}
@@ -103,11 +103,12 @@ func handleLogout(ctx *web.Context) error {
 	ctx.Quiet()
 	var left *alborz.Login
 	for _, username := range usernames {
-		if ctx.LoginFor(username) == nil {
+		login := ctx.LoginFor(username)
+		if login == nil {
 			return web.NewError(http.StatusBadRequest, "not signed in to that account")
 		}
-		ctx.Server.ForgetAccount(username)
-		left = ctx.LogoutAccount(username)
+		ctx.Server.ForgetAccount(login.Username())
+		left = ctx.LogoutAccount(login.Username())
 	}
 	to := ctx.Path("auth.login")
 	if left != nil {

@@ -145,8 +145,9 @@ func localPath(raw string) string {
 	return u.String()
 }
 
-// LoginFor returns the account's live login, or nil.
+// LoginFor returns the live login of the account the address names, or nil.
 func (ctx *Context) LoginFor(username string) *alborz.Login {
+	username = alborz.AccountName(username)
 	for _, s := range ctx.accountLogins() {
 		if s.Username() == username {
 			return s
@@ -321,7 +322,7 @@ func (ctx *Context) RestoreRememberedAccounts() bool {
 		if s == nil {
 			continue
 		}
-		if !session.restored(s, want[i].sealed) {
+		if !session.restored(s, want[i].address, want[i].sealed) {
 			s.Close()
 			continue
 		}

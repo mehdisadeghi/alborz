@@ -77,8 +77,11 @@ func handleProfile(ctx *web.Context) error {
 			return err
 		}
 		accounts := ctx.Accounts()
-		if account := p.Writing.DefaultAccount; account != "" && ctx.LoginFor(account) == nil {
-			accounts = append(accounts, web.Account{Username: account})
+		// The picker marks the account the stored address names (ADR 108).
+		if login := ctx.LoginFor(p.Writing.DefaultAccount); login != nil {
+			p.Writing.DefaultAccount = login.Username()
+		} else if p.Writing.DefaultAccount != "" {
+			accounts = append(accounts, web.Account{Username: p.Writing.DefaultAccount})
 		}
 		return ctx.Render(status, "settings/general", &ProfileRenderData{
 			PageData:         *web.NewSettingsPageData(ctx, ctx.T("settings.general")).WithRefused(message),

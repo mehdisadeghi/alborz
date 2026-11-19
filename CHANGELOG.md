@@ -65,6 +65,8 @@
 - A read-only device password tells its client that it may not write, so the
   client shows calendars and address books as read only instead of failing on
   save.
+- An address signs in to one account however it is capitalised, so a password
+  change signs out its sessions under every spelling.
 
 ## [0.20.0] - 2026-10-31
 

@@ -234,6 +234,26 @@ func (r *settingsRecords) Entries(account string) ([]string, error) {
 	return names, err
 }
 
+// adopt moves the record and the key an older build kept under the address as typed to the account it
+// names, where the account has none (ADR 108). Both are sealed under keys that never depended on the spelling.
+func (r *settingsRecords) adopt(typed, account string) error {
+	return r.db.Update(func(tx kv.Tx) error {
+		for _, at := range []func(string) string{r.key, r.keyEntryKey} {
+			kept := tx.Get(at(typed))
+			if kept == nil || tx.Get(at(account)) != nil {
+				continue
+			}
+			if err := tx.Put(at(account), kept); err != nil {
+				return err
+			}
+			if err := tx.Delete(at(typed)); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
 // Forget keeps the account's own key, which is not a setting but what opens its data.
 func (r *settingsRecords) Forget(account string) error {
 	return r.apart.remove(r.key(account))

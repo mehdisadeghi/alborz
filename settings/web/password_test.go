@@ -46,6 +46,20 @@ func TestPasswordChange(t *testing.T) {
 	}
 }
 
+// One mailbox is one account however its address is typed, so a password change reaches every spelling (ADR 108).
+func TestPasswordChangeSignsOutEverySpelling(t *testing.T) {
+	imap := IMAP(t)
+	a := Alborz(t, WithIMAP(imap), WithPasswd(Passwd(t, imap)))
+	typed := strings.ToUpper(User[:1]) + User[1:]
+	here, other := a.SignIn(t, User), a.SignIn(t, typed)
+	if resp := here.Post(t, "settings.password", change(Password, "fresh-secret", "fresh-secret")); resp.StatusCode != http.StatusFound {
+		t.Fatalf("changing the password: %s\n%s", resp.Status, NoticeBar(resp.Text))
+	}
+	if to := other.Get(t, "settings.password").Header.Get("Location"); !strings.HasPrefix(to, a.Path("auth.login")) {
+		t.Fatalf("the browser signed in as %s was not signed out; it was sent to %q", typed, to)
+	}
+}
+
 func TestPasswordChangeRefused(t *testing.T) {
 	imap := IMAP(t)
 	ln, err := net.Listen("tcp", "127.0.0.1:0")

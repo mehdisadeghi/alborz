@@ -30,7 +30,10 @@ func (e PausedError) Error() string {
 	return fmt.Sprintf("too many refused passwords; paused until %v", e.Until.Format(time.RFC3339))
 }
 
-// SignIn opens a login for username, counting refusals per reader at from.
+// AccountName is the account an address as typed names: the address in lower case (ADR 108).
+func AccountName(typed string) string { return strings.ToLower(typed) }
+
+// SignIn opens a login for the account username names, counting refusals per reader at from.
 func (s *Server) SignIn(username, password, from string) (*Login, error) {
 	var login *Login
 	err := s.signInRefused.attempt(readerKey(from, username), func() (err error) {

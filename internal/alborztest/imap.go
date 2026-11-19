@@ -320,17 +320,20 @@ func seedElsewhere(t *testing.T) *imapmemserver.User {
 }
 
 // SetPassword changes user's password, as the mail host's password server does.
-func (s *IMAPServer) SetPassword(user, password string) { s.passwords.Store(user, password) }
+func (s *IMAPServer) SetPassword(user, password string) {
+	s.passwords.Store(strings.ToLower(user), password)
+}
 
 func (s *IMAPServer) opens(user, password string) bool {
-	want, changed := s.passwords.Load(user)
+	want, changed := s.passwords.Load(strings.ToLower(user))
 	if !changed {
 		want = Password
 	}
 	return password == want
 }
 
-// changedPasswords signs in with the passwords SetPassword gave, which the in-memory server cannot change.
+// changedPasswords signs in with the passwords SetPassword gave, which the in-memory server cannot change,
+// to one mailbox whatever the name's capitals, as most mail servers do.
 type changedPasswords struct {
 	imapserver.SessionIMAP4rev2
 	s *IMAPServer
@@ -340,7 +343,7 @@ func (c changedPasswords) Login(username, password string) error {
 	if !c.s.opens(username, password) {
 		return imapserver.ErrAuthFailed
 	}
-	return c.SessionIMAP4rev2.Login(username, Password)
+	return c.SessionIMAP4rev2.Login(strings.ToLower(username), Password)
 }
 
 type wholeFetchFails struct{ imapserver.Session }

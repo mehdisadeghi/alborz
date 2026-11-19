@@ -187,14 +187,16 @@ func (s *Session) addLocked(login *alborz.Login) {
 	byName(s.accounts)
 }
 
-// restored commits only the credential that was read before upstream authentication began.
-func (s *Session) restored(login *alborz.Login, sealed []byte) bool {
+// restored commits only the credential that was read before upstream authentication began. A session an
+// older build kept remembers the address as typed; from here it remembers the account (ADR 108).
+func (s *Session) restored(login *alborz.Login, address string, sealed []byte) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.ended || !time.Now().Before(s.expires) ||
-		!bytes.Equal(s.remember[login.Username()], sealed) {
+	if s.ended || !time.Now().Before(s.expires) || !bytes.Equal(s.remember[address], sealed) {
 		return false
 	}
+	delete(s.remember, address)
+	s.remember[login.Username()] = sealed
 	if s.liveLocked(login.Username()) {
 		return false
 	}

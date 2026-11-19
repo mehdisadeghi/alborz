@@ -199,7 +199,7 @@ func (ctx *Context) signIn(next HandlerFunc, required bool) error {
 			return renderInfo(ctx, http.StatusOK, ctx.Tf("account.notsignedin", acct))
 		}
 		ctx.Login = login
-		ctx.urlAccount = acct
+		ctx.urlAccount = login.Username()
 	} else if len(logins) > 1 {
 		ctx.Unified = true
 	}

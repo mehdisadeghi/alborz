@@ -219,6 +219,8 @@ func New(log *log.Logger, options Options) (*Server, error) {
 		if domain == "" {
 			return nil, errors.New("domain name must not be empty; use provider for all domains")
 		}
+		// An account's domain is in lower case (ADR 108).
+		domain = strings.ToLower(domain)
 		d, err := parseDomainConfig(domain, config)
 		if err != nil {
 			return nil, err

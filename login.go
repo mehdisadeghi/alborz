@@ -666,13 +666,20 @@ func (sm *loginManager) connectIMAPContext(ctx context.Context, dial dialIMAPFun
 	return c, nil
 }
 
-// put connects to the IMAP server and creates a new login. It fails with
-// AuthError or unknownDomainError.
-func (sm *loginManager) put(username, password, from string) (*Login, error) {
+// put connects to the IMAP server and creates a new login of the account the address as typed names,
+// so no login is under another spelling of it (ADR 108). It fails with AuthError or unknownDomainError.
+func (sm *loginManager) put(typed, password, from string) (*Login, error) {
+	username := AccountName(typed)
 	_, domain, _ := strings.Cut(username, "@")
 	c, err := sm.connectIMAP(domain, username, password, from)
 	if err != nil {
 		return nil, err
+	}
+	if typed != username {
+		if err := sm.settings.adopt(typed, username); err != nil {
+			c.Logout()
+			return nil, err
+		}
 	}
 
 	s := &Login{

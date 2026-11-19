@@ -124,7 +124,7 @@ func setupDomain(email string) (string, error) {
 	if !ok || domain == "" || strings.ContainsAny(domain, "@:/[] ") {
 		return "", &SetupError{"email", errors.New("enter a full email address")}
 	}
-	return domain, nil
+	return strings.ToLower(domain), nil
 }
 
 func setupURL(raw, field string) (*url.URL, error) {

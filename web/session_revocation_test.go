@@ -201,8 +201,21 @@ func TestRemovingALiveAccountRevokesItsPendingRestoration(t *testing.T) {
 	}
 	defer removed.Close()
 	// A restore may finish before the remover has closed its upstream connection or saved the record.
-	if ctx.session.restored(pending, sealed) {
+	if ctx.session.restored(pending, "one@test.localdomain", sealed) {
 		t.Fatal("removing the live login left a credential that could restore it")
+	}
+}
+
+// A session an older build kept remembers the address as typed; restoring it signs the account in (ADR 108).
+func TestRestoringAnAddressAsTypedSignsItsAccountIn(t *testing.T) {
+	const typed, account = "One@Test.localdomain", "one@test.localdomain"
+	server := rememberedServer(t, nil)
+	ctx := rememberedContext(t, server, typed)
+	if !ctx.RestoreRememberedAccounts() || ctx.Login.Username() != account {
+		t.Fatalf("restoring %s did not sign %s in", typed, account)
+	}
+	if !server.Sessions.Holds(ctx.session.ID, account) || len(ctx.session.remember[account]) == 0 || ctx.session.remember[typed] != nil {
+		t.Fatalf("the session remembers %v, want %s alone", ctx.session.remember, account)
 	}
 }
 

@@ -23,10 +23,7 @@ func signatureValue(account, name string) string {
 }
 
 func composeSignatures(ctx *web.Context, settings *mail.Settings) ([]SignatureChoice, error) {
-	account, _ := mail.SplitIdentityChoice(ctx.FormValue("from_account"))
-	if account == "" {
-		account = ctx.Login.Username()
-	}
+	account := fromAccount(ctx)
 	var choices []SignatureChoice
 	add := func(owner string, settings *mail.Settings) {
 		for _, sig := range settings.Signatures {

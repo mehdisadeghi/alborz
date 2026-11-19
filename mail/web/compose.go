@@ -1,6 +1,7 @@
 package web
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"html"
@@ -31,6 +32,8 @@ type ComposeRenderData struct {
 	Attached []AttachedMessage
 	// Identities offered in the From dropdown, one entry per account.
 	Identities []AccountIdentities
+	// FromAccount is the account the form is written as.
+	FromAccount string
 	// Signatures the account holds, and the one under the message now.
 	Signatures     []SignatureChoice
 	Signature      string
@@ -55,6 +58,7 @@ func (p *plugin) composeRenderData(ctx *web.Context, base *IMAPBaseRenderData, m
 		Message:            msg,
 		Attached:           attachedList(msg),
 		Identities:         composeIdentities(ctx, msg.From),
+		FromAccount:        fromAccount(ctx),
 		Signature:          signature,
 		PoolSignatures:     ctx.Profile().Writing.PoolSignatures,
 		Suggestions:        suggestions(ctx),
@@ -75,6 +79,12 @@ func (p *plugin) renderCompose(ctx *web.Context, status int, base *IMAPBaseRende
 		data.Signature = signatureValue(ctx.Login.Username(), signature)
 	}
 	return ctx.Render(status, "mail/compose", data)
+}
+
+// fromAccount is the account the form's From names, the request's when it names none.
+func fromAccount(ctx *web.Context) string {
+	account, _ := mail.SplitIdentityChoice(ctx.FormValue("from_account"))
+	return cmp.Or(account, ctx.Login.Username())
 }
 
 // The address written as is offered even when no account lists it, so the dropdown can select it.
@@ -124,15 +134,17 @@ func parseAttachedRef(s string) (mail.MessagePath, error) {
 
 // SelectedFrom is the From option the form opens on; only an exact "account" or "account|identity" value selects one.
 func (d *ComposeRenderData) SelectedFrom() string {
-	fallback := d.GlobalData.Username
-	if d.GlobalData.URLAccount != "" {
-		fallback = d.GlobalData.URLAccount
-	}
+	fallback := d.FromAccount
 	want := mail.BareAddress(d.Message.From)
 	if want == "" {
 		return fallback
 	}
-	for _, group := range d.Identities {
+	// An identity two accounts list is the one's the form is written as.
+	groups := d.Identities
+	if i := slices.IndexFunc(groups, func(g AccountIdentities) bool { return g.Account == fallback }); i >= 0 && groups[i].offers(want) {
+		groups = groups[i : i+1]
+	}
+	for _, group := range groups {
 		if strings.EqualFold(want, group.Account) {
 			return group.Account
 		}

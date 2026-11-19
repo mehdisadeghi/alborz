@@ -6,6 +6,8 @@
 
 - A draft written as another signed-in account reopens and is sent as that
   account, not as the account that keeps the draft.
+- An identity two signed-in accounts list stays with the account chosen in
+  From when the compose form comes back.
 
 ## [0.20.0] - 2026-10-31
 

@@ -224,6 +224,26 @@ func TestDraftWrittenAsAnotherAccountReopensAsIt(t *testing.T) {
 	}
 }
 
+// An identity two accounts list stays with the account chosen in From when the form comes back.
+func TestSharedIdentityStaysWithTheAccountChosen(t *testing.T) {
+	c := Alborz(t).SignIn(t, User)
+	c.SignIn(t, User2)
+	const shared = "shared@test.localdomain"
+	for _, account := range []string{User, User2} {
+		if resp := c.Post(t, "mail.account", url.Values{"identities": {shared}}, url.Values{"account": {account}}); resp.StatusCode != http.StatusFound {
+			t.Fatalf("saving %s's identity: %s", account, resp.Status)
+		}
+	}
+	q := url.Values{"account": {User}}
+	for _, account := range []string{User, User2} {
+		chosen := account + "|" + shared
+		back := c.Compose(t, c.Page(t, "mail.compose", q), url.Values{"signature_apply": {"1"}, "from_account": {chosen}}, "mail.compose", q)
+		if got := SelectedValue(back.Text, "from_account"); got != chosen {
+			t.Errorf("a form written as %q came back with From %q", chosen, got)
+		}
+	}
+}
+
 func TestReopenedDraftKeepsItsLines(t *testing.T) {
 	c := Alborz(t).SignIn(t, User)
 	text := strings.Repeat("A paragraph long enough to be wrapped when saved. ", 4) + "End."

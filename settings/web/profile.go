@@ -34,9 +34,10 @@ type ProfileRenderData struct {
 	// AddonScripts are the add-ons' settings scripts.
 	AddonScripts []string
 
-	Reading    alborz.Reading
-	Writing    alborz.Writing
-	MaxPerPage int
+	Reading         alborz.Reading
+	Writing         alborz.Writing
+	SendingAccounts []web.Account
+	MaxPerPage      int
 	// LockMinutes is how long this browser waits before it locks; zero without a passkey.
 	LockMinutes int
 	// Shown is the profile the form was drawn from, which a save compares the form against.
@@ -75,6 +76,10 @@ func handleProfile(ctx *web.Context) error {
 		if err != nil {
 			return err
 		}
+		accounts := ctx.Accounts()
+		if account := p.Writing.DefaultAccount; account != "" && ctx.LoginFor(account) == nil {
+			accounts = append(accounts, web.Account{Username: account})
+		}
 		return ctx.Render(status, "settings/general", &ProfileRenderData{
 			PageData:         *web.NewSettingsPageData(ctx, ctx.T("settings.general")).WithRefused(message),
 			Theme:            p.Display.Theme,
@@ -90,6 +95,7 @@ func handleProfile(ctx *web.Context) error {
 			AddonScripts:     addonScripts(ctx),
 			Reading:          p.Reading,
 			Writing:          p.Writing,
+			SendingAccounts:  accounts,
 			MaxPerPage:       web.MaxMessagesPerPage,
 			LockMinutes:      lockMinutes(ctx.Session().Lock()),
 			Shown:            string(shown),
@@ -169,6 +175,12 @@ func handleProfile(ctx *web.Context) error {
 		reading.Secondary = ""
 	}
 	reading.NoWeekNumbers = ctx.FormValue("week_numbers") == ""
+	if v, ok := given("default_account"); ok {
+		if v != "" && v != drawn.Writing.DefaultAccount && v != shown.Writing.DefaultAccount && ctx.LoginFor(v) == nil {
+			return render(http.StatusUnprocessableEntity, ctx.Tf("account.notsignedin", v), shown)
+		}
+		p.Writing.DefaultAccount = v
+	}
 	if v, ok := given("reply_position"); ok {
 		p.Writing.ReplyBelowQuote = v == "below"
 	}

@@ -92,6 +92,17 @@
           <input type="hidden" name="writing_preferences" value="1">
 
           <div class="field">
+            <label for="default_account">{{$.T "settings.defaultaccount"}}</label>
+            <select name="default_account" id="default_account" dir="auto">
+              <option value=""{{if eq .Writing.DefaultAccount ""}} selected{{end}}>{{$.T "settings.firstaccount"}}</option>
+              {{ range .SendingAccounts }}
+              <option value="{{.Username}}" dir="ltr"{{if eq $.Writing.DefaultAccount .Username}} selected{{end}}>{{.Username}}</option>
+              {{ end }}
+            </select>
+            {{ template "hint" (dict "text" ($.T "settings.defaultaccounthint")) }}
+          </div>
+
+          <div class="field">
             <label for="reply_position">{{$.T "settings.replyposition"}}</label>
             <select name="reply_position" id="reply_position">
               <option value="above" {{if not .Writing.ReplyBelowQuote}}selected{{end}}>{{$.T "settings.replytop"}}</option>

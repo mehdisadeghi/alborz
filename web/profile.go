@@ -263,6 +263,7 @@ func (ctx *Context) profileDiff(theirs, ours alborz.Profile) []profileChange {
 	add("settings.calendar", func(p alborz.Profile) string { return calendar(p.Reading.Primary, "settings.gregorian") })
 	add("settings.secondary", func(p alborz.Profile) string { return calendar(p.Reading.Secondary, "settings.secondarynone") })
 	add("settings.weeknumbers", func(p alborz.Profile) string { return onOff(!p.Reading.NoWeekNumbers) })
+	add("settings.defaultaccount", func(p alborz.Profile) string { return or(p.Writing.DefaultAccount, "settings.firstaccount") })
 	add("settings.replyposition", func(p alborz.Profile) string {
 		if p.Writing.ReplyBelowQuote {
 			return g.T("settings.replybottom")

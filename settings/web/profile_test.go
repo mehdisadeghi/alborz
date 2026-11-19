@@ -35,6 +35,85 @@ func TestProfileReachesEveryAccount(t *testing.T) {
 	}
 }
 
+func TestDefaultOutgoingAccountIsKeptAcrossSignIns(t *testing.T) {
+	a := Alborz(t)
+	c := a.SignIn(t, User)
+	c.SignIn(t, User2)
+	if r := c.Post(t, "settings.profile", url.Values{"default_account": {User2}}); r.StatusCode != http.StatusFound {
+		t.Fatal(r.Status)
+	}
+	for _, account := range []string{User, User2} {
+		other := a.SignIn(t, account)
+		page := other.Page(t, "settings.profile")
+		if got := SelectedValue(page, "default_account"); got != User2 {
+			t.Fatalf("%s remembers default %q, want %q", account, got, User2)
+		}
+		// An unavailable default remains selectable and survives an unrelated save.
+		if r := other.Post(t, "settings.profile", url.Values{"shown": {Shown(page)}, "default_account": {User2}, "messages_per_page": {"17"}}); r.StatusCode != http.StatusFound {
+			t.Fatal(r.Status)
+		}
+	}
+	if r := c.Post(t, "settings.profile", url.Values{"theme": {"ink"}}); r.StatusCode != http.StatusFound {
+		t.Fatal(r.Status)
+	}
+	if got := SelectedValue(c.Page(t, "settings.profile"), "default_account"); got != User2 {
+		t.Fatalf("an absent field cleared default %q", got)
+	}
+	if r := c.Post(t, "settings.profile", url.Values{"default_account": {""}}); r.StatusCode != http.StatusFound {
+		t.Fatal(r.Status)
+	}
+	if got := SelectedValue(c.Page(t, "settings.profile"), "default_account"); got != "" {
+		t.Fatalf("clearing kept default %q", got)
+	}
+}
+
+func TestDefaultOutgoingAccountRefusesAnUnknownAccount(t *testing.T) {
+	c := Alborz(t).SignIn(t, User)
+	r := c.Post(t, "settings.profile", url.Values{"default_account": {"unknown@example.org"}})
+	if r.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("choosing an account not signed in answered %s", r.Status)
+	}
+}
+
+func TestDefaultOutgoingAccountSurvivesAnOlderSettingsForm(t *testing.T) {
+	a := Alborz(t)
+	c := a.SignIn(t, User)
+	c.SignIn(t, User2)
+	page := c.Page(t, "settings.profile")
+	if r := c.Post(t, "settings.profile", url.Values{"default_account": {User2}}); r.StatusCode != http.StatusFound {
+		t.Fatal(r.Status)
+	}
+	if r := c.Post(t, "settings.profile", url.Values{"shown": {Shown(page)}, "default_account": {""}, "messages_per_page": {"17"}}); r.StatusCode != http.StatusFound {
+		t.Fatal(r.Status)
+	}
+	if got := SelectedValue(c.Page(t, "settings.profile"), "default_account"); got != User2 {
+		t.Fatalf("saving an old form lost the newer default: %q", got)
+	}
+}
+
+// An account joining with another default outgoing account is asked about it (ADR 52).
+func TestSigningInAskedAboutAnotherDefaultAccount(t *testing.T) {
+	a := Alborz(t)
+	both := a.SignIn(t, User)
+	both.SignIn(t, User2)
+	if r := both.Post(t, "settings.profile", url.Values{"default_account": {User2}}); r.StatusCode != http.StatusFound {
+		t.Fatal(r.Status)
+	}
+	if r := a.SignIn(t, User).Post(t, "settings.profile", url.Values{"default_account": {""}}); r.StatusCode != http.StatusFound {
+		t.Fatal(r.Status)
+	}
+
+	c := a.SignIn(t, User2)
+	resp := c.Post(t, "auth.login", url.Values{"username": {User}, "password": {Password}}, url.Values{"add": {"1"}})
+	bar := NoticeBar(c.Follow(t, resp.Header.Get("Location")))
+	if !Says(t, bar, "settings.defaultaccount") || !Says(t, bar, "settings.firstaccount") || !strings.Contains(bar, User2) {
+		t.Fatalf("no notice names the differing default account:\n%s", bar)
+	}
+	if got := SelectedValue(c.Page(t, "settings.profile"), "default_account"); got != User2 {
+		t.Errorf("the session took the default %q before the reader answered", got)
+	}
+}
+
 // The header's language menu sets the language alone and returns to the page it was chosen on.
 func TestLanguageMenu(t *testing.T) {
 	a := Alborz(t)

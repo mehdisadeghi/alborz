@@ -482,6 +482,12 @@ func suggestions(ctx *web.Context) []string {
 }
 
 func (p *plugin) handleComposeNew(ctx *web.Context) error {
+	// A new message opened under no account is the default account's, which the URL then names (ADR 1).
+	if login := ctx.LoginFor(ctx.Profile().Writing.DefaultAccount); login != nil && ctx.Unified && ctx.Request().Method == http.MethodGet {
+		q := ctx.Request().URL.Query()
+		q.Set("account", login.Username())
+		return ctx.FoundRedirect(web.QueryPath(ctx.Path("mail.compose"), q))
+	}
 	// Only a mailto URI is followed; redirecting to anything else would be an open redirect.
 	if uri := ctx.QueryParam("mailto"); uri != "" {
 		q := mail.Mailto(uri)

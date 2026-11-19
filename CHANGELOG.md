@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Added
+
+- A default outgoing account in Settings: a new message started under All
+  accounts is written from it.
+
 ### Fixed
 
 - A draft written as another signed-in account reopens and is sent as that

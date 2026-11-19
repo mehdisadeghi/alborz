@@ -32,15 +32,19 @@ and render on signed-out pages.
 4. `alborz.Profile` holds `StartPage` (default section on `/` and
    post-login redirect), `Reading` (messages per page, timezone, first
    weekday, prefer HTML, primary and secondary calendar), `Writing`
-   (reply position, RTL direction part, cross-account signature pooling,
-   client attribution), `Display` (theme, text size, script alignment,
-   language, status bar segments, add-ons), `Place` (ADR 79) and
-   `Toured` (acknowledged first desktop tour). Partial profile form
-   submissions MUST NOT reset checkboxes that were not rendered on the
-   submitted form. The per-tab scheme override (ADR 50), the session
-   passkey lock (ADR 25) and the per-browser hidden rail
-   (`localStorage` `rail`, applied as `data-rail` by `scheme.js`
-   before first paint) are not part of the profile.
+   (default outgoing account, reply position, RTL direction part,
+   cross-account signature pooling, client attribution), `Display`
+   (theme, text size, script alignment, language, status bar segments,
+   add-ons), `Place` (ADR 79) and `Toured` (acknowledged first desktop
+   tour). A GET of the compose form for a new message in the merged
+   view MUST redirect to name the default outgoing account while it is
+   signed in; an `account` the URL names MUST NOT be replaced by it
+   (ADR 1). Partial profile form submissions MUST NOT reset checkboxes
+   that were not rendered on the submitted form. The per-tab scheme
+   override (ADR 50), the session passkey lock (ADR 25) and the
+   per-browser hidden rail (`localStorage` `rail`, applied as
+   `data-rail` by `scheme.js` before first paint) are not part of the
+   profile.
 5. Saving the profile writes the `profile` entry to every signed-in
    account, failing only if every account refuses the write.
 6. The session holds the active profile (persisted in
@@ -63,7 +67,11 @@ and render on signed-out pages.
 
 ## Consequences
 
-- No single account is designated as primary.
+- No single account is designated as primary; the default outgoing
+  account chooses only the account a new message is written from.
+- The default outgoing account's address is kept in the `profile` entry
+  of every signed-in account, in the clear on a mail server that holds
+  settings in `METADATA` (ADR 72).
 - A change another program or another alborz makes to the entries shows
   here up to a minute late.
 - Forgetting an account's settings resets its profile copy while keeping
@@ -71,6 +79,7 @@ and render on signed-out pages.
 
 ## References
 
-- RFC 5464; ADR 4, ADR 26, ADR 50, ADR 51, ADR 72, ADR 79
+- RFC 5464; ADR 1, ADR 4, ADR 26, ADR 50, ADR 51, ADR 72, ADR 79
 - `store.go`, `records.go`, `profile.go`, `web/profile.go`,
-  `web/prefs.go`, `web/start.go`, `settings/web/profile.go`
+  `web/prefs.go`, `web/start.go`, `settings/web/profile.go`,
+  `mail/web/compose.go` (`handleComposeNew`)

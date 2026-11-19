@@ -41,6 +41,8 @@ type Reading struct {
 }
 
 type Writing struct {
+	// DefaultAccount writes a new message opened under no account, while signed in; empty is none.
+	DefaultAccount string
 	PoolSignatures bool
 	// NoAttribution is negative so existing profiles include the application footer.
 	NoAttribution   bool

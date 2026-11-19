@@ -888,3 +888,19 @@ func TestAReadOnlyMessageStaysReadableAndUnread(t *testing.T) {
 		})
 	}
 }
+
+// A scam does not write in the reader's language: under a German page an English subject is still
+// read for money, and beside SPF alone it is a warning sign.
+func TestMoneySubjectIsReadInEveryLanguage(t *testing.T) {
+	a := Alborz(t, WithIMAP(IMAP(t, Metadata())))
+	c := a.SignIn(t, User)
+	if resp := c.Post(t, "mail.account", url.Values{"shown": {Shown(c.Page(t, "mail.account"))}, "trusted_authserv": {"mx.example.org"}}); resp.StatusCode != http.StatusFound {
+		t.Fatalf("saving the authserv-id answered %s", resp.Status)
+	}
+	uid := a.IMAP.Append(t, "INBOX", "From: Billing <billing@example.net>\r\nTo: <"+User+">\r\nSubject: Your payment is overdue\r\n"+
+		"Authentication-Results: mx.example.org; spf=pass smtp.mailfrom=billing@example.net\r\n\r\nPay now.\r\n")
+	page := html.UnescapeString(c.Page(t, "mail.message", "INBOX", uid, url.Values{"lang": {"de"}}))
+	if !strings.Contains(page, "warning-caution") || !strings.Contains(page, TIn(t, "de", "indicator.moneysubject")) {
+		t.Errorf("the German page shows no money subject among its warning signs: %q", Between(page, `id="facts"`, "</details>"))
+	}
+}

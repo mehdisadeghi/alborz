@@ -33,6 +33,7 @@
 - Deleting a collection states what it holds, kind by kind, and names what it
   holds beyond the list it was opened from.
 - Collection pickers name each collection's place and who shares it.
+- The money-subject warning sign reads subjects in every interface language.
 
 ## [0.20.0] - 2026-10-31
 

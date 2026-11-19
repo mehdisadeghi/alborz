@@ -9,12 +9,23 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+	"sync"
 
 	"git.mehdix.org/alborz"
+	"git.mehdix.org/alborz/internal/locale"
 	"git.mehdix.org/alborz/mail"
 	"git.mehdix.org/alborz/web"
 	"github.com/emersion/go-imap/v2"
 )
+
+// moneyWords are every language's words for money and access: a scam does not write in the reader's.
+var moneyWords = sync.OnceValue(func() []string {
+	var words []string
+	for _, lang := range locale.Languages {
+		words = append(words, strings.Split(locale.T(lang, "indicator.moneywords"), ",")...)
+	}
+	return words
+})
 
 type MessageRenderData struct {
 	IMAPBaseRenderData
@@ -201,7 +212,7 @@ func (p *plugin) handleGetPart(ctx *web.Context) error {
 		List: mail.ListAsk{Page: alborz.Page{Size: messagesPerPage}, Query: query, View: railView,
 			Sort: state.Sort, Dir: state.Direction},
 		PreferHTML: ctx.Reading().PreferHTML, Deferrable: ctx.Scripted(), Merged: merged != nil,
-		MoneyWords: strings.Split(ctx.T("indicator.moneywords"), ","),
+		MoneyWords: moneyWords(),
 	})
 	if err != nil {
 		return err

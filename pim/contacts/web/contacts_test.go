@@ -114,7 +114,7 @@ func TestSendingKeepsNewRecipientsInPreviousRecipients(t *testing.T) {
 func TestComposeSuggestsEveryAccountsContacts(t *testing.T) {
 	_, c := SignedIn(t, User)
 	c.SignIn(t, User2)
-	if resp := c.Post(t, "contacts.books.create", url.Values{"account": {User2}, "place": {"here"}, "name": {"People"}}); resp.StatusCode != http.StatusFound {
+	if resp := c.Post(t, "contacts.books.create", url.Values{"place": {User2 + "|here"}, "name": {"People"}}); resp.StatusCode != http.StatusFound {
 		t.Fatalf("creating the second account's book answered %s", resp.Status)
 	}
 	form := url.Values{"address": {"Parvin Etesami <parvin@example.org>"}, "addressbook": {User2 + "|" + Here + BooksOf(User2) + "people/"}}

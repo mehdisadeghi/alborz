@@ -1,6 +1,6 @@
 {{ define "rail" }}
   {{ template "pim-rail" (dict "g" $ "urlaccount" .GlobalData.URLAccount "path" (url "calendar.tasks") "items" .Collections "field" "cal" "itemclass" "calendar-item" "action" (url "calendar.tasks") "edit" "calendar.collection" "for" "tasks" "invitations" .Invitations
-     "new" (dict "href" (printf "%s?for=tasks&next=%s" (url "calendar.calendars.create") (.GlobalData.URL.RequestURI | qv)) "label" ($.T "tasks.newlist"))
+     "new" (dict "href" (printf "%s?for=tasks&next=%s%s" (url "calendar.calendars.create") (.GlobalData.URL.RequestURI | qv) (account "&" .GlobalData.Scope)) "label" ($.T "tasks.newlist"))
      "views" (dict "path" (url "calendar.tasks") "view" .View "account" .GlobalData.URLAccount)) }}
 {{ end }}
 

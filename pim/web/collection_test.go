@@ -75,7 +75,7 @@ func TestACollectionsPageRailListsEveryCollectionOfItsSection(t *testing.T) {
 	a, c := SignedIn(t, User)
 	personal, chores, _ := mixed(t, c)
 	c.SignIn(t, User2)
-	if resp := c.Post(t, "calendar.calendars.create", url.Values{"account": {User2}, "place": {"here"}, "name": {"Errands"}}, url.Values{"for": {"tasks"}}); resp.StatusCode != http.StatusFound {
+	if resp := c.Post(t, "calendar.calendars.create", url.Values{"place": {User2 + "|here"}, "name": {"Errands"}}, url.Values{"for": {"tasks"}}); resp.StatusCode != http.StatusFound {
 		t.Fatalf("creating the second account's list answered %s", resp.Status)
 	}
 	errands := Here + CalendarsOf(User2) + "errands/"

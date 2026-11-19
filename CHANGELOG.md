@@ -36,6 +36,10 @@
   holds beyond the list it was opened from.
 - Collection pickers name each collection's place and who shares it.
 - The money-subject warning sign reads subjects in every interface language.
+- A new calendar, task list, journal or address book is made in the account
+  whose list asked for it and lands on the list that shows it; the form names
+  account and place in one picker and refuses a submission with no place
+  chosen.
 
 ## [0.20.0] - 2026-10-31
 

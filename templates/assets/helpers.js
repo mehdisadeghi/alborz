@@ -150,27 +150,14 @@ const enhance = () => {
 		});
 	}
 
-	// The chosen account narrows the places to its own; without a script the groups say whose is whose.
-	for (const account of document.querySelectorAll("select[data-place-account]")) {
-		const places = account.form && account.form.querySelector("select[data-place-of]");
-		if (!places || !once(account, "placeaccount")) {
-			continue;
-		}
-		narrowBy(account, places, (el, v) => {
-			if (v === "") {
-				return false;
-			}
-			return el.tagName === "OPTGROUP" ? el.label !== v : "account" in el.dataset && el.dataset.account !== v;
-		});
-	}
-
 	for (const name of document.querySelectorAll("input[data-local-name-error]")) {
 		if (!once(name, "localname")) {
 			continue;
 		}
 		const place = name.form.elements.namedItem("place");
 		const validate = () => {
-			const local = (place ? place.value : name.dataset.localPlace) === "here";
+			// The picker's value is the account and the place.
+			const local = (place ? place.value.slice(place.value.indexOf("|") + 1) : name.dataset.localPlace) === "here";
 			const segment = name.value.trim().replaceAll(" ", "-");
 			const valid = /^[A-Za-z0-9._@-]{1,120}$/.test(segment) && segment !== "." && segment !== "..";
 			name.setCustomValidity(local && !valid ? name.dataset.localNameError : "");

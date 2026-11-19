@@ -135,8 +135,7 @@ func TestEveryDAVObjectRouteAnswers(t *testing.T) {
 				if !strings.Contains(c.Page(t, made.route, scope, made.query), `name="place"`) {
 					t.Errorf("%s asks for no place", made.route)
 				}
-				made.form.Set("account", User)
-				made.form.Set("place", "here")
+				made.form.Set("place", User+"|here")
 				if resp := c.Post(t, made.route, made.form, made.query); resp.StatusCode != http.StatusFound {
 					t.Fatalf("creating %s answered %s", made.form.Get("name"), resp.Status)
 				}
@@ -376,7 +375,7 @@ func TestAStaleEditFormKeepsAnotherBrowsersSave(t *testing.T) {
 					books := Upstream(Domain, "carddav+insecure://"+strings.TrimPrefix(holder.URL, "http://")+holder.Path("dav.collections"))
 					a, prefix = Alborz(t, WithIMAP(imap), holder.DAVUpstream(), books), At(holder.URL)
 				}
-				route, form, query := "calendar.calendars.create", url.Values{"name": {k.collName}, "color": {"#22aa55"}, "account": {User}, "place": {"here"}}, url.Values{}
+				route, form, query := "calendar.calendars.create", url.Values{"name": {k.collName}, "color": {"#22aa55"}, "place": {User + "|here"}}, url.Values{}
 				switch k.name {
 				case "task":
 					form.Set("holds", "tasks")
@@ -456,7 +455,7 @@ func TestAStarKeepsAWriteThatSlipsIn(t *testing.T) {
 			held := k.collection + "slipped" + k.ext
 			holder, a, between := slipping(t, held, k.mime)
 
-			route, form, query := "calendar.calendars.create", url.Values{"name": {k.collName}, "color": {"#22aa55"}, "account": {User}, "place": {"here"}}, url.Values{}
+			route, form, query := "calendar.calendars.create", url.Values{"name": {k.collName}, "color": {"#22aa55"}, "place": {User + "|here"}}, url.Values{}
 			switch k.name {
 			case "task":
 				form.Set("holds", "tasks")
@@ -495,7 +494,7 @@ func TestAGroupKeepsAWriteThatSlipsIn(t *testing.T) {
 	people := BooksOf(User) + "people/"
 	group := people + "slipped.vcf"
 	holder, a, between := slipping(t, group, "text/vcard")
-	if resp := holder.SignIn(t, User).Post(t, "contacts.books.create", url.Values{"name": {"People"}, "color": {"#22aa55"}, "account": {User}, "place": {"here"}}); resp.StatusCode != http.StatusFound {
+	if resp := holder.SignIn(t, User).Post(t, "contacts.books.create", url.Values{"name": {"People"}, "color": {"#22aa55"}, "place": {User + "|here"}}); resp.StatusCode != http.StatusFound {
 		t.Fatalf("creating the book answered %s", resp.Status)
 	}
 	holder.Put(t, group, "text/vcard", "BEGIN:VCARD\r\nVERSION:4.0\r\nKIND:group\r\nUID:urn:uuid:slipped-group\r\nFN:Drawn\r\nEND:VCARD\r\n")

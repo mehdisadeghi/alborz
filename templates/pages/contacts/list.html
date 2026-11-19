@@ -1,7 +1,7 @@
 {{ define "rail" }}
   {{ $q := .GlobalData.AccountQuery }}{{ $sep := "?" }}{{ if $q }}{{ $sep = "&" }}{{ end }}
   {{ template "pim-rail" (dict "g" $ "urlaccount" .GlobalData.URLAccount "path" (url "contacts.list") "items" .Collections "field" "book" "itemclass" "addressbook-item" "action" (url "contacts.list") "edit" "contacts.book" "invitations" .Invitations
-     "new" (dict "href" (printf "%s?next=%s" (url "contacts.books.create") (.GlobalData.URL.RequestURI | qv)) "label" ($.T "contacts.newbook"))
+     "new" (dict "href" (printf "%s?next=%s%s" (url "contacts.books.create") (.GlobalData.URL.RequestURI | qv) (account "&" .GlobalData.Scope)) "label" ($.T "contacts.newbook"))
      "views" (dict "path" (url "contacts.list") "view" .View "account" .GlobalData.URLAccount)
      "groups" (dict "key" (printf "groups:%s" $q) "label" ($.T "aside.groups") "open" (ne .Group "") "rows" .GroupRows "editlabel" ($.T "common.edit") "new" (dict "href" (printf "%s%s%skind=group" (url "contacts.contact.create") $q $sep) "label" ($.T "contacts.newgroup")))
      "categories" (dict "key" (printf "categories:%s" $q) "label" ($.T "aside.categories") "open" (ne .Category "") "rows" .CategoryRows)) }}

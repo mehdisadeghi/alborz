@@ -83,7 +83,7 @@ func TestContactTransferAcrossSignedInAccounts(t *testing.T) {
 	a, c := SignedIn(t, User)
 	source := c.CreateBook(t, "People")
 	c.SignIn(t, User2)
-	if resp := c.Post(t, "contacts.books.create", url.Values{"account": {User2}, "place": {"here"}, "name": {"People"}}); resp.StatusCode != http.StatusFound {
+	if resp := c.Post(t, "contacts.books.create", url.Values{"place": {User2 + "|here"}, "name": {"People"}}); resp.StatusCode != http.StatusFound {
 		t.Fatalf("create second account book: %s", resp.Status)
 	}
 	target := BooksOf(User2) + "people/"
@@ -116,7 +116,7 @@ func TestReadonlyContactCopiesButCannotMove(t *testing.T) {
 	if resp := guest.Post(t, "contacts.book.accept", nil, shared); resp.StatusCode != http.StatusFound {
 		t.Fatalf("accept: %s", resp.Status)
 	}
-	if resp := guest.Post(t, "contacts.books.create", url.Values{"account": {User2}, "place": {"here"}, "name": {"Target"}}); resp.StatusCode != http.StatusFound {
+	if resp := guest.Post(t, "contacts.books.create", url.Values{"place": {User2 + "|here"}, "name": {"Target"}}); resp.StatusCode != http.StatusFound {
 		t.Fatalf("create target: %s", resp.Status)
 	}
 	target := Here + BooksOf(User2) + "target/"
@@ -406,7 +406,7 @@ func TestBulkContactCopySpansSignedInAccounts(t *testing.T) {
 	a.Put(t, source+"one.vcf", "text/vcard", transferCard)
 	c.SignIn(t, User2)
 	for _, name := range []string{"People", "Target"} {
-		if resp := c.Post(t, "contacts.books.create", url.Values{"account": {User2}, "place": {"here"}, "name": {name}}); resp.StatusCode != http.StatusFound {
+		if resp := c.Post(t, "contacts.books.create", url.Values{"place": {User2 + "|here"}, "name": {name}}); resp.StatusCode != http.StatusFound {
 			t.Fatalf("create book: %s", resp.Status)
 		}
 	}
@@ -445,7 +445,7 @@ func TestBulkContactCopyReadonlySourceAndEmptySelection(t *testing.T) {
 	if resp := guest.Post(t, "contacts.book.accept", nil, shared); resp.StatusCode != http.StatusFound {
 		t.Fatalf("accept: %s", resp.Status)
 	}
-	if resp := guest.Post(t, "contacts.books.create", url.Values{"account": {User2}, "place": {"here"}, "name": {"Target"}}); resp.StatusCode != http.StatusFound {
+	if resp := guest.Post(t, "contacts.books.create", url.Values{"place": {User2 + "|here"}, "name": {"Target"}}); resp.StatusCode != http.StatusFound {
 		t.Fatalf("create target: %s", resp.Status)
 	}
 	target := Here + BooksOf(User2) + "target/"

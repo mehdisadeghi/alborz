@@ -41,14 +41,11 @@ func Places(ctx *web.Context, p *dav.Provider) []dav.Group {
 	return groups
 }
 
-// ReadPlace is the form's chosen place, else the account's reachable default, its first source, or Alborz.
+// ReadPlace is the form's chosen account and place, else the account's reachable default, its first source, or Alborz.
 func ReadPlace(ctx *web.Context, p *dav.Provider, account string) (string, string) {
-	// Account and place are two fields; one holding both read as servers with accounts mixed through.
-	if chosen := ctx.FormValue("account"); chosen != "" && ctx.LoginFor(chosen) != nil {
-		account = chosen
-	}
-	if place := ctx.FormValue("place"); place != "" {
-		return account, place
+	// One field holds both, as the collection picker's does: a place chosen names its account.
+	if chosen, place, ok := strings.Cut(ctx.FormValue("place"), "|"); ok && place != "" && ctx.LoginFor(chosen) != nil {
+		return chosen, place
 	}
 	// The account in view is in force; otherwise the session's first would be preselected.
 	if scoped := ctx.URLAccount(); scoped != "" {

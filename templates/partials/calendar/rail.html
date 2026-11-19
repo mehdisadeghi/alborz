@@ -2,6 +2,6 @@
 {{ define "calendar-rail" }}
 {{ $g := .g }}
 {{ template "pim-rail" (dict "g" $g "urlaccount" $g.GlobalData.URLAccount "path" .path "keep" .keep "items" $g.Collections "field" "cal" "itemclass" "calendar-item" "action" .action "edit" "calendar.collection" "invitations" $g.Invitations "views" .views
-   "new" (dict "href" (printf "%s?next=%s" (url "calendar.calendars.create") ($g.GlobalData.URL.RequestURI | qv)) "label" ($g.T "calendar.newcalendar"))
+   "new" (dict "href" (printf "%s?next=%s%s" (url "calendar.calendars.create") ($g.GlobalData.URL.RequestURI | qv) (account "&" $g.GlobalData.Scope)) "label" ($g.T "calendar.newcalendar"))
    "follow" (dict "href" (printf "%s?next=%s" (url "calendar.subscribe") ($g.GlobalData.URL.RequestURI | qv)) "label" ($g.T "calendar.subscribe"))) }}
 {{ end }}

@@ -75,6 +75,8 @@ type NewCollectionRenderData struct {
 	// Places are where the collection can go, and Place the chosen one (ADR 28).
 	Places []dav.Group
 	Place  string
+	// Picked says the form came back with a place chosen.
+	Picked bool
 	// Scope is the account the page was in, empty on a merged page.
 	Scope string
 	Next  string
@@ -160,7 +162,10 @@ func (pg Page) HandleCreate(p *dav.Provider, form func(*web.Context) (CreateForm
 
 		data.Name = strings.TrimSpace(ctx.FormValue("name"))
 		data.Color = ctx.FormValue("color")
-		if data.Asks() && ctx.FormValue("place") == "" {
+		// A place the form had to ask for, or one that is no account's, is not chosen for the reader.
+		posted := ctx.FormValue("place")
+		data.Picked = posted == data.Account+"|"+data.Place
+		if posted == "" && data.Asks() || posted != "" && !data.Picked {
 			return web.RenderRefused(ctx, "pim/collection-create", data, ctx.T("form.destinationneeded"))
 		}
 		// A form that offers no choice cannot be posted one.
@@ -191,11 +196,24 @@ func (pg Page) HandleCreate(p *dav.Provider, form func(*web.Context) (CreateForm
 		if err := pg.Show(ctx.Request().Context(), login, path); err != nil {
 			return ctx.NotifyRedirect(Refused(ctx, err), ctx.AccountPath(list))
 		}
+		// A 2xx is not taken as proof; listing again shows what the reader will see, and where.
+		infos, err := p.Collections(ctx.Request().Context(), login)
+		info := dav.At(infos, path)
+		if err != nil || info == nil {
+			return web.RenderRefused(ctx, "pim/collection-create", data, ctx.Tf("form.collectionnotlisted", data.Name))
+		}
+		object := ctx.Path(pg.Collection, path)
+		// The page the form was opened from shows it only in its own account and section.
+		shown := ctx.Path(pg.section(ctx, info.Components).List)
+		if scope := ctx.URLAccount(); shown != list || scope != "" && scope != data.Account {
+			ctx.Made(sentence, data.Name, web.AccountURL(object, data.Account), "")
+			return ctx.FoundRedirect(web.AccountURL(shown, data.Account))
+		}
 		account := ""
 		if data.Account != ctx.Login.Username() {
 			account = data.Account
 		}
-		return Made(ctx, sentence, data.Name, ctx.Path(pg.Collection, path), list, account)
+		return Made(ctx, sentence, data.Name, object, list, account)
 	}
 }
 

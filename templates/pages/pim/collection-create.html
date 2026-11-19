@@ -6,29 +6,16 @@
         {{ template "section-crumb" (dict "g" $ "section" .BackLabel "home" .ListHref "chooses" true) }}
         <h1>{{.Title}}</h1>
 
-
-        {{ if gt (len .Places) 1 }}
-        <div class="field">
-          <label for="account">{{$.T "settings.account"}}</label>
-          <select name="account" id="account" data-place-account>
-            {{ if .Asks }}<option value="" selected>{{$.T "common.chooseaccount"}}</option>{{ end }}
-            {{ range .Places }}
-            <option value="{{.Account}}"{{ if and (not $.Asks) (eq .Account $.Account) }} selected{{ end }}>{{ template "ltr" .Account }}</option>
-            {{ end }}
-          </select>
-        </div>
-        {{ end }}
-
         {{ if .Chooses }}
         <div class="field">
           <label for="place">{{$.T "common.saveto"}}</label>
-          <select name="place" id="place" data-destination-key="place" data-place-of{{ if .Asks }} required{{ end }}>
-            {{ if .Asks }}<option value="" selected>{{$.T "common.choosesaveto"}}</option>{{ end }}
+          <select name="place" id="place" data-destination-key="place"{{ if .Asks }} required{{ end }}>
+            {{ if .Asks }}<option value=""{{ if not .Picked }} selected{{ end }}>{{$.T "common.choosesaveto"}}</option>{{ end }}
             {{ range .Places }}
             {{ $acct := .Account }}
             {{ if gt (len $.Places) 1 }}<optgroup label="{{$acct}}">{{ end }}
             {{ range .Collections }}
-            <option value="{{.Path}}" data-account="{{$acct}}"{{ if and (eq $acct $.Account) (eq .Path $.Place) }} selected{{ end }}>{{.Name}}</option>
+            <option value="{{$acct}}|{{.Path}}"{{ if and (or $.Picked (not $.Asks)) (eq $acct $.Account) (eq .Path $.Place) }} selected{{ end }}>{{.Name}}</option>
             {{ end }}
             {{ if gt (len $.Places) 1 }}</optgroup>{{ end }}
             {{ end }}

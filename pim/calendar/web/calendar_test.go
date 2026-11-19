@@ -789,7 +789,7 @@ func TestCreateCalendarWithNoneYet(t *testing.T) {
 		t.Fatalf("saving an event with nowhere to save answered %s, want the form refused", resp.Status)
 	}
 
-	form := url.Values{"name": {"First"}, "color": {"#22aa55"}, "holds": {"both"}, "place": {"domain"}}
+	form := url.Values{"name": {"First"}, "color": {"#22aa55"}, "holds": {"both"}, "place": {User + "|domain"}}
 	if resp := c.Post(t, "calendar.calendars.create", form); resp.StatusCode != http.StatusFound {
 		t.Fatalf("creating the first calendar answered %s, want a redirect", resp.Status)
 	}

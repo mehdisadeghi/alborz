@@ -38,6 +38,10 @@ func (p *plugin) calendarRail(ctx *web.Context, kind func([]string) bool, chosen
 		rail.NewHref += "for=" + forParam + "&"
 	}
 	rail.NewHref += "next=" + next
+	// The form opens on the account in view.
+	if scope := ctx.URLAccount(); scope != "" {
+		rail.NewHref += "&account=" + web.QueryValue(scope)
+	}
 	rail.NewLabel = ctx.T(newLabel)
 	rail.ImportHref, rail.ImportLabel = ctx.Path(importRoute), ctx.T(importLabel)
 	if follow {

@@ -26,7 +26,7 @@ func TestAServerAnsweringBadlySaysSoOncePerWhile(t *testing.T) {
 	c := a.SignIn(t, User)
 
 	// What an action said stands: the warning a view came across does not replace it.
-	if resp := c.Post(t, "contacts.books.create", url.Values{"account": {User}, "place": {"here"}, "name": {"Kept"}}); resp.StatusCode != http.StatusFound {
+	if resp := c.Post(t, "contacts.books.create", url.Values{"place": {User + "|here"}, "name": {"Kept"}}); resp.StatusCode != http.StatusFound {
 		t.Fatalf("creating a book here answered %s", resp.Status)
 	}
 	after := c.Page(t, "contacts.list")

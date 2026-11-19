@@ -94,7 +94,7 @@ func TestMovingReadOnlySharedCalendarObjectsIsRefused(t *testing.T) {
 			if resp := guest.Post(t, "calendar.collection.accept", url.Values{}, shared); resp.StatusCode != http.StatusFound {
 				t.Fatalf("accepting answered %s", resp.Status)
 			}
-			if resp := guest.Post(t, "calendar.calendars.create", url.Values{"account": {User2}, "place": {"here"}, "name": {"Target"}, "holds": {tc.holds}}); resp.StatusCode != http.StatusFound {
+			if resp := guest.Post(t, "calendar.calendars.create", url.Values{"place": {User2 + "|here"}, "name": {"Target"}, "holds": {tc.holds}}); resp.StatusCode != http.StatusFound {
 				t.Fatalf("creating destination answered %s", resp.Status)
 			}
 			to := User2 + "|" + Here + CalendarsOf(User2) + "target/"
@@ -128,7 +128,7 @@ func TestMovingAnEventAcrossSignedInAccounts(t *testing.T) {
 	body := strings.Replace(Event("original", "Original"), "END:VEVENT", "ORGANIZER:mailto:host@example.org\r\nATTENDEE:mailto:guest@example.org\r\nEND:VEVENT", 1)
 	a.Put(t, src+"object.ics", "text/calendar", body)
 	c.SignIn(t, User2)
-	if resp := c.Post(t, "calendar.calendars.create", url.Values{"account": {User2}, "place": {"here"}, "name": {"Destination"}}); resp.StatusCode != http.StatusFound {
+	if resp := c.Post(t, "calendar.calendars.create", url.Values{"place": {User2 + "|here"}, "name": {"Destination"}}); resp.StatusCode != http.StatusFound {
 		t.Fatalf("create destination: %s", resp.Status)
 	}
 	dst := Here + CalendarsOf(User2) + "destination/"
@@ -573,7 +573,7 @@ func TestBulkCopyAcrossAccountsUsesEachSourcesCalendar(t *testing.T) {
 			a.Put(t, first+"object.ics", "text/calendar", body)
 			c.SignIn(t, User2)
 			for _, name := range []string{"Second", "Target"} {
-				if resp := c.Post(t, "calendar.calendars.create", url.Values{"account": {User2}, "place": {"here"}, "name": {name}, "holds": {tc.holds}}); resp.StatusCode != http.StatusFound {
+				if resp := c.Post(t, "calendar.calendars.create", url.Values{"place": {User2 + "|here"}, "name": {name}, "holds": {tc.holds}}); resp.StatusCode != http.StatusFound {
 					t.Fatalf("create %s: %s", name, resp.Status)
 				}
 			}
@@ -635,7 +635,7 @@ func TestBulkCopyFromReadOnlyCalendarsAndInvalidDestinations(t *testing.T) {
 				if tc.holds == "tasks" && cal.name == "Wrong" {
 					cal.holds = "journal"
 				}
-				if resp := guest.Post(t, "calendar.calendars.create", url.Values{"account": {User2}, "place": {"here"}, "name": {cal.name}, "holds": {cal.holds}}); resp.StatusCode != http.StatusFound {
+				if resp := guest.Post(t, "calendar.calendars.create", url.Values{"place": {User2 + "|here"}, "name": {cal.name}, "holds": {cal.holds}}); resp.StatusCode != http.StatusFound {
 					t.Fatalf("create %s: %s", cal.name, resp.Status)
 				}
 			}
@@ -797,7 +797,7 @@ func TestThePickerNamesWhoSharesACollection(t *testing.T) {
 	if resp := guest.Post(t, "calendar.collection.accept", url.Values{}, Here+CalendarsOf(User2)+"work~"+User+"/"); resp.StatusCode != http.StatusFound {
 		t.Fatalf("accepting answered %s", resp.Status)
 	}
-	if resp := guest.Post(t, "calendar.calendars.create", url.Values{"account": {User2}, "place": {"here"}, "name": {"Plans"}}); resp.StatusCode != http.StatusFound {
+	if resp := guest.Post(t, "calendar.calendars.create", url.Values{"place": {User2 + "|here"}, "name": {"Plans"}}); resp.StatusCode != http.StatusFound {
 		t.Fatalf("creating the guest's own answered %s", resp.Status)
 	}
 	picker := html.UnescapeString(Between(guest.Page(t, "calendar.event.create"), `<select name="calendar"`, `</select>`))

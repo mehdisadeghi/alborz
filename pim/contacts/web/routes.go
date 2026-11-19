@@ -116,6 +116,10 @@ func (p *plugin) bookRail(ctx *web.Context) (pimweb.Rail, error) {
 	rail := pimweb.Rail{Path: ctx.Path("contacts.list"), Field: "book", ItemClass: "addressbook-item", Action: ctx.Path("contacts.list"), Edit: "contacts.book",
 		NewHref: ctx.Path("contacts.books.create") + "?next=" + web.QueryValue(ctx.Request().URL.RequestURI()), NewLabel: ctx.T("contacts.newbook"),
 		ImportHref: ctx.Path("contacts.import"), ImportLabel: ctx.T("contacts.import")}
+	// The form opens on the account in view.
+	if scope := ctx.URLAccount(); scope != "" {
+		rail.NewHref += "&account=" + web.QueryValue(scope)
+	}
 	accounts, err := p.pooledBooks(ctx)
 	if err != nil {
 		return rail, err

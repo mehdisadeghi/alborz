@@ -29,7 +29,7 @@ func Todo(uid, summary string) string {
 // when empty), and is its path as a DAV client reaches it.
 func (c *Client) CreateCalendar(t *testing.T, name, holds string) string {
 	t.Helper()
-	form := url.Values{"account": {User}, "place": {"here"}, "name": {name}, "color": {"#22aa55"}}
+	form := url.Values{"place": {User + "|here"}, "name": {name}, "color": {"#22aa55"}}
 	if holds != "" {
 		form.Set("holds", holds)
 	}
@@ -42,7 +42,7 @@ func (c *Client) CreateCalendar(t *testing.T, name, holds string) string {
 // CreateBook makes User an address book on alborz named name.
 func (c *Client) CreateBook(t *testing.T, name string) string {
 	t.Helper()
-	form := url.Values{"account": {User}, "place": {"here"}, "name": {name}}
+	form := url.Values{"place": {User + "|here"}, "name": {name}}
 	if resp := c.Post(t, "contacts.books.create", form); resp.StatusCode != http.StatusFound {
 		t.Fatalf("creating the address book %s answered %s", name, resp.Status)
 	}

@@ -39,7 +39,12 @@ collections, published calendars and DAV clients.
    alive (including logins kept for push devices, ADR 74) and for
    5 minutes after a DAV client request whose mail password or unscoped
    device password (ADR 107) opened it (ADR 30). Otherwise the account is
-   locked on the instance.
+   locked on the instance. A DAV client request with the mail password
+   for an account that has no key pair on the instance MUST sign the
+   account in, reading its `key` entry, before anything is served. A
+   request with the mail password MUST be answered 423 while that
+   password does not open the account key, and 503 while the sign-in
+   that opens it fails.
 
 ### Scope of keys
 
@@ -79,6 +84,9 @@ collections, published calendars and DAV clients.
     account key under the new password, or allows an explicitly
     confirmed "Start over" that deletes unreadable local records and
     generates a new account key and recovery key.
+    A `key` entry that is stored and does not decode, on the mail server
+    or in `alborz.settings`, MUST sign the account in locked the same
+    way; it MUST NOT be read as absent or written over.
 11. While an account is locked, background DAV mirror sync and
     subscribed feed updates for that account pause.
 
@@ -95,4 +103,5 @@ collections, published calendars and DAV clients.
 - ADR 5, ADR 26, ADR 30, ADR 52, ADR 59, ADR 65, ADR 68, ADR 70, ADR 74,
   ADR 107, ADR 109
 - `internal/keyring/`, `keys.go`, `devices.go`, `records.go`, `secret.go`, `store.go`,
-  `pim/store/sealed.go`, `pim/dav/mirror.go`, `settings/web/encryption.go`
+  `pim/store/sealed.go`, `pim/dav/mirror.go`, `pim/web/owndav.go`,
+  `settings/web/encryption.go`

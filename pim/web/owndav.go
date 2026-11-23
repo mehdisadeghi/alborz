@@ -175,10 +175,17 @@ func serveOwn(g *web.Group, srv *web.Server, st *store.Store) {
 			ok = err == nil
 		}
 		// A phone syncing without a login in a browser opens the account's key itself (ADR 72); a device
-		// password has opened it already, or holds its collections' keys in its place.
+		// password has opened it already, or holds its collections' keys in its place. A locked account is
+		// not served as an empty one, which a client would take for its data deleted; nor is anything served
+		// while its encryption could not be read.
 		if ok && !access.device {
-			if err := srv.Unlock(username, password, davPasswordLife); err != nil {
+			if err := srv.Unlock(username, password, davPasswordLife); errors.Is(err, alborz.ErrLocked) {
+				http.Error(w, http.StatusText(http.StatusLocked), http.StatusLocked)
+				return nil
+			} else if err != nil {
 				srv.Logger().Printf("%s: opening the account's key for a DAV client: %v", username, err)
+				http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
+				return nil
 			}
 		}
 		if !ok {

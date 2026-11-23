@@ -2,6 +2,7 @@ package web_test
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -139,6 +140,34 @@ func TestEncryptionTurnsOnOffAndOnAgain(t *testing.T) {
 	}
 	if !c.Listed(t)[Here+cal] {
 		t.Fatal("opened with the current recovery key, the calendar does not read")
+	}
+}
+
+// A phone is the first to reach an alborz that has never seen the account: what it writes goes under the
+// account's key, which the mail server keeps, not under the instance's.
+func TestAPhoneSyncingFirstWritesUnderTheAccountsKey(t *testing.T) {
+	imap := IMAP(t, Metadata())
+	_, c := SignedIn(t, User, WithIMAP(imap))
+	encrypt(t, c)
+
+	dir := t.TempDir()
+	a := Alborz(t, WithIMAP(imap), DataDir(dir))
+	if resp := a.DAV(t, "MKCALENDAR", CalendarsOf(User)+"phone/", nil, ""); resp.StatusCode != http.StatusCreated {
+		t.Fatalf("making a calendar answered %s", resp.Status)
+	}
+	a.Close()
+	if got := sealedBy(t, dir); got[seal.ByInstance] != 0 || got[seal.ByAccount] < 2 {
+		t.Fatalf("values by kind of key: %v, want the calendar and the pair under the account's", got)
+	}
+
+	// A key that does not open is no licence to write under the instance's either.
+	imap.SetEntry(User, "key", "not json")
+	dir = t.TempDir()
+	a = Alborz(t, WithIMAP(imap), DataDir(dir))
+	resp := a.DAV(t, "MKCALENDAR", CalendarsOf(User)+"phone/", nil, "")
+	a.Close()
+	if got := sealedBy(t, dir); resp.StatusCode != http.StatusLocked || len(got) != 0 {
+		t.Fatalf("locked, making a calendar answered %s and kept %v", resp.Status, got)
 	}
 }
 
@@ -364,5 +393,26 @@ func TestAKeyThatDoesNotReadSignsInLocked(t *testing.T) {
 	}
 	if got := imap.Entry(User, "key"); got != "not json" {
 		t.Errorf("the key was written over with %q", got)
+	}
+}
+
+// The same for a key kept here, for a server without METADATA: it is not read as no key at all.
+func TestAKeyKeptHereThatDoesNotReadSignsInLocked(t *testing.T) {
+	dir := t.TempDir()
+	opts := []Option{WithIMAP(IMAP(t)), DataDir(dir)}
+	a, c := SignedIn(t, User, opts...)
+	encrypt(t, c)
+	entry := "alborz.settings/key/" + a.Server.Keys.Name(User)
+	a.Close()
+	db, err := bolt.Open(filepath.Join(dir, "alborz.db"), time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = db.Update(func(tx kv.Tx) error { return tx.Put(entry, []byte("not a key")) })
+	if err := errors.Join(err, db.Close()); err != nil {
+		t.Fatal(err)
+	}
+	if _, page := signInWith(t, Alborz(t, opts...), Password); !Says(t, NoticeBar(page), "notice.keyunread", User) {
+		t.Errorf("the page after signing in does not say the account is locked:\n%s", NoticeBar(page))
 	}
 }

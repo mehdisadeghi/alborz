@@ -170,6 +170,21 @@ func (r *settingsRecords) keyEntryKey(account string) string {
 	return settingsOwner + "/key/" + r.names.Of(account)
 }
 
+// ownKey reads the account's own key. One that is stored and does not read is not absent: a new one would
+// be made over it.
+func (r *settingsRecords) ownKey(account string, out any) error {
+	return r.db.View(func(tx kv.Tx) error {
+		sealed := tx.Get(r.keyEntryKey(account))
+		if sealed == nil {
+			return ErrNoStoreEntry
+		}
+		if !r.apart.read(sealed, out) {
+			return ErrKeyUnread
+		}
+		return nil
+	})
+}
+
 func (r *settingsRecords) entries(tx kv.Tx, account string) (map[string]json.RawMessage, error) {
 	entries := map[string]json.RawMessage{}
 	sealed := tx.Get(r.key(account))

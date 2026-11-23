@@ -352,10 +352,7 @@ type localStore struct {
 
 func (s localStore) Get(_ context.Context, key string, out any) error {
 	if key == keyEntry {
-		if !s.records.apart.load(s.records.keyEntryKey(s.account), out) {
-			return ErrNoStoreEntry
-		}
-		return nil
+		return s.records.ownKey(s.account, out)
 	}
 	err := s.records.Get(s.account, key, out)
 	if err != nil && err != ErrNoStoreEntry {

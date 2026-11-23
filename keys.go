@@ -392,15 +392,17 @@ func (s *Server) StartOver(ctx context.Context, l *Login) (string, error) {
 
 // Unlock opens the account's key for a client that sends the password with every request and holds no
 // login, such as a phone syncing, and keeps it for d past each request, so a phone that keeps syncing
-// opens it once. A password that does not open it is not tried again for d, as each try is a sign-in.
+// opens it once. A password that does not open it is ErrLocked and is not tried again for d, as each try
+// is a sign-in.
 func (s *Server) Unlock(username, password string, d time.Duration) error {
 	name := s.Keys.Name(username)
-	if !s.Keys.Locked(name) {
+	// An account with no pair has not signed in here: only its settings say whether its encryption is on.
+	if s.Keys.ID(name) != "" && !s.Keys.Locked(name) {
 		s.Keys.Lease(name, d)
 		return nil
 	}
 	if at, ok := s.unlockRefused.Load(name); ok && time.Since(at.(time.Time)) < d {
-		return nil
+		return ErrLocked
 	}
 	l, err := s.logins.put(username, password, "")
 	if err != nil {
@@ -409,7 +411,7 @@ func (s *Server) Unlock(username, password string, d time.Duration) error {
 	defer l.Close()
 	if l.Locked() {
 		s.unlockRefused.Store(name, time.Now())
-		return nil
+		return ErrLocked
 	}
 	s.unlockRefused.Delete(name)
 	s.Keys.Lease(name, d)

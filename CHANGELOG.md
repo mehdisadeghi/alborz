@@ -73,6 +73,13 @@
   instead of staying signed in with the old password.
 - A connection that sends no request headers within 10 seconds, or sits idle
   for 3 minutes, is closed instead of being held open.
+- A calendar or contacts client that reaches an alborz before any browser has
+  signed the account in finds the account's encryption first: what it writes
+  goes under the account's key, and it is answered 423 while its password
+  does not open that key.
+- An account key kept in alborz's own file that no longer reads signs the
+  account in locked, as one kept on the mail server does, instead of counting
+  as no key.
 
 ## [0.20.0] - 2026-10-31
 

@@ -140,10 +140,8 @@ and domain rows beside their mail, contacts, calendar, tasks and journal partial
 `assets/css/layout.css` holds the page shell and mobile drawer. Import order
 still matters: verify layout changes across themes, narrow widths and RTL.
 
-The bundle is embedded in the binary. Commit CSS sources and the regenerated
-bundle together; generation skips unchanged output, so rebuilding a clean
-checkout stays clean. An uncommitted bundle change correctly marks Go's build
-metadata as dirty.
+The binary embeds the CSS sources. The server assembles the bundle from them
+and keeps it in memory; no generated stylesheet is committed.
 
 Report issues and send patches at [github.com/mehdisadeghi/alborz].
 

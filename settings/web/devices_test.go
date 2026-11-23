@@ -3,15 +3,21 @@ package web_test
 import (
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	. "git.mehdix.org/alborz/internal/alborztest"
+	"git.mehdix.org/alborz/internal/kv"
+	"git.mehdix.org/alborz/internal/kv/bolt"
+	"git.mehdix.org/alborz/internal/seal"
 )
 
-// A device password opens an encrypted account's key with no login and a reset mail password, a scoped one
-// too, which the server then keeps to its scope (ADR 109); turning encryption off deletes them (ADR 107).
+// A device password opens an encrypted account's key with no login and a reset mail password. A scoped one
+// wraps the key of its collection and not the account's, reads with that alone and leaves the account locked
+// (ADR 109). Turning encryption off or on deletes those made before (ADR 107).
 func TestADevicePasswordOpensAnEncryptedAccount(t *testing.T) {
 	imap, dir := IMAP(t), t.TempDir()
 	opts := []Option{WithIMAP(imap), DataDir(dir)}
@@ -33,7 +39,20 @@ func TestADevicePasswordOpensAnEncryptedAccount(t *testing.T) {
 	if m == nil {
 		t.Fatalf("making a device password answered %s with no password shown", resp.Status)
 	}
+	devices, _, err := a.Server.Devices.List(User)
+	if err != nil || len(devices) != 2 || devices[1].Name != "y" {
+		t.Fatalf("the account lists %+v: %v", devices, err)
+	}
+	held := devices[1].Keys(scoped[1])
+	if devices[1].ByDevice != nil || len(held) != 1 {
+		t.Fatalf("the scoped device password wraps the account's key, or the keys of %d collections", len(held))
+	}
 	a.Close()
+	for _, key := range held {
+		if n := opened(t, dir, key); n != 1 {
+			t.Fatalf("the key the scoped device password wraps opens %d collections in the data file", n)
+		}
+	}
 	imap.SetPassword(User, "reset")
 	a = Alborz(t, opts...)
 	read := func(password, path string) *Response {
@@ -51,6 +70,9 @@ func TestADevicePasswordOpensAnEncryptedAccount(t *testing.T) {
 	if got := read(scoped[1], cal+"review.ics"); got.StatusCode != http.StatusNotFound {
 		t.Fatalf("a scoped device password read a calendar out of its scope: %s", got.Status)
 	}
+	if keys := a.Server.Keys; !keys.Locked(keys.Name(User)) {
+		t.Fatal("the scoped device password opened the account's key")
+	}
 	if got := read(m[1], cal+"review.ics").Text; !strings.Contains(got, "Budget review") {
 		t.Fatalf("a device password read %q", got)
 	}
@@ -64,4 +86,37 @@ func TestADevicePasswordOpensAnEncryptedAccount(t *testing.T) {
 	if d, _, err := a.Server.Devices.List(User); err != nil || len(d) != 0 {
 		t.Fatalf("turned off, %d device passwords are kept: %v", len(d), err)
 	}
+	c.Post(t, "settings.devices.create", url.Values{"name": {"z"}, "access": {"read"}, "scope": {"some"}, "collection": {other}, "account": {User}})
+	if d, _, err := a.Server.Devices.List(User); err != nil || len(d) != 1 {
+		t.Fatalf("made with encryption off, %d device passwords are kept: %v", len(d), err)
+	}
+	if resp := c.Post(t, "settings.encryption", url.Values{"password": {"reset"}, "account": {User}}); resp.StatusCode != http.StatusOK {
+		t.Fatalf("turning encryption on answered %s", resp.Status)
+	}
+	if d, _, err := a.Server.Devices.List(User); err != nil || len(d) != 0 {
+		t.Fatalf("turned on, %d device passwords are kept: %v", len(d), err)
+	}
+}
+
+// opened counts the collections in the data file of a stopped alborz that key opens.
+func opened(t *testing.T, dir string, key []byte) int {
+	t.Helper()
+	db, err := bolt.Open(filepath.Join(dir, "alborz.db"), time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	n := 0
+	err = db.View(func(tx kv.Tx) error {
+		return tx.Scan("alborz.pim/collections/", func(_ string, v []byte) error {
+			if _, err := seal.NewAccountKey([seal.KeySize]byte(key)).Open(v); err == nil {
+				n++
+			}
+			return nil
+		})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return n
 }

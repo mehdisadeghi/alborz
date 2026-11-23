@@ -61,6 +61,12 @@ func (s *Store) LimitName(c Collection) string {
 	return s.ref(c.Ref()) + "#" + strconv.FormatUint(c.Made, 10)
 }
 
+// limitScope is the scope of the collection a LimitName names: its keyed names.
+func limitScope(name string) string {
+	scope, _, _ := strings.Cut(name, "#")
+	return scope
+}
+
 func (s *Store) within(ctx context.Context, c Collection) bool {
 	names, limited := limitOf(ctx)
 	return !limited || slices.Contains(names, s.LimitName(c))

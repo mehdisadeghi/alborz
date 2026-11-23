@@ -47,7 +47,7 @@ func Mount(dav, app *web.Group) (*store.Store, error) {
 		},
 	})
 	serveOwn(dav, srv, st)
-	srv.DeviceChoices = deviceChoices(st)
+	srv.DeviceChoices, srv.CollectionKey = deviceChoices(st), st.Key
 	app.GET("server", "/settings/servers/"+web.ServerDAV, web.Scoped(handleServer))
 	app.POST("server", "/settings/servers/"+web.ServerDAV, web.Scoped(handleServer))
 	return st, nil
@@ -98,10 +98,12 @@ func (p *davPasswords) keep(username, password string, refused error, now time.T
 }
 
 // davAccess is what a DAV client's password gives: a device password, maybe for reading only or limited to
-// the collections of limit (ADR 109), or the mail password.
+// the collections of limit and, where keys is not nil, opened with keys alone (ADR 109), or the mail
+// password.
 type davAccess struct {
 	device, readOnly, limited bool
 	limit                     []string
+	keys                      map[string][]byte
 }
 
 // authenticate checks a DAV client's password: a device password of the account first, which is never cached
@@ -116,7 +118,8 @@ func (p *davPasswords) authenticate(srv *web.Server, username, password, source 
 	device, err := srv.CheckDevicePassword(username, password, source, davPasswordLife)
 	switch {
 	case err == nil:
-		return davAccess{device: true, readOnly: device.ReadOnly, limited: device.Scoped, limit: limitOf(device.Scope)}, nil
+		return davAccess{device: true, readOnly: device.ReadOnly, limited: device.Scoped, limit: limitOf(device.Scope),
+			keys: device.Keys(password)}, nil
 	case errors.As(err, new(alborz.AuthError)):
 		p.keep(username, password, err, now)
 		return davAccess{}, err
@@ -172,7 +175,7 @@ func serveOwn(g *web.Group, srv *web.Server, st *store.Store) {
 			ok = err == nil
 		}
 		// A phone syncing without a login in a browser opens the account's key itself (ADR 72); a device
-		// password has opened it already.
+		// password has opened it already, or holds its collections' keys in its place.
 		if ok && !access.device {
 			if err := srv.Unlock(username, password, davPasswordLife); err != nil {
 				srv.Logger().Printf("%s: opening the account's key for a DAV client: %v", username, err)
@@ -183,14 +186,18 @@ func serveOwn(g *web.Group, srv *web.Server, st *store.Store) {
 			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 			return nil
 		}
+		served := dav
 		if access.limited {
 			r = r.WithContext(store.Limited(r.Context(), access.limit))
+		}
+		if access.keys != nil {
+			served = st.Holding(access.keys).Handler()
 		}
 		if access.readOnly && !slices.Contains(readMethods, r.Method) {
 			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 			return nil
 		}
-		dav.ServeHTTP(w, r.WithContext(store.As(r.Context(), username)))
+		served.ServeHTTP(w, r.WithContext(store.As(r.Context(), username)))
 		return nil
 	})
 }

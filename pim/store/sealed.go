@@ -19,6 +19,8 @@ type sealed struct {
 	db   kv.DB
 	key  *seal.Key
 	ring *keyring.Ring
+	// lent, where not nil, are the only collection keys at hand, by scope: the ring opens none (Holding).
+	lent map[string][]byte
 }
 
 func (s sealed) View(fn func(kv.Tx) error) error {
@@ -32,7 +34,7 @@ func (s sealed) Update(fn func(kv.Tx) error) error {
 func (s sealed) Close() error { return s.db.Close() }
 
 func (s sealed) run(tx kv.Tx, write bool, fn func(kv.Tx) error) error {
-	t := &sealedTx{tx: tx, key: s.key, ring: s.ring, write: write, held: map[string]*collectionKey{}}
+	t := &sealedTx{tx: tx, key: s.key, ring: s.ring, lent: s.lent, write: write, held: map[string]*collectionKey{}}
 	err := fn(t)
 	if t.err != nil {
 		return t.err
@@ -80,6 +82,7 @@ type sealedTx struct {
 	tx    kv.Tx
 	key   *seal.Key
 	ring  *keyring.Ring
+	lent  map[string][]byte
 	write bool
 	err   error
 	held  map[string]*collectionKey
@@ -102,10 +105,13 @@ func (t *sealedTx) collection(scope string) (*collectionKey, error) {
 			return nil, err
 		}
 		var ok bool
-		if c.rec.Public != nil {
+		switch {
+		case c.rec.Public != nil:
 			c.secret, err = t.key.Open(c.rec.Public)
 			ok = err == nil
-		} else {
+		case t.lent != nil:
+			c.secret, ok = t.lentKey(scope)
+		default:
 			c.secret, ok = t.ring.Unwrap(c.rec.Wraps, info(scope))
 		}
 		if ok && len(c.secret) == seal.KeySize {
@@ -114,6 +120,46 @@ func (t *sealedTx) collection(scope string) (*collectionKey, error) {
 	}
 	t.held[scope] = c
 	return c, nil
+}
+
+// lentKey is the key lent for the collection, where it still opens it: one the collection's key has
+// replaced since is not at hand.
+func (t *sealedTx) lentKey(scope string) ([]byte, bool) {
+	secret := t.lent[scope]
+	if len(secret) != seal.KeySize {
+		return nil, false
+	}
+	_, err := seal.NewAccountKey([seal.KeySize]byte(secret)).Open(t.tx.Get(Name + "/collections/" + scope))
+	return secret, err == nil
+}
+
+// Key is the own key of the collection that LimitName names so, nil where it has none, and ErrLocked where
+// no key at hand opens it: what a request limited to the collection is lent (Holding).
+func (s *Store) Key(name string) ([]byte, error) {
+	var secret []byte
+	err := s.db.View(func(tx kv.Tx) error {
+		c, err := keyed(tx).collection(limitScope(name))
+		if err == nil && c.locked() {
+			err = keyring.ErrLocked
+		}
+		if err == nil {
+			secret = c.secret
+		}
+		return err
+	})
+	return secret, err
+}
+
+// Holding is the store as a request sees it that opens collections with keys alone, each by its
+// collection's LimitName: one whose key is not among them is not there to it, whatever the ring holds
+// (ADR 109).
+func (s *Store) Holding(keys map[string][]byte) *Store {
+	held := *s
+	held.db.lent = make(map[string][]byte, len(keys))
+	for name, key := range keys {
+		held.db.lent[limitScope(name)] = key
+	}
+	return &held
 }
 
 func (t *sealedTx) open(k string, v []byte) ([]byte, error) {

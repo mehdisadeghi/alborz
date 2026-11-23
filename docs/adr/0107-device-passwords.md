@@ -20,9 +20,10 @@ mailbox and, under encryption (ADR 72), to the account's data.
 2. A device password MUST be `rand.Text()` (130 random bits), shown once
    on creation beside the DAV address and the username, and MUST NOT be
    stored. Its SHA-256 hash is stored and compared in constant time.
-3. Under encryption, a device password MUST also wrap the account key
-   under HKDF-SHA256 of the password (info `alborz device password`),
-   with the key's ID.
+3. Under encryption, a device password MUST keep the account key's ID
+   and, unless it is scoped, wrap the account key under HKDF-SHA256 of
+   the password (info `alborz device password`). A scoped one wraps
+   the keys of its collections instead (ADR 109).
 4. Last use MUST be written at most once an hour (`deviceTouch`).
 
 ### Storage
@@ -33,9 +34,10 @@ mailbox and, under encryption (ADR 72), to the account's data.
    it before the account key is open. It is not part of the account
    archive (ADR 70).
 6. Turning encryption on or off, or starting over, MUST delete the
-   device passwords that do not wrap the account key now in force
-   (`Server.Sealers`); their secrets are unknown, so they cannot be
-   wrapped again. A mail password change MUST leave them intact.
+   device passwords not made under the account key now in force, by
+   the ID they keep (rule 3), and with encryption off those made under
+   any (`Server.Sealers`); their secrets are unknown, so they cannot
+   wrap another key. A mail password change MUST leave them intact.
 
 ### DAV authentication
 
@@ -48,18 +50,19 @@ mailbox and, under encryption (ADR 72), to the account's data.
    under device passwords only counts. Refusals are cached as in ADR 30;
    acceptances by device password MUST NOT be cached, so a revoked one
    is refused at the next request.
-9. A matching device password MUST open a locked account key with its
-   wrap and hold it for `davPasswordLife` past the request
-   (`Ring.Lend`), as the mail password does (ADR 72).
+9. A matching device password that is not scoped MUST open a locked
+   account key with its wrap and hold it for `davPasswordLife` past
+   the request (`Ring.Lend`), as the mail password does (ADR 72). A
+   scoped one MUST NOT open or hold it (ADR 109).
 10. A read-only device password MUST be refused with 403 for every
     method other than GET, HEAD, OPTIONS, PROPFIND and REPORT.
 
 ## Consequences
 
-- A device password opens the account key, so it is as strong a
-  recovery path as the recovery key; a later sign-in with a reset mail
-  password rewraps the key it holds.
-- A revoked device password's key lease runs out within
+- An unscoped device password opens the account key, so it is as
+  strong a recovery path as the recovery key; a later sign-in with a
+  reset mail password rewraps the key it holds.
+- A revoked unscoped device password's key lease runs out within
   `davPasswordLife`.
 - A refusal cached under device passwords only keeps refusing that
   mail password for `davPasswordLife` after the setting is turned off.

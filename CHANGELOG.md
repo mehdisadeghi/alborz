@@ -13,6 +13,8 @@
   address is at another domain.
 - A device password can be limited to chosen calendars, task lists, journals
   and address books.
+- With encryption on, a device password limited to chosen collections holds
+  the keys of those collections only, not the account's key.
 
 ### Fixed
 

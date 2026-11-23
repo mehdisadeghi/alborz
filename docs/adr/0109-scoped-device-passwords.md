@@ -1,12 +1,13 @@
 # ADR 109: Scoped device passwords
 
-Status: accepted. Amends ADR 24, ADR 27 and ADR 107.
+Status: accepted. Amends ADR 24, ADR 27, ADR 72 and ADR 107.
 
 ## Context
 
 A device password (ADR 107) reaches every collection of its account,
-for reading or for reading and writing. A client that needs one
-calendar, such as a wall display or a script, holds all of them.
+for reading or for reading and writing, and under encryption (ADR 72)
+wraps the account key. A client that needs one calendar, such as a wall
+display or a script, holds all of them and the key to the rest.
 
 ## Decision
 
@@ -38,65 +39,94 @@ calendar, such as a wall display or a script, holds all of them.
 
 ### Encryption
 
-5. Under encryption (ADR 72) a scoped device password MUST wrap the
-   account key as an unscoped one does (ADR 107 rule 3). The scope is
-   enforced by the server alone; it is not a cryptographic boundary,
-   and no key is narrowed to it.
+5. Under encryption (ADR 72) a scoped device password MUST NOT wrap
+   the account key. It MUST keep the account key's ID (ADR 107 rule 3)
+   and, in `Wraps` of its record, wrap the key of each collection of
+   its scope that has one (ADR 72 rule 6) under HKDF-SHA256 of the
+   password, with info `alborz device password collection ` followed
+   by the collection's name in the scope (rule 3). With encryption off
+   it wraps nothing.
+6. A request authenticated by a scoped device password made under
+   encryption MUST be served with the keys it wraps alone
+   (`Store.Holding`). It MUST NOT open or hold the account key (ADR 107
+   rule 9), and no key pair on the instance opens a collection for it.
+   A collection whose key it does not wrap, or wraps as it was before
+   the key was replaced, is absent to it (ADR 72 rule 7). A collection
+   without a key and a published one (ADR 32) are read under the
+   instance's key, as for any request.
+7. A scoped device password is deleted with the account key it was
+   made under (ADR 107 rule 6), which is when the account's own
+   collections get, lose or change their keys. When the owner of a
+   collection shared with the account replaces its key, or gives it
+   its first, the password is kept and the collection is absent to it
+   from then on.
 
 ### DAV server
 
-6. A request authenticated by a scoped device password MUST be served
+8. A request authenticated by a scoped device password MUST be served
    as its account with the scope as a limit (`store.Limited`), which
    the store's backends apply to every collection they reach or list.
-7. Discovery MUST answer a scoped device password as any other: the
+9. Discovery MUST answer a scoped device password as any other: the
    well-known addresses (RFC 6764), the root, the principal and the
    home sets. A PROPFIND of a home set MUST list only the collections
    in scope.
-8. Every method on a collection out of scope, or on an object in one,
-   MUST be answered as the same request on a name no collection has.
-   An href out of scope in a calendar-multiget or addressbook-multiget
-   REPORT MUST be answered 404, whatever address the REPORT is sent to.
-9. MKCOL and MKCALENDAR in a home set MUST be refused with 403, whether
-   or not a collection has the name, and DELETE of a collection in
-   scope MUST be refused with 403: a scoped device password makes no
-   collection, deletes none of the account's and leaves none shared
-   with it.
-10. ADR 107 rule 10 holds before the scope is read: a read-only scoped
+10. Every method on a collection out of scope, or on an object in one,
+    MUST be answered as the same request on a name no collection has.
+    An href out of scope in a calendar-multiget or addressbook-multiget
+    REPORT MUST be answered 404, whatever address the REPORT is sent to.
+11. MKCOL and MKCALENDAR in a home set MUST be refused with 403, whether
+    or not a collection has the name, and DELETE of a collection in
+    scope MUST be refused with 403: a scoped device password makes no
+    collection, deletes none of the account's and leaves none shared
+    with it.
+12. ADR 107 rule 10 holds before the scope is read: a read-only scoped
     device password is refused with 403 for every other method at every
     address. With write, PUT and DELETE of objects and PROPPATCH of a
     collection in scope are the account's (ADR 24 rule 7).
-11. A collection shared with the account is in scope at its address in
+13. A collection shared with the account is in scope at its address in
     the account's home (`<id>~<owner>`) for as long as the share gives
-    access. A share that ended answers as rule 8; given again, the
+    access. A share that ended answers as rule 10; given again, the
     collection is in scope again.
 
 ### Pages
 
-12. `/settings/devices/create` MUST offer every collection or a choice
+14. `/settings/devices/create` MUST offer every collection or a choice
     among those the account sees, grouped by kind and named as the
     collection picker names them (`collection-name`), a subscribed
     calendar marked as one. Rows of a kind that read alike MUST each
     add the collection's ID, which its address to a DAV client holds.
     A choice of none, or of a collection the account does not see, MUST
     be refused with 422.
-13. The form MUST show the collections only for a password of chosen
+15. The form MUST show the collections only for a password of chosen
     ones (CSS `:has()`, no script); for a password of all of them they
     MUST be ignored when submitted.
-14. `/settings/devices` states each password's scope after its access:
+16. `/settings/devices` states each password's scope after its access:
     every collection, or the count of each kind and the count of the
     scope's collections the account no longer sees, as no longer
     existing. A row's detail wraps, under the name on a phone
     (`.list-items.whole`), and its name links to the password's page.
-15. `/settings/devices/{id}` states the password's access, creation
+17. `/settings/devices/{id}` states the password's access, creation
     and last use, and each collection of its scope with its kind,
     named as in the form. A collection the account no longer sees is
     listed as no longer existing.
 
 ## Consequences
 
-- Under encryption a scoped device password opens the whole account
-  key and holds it open for `davPasswordLife`: whoever has the password
-  and the data file reads every collection of the account.
+- Under encryption a scoped device password, with the data file and
+  `-login-key`, opens the collections of its scope and nothing else
+  the account key protects (ADR 72): no other collection, setting or
+  mirrored copy. A fault in the access checks (rule 8) reaches no
+  collection whose key the password lacks.
+- The boundary is the password's, not the server's: while the account
+  is open on a running server, by a browser, the mail password or an
+  unscoped device password, the server holds every key of the account.
+  With encryption off, and for a collection without a key or
+  published, the access checks are all there is.
+- Reading and writing are one key: read-only access is the server's
+  to keep. A wrap goes on opening a collection's records after its
+  share ended, until the collection's key is replaced.
+- A shared collection whose key was replaced stays listed in the
+  password's scope on the pages; the client needs a new password.
 - A scope does not follow a collection that is made again or imported;
   the client needs a new password. A scope keeps no names, so the pages
   name a collection that is gone by its kind alone, and a share that
@@ -110,8 +140,9 @@ calendar, such as a wall display or a script, holds all of them.
   One that deletes a record it reads as empty deletes them with it,
   when it revokes the last unscoped one while the mail password is
   taken.
-- The scopes' keyed names and kinds are under the instance's key, as
-  device names are (ADR 107); collection names and IDs are not in them.
+- The scopes' keyed names, kinds and wraps are under the instance's
+  key, as device names are (ADR 107); collection names and IDs are not
+  in them.
 - Sharing, publication and subscription are not DAV operations here,
   and scheduling, free-busy, WebDAV sync, COPY and MOVE are not served
   (ADR 24), so no device password reaches them. A published calendar
@@ -120,15 +151,19 @@ calendar, such as a wall display or a script, holds all of them.
 ## References
 
 - RFC 4791, RFC 6352, RFC 4918, RFC 6764
-- ADR 24, ADR 26, ADR 27, ADR 70, ADR 72, ADR 107
+- RFC 5869 (HKDF)
+- ADR 24, ADR 26, ADR 27, ADR 32, ADR 70, ADR 72, ADR 107
 - `devices.go` (`DevicePassword`, `DeviceCollection`, `DeviceChoice`,
-  `deviceRecord`, `CreateScopedDevicePassword`), `server.go`
-  (`Server.DeviceChoices`), `pim/store/paths.go` (`Limited`,
+  `deviceRecord`, `CreateScopedDevicePassword`, `DevicePassword.Keys`,
+  `prune`), `server.go` (`Server.DeviceChoices`,
+  `Server.CollectionKey`), `pim/store/paths.go` (`Limited`,
   `LimitName`, `within`, `reachAt`, `visible`, `create`,
-  `removeWithOptions`), `pim/store/store.go` (`Collection.Made`),
+  `removeWithOptions`), `pim/store/sealed.go` (`Holding`, `Key`,
+  `lentKey`), `pim/store/store.go` (`Collection.Made`),
   `pim/store/archive.go` (`restore`), `pim/web/owndav.go`
   (`davAccess`), `pim/web/devices.go` (`deviceChoices`, `limitOf`),
-  `pim/web/scope_test.go`, `settings/web/devices.go` (`scopeRows`,
+  `pim/web/scope_test.go`, `settings/web/devices_test.go`,
+  `settings/web/devices.go` (`scopeRows`,
   `held`, `reaches`), `templates/partials/form.html`
   (`collection-name`), `templates/partials/settings.html`
   (`device-collection`), `templates/partials/settings.css`,

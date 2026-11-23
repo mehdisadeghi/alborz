@@ -36,10 +36,12 @@ type DevicePassword struct {
 	LastUsed time.Time `json:",omitzero"`
 	ReadOnly bool      `json:",omitempty"`
 	Hash     []byte
-	// KeyID names the account's own key ByDevice wraps under the password; both are empty while the
-	// account's encryption was off.
-	KeyID    string `json:",omitempty"`
-	ByDevice []byte `json:",omitempty"`
+	// KeyID names the account's own key the password was made under, and ByDevice wraps it under the
+	// password; both are empty while the account's encryption was off. A scoped password has no ByDevice
+	// but Wraps: the own keys of its collections that had one, each under the password, by Ref (ADR 109).
+	KeyID    string            `json:",omitempty"`
+	ByDevice []byte            `json:",omitempty"`
+	Wraps    map[string][]byte `json:",omitempty"`
 	// Scoped limits the password to the collections of Scope (ADR 109); the record's list that holds it
 	// says so, not a field.
 	Scoped bool               `json:"-"`
@@ -183,9 +185,16 @@ func deviceHash(password string) []byte {
 	return sum[:]
 }
 
-// deviceKey is the key a device password derives; rand.Text's 130 random bits need no stretching.
-func deviceKey(password string) *seal.Key {
-	raw, err := hkdf.Key(sha256.New, []byte(password), nil, "alborz device password", seal.KeySize)
+// The HKDF info of the keys a device password derives: the one wrapping the account's own key and, followed
+// by a collection's Ref, the one wrapping that collection's.
+const (
+	deviceInfo           = "alborz device password"
+	deviceCollectionInfo = "alborz device password collection "
+)
+
+// deviceKey is the key a device password derives for info; rand.Text's 130 random bits need no stretching.
+func deviceKey(password, info string) *seal.Key {
+	raw, err := hkdf.Key(sha256.New, []byte(password), nil, info, seal.KeySize)
 	if err != nil {
 		panic(err)
 	}
@@ -221,9 +230,9 @@ func (d *Devices) touch(account, id string, now time.Time) error {
 	})
 }
 
-// prune deletes the account's device passwords that do not wrap its own key as the ring holds it now: turning
-// encryption on or off or starting over leaves them with a key that is gone, and their secrets are not kept
-// to wrap the new one. An account whose key is not open keeps them.
+// prune deletes the account's device passwords that were not made under its own key as the ring holds it
+// now: turning encryption on or off or starting over leaves them wrapping keys that are gone, and their
+// secrets are not kept to wrap the new ones. An account whose key is not open keeps them.
 func (d *Devices) prune(account string) error {
 	name, want := d.keys.Name(account), ""
 	if d.keys.On(name) {
@@ -248,7 +257,7 @@ func (s *Server) CreateDevicePassword(l *Login, name string, readOnly bool) (str
 }
 
 // CreateScopedDevicePassword makes one limited to the collections of scope (ADR 109). Under encryption it
-// wraps the account's whole key all the same: the server keeps it to its scope, no key does.
+// wraps the keys of those collections and not the account's own, so it opens no other collection.
 func (s *Server) CreateScopedDevicePassword(l *Login, name string, readOnly bool, scope []DeviceCollection) (string, error) {
 	return s.createDevicePassword(l, DevicePassword{Name: name, ReadOnly: readOnly, Scoped: true, Scope: scope})
 }
@@ -264,7 +273,21 @@ func (s *Server) createDevicePassword(l *Login, p DevicePassword) (string, error
 		if !ok || s.Keys.Locked(keyed) {
 			return "", ErrLocked
 		}
-		p.KeyID, p.ByDevice = keyID(own), deviceKey(password).Seal(own)
+		p.KeyID = keyID(own)
+		if p.Scoped {
+			p.Wraps = map[string][]byte{}
+		} else {
+			p.ByDevice = deviceKey(password, deviceInfo).Seal(own)
+		}
+		for _, c := range p.Scope {
+			key, err := s.CollectionKey(c.Ref)
+			if err != nil {
+				return "", err
+			}
+			if key != nil {
+				p.Wraps[c.Ref] = deviceKey(password, deviceCollectionInfo+c.Ref).Seal(key)
+			}
+		}
 	}
 	err := s.Devices.update(l.username, func(rec *deviceRecord) bool {
 		rec.Devices = append(rec.Devices, p)
@@ -273,9 +296,25 @@ func (s *Server) createDevicePassword(l *Login, p DevicePassword) (string, error
 	return password, err
 }
 
+// Keys are the keys a scoped password made under encryption wraps, opened, by their collections' Ref: its
+// requests are served with them alone (ADR 109). Any other password wraps none, which is nil.
+func (p DevicePassword) Keys(password string) map[string][]byte {
+	if !p.Scoped || p.KeyID == "" {
+		return nil
+	}
+	keys := map[string][]byte{}
+	for ref, wrap := range p.Wraps {
+		if key, err := deviceKey(password, deviceCollectionInfo+ref).Open(wrap); err == nil {
+			keys[ref] = key
+		}
+	}
+	return keys
+}
+
 // CheckDevicePassword checks password against the account's device passwords, sharing the sign-in tries
-// (ADR 30). A match holds the account's own key for lease, opening it with the password where no login
-// holds it. No match is ErrNoDevicePassword, or an AuthError where the account takes device passwords only.
+// (ADR 30). A match that is not scoped holds the account's own key for lease, opening it with the password
+// where no login holds it. No match is ErrNoDevicePassword, or an AuthError where the account takes device
+// passwords only.
 func (s *Server) CheckDevicePassword(username, password, from string, lease time.Duration) (DevicePassword, error) {
 	username = strings.ToLower(username)
 	var found DevicePassword
@@ -299,11 +338,15 @@ func (s *Server) CheckDevicePassword(username, password, from string, lease time
 		s.log.Printf("%s: noting a device password's use: %v", username, err)
 	}
 	keyed := s.Keys.Name(username)
-	if !s.Keys.Locked(keyed) || found.ByDevice == nil {
+	switch {
+	case found.Scoped:
+		// Served with the keys it wraps, so it holds the account's own for no time at all.
+		return found, nil
+	case !s.Keys.Locked(keyed) || found.ByDevice == nil:
 		s.Keys.Lease(keyed, lease)
 		return found, nil
 	}
-	own, err := deviceKey(password).Open(found.ByDevice)
+	own, err := deviceKey(password, deviceInfo).Open(found.ByDevice)
 	if err != nil || len(own) != seal.KeySize || keyID(own) != found.KeyID {
 		s.log.Printf("%s: a device password does not open the account's key", username)
 		return found, nil

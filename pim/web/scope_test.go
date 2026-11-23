@@ -365,6 +365,88 @@ func TestAScopedDevicePasswordReachesASharedCollectionAsItsAccountDoes(t *testin
 	}
 }
 
+// Under encryption a scoped device password is served with the keys of its collections alone (ADR 109): with
+// nobody signed in and its account locked it finds, reads and writes them, one shared with the account too.
+// Once the owner of the shared one replaces its key, that collection is gone to the password, whoever is
+// signed in, and the others stay.
+func TestAScopedDevicePasswordIsServedWithItsCollectionsKeysAlone(t *testing.T) {
+	opts := []Option{WithIMAP(IMAP(t)), DataDir(t.TempDir())}
+	a := Alborz(t, opts...)
+	owner, c := a.SignIn(t, User2), a.SignIn(t, User)
+	turn := func(c *Client, route, account string, want int) {
+		t.Helper()
+		if resp := c.Post(t, route, url.Values{"password": {Password}, "account": {account}}); resp.StatusCode != want {
+			t.Fatalf("%s for %s answered %s", route, account, resp.Status)
+		}
+	}
+	turn(owner, "settings.encryption", User2, http.StatusOK)
+	turn(c, "settings.encryption", User, http.StatusOK)
+	if resp := owner.Post(t, "calendar.calendars.create", url.Values{"place": {User2 + "|here"}, "name": {"Team"}, "color": {"#22aa55"}}); resp.StatusCode != http.StatusFound {
+		t.Fatalf("creating the calendar answered %s", resp.Status)
+	}
+	team, shared := CalendarsOf(User2)+"team/", CalendarsOf(User)+"team~"+User2+"/"
+	if resp := owner.Post(t, "calendar.collection.share", url.Values{"to": {User}, "access": {"write"}}, Here+team); resp.StatusCode != http.StatusFound {
+		t.Fatalf("sharing answered %s", resp.Status)
+	}
+	if resp := c.Post(t, "calendar.collection.accept", url.Values{}, Here+shared); resp.StatusCode != http.StatusFound {
+		t.Fatalf("accepting answered %s", resp.Status)
+	}
+	plans, private := c.CreateCalendar(t, "Plans", ""), c.CreateCalendar(t, "Private", "")
+	a.Put(t, private+"secret.ics", "text/calendar", Event("secret", "Secret"))
+	password := devicePassword(t, c, url.Values{"name": {"wall"}, "access": {"write"}, "scope": {"some"}, "collection": {plans, shared}})
+	a.Close()
+
+	a = Alborz(t, opts...)
+	status := func(method, path, body string) int {
+		t.Helper()
+		return asDevice(t, a, password, method, path, nil, body).StatusCode
+	}
+	listed := func() string {
+		t.Helper()
+		resp := asDevice(t, a, password, "PROPFIND", CalendarsOf(User), map[string]string{"Depth": "1"}, davProps)
+		if resp.StatusCode != http.StatusMultiStatus {
+			t.Fatalf("listing the home answered %s", resp.Status)
+		}
+		return resp.Text
+	}
+	if got := status("PROPFIND", store.Prefix+"/", davProps); got != http.StatusMultiStatus {
+		t.Fatalf("the root answered %d", got)
+	}
+	if got := listed(); !strings.Contains(got, plans) || !strings.Contains(got, shared) || strings.Contains(got, private) {
+		t.Fatalf("the home lists other than the two calendars of the scope:\n%s", got)
+	}
+	for _, path := range []string{plans + "dentist.ics", shared + "standup.ics"} {
+		if got := status(http.MethodPut, path, Event("e", "Kept")); got != http.StatusCreated {
+			t.Fatalf("a write to %s answered %d", path, got)
+		}
+		if got := status(http.MethodGet, path, ""); got != http.StatusOK {
+			t.Fatalf("a read of %s answered %d", path, got)
+		}
+	}
+	if got := status(http.MethodGet, private+"secret.ics", ""); got != http.StatusNotFound {
+		t.Errorf("a read out of scope answered %d", got)
+	}
+	if keys := a.Server.Keys; !keys.Locked(keys.Name(User)) {
+		t.Error("a scoped device password opened its account's own key")
+	}
+
+	owner, c = a.SignIn(t, User2), a.SignIn(t, User)
+	turn(owner, "settings.encryption.off", User2, http.StatusFound)
+	turn(owner, "settings.encryption", User2, http.StatusOK)
+	if !c.Listed(t)[Here+shared] {
+		t.Fatal("the account no longer sees the calendar shared with it")
+	}
+	if got := status(http.MethodGet, shared+"standup.ics", ""); got != http.StatusNotFound {
+		t.Errorf("a read of the shared calendar under its new key answered %d", got)
+	}
+	if got := listed(); !strings.Contains(got, plans) || strings.Contains(got, shared) {
+		t.Errorf("with the shared calendar's key replaced the home lists:\n%s", got)
+	}
+	if got := status(http.MethodGet, plans+"dentist.ics", ""); got != http.StatusOK {
+		t.Errorf("a read of the password's own calendar answered %d", got)
+	}
+}
+
 // The form makes a password for every collection or for those chosen, never for none. The list and the
 // password's page say what it reaches, and that a collection of it no longer exists.
 func TestTheDeviceFormLimitsAPasswordToChosenCollections(t *testing.T) {

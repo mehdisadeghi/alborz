@@ -103,9 +103,11 @@ type Server struct {
 	Pushes *Pushes
 	// Devices keeps the device passwords DAV clients sign in with (ADR 107).
 	Devices *Devices
-	// DeviceChoices lists the collections a device password of the account can be limited to (ADR 109);
-	// whatever serves the DAV clients sets it.
+	// DeviceChoices lists the collections a device password of the account can be limited to (ADR 109),
+	// and CollectionKey is the own key of one of them by its Ref, nil where it has none; whatever serves
+	// the DAV clients sets both.
 	DeviceChoices func(account string) ([]DeviceChoice, error)
+	CollectionKey func(ref string) ([]byte, error)
 	// KeepLogin holds a login past its idle limit while something needs it: a device to notify (ADR 74).
 	KeepLogin func(*Login) bool
 

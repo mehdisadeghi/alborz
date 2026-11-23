@@ -195,7 +195,7 @@ upstreams are given as repeated domain=url arguments, e.g.:
 	}
 	fmt.Fprintf(stdout, "Listening on %s\n", base)
 
-	server := &http.Server{Handler: handler}
+	server := newServer(handler)
 	server.RegisterOnShutdown(s.Changes.Close)
 	served := make(chan error, 1)
 	go func() { served <- server.Serve(ln) }()
@@ -229,4 +229,11 @@ upstreams are given as repeated domain=url arguments, e.g.:
 	shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	return server.Shutdown(shutdown)
+}
+
+// newServer bounds what a client may hold open while sending nothing: the request headers, and a
+// connection between requests, for longer than a proxy keeps one. A body and a response have no limit of
+// their own, since an upload, the event stream and a page waiting on IMAP all outlast any fixed one.
+func newServer(handler http.Handler) *http.Server {
+	return &http.Server{Handler: handler, ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 3 * time.Minute}
 }

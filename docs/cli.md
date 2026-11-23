@@ -53,7 +53,9 @@ The following URL schemes are supported:
 
 # OPTIONS
 
-**-addr**: listening address (default: ":1323")
+**-addr**: listening address (default: ":1323"). A connection has 10 seconds
+to send a request's headers and is closed after 3 minutes without a request;
+a request body and a response have no time limit.
 
 **-pprof**: loopback address, such as `localhost:6060`, serving Go's profiles
 under `/debug/pprof/` (default: unset, none served). Any other address is

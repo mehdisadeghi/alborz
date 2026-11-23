@@ -71,6 +71,8 @@
   signs in again, so they are signed out even when that sign-in fails.
 - A sign-in the mail server accepted just before a password change is refused
   instead of staying signed in with the old password.
+- A connection that sends no request headers within 10 seconds, or sits idle
+  for 3 minutes, is closed instead of being held open.
 
 ## [0.20.0] - 2026-10-31
 

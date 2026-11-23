@@ -147,3 +147,14 @@ func TestFailedBindDoesNotAnnounceSetup(t *testing.T) {
 		t.Fatal("setup was announced before the listener could bind")
 	}
 }
+
+// A read or write limit would cut uploads and the event stream short.
+func TestServerLimitsOnlyHeadersAndIdleConnections(t *testing.T) {
+	s := newServer(nil)
+	if s.ReadHeaderTimeout <= 0 || s.IdleTimeout <= 0 {
+		t.Errorf("header limit %v, idle limit %v; want both set", s.ReadHeaderTimeout, s.IdleTimeout)
+	}
+	if s.ReadTimeout != 0 || s.WriteTimeout != 0 {
+		t.Errorf("read limit %v, write limit %v; want none", s.ReadTimeout, s.WriteTimeout)
+	}
+}

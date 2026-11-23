@@ -4,8 +4,9 @@
 <form method="post" action="{{url "calendar.event.create"}}{{account "?" $.GlobalData.URLAccount}}" class="quick-add" hx-boost="true" hx-replace-url="true" id="quick-add">
   {{ template "next-field" (printf "%s#quick-add" $.GlobalData.URL.RequestURI) }}
   <input type="hidden" name="quick" value="event">
+  {{ template "hidden-field" (dict "name" "date" "value" ($.Day.Format "2006-01-02")) }}
   <input type="text" name="summary" value="{{$.QuickInput}}" required dir="auto" placeholder="{{$.T "calendar.quick.placeholder"}}" aria-label="{{$.T "calendar.eventname"}}" aria-describedby="event-quick-preview{{if $.QuickError}} event-quick-error{{end}}"
-    hx-get="{{url "calendar.quick.preview"}}{{account "?" $.GlobalData.URLAccount}}" hx-trigger="input changed delay:400ms" hx-target="#event-quick-preview" hx-sync="this:replace" hx-push-url="false" hx-replace-url="false">
+    hx-get="{{url "calendar.quick.preview"}}?date={{$.Day.Format "2006-01-02"}}{{account "&" $.GlobalData.URLAccount}}" hx-trigger="input changed delay:400ms" hx-target="#event-quick-preview" hx-sync="this:replace" hx-push-url="false" hx-replace-url="false">
   {{ if .Only }}
   <input type="hidden" name="calendar" value="{{.Account}}|{{.Path}}">
   {{ else }}

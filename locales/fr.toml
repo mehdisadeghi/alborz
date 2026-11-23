@@ -5,7 +5,7 @@
 "settings.poolsignatures" = "Proposer les signatures de tous les comptes connectés"
 "settings.poolsignatureshint" = "Les signatures restent enregistrées par compte ; le menu de rédaction affiche leur compte."
 "calendar.quick.placeholder" = "Déjeuner demain à 12:30"
-"calendar.quick.hint" = "Titre avec aujourd’hui/demain, AAAA-MM-JJ, JJ.MM.AAAA, jour de la semaine ou mois, ainsi qu’une heure ou une plage facultative (par exemple : Déjeuner demain à 12:30 ; Réunion vendredi 14:00–15:30). Dates grégoriennes ; fuseau horaire : %s. Date seule : toute la journée. Durée par défaut : une heure."
+"calendar.quick.hint" = "Titre avec aujourd’hui/demain, AAAA-MM-JJ, JJ.MM.AAAA, jour de la semaine ou mois, ainsi qu’une heure ou une plage facultative (par exemple : Déjeuner demain à 12:30 ; Réunion vendredi 14:00–15:30). Dates grégoriennes ; fuseau horaire : %s. Sans heure : toute la journée. Durée par défaut : une heure."
 "calendar.quick.invalid" = "Date ou heure ambiguë."
 "calendar.quick.editor" = "Formulaire complet de l’événement"
 "calendar.quick.today" = "aujourd'hui"

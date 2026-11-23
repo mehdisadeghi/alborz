@@ -923,27 +923,49 @@ func TestQuickEventDestinationMatchesTaskScope(t *testing.T) {
 	single(quick(url.Values{"cal": {first}}))
 }
 
-// A failed quick add offers the full editor with the draft intact. The link
-// prefills the day only from the day page, where the user targeted that day;
-// the month list's d.Time is the first of the month and must not leak in.
-func TestQuickEditorPrefillsOnlyTheDayPage(t *testing.T) {
+// A quick add naming no day lands on the day its page has open: the day page's,
+// the agenda's month on its first day, or today in the month that holds it; a
+// line it cannot read offers the full editor on that day.
+func TestQuickEventLandsOnTheDayOpen(t *testing.T) {
 	a, c := SignedIn(t, User)
 	cal := c.CreateCalendar(t, "First", "")
-	form := url.Values{"quick": {"event"}, "summary": {"Keep this ambiguous 03/04/2026"}, "calendar": {User + "|" + Here + cal}}
-	editor := func(resp *Response) string {
-		t.Helper()
-		if resp.StatusCode != http.StatusUnprocessableEntity {
-			t.Fatalf("an ambiguous quick event answered %s, want it refused", resp.Status)
+	c.Post(t, "settings.profile", url.Values{"timezone": {"UTC"}})
+	today := time.Now().UTC()
+	quick, field := regexp.MustCompile(`action="([^"]+)" class="quick-add"`), regexp.MustCompile(`name="([^"]+)" value="([^"]*)"`)
+	for _, tc := range []struct {
+		route  string
+		params url.Values
+		want   time.Time
+	}{
+		{"calendar.day", url.Values{"date": {"2026-12-03"}}, time.Date(2026, 12, 3, 0, 0, 0, 0, time.UTC)},
+		{"calendar.day", url.Values{"date": {"2026-12-04"}, "account": {User}}, time.Date(2026, 12, 4, 0, 0, 0, 0, time.UTC)},
+		{"calendar.month", url.Values{"month": {"2027-03"}, "view": {"list"}}, time.Date(2027, 3, 1, 0, 0, 0, 0, time.UTC)},
+		{"calendar.month", url.Values{"view": {"list"}, "account": {User}}, today},
+	} {
+		page := c.Page(t, tc.route, tc.params)
+		form, action := url.Values{}, ""
+		if m := quick.FindStringSubmatch(page); m != nil {
+			action = html.UnescapeString(m[1])
 		}
-		return html.UnescapeString(Between(resp.Text, `id="event-quick-error"`, `</p>`))
-	}
-	form.Set("next", a.Path("calendar.day", url.Values{"date": {"2026-11-03"}})+"#quick-add")
-	if link := editor(c.Post(t, "calendar.event.create", form)); !strings.Contains(link, "date=2026-11-03") {
-		t.Fatalf("day page editor link must carry the day:\n%s", link)
-	}
-	form.Set("next", a.Path("calendar.month")+"#quick-add")
-	if link := editor(c.Post(t, "calendar.event.create", form)); strings.Contains(link, "date=") {
-		t.Fatalf("month list editor link must not prefill a date:\n%s", link)
+		for _, f := range field.FindAllStringSubmatch(Between(page, `id="quick-add">`, `</form>`), -1) {
+			form.Set(html.UnescapeString(f[1]), html.UnescapeString(f[2]))
+		}
+		if action == "" || form.Get("quick") != "event" {
+			t.Fatalf("%s %v: no quick add", tc.route, tc.params)
+		}
+		form.Set("summary", "Lunch with Sara")
+		if resp := c.PostTo(t, action, form); resp.StatusCode != http.StatusFound {
+			t.Fatalf("%s %v: quick add answered %s", tc.route, tc.params, resp.Status)
+		}
+		report := a.DAV(t, "REPORT", cal, map[string]string{"Depth": "1", "Content-Type": "application/xml"}, `<C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:prop><C:calendar-data/></D:prop><C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT"/></C:comp-filter></C:filter></C:calendar-query>`).Text
+		if !strings.Contains(report, "DTSTART;VALUE=DATE:"+tc.want.Format("20060102")) {
+			t.Errorf("%s %v: want an all-day event on %s:\n%s", tc.route, tc.params, tc.want.Format(time.DateOnly), report)
+		}
+		form.Set("summary", "Keep this ambiguous 03/04/2026")
+		resp := c.PostTo(t, action, form)
+		if link := html.UnescapeString(Between(resp.Text, `id="event-quick-error"`, `</p>`)); !strings.Contains(link, "date="+tc.want.Format(time.DateOnly)) {
+			t.Errorf("%s %v: the editor link must open on %s: %s\n%s", tc.route, tc.params, tc.want.Format(time.DateOnly), resp.Status, link)
+		}
 	}
 }
 

@@ -44,7 +44,7 @@ func (p *plugin) day(ctx *web.Context) error {
 		return err
 	}
 	return ctx.Render(quickPageStatus(ctx), "calendar/day", &CalendarDateRenderData{
-		CalendarPageRenderData: calendarPageData(ctx, ctx.T("nav.calendar")+": "+ctx.Dates().Long(dv.start), dv.calendars, pimweb.NewCollectionLabels(p.DAV, ctx.Login.Username(), collection, href), "", "", nil, nil, "", invitations, dayQuery(ctx, dv.start), dv.start),
+		CalendarPageRenderData: calendarPageData(ctx, ctx.T("nav.calendar")+": "+ctx.Dates().Long(dv.start), dv.calendars, pimweb.NewCollectionLabels(p.DAV, ctx.Login.Username(), collection, href), "", "", nil, nil, "", invitations, dayQuery(ctx, dv.start), dv.start, dv.start),
 		// Named even when the URL omits it, so an opened event knows its list.
 		Events:   dayListEvents(dv.events, dv.start, dv.start.Location()),
 		PrevPage: dv.start.AddDate(0, 0, -1).Format(datePageLayout),

@@ -5,7 +5,7 @@
 "settings.poolsignatures" = "Ofrecer firmas de todas las cuentas abiertas"
 "settings.poolsignatureshint" = "Las firmas siguen guardadas por cuenta; el menú de redacción muestra el nombre de la cuenta."
 "calendar.quick.placeholder" = "Almuerzo mañana 12:30"
-"calendar.quick.hint" = "Título con hoy/mañana, AAAA-MM-DD, DD.MM.AAAA, día de la semana o mes, y hora o intervalo opcional (por ejemplo: Almuerzo mañana a las 12:30; Revisión viernes 14:00–15:30). Fechas gregorianas; zona horaria: %s. Solo fecha: todo el día. Duración predeterminada: una hora."
+"calendar.quick.hint" = "Título con hoy/mañana, AAAA-MM-DD, DD.MM.AAAA, día de la semana o mes, y hora o intervalo opcional (por ejemplo: Almuerzo mañana a las 12:30; Revisión viernes 14:00–15:30). Fechas gregorianas; zona horaria: %s. Sin hora: todo el día. Duración predeterminada: una hora."
 "calendar.quick.invalid" = "Fecha u hora poco clara."
 "calendar.quick.editor" = "Formulario completo del evento"
 "calendar.quick.today" = "hoy"

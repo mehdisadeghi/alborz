@@ -99,8 +99,13 @@ func (p *plugin) month(ctx *web.Context) error {
 	if mv.view != "" {
 		selectForm = "events-form"
 	}
+	// The month's own first day, or today in the month that holds it.
+	day := mv.start
+	if mv.thisMonth {
+		day = mv.day(mv.now)
+	}
 	data := &CalendarRenderData{
-		CalendarPageRenderData: calendarPageData(ctx, ctx.T("nav.calendar")+": "+ctx.Dates().MonthYear(mv.start), mv.calendars, pimweb.NewCollectionLabels(p.DAV, ctx.Login.Username(), collection, href), mv.view, "", calendarFilters(ctx), agendaRows(ctx, mv), selectForm, invitations, monthQuery(ctx, mv), mv.start),
+		CalendarPageRenderData: calendarPageData(ctx, ctx.T("nav.calendar")+": "+ctx.Dates().MonthYear(mv.start), mv.calendars, pimweb.NewCollectionLabels(p.DAV, ctx.Login.Username(), collection, href), mv.view, "", calendarFilters(ctx), agendaRows(ctx, mv), selectForm, invitations, monthQuery(ctx, mv), mv.start, day),
 		Now:                    mv.now,
 		ThisMonth:              mv.thisMonth,
 		Dates:                  mv.dates,

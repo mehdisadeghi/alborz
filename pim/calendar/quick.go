@@ -27,12 +27,17 @@ var ErrQuickEvent = errors.New("event needs a title and an unambiguous date and 
 // ranges, and "for N minutes/hours", normalizing localized digits). Clocks are
 // HH, HH:MM, HH-HH, or HH:MM-HH:MM with an optional am/pm; a German "Uhr"
 // suffix, attached ("19Uhr") or separate ("19 Uhr"), is consumed and ignored.
-// Date-only input creates an all-day event; timed events default to 1 hour.
+// Input without a date falls on day, the day the reader has open (today when
+// zero); input without a clock creates an all-day event; timed events default
+// to 1 hour, and an undated clock already past today moves to tomorrow.
 // Conflicting dates/clocks, recurrence phrases, other unrecognized timing words
 // (for example "18-19km" or a stray "Uhr"), and ambiguous or nonexistent DST
 // local times return ErrQuickEvent so uncertain timing goes to the full event
 // editor.
-func ParseQuickEvent(text string, now time.Time, words QuickWords) (QuickEvent, error) {
+func ParseQuickEvent(text string, now, day time.Time, words QuickWords) (QuickEvent, error) {
+	if day.IsZero() {
+		day = now
+	}
 	p := quickParser{original: strings.Fields(text), now: now}
 	for _, token := range p.original {
 		v := strings.ToLower(locale.Latin(token))
@@ -40,20 +45,20 @@ func ParseQuickEvent(text string, now time.Time, words QuickWords) (QuickEvent, 
 		p.tokens = append(p.tokens, strings.Trim(v, ",;.?!"))
 	}
 	p.used = make([]bool, len(p.tokens))
-	day, dated, err := p.date(words)
+	date, dated, err := p.date(words)
 	if err != nil {
 		return QuickEvent{}, err
+	}
+	if dated {
+		day = date
 	}
 	duration, err := p.duration()
 	if err != nil {
 		return QuickEvent{}, err
 	}
 	from, to, timed, err := p.clock(words)
-	if err != nil || (!dated && !timed) || (duration != 0 && (!timed || to != "")) {
+	if err != nil || (duration != 0 && (!timed || to != "")) {
 		return QuickEvent{}, ErrQuickEvent
-	}
-	if !dated {
-		day = now
 	}
 	start := time.Date(day.Year(), day.Month(), day.Day(), 0, 0, 0, 0, now.Location())
 	result := QuickEvent{Start: start, End: start.AddDate(0, 0, 1), AllDay: !timed}
@@ -75,7 +80,7 @@ func ParseQuickEvent(text string, now time.Time, words QuickWords) (QuickEvent, 
 				break
 			}
 		}
-		if !dated && !result.Start.After(now) {
+		if !dated && start.Equal(time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())) && !result.Start.After(now) {
 			result.Start, err = quickClock(start.AddDate(0, 0, 1), from)
 			if err != nil {
 				return QuickEvent{}, err

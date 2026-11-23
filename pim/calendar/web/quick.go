@@ -67,8 +67,11 @@ func (p *plugin) quickPreview(ctx *web.Context) error {
 	return ctx.Render(http.StatusOK, "event-quick-preview", &d)
 }
 
+// The line is read on the day its page has open; without one, today.
 func parseQuickEvent(ctx *web.Context, text string) (calendar.QuickEvent, error) {
-	return calendar.ParseQuickEvent(text, time.Now().In(web.UserLocation(ctx)), calendar.QuickWords{
+	loc := web.UserLocation(ctx)
+	day, _ := time.ParseInLocation(datePageLayout, ctx.FormValue("date"), loc)
+	return calendar.ParseQuickEvent(text, time.Now().In(loc), day, calendar.QuickWords{
 		Today: ctx.T("calendar.quick.today"), Tomorrow: ctx.T("calendar.quick.tomorrow"), At: ctx.T("calendar.quick.at"),
 	})
 }

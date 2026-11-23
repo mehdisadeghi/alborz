@@ -5,7 +5,7 @@
 "settings.poolsignatures" = "Signaturen aller angemeldeten Konten anbieten"
 "settings.poolsignatureshint" = "Signaturen bleiben pro Konto gespeichert; das Verfassen-Menü zeigt die Kontonamen."
 "calendar.quick.placeholder" = "Mittagessen morgen 12:30"
-"calendar.quick.hint" = "Titel mit heute/morgen, JJJJ-MM-TT, TT.MM.JJJJ, Wochentag oder Monatsname sowie optional Uhrzeit oder Zeitspanne (z. B. Mittagessen morgen um 12:30; Besprechung Freitag 14:00–15:30). Gregorianische Daten; Zeitzone: %s. Nur Datum: ganztägig. Standarddauer: eine Stunde."
+"calendar.quick.hint" = "Titel mit heute/morgen, JJJJ-MM-TT, TT.MM.JJJJ, Wochentag oder Monatsname sowie optional Uhrzeit oder Zeitspanne (z. B. Mittagessen morgen um 12:30; Besprechung Freitag 14:00–15:30). Gregorianische Daten; Zeitzone: %s. Ohne Uhrzeit: ganztägig. Standarddauer: eine Stunde."
 "calendar.quick.invalid" = "Datum oder Uhrzeit unklar."
 "calendar.quick.editor" = "Vollständiges Terminformular"
 "calendar.quick.today" = "heute"

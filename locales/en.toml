@@ -5,7 +5,7 @@
 "settings.poolsignatures" = "Offer signatures from all signed-in accounts"
 "settings.poolsignatureshint" = "Signatures remain stored per account; the compose menu shows their account names."
 "calendar.quick.placeholder" = "Lunch tomorrow at noon"
-"calendar.quick.hint" = "Title with today/tomorrow, YYYY-MM-DD, DD.MM.YYYY, weekday or month name, plus optional time or range (for example: Lunch tomorrow at noon; Review Friday 14:00–15:30). Gregorian dates; timezone: %s. Date only: all day. Default duration: one hour."
+"calendar.quick.hint" = "Title with today/tomorrow, YYYY-MM-DD, DD.MM.YYYY, weekday or month name, plus optional time or range (for example: Lunch tomorrow at noon; Review Friday 14:00–15:30). Gregorian dates; timezone: %s. No time: all day. Default duration: one hour."
 "calendar.quick.invalid" = "Date or time unclear."
 "calendar.quick.editor" = "Full event form"
 "calendar.quick.today" = "today"

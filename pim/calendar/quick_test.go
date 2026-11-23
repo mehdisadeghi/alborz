@@ -51,7 +51,7 @@ func TestParseQuickEvent(t *testing.T) {
 		{"Tomorrow at 14:00 طرح Project Ω", "طرح Project Ω", "2026-10-24T14:00", "2026-10-24T15:00", false},
 	} {
 		t.Run(tc.input, func(t *testing.T) {
-			got, err := ParseQuickEvent(tc.input, now, words)
+			got, err := ParseQuickEvent(tc.input, now, time.Time{}, words)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -60,9 +60,32 @@ func TestParseQuickEvent(t *testing.T) {
 			}
 		})
 	}
-	for _, input := range []string{"", "Lunch", "Lunch 03/04/2026", "Lunch 2026-02-30", "Lunch tomorrow 9", "Lunch 2026-02-30 tomorrow", "tomorrow 12:00", "Lunch tomorrow 25:00", "Lunch tomorrow 12:00-11:00", "Lunch today tomorrow", "Lunch 2026-03-29 02:30", "Lunch 2026-10-25 02:30", "Lunch tomorrow every week", "Lunch tomorrow at 9 at 10", "Lunch November 31 at noon", "Lunch tomorrow from 3 to 2pm", "Lunch tomorrow 2-3pm for 90 minutes", "Lunch tomorrow for 90 minutes", "Lunch tomorrow at", "Lunch tomorrow in 2 days", "Lunch tomorrow at 13pm"} {
-		if got, err := ParseQuickEvent(input, now, words); err == nil {
+	for _, input := range []string{"", "Lunch 03/04/2026", "Lunch 2026-02-30", "Lunch tomorrow 9", "Lunch 2026-02-30 tomorrow", "tomorrow 12:00", "Lunch tomorrow 25:00", "Lunch tomorrow 12:00-11:00", "Lunch today tomorrow", "Lunch 2026-03-29 02:30", "Lunch 2026-10-25 02:30", "Lunch tomorrow every week", "Lunch tomorrow at 9 at 10", "Lunch November 31 at noon", "Lunch tomorrow from 3 to 2pm", "Lunch tomorrow 2-3pm for 90 minutes", "Lunch tomorrow for 90 minutes", "Lunch tomorrow at", "Lunch tomorrow in 2 days", "Lunch tomorrow at 13pm"} {
+		if got, err := ParseQuickEvent(input, now, time.Time{}, words); err == nil {
 			t.Errorf("accepted %q as %#v", input, got)
+		}
+	}
+}
+
+// What names no date falls on the day the reader has open; what names one keeps it.
+func TestQuickEventFallsOnTheDayOpen(t *testing.T) {
+	now := time.Date(2026, 10, 23, 10, 0, 0, 0, time.UTC)
+	open := time.Date(2026, 12, 3, 0, 0, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		input      string
+		day        time.Time
+		start, end string
+		allDay     bool
+	}{
+		{"Lunch with Sara", time.Time{}, "2026-10-23T00:00", "2026-10-24T00:00", true},
+		{"Lunch with Sara", open, "2026-12-03T00:00", "2026-12-04T00:00", true},
+		{"Lunch at 9", open, "2026-12-03T09:00", "2026-12-03T10:00", false},
+		{"Lunch at 9", now, "2026-10-24T09:00", "2026-10-24T10:00", false},
+		{"Lunch tomorrow at 9", open, "2026-10-24T09:00", "2026-10-24T10:00", false},
+	} {
+		got, err := ParseQuickEvent(tc.input, now, tc.day, QuickWords{})
+		if err != nil || got.Summary == "" || got.Start.Format("2006-01-02T15:04") != tc.start || got.End.Format("2006-01-02T15:04") != tc.end || got.AllDay != tc.allDay {
+			t.Errorf("%q on %s = %#v, %v", tc.input, tc.day.Format(time.DateOnly), got, err)
 		}
 	}
 }
@@ -78,7 +101,7 @@ func TestQuickEventTranslatedRelativeDates(t *testing.T) {
 		{"Comida mañana a las 12:30", QuickWords{Today: "hoy", Tomorrow: "mañana", At: "a las"}},
 		{"ناهار فردا ۱۲:۳۰", QuickWords{Today: "امروز", Tomorrow: "فردا", At: "ساعت"}},
 	} {
-		got, err := ParseQuickEvent(tc.input, now, tc.words)
+		got, err := ParseQuickEvent(tc.input, now, time.Time{}, tc.words)
 		if err != nil || got.Start.Format("2006-01-02T15:04") != "2027-01-01T12:30" {
 			t.Errorf("%q = %#v, %v", tc.input, got, err)
 		}
@@ -93,7 +116,7 @@ func TestQuickEventRejectsRecognizedUnsupportedTiming(t *testing.T) {
 		"Lunch tomorrow at 10am PST", "Lunch in three days at noon",
 		"Lunch in 2 weeks at noon", "Lunch tomorrow every Friday",
 	} {
-		if got, err := ParseQuickEvent(input, now, QuickWords{}); err == nil {
+		if got, err := ParseQuickEvent(input, now, time.Time{}, QuickWords{}); err == nil {
 			t.Errorf("unsupported timing %q became %#v", input, got)
 		}
 	}
@@ -111,12 +134,12 @@ func TestQuickEventRejectsNonHourlyClockChanges(t *testing.T) {
 		"Review 2026-04-05 00:45",
 		"Review 2026-10-04 02:15",
 	} {
-		if got, err := ParseQuickEvent(input, now, QuickWords{}); err == nil {
+		if got, err := ParseQuickEvent(input, now, time.Time{}, QuickWords{}); err == nil {
 			t.Errorf("accepted ambiguous/nonexistent clock in %q as %#v", input, got)
 		}
 	}
 	for _, input := range []string{"Review 2026-04-05 02:00", "Review 2026-10-04 02:30"} {
-		if _, err := ParseQuickEvent(input, now, QuickWords{}); err != nil {
+		if _, err := ParseQuickEvent(input, now, time.Time{}, QuickWords{}); err != nil {
 			t.Errorf("valid clock %q: %v", input, err)
 		}
 	}
@@ -129,13 +152,13 @@ func TestQuickEventIgnoresUhrSuffix(t *testing.T) {
 	}
 	now := time.Date(2026, 10, 23, 10, 0, 0, 0, loc)
 	words := QuickWords{Today: "heute", Tomorrow: "morgen", At: "um"}
-	base, err := ParseQuickEvent("Lunch 18-19", now, words)
+	base, err := ParseQuickEvent("Lunch 18-19", now, time.Time{}, words)
 	if err != nil {
 		t.Fatal(err)
 	}
 	// The suffix must not change the parsed times or leak into the summary.
 	for _, input := range []string{"Lunch 18-19Uhr", "Lunch 18-19 Uhr"} {
-		got, err := ParseQuickEvent(input, now, words)
+		got, err := ParseQuickEvent(input, now, time.Time{}, words)
 		if err != nil {
 			t.Fatalf("%q: %v", input, err)
 		}
@@ -145,7 +168,7 @@ func TestQuickEventIgnoresUhrSuffix(t *testing.T) {
 	}
 	// With a date word, the suffix is ignored just the same (no silent all-day event).
 	for _, input := range []string{"Lunch tomorrow 18-19Uhr", "Lunch tomorrow 18-19 Uhr"} {
-		got, err := ParseQuickEvent(input, now, words)
+		got, err := ParseQuickEvent(input, now, time.Time{}, words)
 		if err != nil {
 			t.Fatalf("%q: %v", input, err)
 		}
@@ -156,7 +179,7 @@ func TestQuickEventIgnoresUhrSuffix(t *testing.T) {
 		}
 	}
 	// An attached suffix licenses a bare hour.
-	got, err := ParseQuickEvent("Meeting 19Uhr", now, words)
+	got, err := ParseQuickEvent("Meeting 19Uhr", now, time.Time{}, words)
 	if err != nil || got.Summary != "Meeting" || got.AllDay ||
 		got.Start.Format("2006-01-02T15:04") != "2026-10-23T19:00" ||
 		got.End.Format("2006-01-02T15:04") != "2026-10-23T20:00" {
@@ -165,7 +188,7 @@ func TestQuickEventIgnoresUhrSuffix(t *testing.T) {
 	// Unrecognized timing-shaped tokens still reject to the full editor,
 	// with or without a date word, and never reach the summary.
 	for _, input := range []string{"Lunch 18-19km", "Lunch tomorrow 18-19km", "Lunch tomorrow 19km", "Lunch Uhr"} {
-		if got, err := ParseQuickEvent(input, now, words); err == nil {
+		if got, err := ParseQuickEvent(input, now, time.Time{}, words); err == nil {
 			t.Errorf("accepted %q as %#v", input, got)
 		}
 	}

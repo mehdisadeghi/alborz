@@ -118,12 +118,13 @@ func read(source string) (*book, error) {
 		}
 		for i, said := range slices.Concat(brand.Names, brand.Alone) {
 			n := name{said: said, words: words(said), alone: i >= len(brand.Names), domains: brand.Domains}
-			spelled := ""
+			plain := make([]string, len(n.words))
 			for k := range n.words {
 				n.words[k].like = strings.ReplaceAll(n.words[k].plain, "i", "l")
-				n.joined += strings.ReplaceAll(n.words[k].plain, "+", "")
-				spelled += " " + n.words[k].plain
+				plain[k] = n.words[k].plain
 			}
+			n.joined = strings.ReplaceAll(strings.Join(plain, ""), "+", "")
+			spelled := strings.Join(plain, " ")
 			if n.joined == "" || seen[spelled] {
 				return nil, fmt.Errorf("brands: %q is empty or listed twice", said)
 			}

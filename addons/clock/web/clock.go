@@ -52,7 +52,7 @@ func show(ctx *web.Context) web.Shown {
 		}
 		parts = append(parts, city(ctx, zone)+" "+clockIn(ctx, loc, at))
 		// Isolated, as a title cannot hold a bdi.
-		title = append(title, "⁨"+zone+"⁩ · ⁨"+now(ctx, loc, at)+"⁩")
+		title = append(title, "\u2068"+zone+"\u2069 · \u2068"+now(ctx, loc, at)+"\u2069")
 	}
 	if len(parts) == 0 {
 		return web.Shown{Parts: []string{ctx.T("clock.choose")}, Link: link}

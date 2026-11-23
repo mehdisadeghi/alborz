@@ -48,10 +48,7 @@ func TestMemoBackoffDoublesToCapWithJitter(t *testing.T) {
 	e := &memoEntry[int]{}
 	for n := 1; n <= 6; n++ {
 		d := backoff(e, errors.New("down"))
-		base := 30 * time.Second << uint(min(n-1, 4))
-		if base > memoRetryCap {
-			base = memoRetryCap
-		}
+		base := min(30*time.Second<<uint(min(n-1, 4)), memoRetryCap)
 		if lo, hi := base*4/5, base*6/5; d < lo || d > hi {
 			t.Fatalf("failure %d: delay %s, want %s with a fifth of jitter", n, d, base)
 		}

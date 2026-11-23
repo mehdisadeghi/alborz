@@ -18,6 +18,9 @@ main.message td {
 main.message pre {
   padding-inline: 0.5rem;
   max-width: 78ch;
+  white-space: pre-wrap;
+  word-break: normal;
+  overflow-wrap: anywhere;
 }
 
 main.message .shown-image {
@@ -77,12 +80,6 @@ main.message iframe {
 /* E-mail documents assume a light canvas, whatever the UI theme. */
 main.message iframe {
   background-color: white;
-}
-
-main.message pre {
-  white-space: pre-wrap;
-  word-break: normal;
-  overflow-wrap: anywhere;
 }
 
 main.message .message-header .parts {

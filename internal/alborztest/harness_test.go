@@ -23,7 +23,7 @@ func TestTheHarnessIsTestOnly(t *testing.T) {
 	}
 	const self = "git.mehdix.org/alborz/internal/alborztest"
 	used := false
-	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(out), "\n") {
 		fields := strings.Split(line, "|")
 		if len(fields) != 4 {
 			t.Fatalf("unexpected go list line %q", line)

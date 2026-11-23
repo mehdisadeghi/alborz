@@ -10,18 +10,18 @@ import (
 // Published phases (USNO), a day either side of each still drawn the same.
 func TestThePhaseMatchesPublishedMoons(t *testing.T) {
 	const (
-		new, firstQuarter, full, lastQuarter = moon.Phase(0), moon.Phase(2), moon.Phase(4), moon.Phase(6)
+		newMoon, firstQuarter, full, lastQuarter = moon.Phase(0), moon.Phase(2), moon.Phase(4), moon.Phase(6)
 	)
 	for _, c := range []struct {
 		at   string
 		want moon.Phase
 	}{
 		{"1999-12-22T17:31:00Z", full},
-		{"2024-01-11T11:57:00Z", new},
+		{"2024-01-11T11:57:00Z", newMoon},
 		{"2024-01-18T03:53:00Z", firstQuarter},
 		{"2024-01-25T17:54:00Z", full},
 		{"2024-02-02T23:18:00Z", lastQuarter},
-		{"2024-04-08T18:21:00Z", new},
+		{"2024-04-08T18:21:00Z", newMoon},
 		{"2025-03-14T06:55:00Z", full},
 	} {
 		at, err := time.Parse(time.RFC3339, c.at)

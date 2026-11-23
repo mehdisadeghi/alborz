@@ -141,7 +141,6 @@ func TestShellCachesLayoutScripts(t *testing.T) {
 	}
 }
 
-
 // The page depends on the error keeping its type through every wrap.
 func TestUpstreamOutageIsNotOurFailure(t *testing.T) {
 	a := Alborz(t)

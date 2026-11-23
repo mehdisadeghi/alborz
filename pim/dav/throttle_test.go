@@ -35,7 +35,7 @@ func TestRetryAfterHeaderParse(t *testing.T) {
 }
 
 func TestThrottledReadAnswersAnErrorNamingWhen(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Retry-After", "7")
 		w.WriteHeader(http.StatusTooManyRequests)
 	}))
@@ -99,7 +99,7 @@ func TestAnUntrustedCertificateIsNoAnswer(t *testing.T) {
 
 func TestThrottledWriteStaysAResponse(t *testing.T) {
 	// The mirror reads a write's answer to undo the copy it applied, so it must not become an error.
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Retry-After", "7")
 		w.WriteHeader(http.StatusTooManyRequests)
 	}))

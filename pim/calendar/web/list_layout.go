@@ -40,7 +40,7 @@ func newListEvent(oc calendar.Occurrence, loc *time.Location, day time.Time) Lis
 // listEventOrder matches the month grid's mind: all-day and multi-day
 // spans above timed events, continuing spans above fresh ones, soonest first.
 func listEventOrder(a, b ListEvent) int {
-	whole := func(e ListEvent) bool { return e.Occurrence.AllDay() || e.MultiDay() }
+	whole := func(e ListEvent) bool { return e.AllDay() || e.MultiDay() }
 	if c := a.First.Compare(b.First); c != 0 {
 		return c
 	}
@@ -54,8 +54,8 @@ func listEventOrder(a, b ListEvent) int {
 		return c
 	}
 	return cmp.Or(
-		cmp.Compare(a.Occurrence.Path, b.Occurrence.Path),
-		cmp.Compare(a.Occurrence.Account, b.Occurrence.Account),
+		cmp.Compare(a.Path, b.Path),
+		cmp.Compare(a.Account, b.Account),
 	)
 }
 

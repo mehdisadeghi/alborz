@@ -104,7 +104,7 @@ func TestABrandAtItsOwnDomainIsSilent(t *testing.T) {
 		{"Deutsche Bank", "info@deutsche-bank.de"},
 		{"BNP Paribas", "info@mabanque.bnpparibas"},
 		{"Booking.com", "noreply@booking.com"},
-		{"دیجی‌کالا", "info@digikala.com"},
+		{"دیجی\u200cکالا", "info@digikala.com"},
 	} {
 		if got := saidOf(evidence(tc[0], tc[1], "Your invoice and payment")); got != "" {
 			t.Errorf("%s <%s>: said %q", tc[0], tc[1], got)
@@ -175,7 +175,7 @@ func TestBorrowedNamesWarn(t *testing.T) {
 		{"Wise Kundenservice", "x@example.org", "Wise example.org"},
 		{"Service client La Poste", "x@example.org", "La Poste example.org"},
 		{"X", "x@example.org", "X example.org"},
-		{"پشتیبانی دیجی‌کالا", "x@example.org", "دیجی‌کالا example.org"},
+		{"پشتیبانی دیجی\u200cکالا", "x@example.org", "دیجی\u200cکالا example.org"},
 		// A reseller writes under its own name or is in the address book.
 		{"AWS via Example Reseller", "aws@example.org", "AWS example.org"},
 		{"Meta Business Support", "x@example.org", "Meta Business example.org"},
@@ -193,8 +193,8 @@ func TestNamesAreReadAsTheyLook(t *testing.T) {
 		{"paypal", "PayPal"},
 		{"ＰａｙＰａｌ", "PayPal"},         // fullwidth
 		{"𝐏𝐚𝐲𝐏𝐚𝐥", "PayPal"},         // mathematical bold
-		{"Pay​Pal", "PayPal"},        // zero-width space
-		{"Pay­Pal", "PayPal"},        // soft hyphen
+		{"Pay\u200bPal", "PayPal"},   // zero-width space
+		{"Pay\u00adPal", "PayPal"},   // soft hyphen
 		{"PayPaI", "PayPal"},         // capital I for l
 		{"Paypa1", "PayPal"},         // 1 for l
 		{"РауРаl", "PayPal"},         // Cyrillic Р, а, у

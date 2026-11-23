@@ -35,8 +35,7 @@ func Pooled[C any](ctx *web.Context, p *dav.Provider, load func(context.Context,
 	troubles := map[string]error{}
 	fail := func(s *alborz.Login, err error) {
 		// A throttle names the server that answered and the status it gave.
-		var throttle *dav.ThrottledError
-		if errors.As(err, &throttle) {
+		if throttle, ok := errors.AsType[*dav.ThrottledError](err); ok {
 			hosts[s.Username()], answered[s.Username()], waits[s.Username()] = throttle.Host, throttle.StatusCode, throttle.At
 			return
 		}

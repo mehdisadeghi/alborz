@@ -969,6 +969,32 @@ func TestQuickEventLandsOnTheDayOpen(t *testing.T) {
 	}
 }
 
+// Every calendar view's New opens the event form on the day it has open, in its own scope.
+func TestNewEventOpensOnTheDayInView(t *testing.T) {
+	a, c := SignedIn(t, User)
+	c.Post(t, "settings.profile", url.Values{"timezone": {"UTC"}})
+	link := regexp.MustCompile(`href="([^"]+)"[^>]*data-key="c"`)
+	for _, tc := range []struct {
+		route  string
+		params url.Values
+		day    string
+	}{
+		{"calendar.month", url.Values{"month": {"2027-03"}}, "2027-03-01"},
+		{"calendar.month", url.Values{"account": {User}}, time.Now().UTC().Format(time.DateOnly)},
+		{"calendar.month", url.Values{"month": {"2027-03"}, "view": {"list"}, "account": {User}}, "2027-03-01"},
+		{"calendar.day", url.Values{"date": {"2026-12-03"}}, "2026-12-03"},
+	} {
+		m := link.FindStringSubmatch(c.Page(t, tc.route, tc.params))
+		if m == nil {
+			t.Fatalf("%s %v: no New", tc.route, tc.params)
+		}
+		href, err := url.Parse(html.UnescapeString(m[1]))
+		if err != nil || href.Path != a.Path("calendar.event.create") || href.Query().Get("date") != tc.day || href.Query().Get("account") != tc.params.Get("account") {
+			t.Errorf("%s %v: New leads to %s, want the form on %s", tc.route, tc.params, m[1], tc.day)
+		}
+	}
+}
+
 func TestQuickEventCreatesInChosenCalendarAndKeepsInvalidInput(t *testing.T) {
 	a, c := SignedIn(t, User)
 	c.CreateCalendar(t, "First", "")

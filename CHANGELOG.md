@@ -45,6 +45,7 @@
   and never appear.
 - The quick-add line stays on one row on a phone.
 - A quick-add event without a date goes on the day in view.
+- The calendar's New shows on the phone bar and opens on the day in view.
 
 ## [0.20.0] - 2026-10-31
 

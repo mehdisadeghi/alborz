@@ -1115,3 +1115,64 @@ func TestTurningTheDeviceOffEndsTheKeptLogin(t *testing.T) {
 		t.Fatalf("the kept login lasted %v after the device went off", waited)
 	}
 }
+
+// Deleting every row of a page of the list, in the list's own page size, offers the rest of the folder;
+// emptying it, from the offer or the folder's own menu, lands on the list.
+func TestDeletingAPageOfTheListOffersTheRest(t *testing.T) {
+	a, c := SignedIn(t, User)
+	list := a.Path("mail.mailbox", "Trash", url.Values{"account": {User}, "ipp": {"2"}, "view": {"unread"}})
+	var uids []string
+	for i := range 3 {
+		uids = append(uids, fmt.Sprint(a.IMAP.Append(t, "Trash", fmt.Sprintf("From: <ada@example.org>\r\nSubject: Thrown %d\r\nMessage-ID: <thrown-%d@test>\r\n\r\nBody.\r\n", i, i))))
+	}
+	resp := c.Post(t, "mail.messages.delete", url.Values{"uids": uids[:2], "next": {list}}, "Trash", url.Values{"account": {User}})
+	if resp.StatusCode != http.StatusFound || resp.Header.Get("Location") != list {
+		t.Fatalf("deleting a page answered %s, to %q", resp.Status, resp.Header.Get("Location"))
+	}
+	page := c.Follow(t, list)
+	offer, _ := NoticeAction(page)
+	if !strings.Contains(offer, "/empty") {
+		t.Fatalf("deleting a whole page of two offers no rest: %q", offer)
+	}
+	// The offer's page posts to itself; the menu's Empty posts at once.
+	empty := regexp.MustCompile(`<form method="post" action="([^"]*/Trash/empty[^"]*)">\s*<input type="hidden" name="next" value="([^"]*)">`).FindStringSubmatch(page)
+	if empty == nil {
+		t.Fatal("the folder's menu offers no Empty")
+	}
+	for what, to := range map[string]struct {
+		path string
+		form url.Values
+	}{
+		"the offer":          {offer, nil},
+		"the folder's Empty": {html.UnescapeString(empty[1]), url.Values{"next": {html.UnescapeString(empty[2])}}},
+	} {
+		a.IMAP.Append(t, "Trash", "From: <ada@example.org>\r\nSubject: Thrown again\r\n\r\nBody.\r\n")
+		if resp := c.PostTo(t, to.path, to.form); resp.StatusCode != http.StatusFound || resp.Header.Get("Location") != list {
+			t.Errorf("emptying from %s answered %s, to %q, not %q", what, resp.Status, resp.Header.Get("Location"), list)
+		}
+	}
+}
+
+// A column's sort link changes the order alone, its third click back to the folder's own order too.
+func TestASortLinkKeepsTheRestOfTheList(t *testing.T) {
+	a := Alborz(t, WithIMAP(IMAP(t, Sorting())))
+	c := a.SignIn(t, User)
+	list := url.Values{"account": {User}, "ipp": {"2"}, "view": {"unread"}, "query": {"from:ada"}}
+	page := c.Page(t, "mail.mailbox", "INBOX", list, url.Values{"sort": {"subject"}, "dir": {"desc"}})
+	links := regexp.MustCompile(`<a class="sort-header[^"]*" href="([^"]+)"`).FindAllStringSubmatch(page, -1)
+	if len(links) == 0 {
+		t.Fatal("the sorted list has no sort links")
+	}
+	for _, m := range links {
+		u, err := url.Parse(html.UnescapeString(m[1]))
+		if err != nil {
+			t.Fatal(err)
+		}
+		q := u.Query()
+		q.Del("sort")
+		q.Del("dir")
+		if q.Encode() != list.Encode() {
+			t.Errorf("the sort link %q keeps %v of the list's %v", m[1], q, list)
+		}
+	}
+}

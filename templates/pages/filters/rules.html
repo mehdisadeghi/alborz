@@ -3,7 +3,7 @@
 
 {{ define "main" }}
   {{ $aq := .GlobalData.AccountQuery }}
-        {{ template "list-toolbar" (dict "g" $ "newhref" (printf "%s%s" (url "filters.rules.create") $aq) "back" $.GlobalData.URL.RequestURI "newlabel" ($.T "filters.rulenew") "pager" .Pager) }}
+        {{ template "list-toolbar" (dict "g" $ "newhref" (printf "%s%s" (url "filters.rules.create") $aq) "newlabel" ($.T "filters.rulenew") "pager" .Pager) }}
 
       {{ template "filters-crumb" (dict "g" $ "collection" ($.T "filters.rules") "path" (url "filters.rules") "heading" true) }}
 

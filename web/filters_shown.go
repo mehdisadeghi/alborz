@@ -113,11 +113,6 @@ func PerPageChoices(ctx *Context) []int {
 	return perPageOptions(ctx.Reading().MessagesPerPage)
 }
 
-// PerPage is how many rows a page of a list holds, the reader's rather than the account's.
-func PerPage(ctx *Context) int {
-	return ListStateFrom(ctx.QueryParams()).PageSize(ctx)
-}
-
 func perPageValue(ctx *Context, raw string) int {
 	if raw != "" {
 		if n, err := locale.ReadInt(raw); err == nil &&

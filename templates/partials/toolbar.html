@@ -26,8 +26,9 @@
 </section>
 {{ end }}
 
+{{/* dict: g [newhref newlabel search pagination pager]; New comes back to the list. */}}
 {{ define "list-toolbar" }}
-{{ template "toolbar-head" . }}
+{{ template "toolbar-head" (dict "g" .g "newhref" .newhref "newlabel" .newlabel "back" .g.GlobalData.URL.RequestURI) }}
 {{ if or .search .pagination .pager }}
 {{ template "toolbar-end" }}
     {{ with .search }}{{ template "toolbar-search" . }}{{ end }}

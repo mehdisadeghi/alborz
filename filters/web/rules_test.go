@@ -1,10 +1,13 @@
 package web_test
 
 import (
+	"cmp"
+	"html"
 	"maps"
 	"net"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -123,5 +126,44 @@ func TestAStaleAutoReplyEditKeepsAnotherBrowsersSave(t *testing.T) {
 	}
 	if !strings.Contains(page, `value="Out of office"`) {
 		t.Error("the stale tab's subject is gone")
+	}
+}
+
+// A script made from the merged list is saved to the account picked, and lands on the merged list it came from.
+func TestAScriptMadeFromTheMergedListLandsThere(t *testing.T) {
+	sieve := Sieve(t)
+	a := Alborz(t, WithSieve(sieve))
+	c := a.SignIn(t, User)
+	c.SignIn(t, User2)
+	for name, next := range map[string]string{"paged": a.Path("filters.list", url.Values{"ipp": {"1"}}), "unasked": ""} {
+		form := url.Values{"name": {name}, "content": {"keep;"}, "account": {User2}}
+		if next != "" {
+			form.Set("next", next)
+		}
+		resp := c.Post(t, "filters.list", form)
+		if want := cmp.Or(next, a.Path("filters.list")); resp.StatusCode != http.StatusFound || resp.Header.Get("Location") != want {
+			t.Errorf("saving %s answered %s, to %q, not %q", name, resp.Status, resp.Header.Get("Location"), want)
+		}
+	}
+	if page := c.Page(t, "filters.list", url.Values{"account": {User2}}); !strings.Contains(page, "paged") || !strings.Contains(page, "unasked") {
+		t.Errorf("the scripts are not among %s's", User2)
+	}
+}
+
+// A rules script edited by hand opens from the rules page, and its form goes back to that page.
+func TestAScriptEditedByHandGoesBackToItsRules(t *testing.T) {
+	a := Alborz(t, WithSieve(Sieve(t)))
+	c := a.SignIn(t, User)
+	account := url.Values{"account": {User}}
+	if resp := c.Post(t, "filters.list", url.Values{"name": {"alborz-rules"}, "content": {"keep;\r\n"}}, account); resp.StatusCode != http.StatusFound {
+		t.Fatalf("writing the rules by hand answered %s", resp.Status)
+	}
+	rules := a.Path("filters.rules", account, url.Values{"ipp": {"1"}})
+	link := regexp.MustCompile(`<a href="([^"]*/filters/alborz-rules[^"]*)">`).FindStringSubmatch(c.Follow(t, rules))
+	if link == nil {
+		t.Fatal("the rules page offers no way to the script")
+	}
+	if !strings.Contains(c.Follow(t, html.UnescapeString(link[1])), `href="`+html.EscapeString(rules)+`"`) {
+		t.Errorf("the script opened from %s does not go back to it", rules)
 	}
 }

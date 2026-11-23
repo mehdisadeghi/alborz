@@ -55,6 +55,9 @@
 - Actions on tasks, journal, contacts and the agenda return to the list as it
   was narrowed: collection, account, view, sort and page, also after the rail
   or a menu redraws the list; a search keeps the rest of the list's address.
+- Marking a task done on its page, moving or emptying mail, New on a filters
+  or settings list and a refused form return to the list they came from; a
+  script can be saved from the merged filters list.
 
 ## [0.20.0] - 2026-10-31
 

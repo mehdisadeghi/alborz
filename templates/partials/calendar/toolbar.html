@@ -1,7 +1,7 @@
 {{ define "calendar-toolbar" }}
 {{$scope := ""}}{{with .Scope}}{{$scope = printf "&%s" .}}{{end}}
 {{$suffix := $scope}}
-{{with .View}}{{$suffix = printf "%s&view=%s" $suffix .}}{{end}}
+{{with .View}}{{$suffix = printf "%s&view=%s" $suffix .}}{{end}}{{with .Group}}{{$suffix = printf "%s&group=%s" $suffix .}}{{end}}
 {{ template "toolbar-head" (dict "g" . "class" "month-actions" "title" ($.GlobalData.MonthYear .Time) "shorttitle" ($.GlobalData.MonthYearShort .Time) "subtitle" ($.SecondaryMonthYear .Time) "titlerow" true "selectall" (ne .SelectForm "") "newhref" (printf "%s?date=%s" (url "calendar.event.create") (.Day.Format "2006-01-02")) "back" .GlobalData.URL.RequestURI "newlabel" ($.T "calendar.new")) }}
 <span class="icon-group">
   {{ template "action-icon" (dict "icon" "trash" "label" ($.T "common.delete") "class" "icon-danger" "form" .SelectForm "formaction" (and .SelectForm (url "calendar.events.delete")) "priority" 11) }}

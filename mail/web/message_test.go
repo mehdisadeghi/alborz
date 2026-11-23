@@ -904,3 +904,32 @@ func TestMoneySubjectIsReadInEveryLanguage(t *testing.T) {
 		t.Errorf("the German page shows no money subject among its warning signs: %q", Between(page, `id="facts"`, "</details>"))
 	}
 }
+
+// Every action on a message's page that takes it out of its list lands on the list it was opened from,
+// narrowed and paged as it was, in one account's scope and the merged one.
+func TestAMessageSettledFromItsPageLandsOnItsList(t *testing.T) {
+	a := Alborz(t)
+	c := bothAccounts(t, a)
+	form := regexp.MustCompile(`(?s)<form\b[^>]*\baction="([^"]+)"[^>]*>(.*?)</form>`)
+	settles := regexp.MustCompile(`/message/[^/]+/(move|delete|flag)\b`)
+	for _, folder := range []string{"Archive", "Junk"} {
+		uid := a.IMAP.Append(t, folder, "From: <ada@example.org>\r\nSubject: Settled\r\nMessage-ID: <settled-"+folder+"@test>\r\n\r\nBody.\r\n", imap.FlagSeen)
+		for _, scope := range []url.Values{{"account": {User}}, nil} {
+			list := a.Path("mail.mailbox", folder, scope, url.Values{"view": {"starred"}, "ipp": {"2"}})
+			page := c.Page(t, "mail.message", folder, uid, url.Values{"account": {User}, "from": {list}})
+			n := 0
+			for _, m := range form.FindAllStringSubmatch(page, -1) {
+				if !settles.MatchString(html.UnescapeString(m[1])) || strings.Contains(m[2], `name="color"`) {
+					continue
+				}
+				n++
+				if next := Between(m[2], `name="next" value="`, `"`); html.UnescapeString(next) != list {
+					t.Errorf("%s in %s, scope %v, returns to %q, not to %q", m[1], folder, scope, html.UnescapeString(next), list)
+				}
+			}
+			if n == 0 {
+				t.Fatalf("the message's page in %s offers nothing that settles it", folder)
+			}
+		}
+	}
+}

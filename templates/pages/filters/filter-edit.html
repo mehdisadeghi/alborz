@@ -6,8 +6,8 @@
 
 {{ define "main" }}
   {{ $aq := .GlobalData.AccountQuery }}
-      <form method="post" action="{{url "filters.list"}}{{$aq}}" class="filter">
-        {{ with .GlobalData.From }}<input type="hidden" name="next" value="{{.}}">{{ end }}
+      {{ $action := printf "%s%s" (url "filters.list") $aq }}{{ with .GlobalData.Back }}{{ $action = printf "%s%snext=%s" $action (qsep $action) (. | qv) }}{{ end }}
+      <form method="post" action="{{ localhref $action }}" class="filter">
         {{ template "filters-crumb" (dict "g" $ "chooses" (and (not .Name) (gt (len .Accounts) 1))) }}
         <h1>
           {{if .Name}}{{$.T "filters.edittitle"}}{{else}}{{$.T "filters.createtitle"}}{{end}}

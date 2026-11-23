@@ -249,3 +249,73 @@ func TestEveryAnswerNamesItsShell(t *testing.T) {
 		}
 	}
 }
+
+// A form refused by its handler comes back knowing the page it was opened from, as it posts it in its
+// address (ADR 1): Cancel goes there, and so does the save that follows.
+func TestARefusedFormKeepsItsWayBack(t *testing.T) {
+	a := Alborz(t, WithSieve(Sieve(t)))
+	c := a.SignIn(t, User)
+	c.SignIn(t, User2)
+	account := url.Values{"account": {User}}
+	if resp := c.Post(t, "filters.list", url.Values{"name": {"kept"}, "content": {"keep;"}}, account); resp.StatusCode != http.StatusFound {
+		t.Fatalf("saving a script answered %s", resp.Status)
+	}
+	action := regexp.MustCompile(`<form method="post" action="([^"]+)"[^>]*>`)
+	for _, f := range []struct {
+		list, open string
+		form       url.Values
+	}{
+		{"filters.list", a.Path("filters.filter", "kept", account), url.Values{"content": {"keep;"}}},
+		{"mail.signatures", a.Path("mail.signatures.create", account), url.Values{"text": {"Ada"}}},
+	} {
+		back := a.Path(f.list, url.Values{"ipp": {"1"}})
+		page := c.Follow(t, f.open+"&from="+url.QueryEscape(back))
+		var to string
+		for _, m := range action.FindAllStringSubmatch(page, -1) {
+			if u, err := url.Parse(html.UnescapeString(m[1])); err == nil && u.Path == a.Path(f.list) {
+				to = u.String()
+			}
+		}
+		f.form.Set("name", "")
+		refused := c.PostTo(t, to, f.form)
+		if refused.StatusCode != http.StatusUnprocessableEntity {
+			t.Fatalf("%s without a name answered %s", f.list, refused.Status)
+		}
+		if !strings.Contains(refused.Text, `button-quiet" href="`+html.EscapeString(back)+`"`) {
+			t.Errorf("the refused %s form cancels elsewhere than %q", f.list, back)
+		}
+		for _, m := range action.FindAllStringSubmatch(refused.Text, -1) {
+			if u, err := url.Parse(html.UnescapeString(m[1])); err == nil && u.Path == a.Path(f.list) {
+				to = u.String()
+			}
+		}
+		f.form.Set("name", "Work")
+		if resp := c.PostTo(t, to, f.form); resp.StatusCode != http.StatusFound || resp.Header.Get("Location") != back {
+			t.Errorf("saving the refused %s form answered %s, to %q, not %q", f.list, resp.Status, resp.Header.Get("Location"), back)
+		}
+	}
+}
+
+// A filters or settings list's New comes back to the list as shown, as everything else on it does.
+func TestASettingsListComesBackToItself(t *testing.T) {
+	a := Alborz(t, WithSieve(Sieve(t)))
+	c := a.SignIn(t, User)
+	create := regexp.MustCompile(`<a class="icon-button" href="([^"]*/create\b[^"]*)"`)
+	for _, route := range []string{"filters.list", "filters.rules", "filters.autoreply", "filters.forwarding", "mail.signatures"} {
+		list := a.Path(route, url.Values{"account": {User}, "ipp": {"1"}})
+		page := c.Follow(t, list)
+		m := create.FindStringSubmatch(page)
+		if m == nil {
+			t.Errorf("%s offers no New", route)
+			continue
+		}
+		if u, err := url.Parse(html.UnescapeString(m[1])); err != nil || u.Query().Get("next") != list {
+			t.Errorf("%s opens New as %q, which does not come back to %q", route, m[1], list)
+		}
+		for _, next := range Returns(page) {
+			if next != list {
+				t.Errorf("%s offers a way back to %q, not to %q", route, next, list)
+			}
+		}
+	}
+}

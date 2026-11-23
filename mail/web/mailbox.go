@@ -667,11 +667,11 @@ func (p *plugin) handleDelete(ctx *web.Context) error {
 	var left int
 	return runAct(ctx, refs, p.Delete(&left), func(done int) web.Notice {
 		notice := web.Notice{Kind: web.NoticeDone, Text: ctx.Tf("notice.deleted", done)}
-		// A whole page ticked with more behind: the rest is offered on a page, never taken on its own.
-		if done >= web.PerPage(ctx) && left > 0 {
+		// A whole page of the list ticked with more behind: the rest is offered on a page, never taken on its own.
+		if done >= web.ListStateFrom(web.KeepURLParams(back, "ipp")).PageSize(ctx) && left > 0 {
 			notice.Actions = []*web.NoticeAction{{
 				Label: ctx.Tf("notice.deleteall", left),
-				Path:  ctx.URL("mail.mailbox.empty", mboxName),
+				Path:  web.QueryPath(ctx.URL("mail.mailbox.empty", mboxName), url.Values{"next": {back}}),
 			}}
 		}
 		return notice

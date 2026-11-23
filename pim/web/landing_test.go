@@ -93,6 +93,21 @@ func pathOf(t *testing.T, raw string) string {
 	return u.Path
 }
 
+// without is the address without the named parameters.
+func without(t *testing.T, address string, names ...string) string {
+	t.Helper()
+	u, err := url.Parse(address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	q := u.Query()
+	for _, name := range names {
+		q.Del(name)
+	}
+	u.RawQuery = q.Encode()
+	return u.String()
+}
+
 // sameAddress says whether two local addresses name the same page with the same query.
 func sameAddress(t *testing.T, got, want string) bool {
 	t.Helper()
@@ -122,7 +137,7 @@ func TestActionsLandOnTheListTheyLeft(t *testing.T) {
 			query: url.Values{"view": {"all"}, "sort": {"summary"}, "dir": {"desc"}, "ipp": {"1"}, "page": {"1"}, "query": {"Kept"}},
 			actions: []landing{{route: "calendar.tasks.complete"}, {route: "calendar.tasks.move", get: true},
 				{route: "calendar.tasks.copy", get: true}, {route: "calendar.tasks.delete"}, {id: "refresh-form"}},
-			settles: []string{"calendar.task.delete"}, search: true},
+			settles: []string{"calendar.task.complete", "calendar.task.delete"}, search: true},
 		{name: "journal", list: "calendar.journal", object: "calendar.entry", field: "cal", shown: "Diary",
 			held: c.CreateCalendar(t, "Diary", "journal"), other: c.CreateCalendar(t, "Notes", "journal"),
 			ext: ".ics", mime: "text/calendar", body: entryToday,
@@ -139,7 +154,7 @@ func TestActionsLandOnTheListTheyLeft(t *testing.T) {
 		{name: "agenda", list: "calendar.month", object: "calendar.event", field: "cal", shown: "Plans",
 			held: c.CreateCalendar(t, "Plans", ""), other: c.CreateCalendar(t, "Trips", ""),
 			ext: ".ics", mime: "text/calendar", body: eventToday,
-			query:   url.Values{"view": {"list"}, "span": {"month"}, "month": {month}, "group": {"day"}},
+			query:   url.Values{"view": {"list"}, "month": {month}, "group": {"day"}},
 			actions: []landing{{route: "calendar.events.copy", get: true}, {route: "calendar.events.delete"}, {id: "refresh-form"}},
 			settles: []string{"calendar.event.delete"}},
 	}
@@ -180,6 +195,24 @@ func land(t *testing.T, a *App, c *Client, k landed, scope url.Values, swapped b
 	for _, next := range Returns(page) {
 		if !sameAddress(t, next, address) {
 			t.Errorf("the page returns to %q, not to the list it shows, %q", next, address)
+		}
+	}
+	// A step to the page or month beside keeps the rest of the address.
+	steps := PagerLinks(page)
+	if len(steps) == 0 {
+		t.Errorf("the list has no pager")
+	}
+	for _, step := range steps {
+		at, err := url.Parse(address)
+		if err != nil {
+			t.Fatal(err)
+		}
+		to, err := at.Parse(step)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !sameAddress(t, without(t, to.String(), "page", "month"), without(t, address, "page", "month")) {
+			t.Errorf("the pager steps to %q, which leaves more of %q than its page", step, address)
 		}
 	}
 	lands := func(what string, resp *Response) {

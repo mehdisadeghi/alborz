@@ -3,8 +3,8 @@
 {{ define "main" }}
   {{ $aq := .GlobalData.AccountQuery }}
   {{ $picks := and (not .Was) (gt (len .GlobalData.Accounts) 1) }}
-      <form method="post" action="{{url "mail.signatures"}}{{$aq}}">
-        {{ with .GlobalData.From }}{{ template "next-field" . }}{{ end }}
+      {{ $action := printf "%s%s" (url "mail.signatures") $aq }}{{ with .GlobalData.Back }}{{ $action = printf "%s%snext=%s" $action (qsep $action) (. | qv) }}{{ end }}
+      <form method="post" action="{{ localhref $action }}">
         {{ template "settings-crumb" (dict "g" $ "collection" ($.T "settings.signatures") "path" (url "mail.signatures") "chooses" $picks) }}
         <h1>{{ if .Was }}{{$.T "settings.signatureedit"}}{{ else }}{{$.T "settings.signaturenew"}}{{ end }}</h1>
 

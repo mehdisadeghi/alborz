@@ -68,7 +68,7 @@
         {{ template "mail-read-actions" (dict "g" $ "read" $read "unread" $unread) }}
         <button form="messages-form" formaction="{{url "mail.messages.move" .Mailbox.Name}}{{$aq}}">{{$.T "mailbox.moveto"}}</button>
         {{ if or (and $junk (eq .Mailbox.Name $junk)) (and $trash (eq .Mailbox.Name $trash)) }}
-        {{ template "empty-mailbox-action" (dict "action" (printf "%s%s" (url "mail.mailbox.empty" .Mailbox.Name) $aq) "label" ($.T "mailbox.emptyfolder") "disabled" .Mailbox.IsEmpty) }}
+        {{ template "empty-mailbox-action" (dict "action" (printf "%s%s" (url "mail.mailbox.empty" .Mailbox.Name) $aq) "next" $.GlobalData.URL.RequestURI "label" ($.T "mailbox.emptyfolder") "disabled" .Mailbox.IsEmpty) }}
         {{ end }}
         {{ if not (eq .Mailbox.Name "INBOX") }}
         {{ $rename := printf "%s%s" (url "mail.mailbox.rename" .Mailbox.Name) $aq }}{{ $delete := printf "%s%s" (url "mail.mailbox.delete" .Mailbox.Name) $aq }}
@@ -110,7 +110,7 @@
 {{/* dict: action label disabled [next]. */}}
 {{ define "empty-mailbox-action" }}
 <form method="post" action="{{.action}}">
-  {{ with .next }}<input type="hidden" name="next" value="{{.}}">{{ end }}
+  <input type="hidden" name="next" value="{{.next}}">
   <button class="button-danger"{{ if .disabled }} disabled{{ end }}>{{.label}}</button>
 </form>
 {{ end }}

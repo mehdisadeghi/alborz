@@ -27,8 +27,7 @@
           {{ $hsort := sortkey .Sort }}
           {{ $hexp := ne ($.GlobalData.URL.Query.Get "sort") "" }}
           {{ $hreset := ne ($.GlobalData.URL.Query.Get "dir") "" }}
-          {{ $baseparams := mailparams $.Query $.ListView $.GlobalData.URLAccount $.GlobalData.Unified "" }}{{ $hbase := "?" }}{{ with $baseparams }}{{ $hbase = printf "?%s" . }}{{ end }}
-          {{ $params := mailparams $.Query $.ListView $.GlobalData.URLAccount $.GlobalData.Unified ($.GlobalData.URL.Query.Get "ipp") }}{{ $hparams := "" }}{{ with $params }}{{ $hparams = printf "&%s" . }}{{ end }}
+          {{ $params := mailparams $.Query $.ListView $.GlobalData.URLAccount $.GlobalData.Unified ($.GlobalData.URL.Query.Get "ipp") }}{{ $hparams := "" }}{{ $hbase := "?" }}{{ with $params }}{{ $hparams = printf "&%s" . }}{{ $hbase = printf "?%s" . }}{{ end }}
           <div class="list-row" role="row">
           <div class="list-header list-checkbox" role="columnheader"></div>
           {{ $s := dict "Key" $hsort "Dir" .SortDir "Explicit" $hexp "DirExplicit" $hreset "Params" $hparams "Reset" $hbase }}

@@ -109,7 +109,7 @@ func registerRoutes(g *web.Group) {
 	g.POST("autoreply.delete", "/autoreply/delete", requireAccount(handleReplyDelete))
 	g.POST("autoreply.activate", "/autoreply/activate", requireAccount(handleReplyActivate))
 	g.GET("filter", "/{name}", requireAccount(handleEditFilter))
-	g.POST("list", "", requireAccount(handleSaveFilter))
+	g.POST("list", "", handleSaveFilter)
 	g.POST("filter.activate", "/{name}/activate", requireAccount(handleActivateFilter))
 	g.POST("deactivate", "/deactivate", requireAccount(handleDeactivateFilter))
 	g.POST("filter.delete", "/{name}/delete", requireAccount(handleDeleteFilter))
@@ -271,14 +271,19 @@ func handleSaveFilter(ctx *web.Context) error {
 		return renderFilterRefusal(ctx, http.StatusUnprocessableEntity, ctx.T("form.nameneeded"), "", content, "")
 	}
 
-	// The account choice holds for this request only, like an account-carrying link.
-	if account := ctx.FormValue("account"); account != "" && account != ctx.Login.Username() {
-		login := ctx.LoginFor(account)
-		if login == nil || !ctx.Server.SieveEnabled(login.Domain()) {
-			return web.NewError(http.StatusBadRequest, "no filters for that account")
+	// The account is the address's, else the form's choice, else the one the form offered: it holds for this
+	// request only, like an account-carrying link, and the list landed on stays the address's.
+	account := ctx.FormValue("account")
+	if account == "" {
+		if accounts := sieveAccounts(ctx); len(accounts) > 0 {
+			account = accounts[0].Username
 		}
-		ctx.Login = login
 	}
+	login := ctx.LoginFor(account)
+	if login == nil || !ctx.Server.SieveEnabled(login.Domain()) {
+		return web.NewError(http.StatusBadRequest, "no filters for that account")
+	}
+	ctx.Login = login
 
 	var warnings string
 	loaded := ctx.FormValue("loaded")
@@ -304,7 +309,7 @@ func handleSaveFilter(ctx *web.Context) error {
 	default:
 		ctx.PutNotice(ctx.T("notice.filtersaved"))
 	}
-	return ctx.FoundRedirect(ctx.NextOr(web.AccountURL(ctx.Path("filters.list"), ctx.Login.Username())))
+	return ctx.FoundRedirect(ctx.NextOr(ctx.URL("filters.list")))
 }
 
 func renderFilterRefusal(ctx *web.Context, status int, message, name, content, loaded string) error {

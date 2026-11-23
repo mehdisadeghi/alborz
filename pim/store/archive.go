@@ -115,7 +115,8 @@ func (s *Store) Import(owner string, files map[string][]byte) (unpublished []str
 
 // restore writes a collection with its shares and objects over any of the same names, each record the
 // archive's with only what must change rewritten; what it does not name stays. The ctag moves, so a client
-// looks again. It reports false where the publication was dropped.
+// looks again, and the collection is made anew, so no limit names it (ADR 109). It reports false where the
+// publication was dropped.
 func (s *Store) restore(c Collection, a archived, files map[string][]byte) (published bool, err error) {
 	ref := c.Ref()
 	published = true
@@ -139,6 +140,7 @@ func (s *Store) restore(c Collection, a archived, files map[string][]byte) (publ
 		if err := stamp(tx, &c); err != nil {
 			return err
 		}
+		c.Made = c.CTag
 		if err := over(tx, s.collectionKey(ref), a.Collection, &c); err != nil {
 			return err
 		}

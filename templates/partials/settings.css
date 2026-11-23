@@ -167,6 +167,20 @@ main.settings form .field > button {
   display: flex; flex-wrap: wrap; gap: var(--space-2);
 }
 
+/* A device password for all collections asks for none of them. */
+form:has(#scope-all:checked) .device-scope {
+  display: none;
+}
+
+/* A device password's collections carry the reader's names, at any length. */
+.info-card.device-collections dl {
+  grid-template-columns: fit-content(60%) minmax(0, 1fr);
+}
+
+.info-card.device-collections dt {
+  overflow-wrap: anywhere;
+}
+
 @media (width <= 360px) {
   .gesture-directions {
     grid-template-columns: minmax(0, 1fr);

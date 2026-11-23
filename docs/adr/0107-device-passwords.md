@@ -1,6 +1,6 @@
 # ADR 107: Device passwords
 
-Status: accepted. Amends ADR 24, ADR 30, ADR 51, ADR 70 and ADR 72.
+Status: accepted, amended by ADR 109. Amends ADR 24, ADR 30, ADR 51, ADR 70 and ADR 72.
 
 ## Context
 
@@ -14,8 +14,9 @@ mailbox and, under encryption (ADR 72), to the account's data.
 ### Passwords
 
 1. An account MAY have device passwords, listed at `/settings/devices`
-   with name, creation, last use and access (read and write, or read
-   only), and revoked there.
+   with name, access (read and write, or read only), scope (ADR 109),
+   creation and last use, and revoked there. Each has a page of its own
+   (ADR 109).
 2. A device password MUST be `rand.Text()` (130 random bits), shown once
    on creation beside the DAV address and the username, and MUST NOT be
    stored. Its SHA-256 hash is stored and compared in constant time.
@@ -68,9 +69,10 @@ mailbox and, under encryption (ADR 72), to the account's data.
 ## References
 
 - RFC 7617 (Basic), RFC 5869 (HKDF), RFC 4918 (WebDAV methods)
-- ADR 24, ADR 30, ADR 51, ADR 59, ADR 70, ADR 72, ADR 102
+- ADR 24, ADR 30, ADR 51, ADR 59, ADR 70, ADR 72, ADR 102, ADR 109
 - `devices.go` (`Devices`, `DevicePassword`, `CreateDevicePassword`,
   `CheckDevicePassword`, `deviceTouch`), `internal/keyring/keyring.go`
   (`Lend`), `pim/web/owndav.go` (`davPasswords.authenticate`,
   `readMethods`), `settings/web/devices.go`,
-  `templates/pages/settings/devices.html`, `device-create.html`
+  `templates/pages/settings/devices.html`, `device-create.html`,
+  `device.html`

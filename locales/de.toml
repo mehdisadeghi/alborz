@@ -844,6 +844,12 @@
 "devices.password" = "Gerätepasswort"
 "devices.shownonce" = "Wird nur einmal angezeigt."
 "devices.noname" = "Der Name ist leer."
+"devices.collections" = "Sammlungen"
+"devices.scopeall" = "Alle Sammlungen"
+"devices.scopesome" = "Nur ausgewählte Sammlungen"
+"devices.nocollection" = "Keine Sammlung ist ausgewählt."
+"devices.used" = "Zuletzt verwendet"
+"devices.gonename" = "Existiert nicht mehr"
 "notice.devicemade" = "Gerätepasswort erstellt."
 "notice.devicerevoked" = "Gerätepasswort widerrufen."
 "notfound.device" = "Kein solches Gerätepasswort."
@@ -1584,3 +1590,23 @@ other = "%d ausgewählte Einträge kopieren."
 ["notice.itemscopied"]
 one = "Ein Eintrag kopiert."
 other = "%d Einträge kopiert."
+
+["devices.calendars"]
+one = "%d Kalender"
+other = "%d Kalender"
+
+["devices.tasklists"]
+one = "%d Aufgabenliste"
+other = "%d Aufgabenlisten"
+
+["devices.journals"]
+one = "%d Journal"
+other = "%d Journale"
+
+["devices.addressbooks"]
+one = "%d Adressbuch"
+other = "%d Adressbücher"
+
+["devices.gone"]
+one = "%d Sammlung existiert nicht mehr"
+other = "%d Sammlungen existieren nicht mehr"

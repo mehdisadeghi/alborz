@@ -841,6 +841,12 @@
 "devices.password" = "گذرواژهٔ دستگاه"
 "devices.shownonce" = "فقط یک بار نشان داده می‌شود."
 "devices.noname" = "نام خالی است."
+"devices.collections" = "مجموعه‌ها"
+"devices.scopeall" = "همهٔ مجموعه‌ها"
+"devices.scopesome" = "فقط مجموعه‌های انتخاب‌شده"
+"devices.nocollection" = "مجموعه‌ای انتخاب نشده است."
+"devices.used" = "آخرین استفاده"
+"devices.gonename" = "دیگر وجود ندارد"
 "notice.devicemade" = "گذرواژهٔ دستگاه ساخته شد."
 "notice.devicerevoked" = "گذرواژهٔ دستگاه باطل شد."
 "notfound.device" = "چنین گذرواژهٔ دستگاهی نیست."
@@ -1583,3 +1589,23 @@ other = "کپی %d مورد انتخاب‌شده."
 ["notice.itemscopied"]
 one = "%d مورد کپی شد."
 other = "%d مورد کپی شد."
+
+["devices.calendars"]
+one = "%d تقویم"
+other = "%d تقویم"
+
+["devices.tasklists"]
+one = "%d فهرست کار"
+other = "%d فهرست کار"
+
+["devices.journals"]
+one = "%d دفتر یادداشت"
+other = "%d دفتر یادداشت"
+
+["devices.addressbooks"]
+one = "%d دفترچهٔ نشانی"
+other = "%d دفترچهٔ نشانی"
+
+["devices.gone"]
+one = "%d مجموعه دیگر وجود ندارد"
+other = "%d مجموعه دیگر وجود ندارد"

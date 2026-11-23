@@ -40,12 +40,49 @@ type DevicePassword struct {
 	// account's encryption was off.
 	KeyID    string `json:",omitempty"`
 	ByDevice []byte `json:",omitempty"`
+	// Scoped limits the password to the collections of Scope (ADR 109); the record's list that holds it
+	// says so, not a field.
+	Scoped bool               `json:"-"`
+	Scope  []DeviceCollection `json:",omitempty"`
+}
+
+// DeviceCollection is one collection a device password is limited to.
+type DeviceCollection struct {
+	// Kind is what the pages call it: calendar, tasks, journal or addressbook.
+	Kind string
+	// Ref names the collection to the server of the DAV clients, which no page shows.
+	Ref string
+}
+
+// DeviceChoice is a collection a new device password can be limited to, as the account sees it: its
+// address to a DAV client and its ID there, its name, its other owner and whether a feed fills it.
+type DeviceChoice struct {
+	DeviceCollection
+	Path, ID, Name, SharedBy string
+	Subscribed               bool
 }
 
 type deviceRecord struct {
 	// Only refuses the mail password to DAV clients.
 	Only    bool             `json:",omitempty"`
 	Devices []DevicePassword `json:",omitempty"`
+	// Scoped are the passwords limited to some collections as kept, apart from Devices: a version from
+	// before ADR 109 does not read them, so it refuses them instead of taking them for every collection,
+	// and keeps them through its writes (ADR 26). Read, they are among Devices.
+	Scoped []DevicePassword `json:",omitempty"`
+}
+
+// kept is the record as written.
+func (r deviceRecord) kept() *deviceRecord {
+	out := deviceRecord{Only: r.Only}
+	for _, p := range r.Devices {
+		if p.Scoped {
+			out.Scoped = append(out.Scoped, p)
+		} else {
+			out.Devices = append(out.Devices, p)
+		}
+	}
+	return &out
 }
 
 // Devices keeps the accounts' device passwords.
@@ -76,7 +113,13 @@ func (d *Devices) read(tx kv.Tx, account string) (deviceRecord, []byte, error) {
 	if err != nil {
 		return rec, nil, err
 	}
-	return rec, raw, json.Unmarshal(raw, &rec)
+	err = json.Unmarshal(raw, &rec)
+	for _, p := range rec.Scoped {
+		p.Scoped = true
+		rec.Devices = append(rec.Devices, p)
+	}
+	rec.Scoped = nil
+	return rec, raw, err
 }
 
 // update changes the account's record where change says it changed, keeping what a newer version put there.
@@ -86,7 +129,7 @@ func (d *Devices) update(account string, change func(*deviceRecord) bool) error 
 		if err != nil || !change(&rec) {
 			return err
 		}
-		raw, err := record.Keep(old, &rec)
+		raw, err := record.Keep(old, rec.kept())
 		if err != nil {
 			return err
 		}
@@ -201,10 +244,20 @@ func (d *Devices) prune(account string) error {
 // the reader copies it into the client. Under encryption it wraps the account's own key, as the recovery key
 // does, so a client signing in with it opens the account (ADR 72).
 func (s *Server) CreateDevicePassword(l *Login, name string, readOnly bool) (string, error) {
+	return s.createDevicePassword(l, DevicePassword{Name: name, ReadOnly: readOnly})
+}
+
+// CreateScopedDevicePassword makes one limited to the collections of scope (ADR 109). Under encryption it
+// wraps the account's whole key all the same: the server keeps it to its scope, no key does.
+func (s *Server) CreateScopedDevicePassword(l *Login, name string, readOnly bool, scope []DeviceCollection) (string, error) {
+	return s.createDevicePassword(l, DevicePassword{Name: name, ReadOnly: readOnly, Scoped: true, Scope: scope})
+}
+
+func (s *Server) createDevicePassword(l *Login, p DevicePassword) (string, error) {
 	password := rand.Text()
 	id := make([]byte, 8)
 	rand.Read(id)
-	p := DevicePassword{ID: hex.EncodeToString(id), Name: name, Created: time.Now().UTC(), ReadOnly: readOnly, Hash: deviceHash(password)}
+	p.ID, p.Created, p.Hash = hex.EncodeToString(id), time.Now().UTC(), deviceHash(password)
 	keyed := s.Keys.Name(l.username)
 	if s.Keys.On(keyed) {
 		own, ok := s.Keys.Own(keyed)

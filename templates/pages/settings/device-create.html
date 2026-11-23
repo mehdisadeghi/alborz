@@ -16,6 +16,29 @@
           </label>
           {{ end }}
         </fieldset>
+        {{ if .Groups }}
+        <fieldset class="action-group choices">
+          <legend>{{$.T "devices.collections"}}</legend>
+          {{ range tuple (tuple "all" "devices.scopeall" false) (tuple "some" "devices.scopesome" true) }}
+          {{ $v := index . 0 }}
+          <label for="scope-{{$v}}" class="checkbox">
+            <input type="radio" name="scope" id="scope-{{$v}}" value="{{$v}}"{{ if eq $.Scoped (index . 2) }} checked{{ end }}>
+            {{$.T (index . 1)}}
+          </label>
+          {{ end }}
+        </fieldset>
+        {{ range $i, $group := .Groups }}
+        <fieldset class="action-group choices device-scope">
+          <legend>{{$.T .Label}}</legend>
+          {{ range $j, $c := .Rows }}
+          <label for="collection-{{$i}}-{{$j}}" class="checkbox">
+            <input type="checkbox" name="collection" id="collection-{{$i}}-{{$j}}" value="{{.Path}}"{{ if .Chosen }} checked{{ end }}>
+            {{ template "device-collection" (dict "g" $ "c" .) }}
+          </label>
+          {{ end }}
+        </fieldset>
+        {{ end }}
+        {{ end }}
         {{ template "form-actions" (dict "save" ($.T "devices.create") "cancel" (printf "%s%s" (url "settings.devices") $aq) "cancelLabel" ($.T "common.cancel")) }}
       </form>
 {{ end }}

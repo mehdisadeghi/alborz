@@ -10,8 +10,8 @@ import (
 	. "git.mehdix.org/alborz/internal/alborztest"
 )
 
-// A device password opens an encrypted account's key with no login and a reset mail password; turning
-// encryption off deletes it (ADR 107).
+// A device password opens an encrypted account's key with no login and a reset mail password, a scoped one
+// too, which the server then keeps to its scope (ADR 109); turning encryption off deletes them (ADR 107).
 func TestADevicePasswordOpensAnEncryptedAccount(t *testing.T) {
 	imap, dir := IMAP(t), t.TempDir()
 	opts := []Option{WithIMAP(imap), DataDir(dir)}
@@ -19,21 +19,39 @@ func TestADevicePasswordOpensAnEncryptedAccount(t *testing.T) {
 	c := a.SignIn(t, User)
 	cal := c.CreateCalendar(t, "Personal", "")
 	a.Put(t, cal+"review.ics", "text/calendar", Event("review", "Budget review"))
+	other := c.CreateCalendar(t, "Other", "")
+	a.Put(t, other+"visit.ics", "text/calendar", Event("visit", "Site visit"))
 	encrypt(t, c)
+	shown := regexp.MustCompile(`<code dir="ltr">([A-Z2-7]+)</code>`)
+	scoped := shown.FindStringSubmatch(c.Post(t, "settings.devices.create",
+		url.Values{"name": {"y"}, "access": {"read"}, "scope": {"some"}, "collection": {other}, "account": {User}}).Text)
+	if scoped == nil {
+		t.Fatal("making a scoped device password showed no password")
+	}
 	resp := c.Post(t, "settings.devices.create", url.Values{"name": {"x"}, "access": {"write"}, "account": {User}})
-	m := regexp.MustCompile(`<code dir="ltr">([A-Z2-7]+)</code>`).FindStringSubmatch(resp.Text)
+	m := shown.FindStringSubmatch(resp.Text)
 	if m == nil {
 		t.Fatalf("making a device password answered %s with no password shown", resp.Status)
 	}
 	a.Close()
 	imap.SetPassword(User, "reset")
 	a = Alborz(t, opts...)
-	req, err := http.NewRequest(http.MethodGet, a.URL+cal+"review.ics", nil)
-	if err != nil {
-		t.Fatal(err)
+	read := func(password, path string) *Response {
+		t.Helper()
+		req, err := http.NewRequest(http.MethodGet, a.URL+path, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.SetBasicAuth(User, password)
+		return a.Client().Do(t, req)
 	}
-	req.SetBasicAuth(User, m[1])
-	if got := a.Client().Do(t, req).Text; !strings.Contains(got, "Budget review") {
+	if got := read(scoped[1], other+"visit.ics").Text; !strings.Contains(got, "Site visit") {
+		t.Fatalf("a scoped device password read %q", got)
+	}
+	if got := read(scoped[1], cal+"review.ics"); got.StatusCode != http.StatusNotFound {
+		t.Fatalf("a scoped device password read a calendar out of its scope: %s", got.Status)
+	}
+	if got := read(m[1], cal+"review.ics").Text; !strings.Contains(got, "Budget review") {
 		t.Fatalf("a device password read %q", got)
 	}
 	c, _ = signInWith(t, a, "reset")

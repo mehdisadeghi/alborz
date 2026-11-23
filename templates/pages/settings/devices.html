@@ -25,12 +25,12 @@
         <button>{{$.T "common.save"}}</button>
       </form>
 
-      <section class="list-items">
+      <section class="list-items whole">
         {{ range .Devices }}
         <div class="list-item">
           <div class="list-content">
-            <span class="list-summary" dir="auto">{{.Name}}</span>
-            <span class="list-detail">{{ $.Tf "devices.created" ($.GlobalData.ShortDate .Created) }} · {{ if .LastUsed.IsZero }}{{$.T "devices.neverused"}}{{ else }}{{ $.Tf "devices.lastused" ($.GlobalData.ShortDate .LastUsed) }}{{ end }} · {{$.T (or (and .ReadOnly "devices.readonly") "devices.readwrite")}}</span>
+            <a class="list-summary" href="{{url "settings.device" .ID}}{{$aq}}" dir="auto">{{.Name}}</a>
+            <span class="list-detail">{{$.T (or (and .ReadOnly "devices.readonly") "devices.readwrite")}}{{ range .Reaches }} · {{.}}{{ end }} · {{ $.Tf "devices.created" ($.GlobalData.ShortDate .Created) }} · {{ if .LastUsed.IsZero }}{{$.T "devices.neverused"}}{{ else }}{{ $.Tf "devices.lastused" ($.GlobalData.ShortDate .LastUsed) }}{{ end }}</span>
           </div>
           {{ template "filter-action" (dict "g" $ "action" (printf "%s%s" (url "settings.devices.revoke") $aq) "fields" (tuple (dict "name" "device" "value" .ID)) "button" "devices.revoke" "class" "button-danger") }}
         </div>

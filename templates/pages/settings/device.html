@@ -1,0 +1,35 @@
+{{ define "main-class" }} class="settings"{{ end }}
+
+{{ define "main" }}
+  {{ $aq := .GlobalData.AccountQuery }}
+      {{ template "settings-head" (dict "g" $ "title" .Device.Name "parent" (dict "Label" ($.T "devices.title") "URL" (printf "%s%s" (url "settings.devices") $aq))) }}
+
+      {{ with .Device }}
+      <section class="info-card">
+        <dl>
+          <dt>{{$.T "devices.access"}}</dt>
+          <dd>{{$.T (or (and .ReadOnly "devices.readonly") "devices.readwrite")}}</dd>
+          {{ if not .Scoped }}
+          <dt>{{$.T "devices.collections"}}</dt>
+          <dd>{{$.T "devices.scopeall"}}</dd>
+          {{ end }}
+          <dt>{{$.T "common.created"}}</dt>
+          <dd>{{ $.GlobalData.ShortDate .Created }}</dd>
+          <dt>{{$.T "devices.used"}}</dt>
+          <dd>{{ if .LastUsed.IsZero }}{{$.T "devices.neverused"}}{{ else }}{{ $.GlobalData.ShortDate .LastUsed }}{{ end }}</dd>
+        </dl>
+      </section>
+      {{ end }}
+
+      {{ with .Groups }}
+      <section class="info-card device-collections">
+        <h2 class="record-label">{{$.T "devices.collections"}}</h2>
+        <dl>
+          {{ range . }}{{ range .Rows }}
+          <dt>{{ if .Gone }}{{$.T "devices.gonename"}}{{ else }}{{ template "device-collection" (dict "g" $ "c" .) }}{{ end }}</dt>
+          <dd>{{$.T (printf "share.kind%s" .Kind)}}</dd>
+          {{ end }}{{ end }}
+        </dl>
+      </section>
+      {{ end }}
+{{ end }}

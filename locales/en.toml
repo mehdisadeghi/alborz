@@ -844,6 +844,12 @@
 "devices.password" = "Device password"
 "devices.shownonce" = "Shown only once."
 "devices.noname" = "The name is empty."
+"devices.collections" = "Collections"
+"devices.scopeall" = "All collections"
+"devices.scopesome" = "Only chosen collections"
+"devices.nocollection" = "No collection is chosen."
+"devices.used" = "Last used"
+"devices.gonename" = "No longer exists"
 "notice.devicemade" = "Device password created."
 "notice.devicerevoked" = "Device password revoked."
 "notfound.device" = "No such device password."
@@ -1583,3 +1589,23 @@ other = "Copy %d selected items."
 ["notice.itemscopied"]
 one = "One item copied."
 other = "%d items copied."
+
+["devices.calendars"]
+one = "%d calendar"
+other = "%d calendars"
+
+["devices.tasklists"]
+one = "%d task list"
+other = "%d task lists"
+
+["devices.journals"]
+one = "%d journal"
+other = "%d journals"
+
+["devices.addressbooks"]
+one = "%d address book"
+other = "%d address books"
+
+["devices.gone"]
+one = "%d collection no longer exists"
+other = "%d collections no longer exist"

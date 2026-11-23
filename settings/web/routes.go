@@ -18,6 +18,7 @@ func Mount(g *web.Group) {
 	scoped.Page("devices.create", "/settings/devices/create", handleDeviceCreate)
 	scoped.POST("devices.revoke", "/settings/devices/revoke", handleDeviceRevoke)
 	scoped.POST("devices.only", "/settings/devices/only", handleDevicesOnly)
+	scoped.GET("device", "/settings/devices/{device}", handleDevice)
 	scoped.Page("password", "/settings/password", handlePassword)
 	scoped.GET("data", "/settings/data", handleData)
 	scoped.Stream("data", "/settings/data", alborz.ArchiveMaxSize+web.FormFieldsSize, handleImport)

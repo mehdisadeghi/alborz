@@ -47,6 +47,7 @@ func Mount(dav, app *web.Group) (*store.Store, error) {
 		},
 	})
 	serveOwn(dav, srv, st)
+	srv.DeviceChoices = deviceChoices(st)
 	app.GET("server", "/settings/servers/"+web.ServerDAV, web.Scoped(handleServer))
 	app.POST("server", "/settings/servers/"+web.ServerDAV, web.Scoped(handleServer))
 	return st, nil
@@ -96,9 +97,12 @@ func (p *davPasswords) keep(username, password string, refused error, now time.T
 	p.checked[p.digest(username, password)] = davVerdict{refused, now}
 }
 
-// davAccess is what a DAV client's password gives: a device password, maybe for reading only, or the mail
-// password.
-type davAccess struct{ device, readOnly bool }
+// davAccess is what a DAV client's password gives: a device password, maybe for reading only or limited to
+// the collections of limit (ADR 109), or the mail password.
+type davAccess struct {
+	device, readOnly, limited bool
+	limit                     []string
+}
 
 // authenticate checks a DAV client's password: a device password of the account first, which is never cached
 // so a revoked one is refused at once, then the mail password the way signing in does (ADR 107). Both share
@@ -112,7 +116,7 @@ func (p *davPasswords) authenticate(srv *web.Server, username, password, source 
 	device, err := srv.CheckDevicePassword(username, password, source, davPasswordLife)
 	switch {
 	case err == nil:
-		return davAccess{device: true, readOnly: device.ReadOnly}, nil
+		return davAccess{device: true, readOnly: device.ReadOnly, limited: device.Scoped, limit: limitOf(device.Scope)}, nil
 	case errors.As(err, new(alborz.AuthError)):
 		p.keep(username, password, err, now)
 		return davAccess{}, err
@@ -178,6 +182,9 @@ func serveOwn(g *web.Group, srv *web.Server, st *store.Store) {
 			w.Header().Set("WWW-Authenticate", `Basic realm="`+davRealm+`", charset="UTF-8"`)
 			http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
 			return nil
+		}
+		if access.limited {
+			r = r.WithContext(store.Limited(r.Context(), access.limit))
 		}
 		if access.readOnly && !slices.Contains(readMethods, r.Method) {
 			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)

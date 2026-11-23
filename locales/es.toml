@@ -844,6 +844,12 @@
 "devices.password" = "Contraseña de dispositivo"
 "devices.shownonce" = "Se muestra solo una vez."
 "devices.noname" = "El nombre está vacío."
+"devices.collections" = "Colecciones"
+"devices.scopeall" = "Todas las colecciones"
+"devices.scopesome" = "Solo las colecciones elegidas"
+"devices.nocollection" = "No hay ninguna colección elegida."
+"devices.used" = "Último uso"
+"devices.gonename" = "Ya no existe"
 "notice.devicemade" = "Contraseña de dispositivo creada."
 "notice.devicerevoked" = "Contraseña de dispositivo revocada."
 "notfound.device" = "No existe esa contraseña de dispositivo."
@@ -1583,3 +1589,23 @@ other = "Copiar %d elementos seleccionados."
 ["notice.itemscopied"]
 one = "Se ha copiado un elemento."
 other = "Se han copiado %d elementos."
+
+["devices.calendars"]
+one = "%d calendario"
+other = "%d calendarios"
+
+["devices.tasklists"]
+one = "%d lista de tareas"
+other = "%d listas de tareas"
+
+["devices.journals"]
+one = "%d diario"
+other = "%d diarios"
+
+["devices.addressbooks"]
+one = "%d libreta de direcciones"
+other = "%d libretas de direcciones"
+
+["devices.gone"]
+one = "%d colección ya no existe"
+other = "%d colecciones ya no existen"

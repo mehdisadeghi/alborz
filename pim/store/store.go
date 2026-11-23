@@ -59,6 +59,9 @@ type Collection struct {
 	Dead []Dead `json:",omitempty"`
 	// Feed fills a subscribed calendar; nobody writes its objects.
 	Feed *Feed `json:",omitempty"`
+	// Made is the ctag the collection was made with, which tells it from a later one of its name; zero
+	// from before ADR 109.
+	Made uint64 `json:",omitempty"`
 }
 
 // Feed is the address a calendar is filled from and what its last fetch said.
@@ -351,6 +354,7 @@ func (s *Store) Create(c Collection) (*Collection, error) {
 		if err := stamp(tx, &c); err != nil {
 			return err
 		}
+		c.Made = c.CTag
 		if err := put(tx, s.collectionKey(c.Ref()), &c); err != nil {
 			return err
 		}

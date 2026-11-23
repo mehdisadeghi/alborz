@@ -2,8 +2,8 @@
 
 Status: accepted, amended by ADR 26 (kept in `alborz.db`), ADR 28
 (`here` source), ADR 32 (what a publication shows), ADR 62 (subscribed
-calendars), ADR 70 (sealed), ADR 72 (per-collection keys) and ADR 107
-(device passwords).
+calendars), ADR 70 (sealed), ADR 72 (per-collection keys), ADR 107
+(device passwords) and ADR 109 (scoped device passwords).
 Supersedes ADR 15.
 
 ## Context
@@ -65,7 +65,8 @@ no calendars, tasks or contacts, and accounts cannot share any.
 ## References
 
 - RFC 4791, RFC 6352, RFC 6764, RFC 5545
-- ADR 26, ADR 28, ADR 32, ADR 51, ADR 62, ADR 70, ADR 72, ADR 107
+- ADR 26, ADR 28, ADR 32, ADR 51, ADR 62, ADR 70, ADR 72, ADR 107,
+  ADR 109
 - `pim/store/` (`store.go`: `Collection`, `Share`, `Name`;
   `handler.go`: `Handler`, `maxObject`; `paths.go`: `Prefix`,
   `aliasSep`; `public.go`: `PublicPrefix`),

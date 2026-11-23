@@ -844,6 +844,12 @@
 "devices.password" = "كلمة مرور الجهاز"
 "devices.shownonce" = "تُعرض مرة واحدة فقط."
 "devices.noname" = "الاسم فارغ."
+"devices.collections" = "المجموعات"
+"devices.scopeall" = "كل المجموعات"
+"devices.scopesome" = "المجموعات المختارة فقط"
+"devices.nocollection" = "لم تُختر أي مجموعة."
+"devices.used" = "آخر استخدام"
+"devices.gonename" = "لم تعد موجودة"
 "notice.devicemade" = "أُنشئت كلمة مرور الجهاز."
 "notice.devicerevoked" = "أُبطلت كلمة مرور الجهاز."
 "notfound.device" = "لا توجد كلمة مرور الجهاز هذه."
@@ -1582,3 +1588,23 @@ other = "نسخ %d عناصر محدّدة."
 ["notice.itemscopied"]
 one = "نُسخ عنصر واحد."
 other = "نُسخت %d عناصر."
+
+["devices.calendars"]
+one = "%d تقويم"
+other = "%d تقاويم"
+
+["devices.tasklists"]
+one = "%d قائمة مهام"
+other = "%d قوائم مهام"
+
+["devices.journals"]
+one = "%d دفتر يوميات"
+other = "%d دفاتر يوميات"
+
+["devices.addressbooks"]
+one = "%d دفتر عناوين"
+other = "%d دفاتر عناوين"
+
+["devices.gone"]
+one = "%d مجموعة لم تعد موجودة"
+other = "%d مجموعات لم تعد موجودة"

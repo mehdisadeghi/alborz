@@ -2,7 +2,8 @@
 
 Status: accepted, amended by ADR 70 (archive layout: a `.tar.gz` of
 plain files; HTTP password excluded; an import never takes over a
-publication address serving another collection).
+publication address serving another collection) and ADR 109 (an
+imported collection is made anew).
 
 ## Context
 
@@ -28,7 +29,9 @@ in, readable by every later version (ADR 26).
    stored record of the same key; nothing the archive does not name is
    deleted, so a repeated import changes nothing further.
 6. The owner is the importing account, whatever the archive says.
-   Shares keep their state. The ctag moves so DAV clients refetch.
+   Shares keep their state. The ctag moves so DAV clients refetch, and
+   the collection counts as made anew, so no device password's scope
+   names it (ADR 109).
 7. Settings are read from the store per request (ADR 52), so the next
    request sees an import; a session keeps its profile until the
    reader changes it.
@@ -44,7 +47,7 @@ in, readable by every later version (ADR 26).
 
 ## References
 
-- ADR 24, ADR 26, ADR 52, ADR 70
+- ADR 24, ADR 26, ADR 52, ADR 70, ADR 109
 - `archive.go` (`Server.Export`, `Server.Import`, `ArchivePart`,
   `exportSettings`), `pim/store/archive.go` (`Export`, `Import`,
   `restore`), `settings/web/data.go`, `settings/web/data_test.go`

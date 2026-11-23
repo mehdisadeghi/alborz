@@ -844,6 +844,12 @@
 "devices.password" = "Mot de passe d’appareil"
 "devices.shownonce" = "Affiché une seule fois."
 "devices.noname" = "Le nom est vide."
+"devices.collections" = "Collections"
+"devices.scopeall" = "Toutes les collections"
+"devices.scopesome" = "Seulement les collections choisies"
+"devices.nocollection" = "Aucune collection n’est choisie."
+"devices.used" = "Dernière utilisation"
+"devices.gonename" = "N’existe plus"
 "notice.devicemade" = "Mot de passe d’appareil créé."
 "notice.devicerevoked" = "Mot de passe d’appareil révoqué."
 "notfound.device" = "Ce mot de passe d’appareil n’existe pas."
@@ -1582,3 +1588,23 @@ other = "Copier %d éléments sélectionnés."
 ["notice.itemscopied"]
 one = "%d élément copié."
 other = "%d éléments copiés."
+
+["devices.calendars"]
+one = "%d calendrier"
+other = "%d calendriers"
+
+["devices.tasklists"]
+one = "%d liste de tâches"
+other = "%d listes de tâches"
+
+["devices.journals"]
+one = "%d journal"
+other = "%d journaux"
+
+["devices.addressbooks"]
+one = "%d carnet d’adresses"
+other = "%d carnets d’adresses"
+
+["devices.gone"]
+one = "%d collection n’existe plus"
+other = "%d collections n’existent plus"

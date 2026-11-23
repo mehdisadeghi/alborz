@@ -84,6 +84,20 @@ func TestPreview(t *testing.T) {
 		c.Post(t, "mail.messages.flag", url.Values{"uids": {uids[0]}, "color": {"red"}, "next": {"/"}}, "INBOX")
 	}
 	c.Post(t, "settings.profile", url.Values{"calendar": {"gregorian"}, "secondary": {"shcal"}})
+	// Device passwords for every collection, for one, and for several kinds of which one is then deleted.
+	gone := c.CreateCalendar(t, "Old", "")
+	for _, form := range []url.Values{
+		{"name": {"Laptop"}, "access": {"write"}},
+		{"name": {"Wall display"}, "access": {"read"}, "scope": {"some"}, "collection": {calendar}},
+		{"name": {"Phone"}, "access": {"write"}, "scope": {"some"}, "collection": {calendar, tasks, journal, book, gone}},
+	} {
+		c.Post(t, "settings.devices.create", form)
+	}
+	a.DAV(t, http.MethodDelete, gone, nil, "")
+	devices, _, err := a.Server.Devices.List(User)
+	if err != nil {
+		t.Fatal(err)
+	}
 	c.SignIn(t, User2)
 	named := map[string]string{
 		"mail": a.Path("mail.mailbox", "INBOX"), "sent": a.Path("mail.mailbox", "Sent", url.Values{"account": {User}}), "tasks": a.Path("calendar.tasks"), "journal": a.Path("calendar.journal"),
@@ -96,6 +110,8 @@ func TestPreview(t *testing.T) {
 		"tasksub": a.Path("calendar.task", Here+tasks+"t0.ics"), "taskdone": a.Path("calendar.task", Here+tasks+"done.ics"),
 		"contact": a.Path("contacts.contact", Here+book+"record.vcf"), "entry": a.Path("calendar.entry", Here+journal+"record.ics"),
 		"copy": a.Path("calendar.event.copy", Here+calendar+"record.ics"), "create": a.Path("calendar.event.create"), "import": a.Path("calendar.import"),
+		"devices": a.Path("settings.devices", url.Values{"account": {User}}), "devicecreate": a.Path("settings.devices.create", url.Values{"account": {User}}),
+		"device":    a.Path("settings.device", devices[0].ID, url.Values{"account": {User}}),
 		"monthlist": a.Path("calendar.month", url.Values{"view": {"list"}, "span": {"month"}}), "monthday": a.Path("calendar.month", url.Values{"view": {"list"}, "span": {"month"}, "group": {"day"}}), "search": a.Path("calendar.search", url.Values{"query": {"proposal"}}),
 	}
 	var js string
@@ -112,9 +128,14 @@ func TestPreview(t *testing.T) {
 	b := startChrome(t)
 	cookie := c.Cookie("alborz_session")
 	for route := range strings.SplitSeq(*routes, ",") {
+		// A name takes a query of its own, as in settings?lang=fa.
+		name, query, _ := strings.Cut(route, "?")
 		path := route
-		if p, ok := named[route]; ok {
+		if p, ok := named[name]; ok {
 			path = p
+			if query != "" {
+				path += map[bool]string{false: "?", true: "&"}[strings.Contains(p, "?")] + query
+			}
 		}
 		for w := range strings.SplitSeq(*widths, ",") {
 			width, err := strconv.Atoi(w)

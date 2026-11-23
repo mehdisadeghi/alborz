@@ -36,17 +36,7 @@ type Offer struct {
 	section Section
 }
 
-func (pg Page) kindKey(c *store.Collection) string {
-	switch {
-	case pg.Ext == ".vcf":
-		return "share.kindaddressbook"
-	case len(c.Components) == 1 && c.Components[0] == "VTODO":
-		return "share.kindtasks"
-	case len(c.Components) == 1 && c.Components[0] == "VJOURNAL":
-		return "share.kindjournal"
-	}
-	return "share.kindcalendar"
-}
+func (pg Page) kindKey(c *store.Collection) string { return "share.kind" + kindOf(*c) }
 
 // offer is the account's share of the collection at collPath in its own home, nil when none.
 func (pg Page) offer(ctx *web.Context, p *dav.Provider, collPath, account string) (*Offer, error) {

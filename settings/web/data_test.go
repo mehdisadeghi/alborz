@@ -37,8 +37,8 @@ func unpack(t *testing.T, archive string) map[string][]byte {
 	}
 }
 
-// stable drops what an import moves on purpose: the ctag, so a client looks again, and when and where
-// the archive was made.
+// stable drops what an import moves on purpose: the ctag, so a client looks again, the ctag the collection
+// was made with, so no device password's scope names it (ADR 109), and when and where the archive was made.
 func stable(t *testing.T, files map[string][]byte) map[string]string {
 	t.Helper()
 	out := map[string]string{}
@@ -52,6 +52,7 @@ func stable(t *testing.T, files map[string][]byte) map[string]string {
 				t.Fatal(err)
 			}
 			delete(record["Collection"].(map[string]any), "CTag")
+			delete(record["Collection"].(map[string]any), "Made")
 			data, _ = json.Marshal(record)
 		}
 		out[name] = string(data)

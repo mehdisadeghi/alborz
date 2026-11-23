@@ -9,6 +9,7 @@ import (
 	"path"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -39,6 +40,30 @@ func As(ctx context.Context, account string) context.Context {
 func userOf(ctx context.Context) string {
 	account, _ := ctx.Value(userKey{}).(string)
 	return account
+}
+
+type limitKey struct{}
+
+// Limited is ctx for a request that reaches only the collections named, each as LimitName names it, and
+// makes, deletes or leaves none (ADR 109). Every other collection is not found.
+func Limited(ctx context.Context, names []string) context.Context {
+	return context.WithValue(ctx, limitKey{}, names)
+}
+
+func limitOf(ctx context.Context) (names []string, limited bool) {
+	names, limited = ctx.Value(limitKey{}).([]string)
+	return names, limited
+}
+
+// LimitName names a collection in a limit: its keyed names, as the file's keys do, and the ctag it was made
+// with, so one made later under the same name is another.
+func (s *Store) LimitName(c Collection) string {
+	return s.ref(c.Ref()) + "#" + strconv.FormatUint(c.Made, 10)
+}
+
+func (s *Store) within(ctx context.Context, c Collection) bool {
+	names, limited := limitOf(ctx)
+	return !limited || slices.Contains(names, s.LimitName(c))
 }
 
 func principalPath(account string) string {
@@ -142,7 +167,7 @@ func (s *Store) reachAt(ctx context.Context, at place, kind Kind) (place, *Colle
 		return at, nil, none, errNotFound
 	}
 	c, may, err := s.may(at.ref, account, time.Now())
-	if errors.Is(err, ErrNotFound) || (err == nil && c.Kind != kind) {
+	if errors.Is(err, ErrNotFound) || (err == nil && (c.Kind != kind || !s.within(ctx, *c))) {
 		return at, nil, none, errNotFound
 	}
 	return at, c, may, err
@@ -213,12 +238,16 @@ func visible[T any](ctx context.Context, s *Store, kind Kind, convert func(strin
 	if err != nil {
 		return nil, err
 	}
-	out := make([]T, len(seen))
-	for i, collection := range seen {
-		out[i], err = convert(account, collection.Collection, collection.may)
+	var out []T
+	for _, collection := range seen {
+		if !s.within(ctx, collection.Collection) {
+			continue
+		}
+		one, err := convert(account, collection.Collection, collection.may)
 		if err != nil {
 			return nil, err
 		}
+		out = append(out, one)
 	}
 	return out, nil
 }
@@ -246,6 +275,9 @@ func (s *Store) create(ctx context.Context, p string, c Collection) error {
 	at, err := parsePath(p)
 	if err != nil {
 		return err
+	}
+	if _, limited := limitOf(ctx); limited {
+		return errForbidden
 	}
 	if at.kind != c.Kind || at.home != userOf(ctx) || at.ref.Owner != at.home || at.ref.ID == "" || at.object != "" {
 		return errForbidden
@@ -306,9 +338,12 @@ func (s *Store) removeWithOptions(ctx context.Context, p string, kind Kind, opts
 		opts = &webdav.RemoveAllOptions{}
 	}
 	at, _, may, err := s.reach(ctx, p, kind)
+	_, limited := limitOf(ctx)
 	switch {
 	case err != nil:
 		return err
+	case at.object == "" && limited:
+		return errForbidden
 	case at.object == "" && may == own:
 		return storeError(s.Delete(at.ref))
 	case at.object == "":

@@ -80,6 +80,11 @@ a.list-summary:hover {
   text-decoration: underline;
 }
 
+/* A detail that must be read whole wraps, under its summary on a phone. */
+.list-items.whole .list-detail {
+  white-space: normal;
+}
+
 .list-meta {
   font-size: var(--text-xs);
   color: var(--fg-muted);
@@ -88,5 +93,9 @@ a.list-summary:hover {
 @media (width <= 600px) {
   .list-item {
     min-height: 2.75rem;
+  }
+
+  .list-items.whole .list-content {
+    display: block;
   }
 }

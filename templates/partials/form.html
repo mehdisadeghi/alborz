@@ -78,17 +78,20 @@
     {{ $acct := .Account }}{{ $places := .Places }}
     {{ if $.multi }}<optgroup label="{{.Account}}">{{ end }}
     {{ range .Collections }}
-    <option value="{{$acct}}|{{.Path}}"{{ if and (eq $acct $.account) (eq .Path $.path) }} selected{{ end }}{{ with .Color }} style="--collection:{{.}}"{{ end }}>
-      {{- .Name }}
-      {{- if and $places .Source }} · {{ with .Host }}{{ printf "\u2066%s\u2069" . }}{{ else }}{{ $.g.T (printf "place.%s" .Source) }}{{ end }}{{ end }}
-      {{- with .SharedBy }} · {{ $.g.Tf "share.marksharedby" (printf "\u2066%s\u2069" .) }}{{ end -}}
-    </option>
+    <option value="{{$acct}}|{{.Path}}"{{ if and (eq $acct $.account) (eq .Path $.path) }} selected{{ end }}{{ with .Color }} style="--collection:{{.}}"{{ end }}>{{ template "collection-name" (dict "g" $.g "c" . "places" $places) }}</option>
     {{ end }}
     {{ if $.multi }}</optgroup>{{ end }}
     {{ end }}
   </select>
 </label>
 {{ end }}
+
+{{/* dict: g c [places]. A collection's name, its place where places differ, and who shares it, as text: an option holds no bdi. */}}
+{{ define "collection-name" -}}
+{{ .c.Name }}
+{{- if and .places .c.Source }} · {{ with .c.Host }}{{ printf "\u2066%s\u2069" . }}{{ else }}{{ $.g.T (printf "place.%s" $.c.Source) }}{{ end }}{{ end }}
+{{- with .c.SharedBy }} · {{ $.g.Tf "share.marksharedby" (printf "\u2066%s\u2069" .) }}{{ end -}}
+{{- end }}
 
 {{ define "folder-location" }}
 <label>

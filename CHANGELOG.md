@@ -11,6 +11,8 @@
   used emoji, for rich and plain text.
 - A brands add-on that warns when a sender's name says a known brand and the
   address is at another domain.
+- A device password can be limited to chosen calendars, task lists, journals
+  and address books.
 
 ### Fixed
 

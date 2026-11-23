@@ -86,12 +86,13 @@ func (d *Devices) update(account string, change func(*deviceRecord) bool) error 
 		if err != nil || !change(&rec) {
 			return err
 		}
-		if !rec.Only && len(rec.Devices) == 0 {
-			return tx.Delete(d.at(account))
-		}
 		raw, err := record.Keep(old, &rec)
 		if err != nil {
 			return err
+		}
+		// Empty of what a newer version put there too.
+		if string(raw) == "{}" {
+			return tx.Delete(d.at(account))
 		}
 		return tx.Put(d.at(account), d.key.Seal(raw))
 	})

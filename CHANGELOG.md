@@ -43,6 +43,7 @@
 - A message whose style sheet has a stray `;` between rules, as in
   `p{margin:0};`, opens, without that sheet; it used to keep the server busy
   and never appear.
+- The quick-add line stays on one row on a phone.
 
 ## [0.20.0] - 2026-10-31
 

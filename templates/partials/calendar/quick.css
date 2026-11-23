@@ -6,9 +6,9 @@
   border-bottom: 1px solid var(--border-light);
 }
 
-/* One row at any width: the field grows, the destination shrinks to fit. */
+/* One row at any width: the field grows, the destination shrinks first, to a square. */
 .quick-add input {
-  flex: 1 1 6rem; min-width: 0;
+  flex: 1 1 10rem; min-width: 0;
 }
 
 .quick-add :is(input[name="summary"], select, button) {
@@ -17,7 +17,7 @@
 }
 
 .quick-add > .picker-quiet {
-  display: flex; min-width: 0;
+  display: flex; flex: 0 100 auto; min-width: var(--action-size);
 }
 
 .quick-add select {
@@ -26,18 +26,6 @@
 
 .quick-add > .hint {
   min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
-}
-
-/* Narrow screens: the field takes the first row, the pickers and buttons
-   wrap to the next, so the placeholder is not clipped. */
-@media (width <= 600px) {
-  .quick-add {
-    flex-wrap: wrap;
-  }
-
-  .quick-add input[name="summary"] {
-    flex-basis: 100%;
-  }
 }
 
 .calendar-quick {

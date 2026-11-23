@@ -73,6 +73,8 @@ type Server struct {
 
 	// OnAccountGone is called when an account signs out.
 	OnAccountGone []func(username string)
+	// OnPasswordChanged is called when an account's mail password has been changed here (ADR 68).
+	OnPasswordChanged []func(username string)
 	// OnSetup starts service discovery after the first provider is commissioned.
 	OnSetup []func()
 

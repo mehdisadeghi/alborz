@@ -94,6 +94,9 @@ func (s *Server) ChangePassword(ctx context.Context, l *Login, current, next, fr
 	if err != nil {
 		return err
 	}
+	for _, changed := range s.OnPasswordChanged {
+		changed(l.username)
+	}
 	// The password has changed; a DAV password left sealed is asked for again (ADR 5).
 	if err := l.rewrap(ctx, next); err != nil {
 		s.log.Printf("%s: the DAV password stays sealed under the old mail password: %v", l.username, err)

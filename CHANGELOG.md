@@ -83,6 +83,8 @@
 - An account's new key pair is used only once it is written to the data file,
   so a failed write leaves nothing sealed to a key that is lost at the next
   start.
+- After a password change the old password no longer opens alborz's own
+  calendar and contacts server; it did for up to five minutes.
 
 ## [0.20.0] - 2026-10-31
 

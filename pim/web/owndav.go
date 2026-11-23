@@ -64,6 +64,8 @@ type davPasswords struct {
 	mu      sync.Mutex
 	salt    [32]byte
 	checked map[[sha256.Size]byte]davVerdict
+	// changed is when an account's mail password changed: no verdict from before it stands (ADR 68).
+	changed map[string]time.Time
 }
 
 type davVerdict struct {
@@ -72,7 +74,7 @@ type davVerdict struct {
 }
 
 func newDAVPasswords() *davPasswords {
-	p := &davPasswords{checked: make(map[[sha256.Size]byte]davVerdict)}
+	p := &davPasswords{checked: make(map[[sha256.Size]byte]davVerdict), changed: make(map[string]time.Time)}
 	rand.Read(p.salt[:])
 	return p
 }
@@ -85,7 +87,14 @@ func (p *davPasswords) known(username, password string, now time.Time) (davVerdi
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	was, ok := p.checked[p.digest(username, password)]
-	return was, ok && now.Sub(was.at) < davPasswordLife
+	return was, ok && now.Sub(was.at) < davPasswordLife && was.at.After(p.changed[username])
+}
+
+// forget ends every verdict on the account's passwords, and any a check under way would add.
+func (p *davPasswords) forget(username string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.changed[username] = time.Now()
 }
 
 func (p *davPasswords) keep(username, password string, refused error, now time.Time) {
@@ -94,6 +103,7 @@ func (p *davPasswords) keep(username, password string, refused error, now time.T
 	maps.DeleteFunc(p.checked, func(_ [sha256.Size]byte, v davVerdict) bool {
 		return now.Sub(v.at) >= davPasswordLife
 	})
+	maps.DeleteFunc(p.changed, func(_ string, at time.Time) bool { return now.Sub(at) >= davPasswordLife })
 	p.checked[p.digest(username, password)] = davVerdict{refused, now}
 }
 
@@ -142,6 +152,7 @@ var readMethods = []string{http.MethodGet, http.MethodHead, http.MethodOptions, 
 // serveOwn answers DAV clients by address and password on each request, with no session or cookie.
 func serveOwn(g *web.Group, srv *web.Server, st *store.Store) {
 	dav, passwords := st.Handler(), newDAVPasswords()
+	srv.OnPasswordChanged = append(srv.OnPasswordChanged, passwords.forget)
 	// Where a client given only the host starts (RFC 6764).
 	home := func(ctx *web.Context) error {
 		http.Redirect(ctx.Response(), ctx.Request(), ctx.Path("dav.collections"), http.StatusPermanentRedirect)

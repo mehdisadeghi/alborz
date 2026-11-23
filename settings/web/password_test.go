@@ -78,6 +78,22 @@ func TestPasswordChangeSignsOutOthersBeforeSigningInAgain(t *testing.T) {
 	}
 }
 
+// The DAV server kept here stops taking the old password with the change, not when its verdict on it runs out.
+func TestPasswordChangeEndsTheOldPasswordForDAVClients(t *testing.T) {
+	imap := IMAP(t)
+	a := Alborz(t, WithIMAP(imap), WithPasswd(Passwd(t, imap)))
+	c := a.SignIn(t, User)
+	if resp := a.DAV(t, "PROPFIND", CalendarsOf(User), nil, ""); resp.StatusCode != http.StatusMultiStatus {
+		t.Fatalf("before the change the password answered %s", resp.Status)
+	}
+	if resp := c.Post(t, "settings.password", change(Password, "fresh-secret", "fresh-secret")); resp.StatusCode != http.StatusFound {
+		t.Fatalf("changing the password: %s\n%s", resp.Status, NoticeBar(resp.Text))
+	}
+	if resp := a.DAV(t, "PROPFIND", CalendarsOf(User), nil, ""); resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("after the change the old password answered %s, want 401", resp.Status)
+	}
+}
+
 func TestPasswordChangeRefused(t *testing.T) {
 	imap := IMAP(t)
 	ln, err := net.Listen("tcp", "127.0.0.1:0")

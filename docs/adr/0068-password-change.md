@@ -33,6 +33,9 @@ from the mail password (ADR 5).
    A refusal before NEWPASS counts as a refused sign-in (ADR 30). A
    server that does not answer is a form alert.
 7. After NEWPASS succeeds, in this order:
+   - alborz's DAV server MUST stop using every verdict it cached on
+     the account's passwords (ADR 30), so the old password is refused
+     at the next request;
    - the DAV password's random key is wrapped again under the new
      password with a new salt; one the old password did not open stays
      as it is (ADR 5);
@@ -55,8 +58,9 @@ from the mail password (ADR 5).
 
 - Mail, calendar and contacts apps are not signed out; the page says
   so.
-- alborz's DAV server caches an accepted password for 5 minutes, so the
-  old password may be accepted that long after a change.
+- A password changed elsewhere than through alborz may open alborz's
+  DAV server for up to 5 minutes more, while its cached verdict lasts
+  (ADR 30).
 - A loopback port is open to every local user; a Unix socket with its
   group limited to alborz is tighter.
 - No reset of a forgotten password.
@@ -72,4 +76,5 @@ from the mail password (ADR 5).
   `settings/web/password.go`, `web/sessions.go` (`SignOutOthers`,
   `PasswordChanged`, `Sessions.SignOut`), `web/accounts.go`
   (`Context.SignIn`),
-  `pim/web/owndav.go` (`davPasswordLife`)
+  `server.go` (`OnPasswordChanged`), `pim/web/owndav.go`
+  (`davPasswords.forget`, `davPasswordLife`)

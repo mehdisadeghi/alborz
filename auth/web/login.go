@@ -48,7 +48,7 @@ func handleLogin(ctx *web.Context) error {
 	}
 
 	if ctx.Request().Method == http.MethodPost && username != "" && password != "" {
-		s, err := ctx.Server.SignIn(username, password, ctx.RealIP())
+		err := ctx.SignIn(username, password, remember == "on")
 		if err != nil {
 			// One line per refusal with the client address, for fail2ban.
 			ctx.Logger().Printf("Login failed for %q from %s: %v", username, ctx.RealIP(), err)
@@ -59,14 +59,6 @@ func handleLogin(ctx *web.Context) error {
 			renderData.GlobalData.Notice = &web.Notice{Kind: web.NoticeFailed, Text: text}
 			return render(status)
 		}
-		ctx.AddAccount(s)
-
-		if remember == "on" {
-			if err := ctx.SetLoginToken(s.Username(), password); err != nil {
-				return err
-			}
-		}
-
 		return loginRedirect(ctx)
 	}
 

@@ -170,13 +170,18 @@ func (ctx *Context) PasswordChanged(login *alborz.Login, password string) error 
 // SignOutOthers signs every other browser out of the account: what one remembers opens with the
 // old password only, and it holds no secret of this browser to reseal it with.
 func (ctx *Context) SignOutOthers(account string) error {
-	signed, err := ctx.Server.Sessions.SignedIn(account, ctx.Session().ID)
+	ss := ctx.Server.Sessions
+	// Before the browsers are listed: a sign-in under way is refused when it ends, or is listed here.
+	ss.mu.Lock()
+	ss.signedOut[account] = time.Now()
+	ss.mu.Unlock()
+	signed, err := ss.SignedIn(account, ctx.Session().ID)
 	if err != nil {
 		return err
 	}
 	for _, other := range signed {
 		if !other.Current {
-			err = errors.Join(err, ctx.Server.Sessions.SignOut(other.ID, account))
+			err = errors.Join(err, ss.SignOut(other.ID, account))
 		}
 	}
 	return err

@@ -98,6 +98,36 @@ func TestPasswordChangeSignsOutOtherBrowsersWhenSavingFails(t *testing.T) {
 	}
 }
 
+// The mail server may let a sign-in in with the old password just before the change; it is refused when
+// it ends, since the other browsers were signed out without it (ADR 68).
+func TestSignInCrossingAPasswordChangeIsRefused(t *testing.T) {
+	const account = "one@test.localdomain"
+	var changer *Context
+	var crossing atomic.Bool
+	server := rememberedServer(t, func(string) {
+		if crossing.CompareAndSwap(true, false) {
+			changer.SignOutOthers(account)
+		}
+	})
+	changer = rememberedContext(t, server)
+	late := rememberedContext(t, server, "two@test.localdomain")
+	crossing.Store(true)
+	if err := late.SignIn(account, "password", true); !errors.Is(err, errSignInCrossed) {
+		t.Fatalf("a sign-in begun before the change: %v", err)
+	}
+	if server.Sessions.Holds(late.session.ID, account) || !server.Sessions.Holds(late.session.ID, "two@test.localdomain") {
+		t.Fatalf("the browser remembers %v, want its other account alone", late.session.remember)
+	}
+	for _, login := range server.Logins() {
+		if login.Alive() {
+			t.Fatal("the refused sign-in left its login open")
+		}
+	}
+	if err := late.SignIn(account, "password", true); err != nil {
+		t.Fatalf("a sign-in begun after the change: %v", err)
+	}
+}
+
 func TestBrowserLogoutPreservesAnotherUnrememberedAccount(t *testing.T) {
 	server := rememberedServer(t, nil)
 	ctx := rememberedContext(t, server, "one@test.localdomain")

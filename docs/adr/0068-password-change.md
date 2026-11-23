@@ -40,6 +40,9 @@ from the mail password (ADR 5).
      MUST be signed out before the new sign-in is tried. A session
      whose notifications fail to end MUST still lose the account; a
      failure is logged;
+   - a sign-in to the account begun before that moment MUST fail as a
+     refused password does when it ends, and MUST NOT add a login or a
+     remembered password to its browser;
    - the account signs in with the new password and replaces its login
      in this browser;
    - where this browser remembered the account, it keeps the new
@@ -67,5 +70,6 @@ from the mail password (ADR 5).
 - `passwd.go` (`parsePasswdUpstream`, `ChangePassword`,
   `passwdServer.change`), `secret.go` (`rewrap`),
   `settings/web/password.go`, `web/sessions.go` (`SignOutOthers`,
-  `PasswordChanged`, `Sessions.SignOut`),
+  `PasswordChanged`, `Sessions.SignOut`), `web/accounts.go`
+  (`Context.SignIn`),
   `pim/web/owndav.go` (`davPasswordLife`)

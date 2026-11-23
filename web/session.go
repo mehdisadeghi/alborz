@@ -237,12 +237,14 @@ type Sessions struct {
 	mu      sync.Mutex
 	live    map[string]*Session
 	records alborz.SessionRecords
+	// signedOut is when a password change last signed an account's other browsers out (ADR 68).
+	signedOut map[string]time.Time // protected by mu
 	// pushes are the devices a browser turned on, which signing it out ends.
 	pushes *alborz.Pushes
 }
 
 func newSessions(records alborz.SessionRecords, pushes *alborz.Pushes) *Sessions {
-	return &Sessions{live: map[string]*Session{}, records: records, pushes: pushes}
+	return &Sessions{live: map[string]*Session{}, records: records, signedOut: map[string]time.Time{}, pushes: pushes}
 }
 
 func (ss *Sessions) get(id string) *Session {

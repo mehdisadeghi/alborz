@@ -60,16 +60,50 @@ func (ctx *Context) Logins() []*alborz.Login {
 
 // AddAccount adds the account to this browser's session and makes it the request's own.
 func (ctx *Context) AddAccount(s *alborz.Login) {
-	session := ctx.Session()
-	first := !slices.ContainsFunc(ctx.accountLogins(), func(l *alborz.Login) bool { return l.Username() != s.Username() })
-	session.add(s)
+	ctx.Session().add(s)
+	ctx.added(s)
+}
+
+// added makes an account just put in the session the request's own.
+func (ctx *Context) added(s *alborz.Login) {
 	ctx.accountsLoaded = false
+	first := !slices.ContainsFunc(ctx.accountLogins(), func(l *alborz.Login) bool { return l.Username() != s.Username() })
 	ctx.Login = s
 	ctx.defaultLogin = s
 	ctx.joinProfile(s, first)
 	for _, ready := range ctx.Server.OnAccountReady {
 		ready(ctx, s)
 	}
+}
+
+var errSignInCrossed = errors.New("the password changed while signing in")
+
+// SignIn signs the account in, adds it to this browser and keeps its password where asked. A sign-in
+// begun before the account's other browsers were signed out is refused: the mail server may have let
+// it in with the password since replaced (ADR 68).
+func (ctx *Context) SignIn(username, password string, remember bool) error {
+	began := time.Now()
+	login, err := ctx.Server.SignIn(username, password, ctx.RealIP())
+	if err != nil {
+		return err
+	}
+	ss, session, account := ctx.Server.Sessions, ctx.Session(), login.Username()
+	// Under the lock SignOutOthers stamps with, so it either refuses this login or finds it.
+	ss.mu.Lock()
+	crossed := !ss.signedOut[account].Before(began)
+	if !crossed {
+		session.add(login)
+		if remember {
+			err = ctx.SetLoginToken(account, password)
+		}
+	}
+	ss.mu.Unlock()
+	if crossed {
+		login.Close()
+		return errSignInCrossed
+	}
+	ctx.added(login)
+	return err
 }
 
 // URLAccount returns the request's account parameter, "" when none.
@@ -214,6 +248,9 @@ func (ctx *Context) forgetLoginToken(username string) {
 // SignInRefusal returns the reader's message and status for a failed sign-in;
 // an empty message means alborz itself failed.
 func (ctx *Context) SignInRefusal(err error) (string, int) {
+	if errors.Is(err, errSignInCrossed) {
+		return ctx.T("notice.loginfailed"), http.StatusUnauthorized
+	}
 	if paused, ok := errors.AsType[alborz.PausedError](err); ok {
 		minutes := int(math.Ceil(time.Until(paused.Until).Minutes()))
 		return ctx.Tf("notice.loginpaused", minutes), http.StatusTooManyRequests

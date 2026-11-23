@@ -807,3 +807,36 @@ func TestThePickerNamesWhoSharesACollection(t *testing.T) {
 		t.Errorf("the shared calendar and the guest's own read:\n%s", picker)
 	}
 }
+
+// A copy or move opens on a collection the objects are not in, in their account,
+// and names the one they are in, which a remembered choice never reopens on.
+func TestTheDestinationPickerOpensElsewhere(t *testing.T) {
+	for _, tc := range []struct{ kind, list, holds, component string }{
+		{"event", "events", "", "VEVENT"}, {"task", "tasks", "tasks", "VTODO"}, {"entry", "journal", "journal", "VJOURNAL"},
+	} {
+		t.Run(tc.kind, func(t *testing.T) {
+			a, c := SignedIn(t, User)
+			src := c.CreateCalendar(t, "Alpha", tc.holds)
+			other := User + "|" + Here + c.CreateCalendar(t, "Beta", tc.holds)
+			a.Put(t, src+"object.ics", "text/calendar", strings.ReplaceAll(Event("object", "Object"), "VEVENT", tc.component))
+			object := Here + src + "object.ics"
+			pages := map[string]string{
+				"move." + tc.kind:         c.Page(t, "calendar."+tc.kind+".move", object),
+				"copy." + tc.kind:         c.Page(t, "calendar."+tc.kind+".copy", object),
+				"copy." + tc.kind + " of": c.Page(t, "calendar."+tc.list+".copy", url.Values{"paths": {User + "|" + object}}),
+			}
+			if tc.kind == "task" {
+				pages["move.task of"] = c.Page(t, "calendar.tasks.move", url.Values{"paths": {User + "|" + object}})
+			}
+			for name, page := range pages {
+				key, _, _ := strings.Cut(name, " ")
+				if got := SelectedValue(page, "to"); got != other {
+					t.Errorf("%s opens on %q, want %q", name, got, other)
+				}
+				if !strings.Contains(page, `data-destination-key="`+key+`" data-destination-from="`+User+"|"+Here+src+`"`) {
+					t.Errorf("%s does not name its key and source: %s", name, Between(page, "<select", ">"))
+				}
+			}
+		})
+	}
+}

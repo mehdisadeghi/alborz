@@ -72,7 +72,7 @@
 {{ define "collection-picker" }}
 <label class="collection-picker{{ if .quiet }} picker-quiet{{ end }}">
   <span{{ if .quiet }} class="visually-hidden"{{ end }}>{{.label}}</span>
-  <select name="{{.name}}" data-destination-key="{{.key}}"{{ if .ask }} required{{ end }}>
+  <select name="{{.name}}" data-destination-key="{{.key}}"{{ with .from }} data-destination-from="{{.}}"{{ end }}{{ if .ask }} required{{ end }}>
     {{ if .ask }}<option value="" selected>{{ .asklabel }}</option>{{ end }}
     {{ range .groups }}
     {{ $acct := .Account }}{{ $places := .Places }}

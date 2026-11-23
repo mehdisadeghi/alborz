@@ -66,7 +66,8 @@ func (p *plugin) copyContacts(ctx *web.Context) error {
 		data := &pimweb.DestinationRenderData{PageData: *web.NewPageData(ctx, ctx.T("common.copyask"), rail),
 			Section: ctx.T("nav.contacts"), Home: ctx.Path("contacts.list"), Title: ctx.T("common.copyask"),
 			Lead: ctx.Tf("common.copycount", len(refs)), Label: ctx.T("common.saveto"), Save: ctx.T("common.copydo"),
-			Action: ctx.URL("contacts.copy"), Key: "contact", Groups: groups, Next: next, Paths: paths}
+			Action: ctx.URL("contacts.copy"), Key: "copy.contact", Groups: groups, Next: next, Paths: paths}
+		data.Preselect(paths...)
 		if completed > 0 && refusal != "" {
 			refusal = ctx.Tf("notice.itemscopied", completed) + " " + refusal
 		}
@@ -131,9 +132,9 @@ func (p *plugin) transferContact(move bool) func(*web.Context) error {
 			kept.Set("from", from)
 		}
 		back := pimweb.ObjectURL(ctx, "contacts.contact", src, ctx.Login.Username(), kept)
-		ask, save, notice := "common.copyask", "common.copydo", "notice.copiedto"
+		ask, save, notice, key := "common.copyask", "common.copydo", "notice.copiedto", "copy.contact"
 		if move {
-			ask, save, notice = "common.moveask", "common.movedo", "notice.objectmovedto"
+			ask, save, notice, key = "common.moveask", "common.movedo", "notice.objectmovedto", "move.contact"
 		}
 		page := func(status int, refusal string) error {
 			rail, err := p.bookRail(ctx)
@@ -143,7 +144,8 @@ func (p *plugin) transferContact(move bool) func(*web.Context) error {
 			data := &pimweb.DestinationRenderData{PageData: *web.NewPageData(ctx, ctx.T(ask), rail),
 				Section: ctx.T("nav.contacts"), Home: ctx.Path("contacts.list"), Title: ctx.T(ask),
 				Lead: contacts.AddressObject{AddressObject: ao}.DisplayName(), Label: ctx.T("common.saveto"),
-				Save: ctx.T(save), Key: "contact", Groups: groups, Next: back}
+				Save: ctx.T(save), Key: key, Groups: groups, Next: back}
+			data.Preselect(ctx.Login.Username() + "|" + src)
 			data.Refused(refusal)
 			return ctx.Render(status, "calendar/destination", data)
 		}

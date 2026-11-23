@@ -78,12 +78,13 @@ func (p *plugin) transferTo(s section, move bool) func(*web.Context) error {
 				return err
 			}
 			summary, _ := comp.Props.Text(ical.PropSummary)
-			title, label, save := "common.copyask", "common.saveto", "common.copydo"
+			title, label, save, action := "common.copyask", "common.saveto", "common.copydo", "copy."
 			if move {
-				title, label, save = "common.moveask", "common.moveto", "common.movedo"
+				title, label, save, action = "common.moveask", "common.moveto", "common.movedo", "move."
 			}
 			data := destinationRenderData(ctx, r, ctx.T(section), ctx.Path(s.list), ctx.T(title), summary,
-				ctx.T(label), ctx.T(save), key, groups, back)
+				ctx.T(label), ctx.T(save), action+key, groups, back)
+			data.Preselect(ctx.Login.Username() + "|" + src)
 			data.Refused(refusal)
 			return ctx.Render(status, "calendar/destination", data)
 		}
@@ -199,8 +200,9 @@ func (p *plugin) copySelected(s section) func(*web.Context) error {
 				return err
 			}
 			data := destinationRenderData(ctx, r, ctx.T(section), ctx.Path(s.list), ctx.T("common.copyask"),
-				ctx.Tf("common.copycount", len(params["paths"])), ctx.T("common.saveto"), ctx.T("common.copydo"), key, groups, next)
+				ctx.Tf("common.copycount", len(params["paths"])), ctx.T("common.saveto"), ctx.T("common.copydo"), "copy."+key, groups, next)
 			data.Action, data.Paths = ctx.Path(route), params["paths"]
+			data.Preselect(params["paths"]...)
 			if from := ctx.From(); from != "" {
 				data.Action += "?" + url.Values{"from": {from}}.Encode()
 			}

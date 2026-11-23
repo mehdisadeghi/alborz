@@ -90,11 +90,48 @@ type DestinationRenderData struct {
 	Label, Save   string
 	// Action is where the form posts; empty posts to the page's own address.
 	Action string
-	// Key is the picker's remembered choice.
+	// Key is the picker's remembered choice, one per action and kind of object.
 	Key    string
 	Groups []dav.Group
 	Paths  []string
 	Next   string
+	// Account and Path are the collection the picker opens on; From is the one
+	// every object sits in, which a remembered choice never reopens on.
+	Account, Path, From string
+}
+
+// Preselect opens the picker for the objects at refs ("account|path") on the
+// first collection of the first one's account that holds none of them, else on
+// the first such collection of another account (ADR 88).
+func (d *DestinationRenderData) Preselect(refs ...string) {
+	held := map[string]bool{}
+	account := ""
+	for _, ref := range refs {
+		acct, object, _ := strings.Cut(ref, "|")
+		if account == "" {
+			account = acct
+		}
+		for _, g := range d.Groups {
+			if c := dav.Holding(g.Collections, acct, object); c != nil {
+				held[acct+"|"+c.Path] = true
+			}
+		}
+	}
+	if len(held) == 1 {
+		for from := range held {
+			d.From = from
+		}
+	}
+	for _, own := range []bool{true, false} {
+		for _, g := range d.Groups {
+			for _, c := range g.Collections {
+				if (g.Account == account) == own && !held[g.Account+"|"+c.Path] {
+					d.Account, d.Path = g.Account, c.Path
+					return
+				}
+			}
+		}
+	}
 }
 
 // DestinationRefusal maps the shared missing-DAV-destination condition to the

@@ -9,12 +9,12 @@ const start = helpers.indexOf('// A destination picker opens');
 const end = helpers.indexOf('const submit_on_change', start);
 assert.ok(start >= 0 && end > start);
 
-function picker(saved) {
+function picker(saved, from) {
 	const listeners = [], painted = new Map();
 	const option = (value, color) => ({value, style: {getPropertyValue: name => name === '--collection' ? color : ''}});
 	const select = {
 		options: [option('a|/plans/', '#22aa55'), option('a|/work/', '#3366cc'), option('a|/plain/', '')],
-		value: 'a|/plans/', dataset: {destinationKey: 'event'},
+		value: 'a|/plans/', dataset: {destinationKey: 'event', ...(from && {destinationFrom: from})},
 		style: {setProperty: (name, value) => painted.set(name, value)},
 		get selectedOptions() { return this.options.filter(o => o.value === this.value); },
 		addEventListener(type, fn) { if (type === 'change') listeners.push(fn); },
@@ -39,4 +39,9 @@ test('a destination picker follows the chosen collection, to none for one withou
 	assert.equal(p.painted.get('--picked'), '#3366cc');
 	p.choose('a|/plain/');
 	assert.equal(p.painted.get('--picked'), '');
+});
+
+test('a destination picker never reopens on the collection the objects are in', () => {
+	assert.equal(picker('a|/work/', 'a|/work/').painted.get('--picked'), '#22aa55');
+	assert.equal(picker('a|/work/', 'a|/plain/').painted.get('--picked'), '#3366cc');
 });

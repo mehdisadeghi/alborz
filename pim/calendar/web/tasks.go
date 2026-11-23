@@ -355,9 +355,10 @@ func (p *plugin) move(ctx *web.Context) error {
 			return err
 		}
 		data := destinationRenderData(ctx, rail, ctx.T("nav.tasks"), ctx.Path("calendar.tasks"), ctx.T("folder.moveask"),
-			ctx.Tf("tasks.movecount", len(params["paths"])), ctx.T("tasks.movelist"), ctx.T("folder.movedo"), "move", groups,
+			ctx.Tf("tasks.movecount", len(params["paths"])), ctx.T("tasks.movelist"), ctx.T("folder.movedo"), "move.task", groups,
 			ctx.NextOr(ctx.URL("calendar.tasks")))
 		data.Action, data.Paths = ctx.Path("calendar.tasks.move"), params["paths"]
+		data.Preselect(params["paths"]...)
 		data.Refused(refusal)
 		return ctx.Render(status, "calendar/destination", data)
 	}

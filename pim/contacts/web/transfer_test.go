@@ -528,3 +528,25 @@ func TestBulkContactCopyRetryKeepsOnlyUnprocessedContacts(t *testing.T) {
 		}
 	}
 }
+
+// A copy or move opens on a book the cards are not in and names the one they are in.
+func TestTheContactDestinationPickerOpensElsewhere(t *testing.T) {
+	a, c := SignedIn(t, User)
+	source := c.CreateBook(t, "Alpha")
+	other := User + "|" + Here + c.CreateBook(t, "Beta")
+	a.Put(t, source+"contact.vcf", "text/vcard", transferCard)
+	card := Here + source + "contact.vcf"
+	for key, page := range map[string]string{
+		"move.contact":    c.Page(t, "contacts.contact.move", card),
+		"copy.contact":    c.Page(t, "contacts.contact.copy", card),
+		"copy.contact of": c.Page(t, "contacts.copy", url.Values{"paths": {User + "|" + card}}),
+	} {
+		if got := SelectedValue(page, "to"); got != other {
+			t.Errorf("%s opens on %q, want %q", key, got, other)
+		}
+		key, _, _ = strings.Cut(key, " ")
+		if !strings.Contains(page, `data-destination-key="`+key+`" data-destination-from="`+User+"|"+Here+source+`"`) {
+			t.Errorf("%s does not name its key and source: %s", key, Between(page, "<select", ">"))
+		}
+	}
+}

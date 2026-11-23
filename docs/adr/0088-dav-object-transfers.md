@@ -48,6 +48,12 @@ on different accounts and servers.
    reader to check both collections (`form.moveuncertain`).
 7. Native `MOVE` invalidates both collections in the DAV mirror and
    increments their write counters (ADR 20, ADR 53).
+8. The destination picker MUST open on the collection last chosen for
+   the same action and kind of object (kept by the browser under
+   `alborz.destination.<action>.<kind>`) while it is offered and is not
+   the collection every object lies in; otherwise on the first
+   collection of the first object's account that holds none of them,
+   then of another account.
 
 ## Consequences
 
@@ -64,4 +70,5 @@ on different accounts and servers.
 - ADR 4, ADR 10, ADR 20, ADR 28, ADR 49, ADR 53, ADR 58, ADR 75
 - `pim/calendar/web/copy.go`, `pim/calendar/caldav.go` (`AsCopy`),
   `pim/contacts/web/transfer.go`, `pim/web/destinations.go`,
+  `pim/web/pages.go` (`Preselect`), `templates/assets/helpers.js`,
   `pim/dav/scales.go`, `pim/dav/mirror.go`

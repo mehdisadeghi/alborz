@@ -176,7 +176,7 @@ const enhance = () => {
 		narrowBy(primary, secondary, (el, v) => el.value === v);
 	}
 
-	// A destination picker opens on the collection last chosen and wears the chosen one's colour.
+	// A destination picker opens on the collection last chosen, unless the objects are in it, and wears the chosen one's colour.
 	for (const select of document.querySelectorAll("select[data-destination-key]")) {
 		if (!once(select, "destination")) {
 			continue;
@@ -186,7 +186,7 @@ const enhance = () => {
 		const key = "alborz.destination." + select.dataset.destinationKey;
 		try {
 			const saved = localStorage.getItem(key);
-			if (saved && Array.prototype.some.call(select.options, option => option.value === saved)) {
+			if (saved && saved !== select.dataset.destinationFrom && Array.prototype.some.call(select.options, option => option.value === saved)) {
 				select.value = saved;
 			}
 			select.addEventListener("change", () => localStorage.setItem(key, select.value));

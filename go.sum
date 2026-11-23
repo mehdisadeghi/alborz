@@ -2,6 +2,8 @@ github.com/BurntSushi/toml v1.6.0 h1:dRaEfpa2VI55EwlIW72hMRHdWouJeRF7TPYhI+AUQjk
 github.com/BurntSushi/toml v1.6.0/go.mod h1:ukJfTF/6rtPPRCnwkur4qwRxa8vTRFBF0uk2lLoLwho=
 github.com/ProtonMail/go-crypto v1.5.0 h1:sKmuvjOgsnrtpMvZ+84MCnTJCpjxZ1qCFn076lz1yT0=
 github.com/ProtonMail/go-crypto v1.5.0/go.mod h1:/RaSu30DaKO4RY+XdV/ACcCcZkGr7AhUIduq5sjzzCo=
+github.com/alborzmail/douceur v0.0.0-20261123095324-3fcbe01a83b0 h1:AIwTpEoOTSMxz1Ji26pJoy8y1Fzk+DtT7LYSSrK4iok=
+github.com/alborzmail/douceur v0.0.0-20261123095324-3fcbe01a83b0/go.mod h1:oaX3LgaBhynOoZga9fecQrDpycX6OKdSQIq6fWEtSHA=
 github.com/alborzmail/go-ical v0.0.0-20261023173852-9b59a918ab0d h1:unCJu9XFqbT9vRvWGkEGTq13xiscTzFF2Y04DGZMqh8=
 github.com/alborzmail/go-ical v0.0.0-20261023173852-9b59a918ab0d/go.mod h1:BTD9aIBLytoHpKkcvqgc/8LSsPC8ZeGyb/ZL+HYyYFs=
 github.com/alborzmail/go-imap/v2 v2.0.0-20260928213848-1fb04bfa5d26 h1:fP5cUVkFPLWab8omeK/sWtGirXpXmUL5PuJwyKXAMNg=
@@ -18,8 +20,6 @@ github.com/alborzmail/go-vcard v0.0.0-20261023171022-e1316413490a h1:AoO0dOyl1x9
 github.com/alborzmail/go-vcard v0.0.0-20261023171022-e1316413490a/go.mod h1:HMJKR5wlh/ziNp+sHEDV2ltblO4JD2+IdDOWtGcQBTM=
 github.com/alborzmail/go-webdav v0.0.0-20261023171022-993d577ee870 h1:Z3VaWI7dYaUWTVEQCad9dR4lBi2j0oGBVPyNJwUry7Y=
 github.com/alborzmail/go-webdav v0.0.0-20261023171022-993d577ee870/go.mod h1:msGmawi43vG3xpfYuw2XtD1q5760o0Ewxa0vGOuBcdE=
-github.com/aymerick/douceur v0.2.0 h1:Mv+mAeH1Q+n9Fr+oyamOlAkUNPWPlA8PPGR0QAaYuPk=
-github.com/aymerick/douceur v0.2.0/go.mod h1:wlT5vV2O3h55X9m7iVYN0TBM0NH/MmbLnd30/FjWUq4=
 github.com/cention-sany/utf7 v0.0.0-20170124080048-26cad61bd60a h1:MISbI8sU/PSK/ztvmWKFcI7UGb5/HQT7B+i3a2myKgI=
 github.com/cention-sany/utf7 v0.0.0-20170124080048-26cad61bd60a/go.mod h1:2GxOXOlEPAMFPfp014mK1SWq8G8BN8o7/dfYqJrVGn8=
 github.com/clipperhouse/stringish v0.1.1 h1:+NSqMOr3GR6k1FdRhhnXrLfztGzuG+VuFDfatpWHKCs=

@@ -40,6 +40,9 @@
   whose list asked for it and lands on the list that shows it; the form names
   account and place in one picker and refuses a submission with no place
   chosen.
+- A message whose style sheet has a stray `;` between rules, as in
+  `p{margin:0};`, opens, without that sheet; it used to keep the server busy
+  and never appear.
 
 ## [0.20.0] - 2026-10-31
 

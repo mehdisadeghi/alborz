@@ -103,3 +103,10 @@ replace github.com/emersion/go-ical => github.com/alborzmail/go-ical v0.0.0-2026
 // (#676); GETMETADATA options before the mailbox, as RFC 5464 orders;
 // LOGIN and AUTHENTICATE secrets redacted in the debug output.
 replace github.com/emersion/go-imap/v2 => github.com/alborzmail/go-imap/v2 v2.0.0-20260928213848-1fb04bfa5d26
+
+// Our fork of douceur carries the open upstream fixes for the value of a
+// last declaration with no ";" after it, which was dropped
+// (aymerick/douceur#16), and for a parser that never returns (#17): a
+// ";" where a rule begins is an error instead of a token read again for
+// ever; and our own: a ";" with no declaration before it is passed over.
+replace github.com/aymerick/douceur => github.com/alborzmail/douceur v0.0.0-20261123095324-3fcbe01a83b0

@@ -3,6 +3,7 @@ package web
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"git.mehdix.org/alborz/mail"
 	"github.com/emersion/go-imap/v2"
@@ -51,5 +52,26 @@ func TestCSSImagesUseConsentAndTheProxy(t *testing.T) {
 		if got := strings.Count(string(body), "/proxy?src="); (got == 2) != allowed {
 			t.Errorf("allowed=%v: %d proxied CSS images: %s", allowed, got, body)
 		}
+	}
+}
+
+// The parser once read a ";" between rules for ever; such a sheet is dropped and the message read.
+func TestAStyleSheetWithAStraySemicolonIsRead(t *testing.T) {
+	read := make(chan string, 1)
+	go func() {
+		san := sanitizer{}
+		out, err := san.sanitizeHTML([]byte(`<style>p{font-weight:bold}; b{text-align:center}</style><p>kept</p>`))
+		if err != nil {
+			t.Error(err)
+		}
+		read <- string(out)
+	}()
+	select {
+	case out := <-read:
+		if !strings.Contains(out, "kept") || strings.Contains(out, "font-weight") {
+			t.Errorf("the message reads %s", out)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the sheet was never read")
 	}
 }

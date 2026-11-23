@@ -32,19 +32,21 @@ from the mail password (ADR 5).
 6. A poppassd refusal is shown as a form alert with the server's text.
    A refusal before NEWPASS counts as a refused sign-in (ADR 30). A
    server that does not answer is a form alert.
-7. After NEWPASS succeeds:
+7. After NEWPASS succeeds, in this order:
    - the DAV password's random key is wrapped again under the new
      password with a new salt; one the old password did not open stays
      as it is (ADR 5);
+   - every other browser session of the account, live or remembered,
+     MUST be signed out before the new sign-in is tried. A session
+     whose notifications fail to end MUST still lose the account; a
+     failure is logged;
    - the account signs in with the new password and replaces its login
      in this browser;
    - where this browser remembered the account, it keeps the new
-     password;
-   - every other browser session of the account, live or remembered,
-     is signed out.
+     password.
 8. If the new sign-in fails, the alert says the password changed and
    the sign-in failed; the current login continues until it needs the
-   password again.
+   password again, and the other sessions stay signed out.
 
 ## Consequences
 
@@ -64,5 +66,6 @@ from the mail password (ADR 5).
 - alborz-passwd: https://github.com/alborzmail/passwd
 - `passwd.go` (`parsePasswdUpstream`, `ChangePassword`,
   `passwdServer.change`), `secret.go` (`rewrap`),
-  `settings/web/password.go`, `web/sessions.go` (`PasswordChanged`),
+  `settings/web/password.go`, `web/sessions.go` (`SignOutOthers`,
+  `PasswordChanged`, `Sessions.SignOut`),
   `pim/web/owndav.go` (`davPasswordLife`)

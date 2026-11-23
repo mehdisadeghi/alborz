@@ -47,6 +47,10 @@ func handlePassword(ctx *web.Context) error {
 		return err
 	}
 
+	// The password has changed, whether or not this browser signs in again.
+	if err := ctx.SignOutOthers(account); err != nil {
+		ctx.Logger().Printf("Signing the other browsers out of %q: %v", account, err)
+	}
 	login, err := ctx.Server.SignIn(account, next, ctx.RealIP())
 	if err != nil {
 		ctx.Logger().Printf("Signing in %q with the changed password: %v", account, err)

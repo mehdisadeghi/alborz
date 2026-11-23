@@ -67,6 +67,8 @@
   save.
 - An address signs in to one account however it is capitalised, so a password
   change signs out its sessions under every spelling.
+- A password change signs the account's other browsers out before this one
+  signs in again, so they are signed out even when that sign-in fails.
 
 ## [0.20.0] - 2026-10-31
 

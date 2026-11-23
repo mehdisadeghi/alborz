@@ -101,11 +101,9 @@ func (ss *Sessions) holdsLogin(id string, login *alborz.Login) bool {
 }
 
 // SignOut takes the account out of one browser, and its notifications with it; a browser left with none
-// is forgotten.
+// is forgotten. Notifications that would not end do not keep the browser signed in.
 func (ss *Sessions) SignOut(id, account string) error {
-	if err := ss.pushes.SignedOut(account, id); err != nil {
-		return err
-	}
+	pushErr := ss.pushes.SignedOut(account, id)
 	ss.mu.Lock()
 	s := ss.live[id]
 	if s != nil {
@@ -114,20 +112,20 @@ func (ss *Sessions) SignOut(id, account string) error {
 			s.Close()
 		}
 		if live, _ := s.Accounts(); len(live) == 0 && !s.remembered() {
-			return ss.delete(id)
+			return errors.Join(pushErr, ss.delete(id))
 		}
-		return ss.Save(s)
+		return errors.Join(pushErr, ss.Save(s))
 	}
 	defer ss.mu.Unlock()
 	rec, ok := ss.records.Load(id)
 	if !ok {
-		return nil
+		return pushErr
 	}
 	rec.Accounts = slices.DeleteFunc(rec.Accounts, func(a alborz.RememberedAccount) bool { return a.Address == account })
 	if len(rec.Accounts) == 0 {
-		return ss.records.Delete(id)
+		return errors.Join(pushErr, ss.records.Delete(id))
 	}
-	return ss.records.Save(rec)
+	return errors.Join(pushErr, ss.records.Save(rec))
 }
 
 // Device is a User-Agent reduced to a browser and a system, each "" when unrecognised.
@@ -157,29 +155,29 @@ func DeviceName(ua string) Device {
 
 // PasswordChanged puts login, signed in with the account's new password, in place of the
 // account's login in this browser and keeps the password where the old one was remembered.
-// Every other browser is signed out of the account: what it remembers opens with the old
-// password only, and it holds no secret of this browser to reseal it with.
 func (ctx *Context) PasswordChanged(login *alborz.Login, password string) error {
 	s, account := ctx.Session(), login.Username()
 	s.mu.Lock()
 	_, remembered := s.remember[account]
 	s.mu.Unlock()
 	ctx.AddAccount(login)
-	var rememberErr error
-	if remembered {
-		rememberErr = ctx.SetLoginToken(account, password)
+	if !remembered {
+		return nil
 	}
-	signed, err := ctx.Server.Sessions.SignedIn(account, s.ID)
+	return ctx.SetLoginToken(account, password)
+}
+
+// SignOutOthers signs every other browser out of the account: what one remembers opens with the
+// old password only, and it holds no secret of this browser to reseal it with.
+func (ctx *Context) SignOutOthers(account string) error {
+	signed, err := ctx.Server.Sessions.SignedIn(account, ctx.Session().ID)
 	if err != nil {
-		return errors.Join(rememberErr, err)
+		return err
 	}
 	for _, other := range signed {
-		if other.Current {
-			continue
-		}
-		if err := ctx.Server.Sessions.SignOut(other.ID, account); err != nil {
-			rememberErr = errors.Join(rememberErr, err)
+		if !other.Current {
+			err = errors.Join(err, ctx.Server.Sessions.SignOut(other.ID, account))
 		}
 	}
-	return rememberErr
+	return err
 }

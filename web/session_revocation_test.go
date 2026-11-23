@@ -79,23 +79,19 @@ type failedSessionSave struct {
 
 func (s failedSessionSave) Save(*alborz.SessionRecord) error { return s.err }
 
-func TestPasswordChangeRevokesOtherSessionsWhenRememberingFails(t *testing.T) {
+func TestPasswordChangeSignsOutOtherBrowsersWhenSavingFails(t *testing.T) {
 	server := rememberedServer(t, nil)
 	ctx := rememberedContext(t, server, "one@test.localdomain")
-	other := rememberedContext(t, server)
+	other := rememberedContext(t, server, "two@test.localdomain")
 	oldLogin, err := server.SignIn("one@test.localdomain", "password", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	other.session.add(oldLogin)
-	newLogin, err := server.SignIn("one@test.localdomain", "password", "")
-	if err != nil {
-		t.Fatal(err)
-	}
 	failed := errors.New("session store full")
 	server.Sessions.records = failedSessionSave{server.Sessions.records, failed}
-	if err := ctx.PasswordChanged(newLogin, "new password"); !errors.Is(err, failed) {
-		t.Fatalf("password change error: %v", err)
+	if err := ctx.SignOutOthers("one@test.localdomain"); !errors.Is(err, failed) {
+		t.Fatalf("signing the other browsers out: %v", err)
 	}
 	if oldLogin.Alive() || server.Sessions.Holds(other.session.ID, "one@test.localdomain") {
 		t.Fatal("failed persistence left another browser signed in after password change")

@@ -60,6 +60,24 @@ func TestPasswordChangeSignsOutEverySpelling(t *testing.T) {
 	}
 }
 
+// The other browsers are signed out once the password server takes the change, whether or not this one
+// signs in again (ADR 68).
+func TestPasswordChangeSignsOutOthersBeforeSigningInAgain(t *testing.T) {
+	// The password server changes the passwords of another mail server, so this one refuses the new one.
+	a := Alborz(t, WithIMAP(IMAP(t)), WithPasswd(Passwd(t, IMAP(t))))
+	here, other := a.SignIn(t, User), a.SignIn(t, User)
+	resp := here.Post(t, "settings.password", change(Password, "fresh-secret", "fresh-secret"))
+	if resp.StatusCode != http.StatusBadGateway || !Says(t, NoticeBar(resp.Text), "form.passwordsigninfailed", Any) {
+		t.Fatalf("%s, want 502 with form.passwordsigninfailed:\n%s", resp.Status, NoticeBar(resp.Text))
+	}
+	if to := other.Get(t, "settings.password").Header.Get("Location"); !strings.HasPrefix(to, a.Path("auth.login")) {
+		t.Errorf("the other browser was not signed out; it was sent to %q", to)
+	}
+	if resp := here.Get(t, "settings.password"); resp.StatusCode != http.StatusOK {
+		t.Errorf("the browser that changed the password lost its login: %s", resp.Status)
+	}
+}
+
 func TestPasswordChangeRefused(t *testing.T) {
 	imap := IMAP(t)
 	ln, err := net.Listen("tcp", "127.0.0.1:0")

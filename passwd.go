@@ -114,7 +114,7 @@ func (p passwdServer) change(user, current, next string) error {
 	}
 	conn, err := net.DialTimeout(p.network, p.addr, dialTimeout)
 	if err != nil {
-		return UpstreamError{Service: "password", cause: err}
+		return Unanswered("password", p.addr, "", 0, err)
 	}
 	defer conn.Close()
 	conn.SetDeadline(time.Now().Add(signInTimeout))
@@ -131,10 +131,10 @@ func (p passwdServer) change(user, current, next string) error {
 		}
 		var slow net.Error
 		if errors.As(err, &slow) && slow.Timeout() {
-			return UpstreamError{Service: "password", After: signInTimeout, cause: err}
+			return Unanswered("password", p.addr, "", signInTimeout, err)
 		}
 		if err != nil {
-			return UpstreamError{Service: "password", cause: err}
+			return Unanswered("password", p.addr, "", 0, err)
 		}
 		return nil
 	}

@@ -4,6 +4,7 @@ package dav
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -24,19 +25,21 @@ import (
 
 const requestTimeout = 10 * time.Second
 
-// unanswered names a server that dropped or refused the connection, or ran out the request's time, as one
-// that did not answer; the reader leaving, or a request refused before it left, stays as it was.
-func unanswered(req *http.Request, err error) error {
+// unanswered names account's server that dropped or refused the connection, showed a certificate not
+// trusted, or ran out the request's time, as one that did not answer; the reader leaving, or a request
+// refused before it left, stays as it was.
+func unanswered(req *http.Request, account string, err error) error {
 	var dropped net.Error
 	switch {
 	case errors.Is(err, context.DeadlineExceeded):
-		return alborz.Unanswered("dav", requestTimeout, err)
+		return alborz.Unanswered("dav", req.URL.Host, account, requestTimeout, err)
 	case errors.Is(err, context.Canceled) || req.Context().Err() != nil:
 		return err
 	case errors.As(err, &dropped) && dropped.Timeout():
-		return alborz.Unanswered("dav", requestTimeout, err)
-	case errors.As(err, &dropped), errors.Is(err, io.EOF), errors.Is(err, io.ErrUnexpectedEOF):
-		return alborz.Unanswered("dav", 0, err)
+		return alborz.Unanswered("dav", req.URL.Host, account, requestTimeout, err)
+	case errors.As(err, &dropped), errors.Is(err, io.EOF), errors.Is(err, io.ErrUnexpectedEOF),
+		errors.As(err, new(*tls.CertificateVerificationError)):
+		return alborz.Unanswered("dav", req.URL.Host, account, 0, err)
 	}
 	return err
 }
@@ -80,6 +83,7 @@ func (t failedTransport) RoundTrip(*http.Request) (*http.Response, error) { retu
 func (p *Provider) router(sources []Source, login *alborz.Login) sourceRouter {
 	return sourceRouter{
 		sources: sources,
+		account: login.Username(),
 		trusted: p.trusted,
 		named:   p.named,
 		sign: func(req *http.Request, src Source) error {
@@ -122,6 +126,8 @@ func IfUnchanged(etag string) webdav.ConditionalMatch {
 // It sits below the mirror, which keys by the marked path, so one path on two servers is two copies.
 type sourceRouter struct {
 	sources []Source
+	// account is whose requests these are, as a server that did not answer names it.
+	account string
 	// trusted dials the deployment's servers, named the account's own.
 	trusted, named http.RoundTripper
 	// sign puts the source's login on a request.
@@ -418,7 +424,7 @@ func (r sourceRouter) send(req *http.Request, src Source) (*http.Response, error
 			logDAVExchange(r.debug, req, resp, err)
 		}
 		if err != nil {
-			return nil, unanswered(req, err)
+			return nil, unanswered(req, r.account, err)
 		}
 		if resp.StatusCode == http.StatusUnauthorized {
 			resp.Body.Close()

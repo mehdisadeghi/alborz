@@ -73,13 +73,18 @@ func (s *Server) fail(ctx *Context, err error) {
 		}
 	}
 
+	s.Logger().Printf("%s %s: %v", ctx.Request().Method, ctx.Request().URL.Path, err)
 	// An upstream that did not answer is not this program failing, so it gets its own page rather than a 500.
 	if upstream, ok := errors.AsType[alborz.UpstreamError](err); ok {
+		// A piece's failure is shown in the notice, which takes a plain answer whole and a page not at all.
+		if ctx.Fragment() {
+			http.Error(ctx.Response(), ctx.Unanswered(upstream), http.StatusBadGateway)
+			return
+		}
 		if err := renderUpstreamDown(ctx, upstream); err == nil {
 			return
 		}
 	}
 
 	http.Error(ctx.Response(), fmt.Sprintf("%d %s", code, http.StatusText(code)), code)
-	s.Logger().Printf("%s %s: %v", ctx.Request().Method, ctx.Request().URL.Path, err)
 }

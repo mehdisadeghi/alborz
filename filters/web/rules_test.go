@@ -44,11 +44,42 @@ func TestAnUnreachableSieveServerIsABadGateway(t *testing.T) {
 	}
 	gone := ln.Addr().String()
 	ln.Close()
-	c := Alborz(t, Upstream(Domain, "sieve+insecure://"+gone)).SignIn(t, User)
+	a := Alborz(t, Upstream(Domain, "sieve+insecure://"+gone))
+	c := a.SignIn(t, User)
+	at := "\u2066" + User + "\u2069 (\u2066" + gone + "\u2069: " + T(t, "upstream.refused") + ")"
 	for _, route := range []string{"filters.rules", "filters.forwarding", "filters.autoreply"} {
-		if resp := c.Get(t, route, url.Values{"account": {User}}); resp.StatusCode != http.StatusBadGateway {
+		resp := c.Get(t, route, url.Values{"account": {User}})
+		if resp.StatusCode != http.StatusBadGateway {
 			t.Errorf("%s answered %s, want 502", route, resp.Status)
 		}
+		if !Says(t, resp.Text, "upstream.noanswer", T(t, "upstream.sieve"), at) {
+			t.Errorf("%s does not say which server did not answer, where and why", route)
+		}
+	}
+	// The list says it where the account's rows would be, and nothing of how alborz dialled.
+	if list := c.Get(t, "filters.list"); !Says(t, list.Text, "upstream.noanswer", T(t, "upstream.sieve"), at) || strings.Contains(list.Text, "dial tcp") {
+		t.Errorf("the list does not say which server did not answer, where and why: %q", AlertText(list.Text))
+	}
+	// Under All accounts each account's server is said, and the rail's warning names the filter server.
+	c.SignIn(t, User2)
+	merged := c.Get(t, "filters.list").Text
+	why := "\u2069 (\u2066" + gone + "\u2069: " + T(t, "upstream.refused") + ")"
+	if !Says(t, merged, "upstream.noanswer", T(t, "upstream.sieve"), "\u2066"+User2+why) || !Says(t, merged, "upstream.noanswer", T(t, "upstream.sieve"), at) {
+		t.Errorf("the merged list does not say both accounts' servers did not answer")
+	}
+	if bar := NoticeBar(merged); !Says(t, bar, "notice.unreachable", 1, T(t, "servers.filters"), "\u2066"+Any+why) || !strings.Contains(bar, User2) {
+		t.Errorf("the rail's warning does not name the filter server of %s: %s", User2, bar)
+	}
+	// A piece htmx asks for is answered in the plain text the notice shows whole.
+	req, err := http.NewRequest(http.MethodGet, a.URL+a.Path("filters.rules")+"?account="+url.QueryEscape(User), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("HX-Request", "true")
+	resp := c.Do(t, req)
+	if want := T(t, "upstream.noanswer", T(t, "upstream.sieve"), at); resp.StatusCode != http.StatusBadGateway ||
+		!strings.HasPrefix(resp.Header.Get("Content-Type"), "text/plain") || strings.TrimSpace(resp.Text) != want {
+		t.Errorf("the piece is %s %s %.200q, want 502 and %q", resp.Status, resp.Header.Get("Content-Type"), resp.Text, want)
 	}
 }
 

@@ -1,6 +1,7 @@
 package web_test
 
 import (
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -167,5 +168,21 @@ func TestRemovingLastRememberedAccountDeletesPersistedCredentials(t *testing.T) 
 	}
 	if got := len(restarted.Server.Logins()); got != 0 {
 		t.Errorf("restart authenticated %d removed accounts", got)
+	}
+}
+
+// A mail server that takes no connection is named in the sign-in's alert, with why.
+func TestSignInSaysWhichServerDidNotAnswer(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	gone := ln.Addr().String()
+	ln.Close()
+	a := Alborz(t, Upstream("elsewhere.local", "imap+insecure://"+gone))
+	resp := a.Client().Post(t, "auth.login", url.Values{"username": {Elsewhere}, "password": {Password}})
+	at := "\u2066" + Elsewhere + "\u2069 (\u2066" + gone + "\u2069: " + T(t, "upstream.refused") + ")"
+	if resp.StatusCode != http.StatusServiceUnavailable || !Says(t, NoticeBar(resp.Text), "upstream.noanswer", T(t, "upstream.mail"), at) {
+		t.Errorf("%s: %s", resp.Status, NoticeBar(resp.Text))
 	}
 }

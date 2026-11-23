@@ -69,7 +69,11 @@ func handleInvitationReply(ctx *web.Context) error {
 	back := ctx.NextOr(ctx.URL("mail.message", mboxName, uid))
 	subject := fmt.Sprintf(ctx.T("invite.subject"+strings.ToLower(status)), inv.Summary)
 	if err := mail.SendCalendarMessage(ctx.Request().Context(), ctx.Login, []string{inv.Organizer}, subject, reply); err != nil {
-		return ctx.NotifyRedirect(web.Notice{Kind: web.NoticeFailed, Text: fmt.Sprintf(ctx.T("form.sendrefused"), err)}, back)
+		text := fmt.Sprintf(ctx.T("form.sendrefused"), err)
+		if down, ok := errors.AsType[alborz.UpstreamError](err); ok {
+			text = ctx.Unanswered(down)
+		}
+		return ctx.NotifyRedirect(web.Notice{Kind: web.NoticeFailed, Text: text}, back)
 	}
 
 	return ctx.NoticeRedirect(ctx.T("invite.answered"), back)

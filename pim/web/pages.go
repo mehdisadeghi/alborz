@@ -226,7 +226,7 @@ func (pg Page) HandleCreate(p *dav.Provider, form func(*web.Context) (CreateForm
 			if errors.Is(err, dav.ErrNameTaken) {
 				message = ctx.Tf("form.nametaken", data.Name)
 			} else if errors.Is(err, dav.ErrPlaceDown) {
-				message = ctx.T("form.placedown")
+				message = placeDown(ctx, err)
 			}
 			return web.RenderRefused(ctx, "pim/collection-create", data, message)
 		}
@@ -752,9 +752,17 @@ func ImportRefusal(ctx *web.Context, err error) string {
 	case errors.Is(err, pim.ErrTooLarge):
 		return importTooLarge(ctx)
 	case errors.Is(err, dav.ErrPlaceDown):
-		return ctx.T("form.placedown")
+		return placeDown(ctx, err)
 	}
 	return Refusal(ctx, err)
+}
+
+// placeDown says that a new collection's place has no home: which server did not answer and why, where known.
+func placeDown(ctx *web.Context, err error) string {
+	if down, ok := errors.AsType[alborz.UpstreamError](err); ok {
+		return ctx.Unanswered(down)
+	}
+	return ctx.T("form.placedown")
 }
 
 // ImportData is the section's import page.

@@ -47,6 +47,9 @@
 - A quick-add event without a date goes on the day in view.
 - The calendar's New shows on the phone bar and opens on the day in view.
 - Copy and move no longer open on the collection the object is already in.
+- A server that did not answer is named with its service, host and account and
+  the cause: timed out, connection refused, name not found, certificate not
+  accepted, connection closed, or the time it asked to wait until.
 
 ## [0.20.0] - 2026-10-31
 

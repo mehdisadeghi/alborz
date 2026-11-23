@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"testing"
 	"time"
+
+	"git.mehdix.org/alborz"
 )
 
 func TestRetryAfterHeaderParse(t *testing.T) {
@@ -67,6 +69,31 @@ func TestThrottledReadAnswersAnErrorNamingWhen(t *testing.T) {
 	}
 	if resp != nil {
 		t.Fatal("a body came with the error")
+	}
+}
+
+// A certificate not trusted is a server that did not answer, named with its host and account.
+func TestAnUntrustedCertificateIsNoAnswer(t *testing.T) {
+	srv := httptest.NewTLSServer(http.NotFoundHandler())
+	defer srv.Close()
+	u, err := url.Parse(srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := sourceRouter{
+		sources: []Source{{ID: SourceDomain, URL: u}},
+		account: "a@example.org",
+		trusted: http.DefaultTransport,
+		sign:    func(*http.Request, Source) error { return nil },
+	}
+	req, err := http.NewRequestWithContext(context.Background(), "PROPFIND", Base().JoinPath("/@"+u.Host+"/cal/").String(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = r.RoundTrip(req)
+	down, ok := errors.AsType[alborz.UpstreamError](err)
+	if !ok || down.Why() != "certificate" || down.Host != u.Host || down.Account != "a@example.org" {
+		t.Fatalf("the certificate came back as %T %+v: %v", err, down, err)
 	}
 }
 

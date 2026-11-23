@@ -406,24 +406,19 @@ func redirectToLogin(ctx *Context) error {
 	return ctx.FoundRedirect(to)
 }
 
-// A reader told "internal error" checks their password, so this names the server and the wait.
+// A reader told "internal error" checks their password, so this names the server, where it is and why.
 func renderUpstreamDown(ctx *Context, cause alborz.UpstreamError) error {
 	type upstreamRenderData struct {
 		BaseRenderData
-		Service string
-		Seconds string
-		// Waited separates "no answer" from "no connection"; only the first has a number.
-		Waited bool
-		Retry  string
+		Said  string
+		Retry string
 	}
 	data := upstreamRenderData{
 		BaseRenderData: *NewBaseRenderData(ctx),
-		Service:        ctx.T("upstream." + cause.Service),
-		Seconds:        fmt.Sprintf("%d", int(cause.After.Seconds())),
-		Waited:         cause.After > 0,
+		Said:           ctx.Unanswered(cause),
 		Retry:          ctx.Request().URL.RequestURI(),
 	}
-	data.WithTitle(ctx.Tf("upstream.title", data.Service))
+	data.WithTitle(ctx.Tf("upstream.title", ctx.T("upstream."+cause.Service)))
 	return ctx.Render(http.StatusBadGateway, "upstream", &data)
 }
 

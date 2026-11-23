@@ -302,6 +302,10 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *mail.OutgoingMessage, opti
 			if errors.Is(err, mail.ErrSentMailboxMissing) {
 				return render(http.StatusServiceUnavailable, ctx.FormValue("signature"), ctx.T("form.sentmissing"))
 			}
+			// Only what went before the message left comes back here, so the form is kept to send again.
+			if down, ok := errors.AsType[alborz.UpstreamError](err); ok {
+				return render(http.StatusBadGateway, ctx.FormValue("signature"), ctx.Unanswered(down))
+			}
 			if no, ok := errors.AsType[mail.Refused](err); ok {
 				return render(http.StatusUnprocessableEntity, ctx.FormValue("signature"), fmt.Sprintf(ctx.T(no.Key), no.Err))
 			}

@@ -1,6 +1,7 @@
 package web_test
 
 import (
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -47,6 +48,12 @@ func TestPasswordChange(t *testing.T) {
 
 func TestPasswordChangeRefused(t *testing.T) {
 	imap := IMAP(t)
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	gone := ln.Addr().String()
+	ln.Close()
 	for _, c := range []struct {
 		name   string
 		opts   []Option
@@ -61,6 +68,8 @@ func TestPasswordChangeRefused(t *testing.T) {
 			http.StatusUnprocessableEntity, "form.passwordrefused", []any{"Server pam_chauthtok error 20, password not changed"}},
 		{"mismatch", []Option{WithPasswd(Passwd(t, imap))}, change(Password, "fresh-secret", "fresh-secrets"),
 			http.StatusUnprocessableEntity, "form.passwordmismatch", nil},
+		{"no answer", []Option{Upstream(Domain, "poppassd://"+gone)}, change(Password, "fresh-secret", "fresh-secret"),
+			http.StatusBadGateway, "upstream.noanswer", []any{T(t, "upstream.password"), "\u2066" + User + "\u2069 (\u2066" + gone + "\u2069: " + T(t, "upstream.refused") + ")"}},
 		{"no server", nil, change(Password, "fresh-secret", "fresh-secret"),
 			http.StatusUnprocessableEntity, "form.passwordunsupported", []any{Domain}},
 	} {

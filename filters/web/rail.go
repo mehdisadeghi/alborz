@@ -26,6 +26,7 @@ func rail(ctx *web.Context) map[string][]web.RailRow {
 	// Under All accounts, as settings' merged lists: the scripts of every account.
 	rows := map[string][]web.RailRow{web.MergedRows: {{Label: ctx.T("filters.title"), Href: ctx.Path("filters.list"), Active: ctx.URLAccount() == ""}}}
 	var down []string
+	troubles := map[string]error{}
 	for _, account := range sieveAccounts(ctx) {
 		login := ctx.LoginFor(account.Username)
 		scoped := account.Username == ctx.URLAccount()
@@ -37,7 +38,7 @@ func rail(ctx *web.Context) map[string][]web.RailRow {
 			return nil
 		})
 		if err != nil {
-			down = append(down, account.Username)
+			down, troubles[account.Username] = append(down, account.Username), err
 			ctx.Logger().Printf("rail %s filters: %v", account.Username, err)
 		}
 		row := func(label, at string) web.RailRow {
@@ -59,6 +60,6 @@ func rail(ctx *web.Context) map[string][]web.RailRow {
 		}
 		rows[account.Username] = append([]web.RailRow{scripts}, pages...)
 	}
-	ctx.Unreachable(ctx.T("servers.mail"), down, nil)
+	ctx.Unreachable(ctx.T("servers.filters"), down, troubles)
 	return rows
 }

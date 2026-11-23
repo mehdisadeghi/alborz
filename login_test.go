@@ -2,10 +2,16 @@ package alborz
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
+	"io"
+	"net"
+	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -188,5 +194,25 @@ func TestAFileIsRefusedUnderAnotherKeyOrFormat(t *testing.T) {
 	fernet := func(tx kv.Tx) error { return tx.Put(keyCheckKey, []byte("gAAAAABnAAAAAAAAAAAAAAAAAAAAAA==")) }
 	if err := check(sealer, fernet); err == nil || !strings.Contains(err.Error(), "earlier alborz") {
 		t.Fatalf("an earlier format: %v, want a refusal saying so", err)
+	}
+}
+
+func TestWhyNamesWhatKeptTheAnswer(t *testing.T) {
+	refused := &net.OpError{Op: "dial", Err: os.NewSyscallError("connect", syscall.ECONNREFUSED)}
+	for _, c := range []struct {
+		err  UpstreamError
+		want string
+	}{
+		{Unanswered("mail", "", "", RoundTripTimeout, errors.New("sieve command timed out")), "timeout"},
+		{Unanswered("dav", "", "", 0, context.DeadlineExceeded), "timeout"},
+		{Unanswered("mail", "", "", 0, refused), "refused"},
+		{Unanswered("mail", "", "", 0, &net.OpError{Op: "dial", Err: &net.DNSError{Name: "nowhere.invalid", IsNotFound: true}}), "noname"},
+		{Unanswered("dav", "", "", 0, &tls.CertificateVerificationError{Err: x509.UnknownAuthorityError{}}), "certificate"},
+		{Unanswered("dav", "", "", 0, io.ErrUnexpectedEOF), "closed"},
+		{Unanswered("mail", "", "", 0, errors.New("imap: bad greeting")), ""},
+	} {
+		if got := c.err.Why(); got != c.want {
+			t.Errorf("%v: why is %q, want %q", c.err, got, c.want)
+		}
 	}
 }

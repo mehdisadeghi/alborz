@@ -6,7 +6,6 @@ import (
 	"html/template"
 	"maps"
 	"math"
-	"net"
 	"net/http"
 	"net/url"
 	"slices"
@@ -230,11 +229,11 @@ func (ctx *Context) SignInRefusal(err error) (string, int) {
 	if baseline, ok := errors.AsType[alborz.BaselineError](err); ok {
 		return fmt.Sprintf(ctx.T("notice.loginerror"), baseline.Error()), http.StatusBadGateway
 	}
-	if dial, ok := errors.AsType[*net.OpError](err); ok {
-		return fmt.Sprintf(ctx.T("notice.loginerror"), dial.Err), http.StatusServiceUnavailable
-	}
 	if upstream, ok := errors.AsType[alborz.UpstreamError](err); ok {
-		return fmt.Sprintf(ctx.T("notice.loginerror"), upstream.Error()), http.StatusGatewayTimeout
+		if upstream.After == 0 {
+			return ctx.Unanswered(upstream), http.StatusServiceUnavailable
+		}
+		return ctx.Unanswered(upstream), http.StatusGatewayTimeout
 	}
 	return "", http.StatusInternalServerError
 }

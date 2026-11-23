@@ -7,6 +7,7 @@ import (
 	"html"
 	"io"
 	"math/rand/v2"
+	"net"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -793,4 +794,21 @@ func headOf(s string) string {
 		return s[:500]
 	}
 	return s
+}
+
+// An SMTP server that takes no connection did not answer, which the form says with its host and why;
+// it is not the server's refusal.
+func TestUnansweredSendSaysWhichServer(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	gone := ln.Addr().String()
+	ln.Close()
+	c := Alborz(t, Upstream(Domain, "smtp+insecure://"+gone)).SignIn(t, User)
+	resp := c.Compose(t, c.Page(t, "mail.compose"), nil, "mail.compose")
+	at := "\u2066" + User + "\u2069 (\u2066" + gone + "\u2069: " + T(t, "upstream.refused") + ")"
+	if notice := NoticeBar(resp.Text); resp.StatusCode != http.StatusBadGateway || !Says(t, notice, "upstream.noanswer", T(t, "upstream.smtp"), at) {
+		t.Errorf("%s: %s", resp.Status, notice)
+	}
 }

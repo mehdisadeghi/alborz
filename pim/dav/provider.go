@@ -585,7 +585,7 @@ func (p *Provider) Create(ctx context.Context, login *alborz.Login, name, color,
 	}
 	home, err := HomeFor(p.homes(ctx, login), place)
 	if err != nil {
-		return "", err
+		return "", p.placeDown(ctx, login, place, err)
 	}
 	client := p.HTTPClient(ctx, login)
 	path, err := CreateCollection(ctx, home, name, p.Kind.Unnamed, func(ctx context.Context, path string) error {
@@ -636,6 +636,21 @@ func (p *Provider) DefaultPlace(ctx context.Context, s *alborz.Login) string {
 
 // ErrPlaceDown refuses a new collection whose place has no home; any other home would be unasked for.
 var ErrPlaceDown = errors.New("the place asked for has no home")
+
+// placeDown is err with what kept the place's server from naming a home, where that was its silence.
+func (p *Provider) placeDown(ctx context.Context, login *alborz.Login, place string, err error) error {
+	for _, src := range p.Sources(ctx, login) {
+		if src.ID != place {
+			continue
+		}
+		for _, trouble := range p.Troubles(login.Username()) {
+			if down, ok := errors.AsType[alborz.UpstreamError](trouble); ok && down.Host == src.URL.Host {
+				return fmt.Errorf("%w: %w", err, down)
+			}
+		}
+	}
+	return err
+}
 
 // HomeFor is the home on the place asked for.
 func HomeFor(homes []Home, place string) (string, error) {

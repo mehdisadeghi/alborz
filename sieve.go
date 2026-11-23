@@ -130,7 +130,7 @@ func (s *Server) dialSieve(domain, username, password string) (SieveClient, erro
 	// cost very different amounts against a remote proxy.
 	conn, err := net.DialTimeout("tcp", d.sieve.host, dialTimeout)
 	if err != nil {
-		return nil, sieveDown(err, dialTimeout)
+		return nil, sieveDown(err, dialTimeout, d.sieve.host, username)
 	}
 	step := func() { conn.SetDeadline(time.Now().Add(RoundTripTimeout)) }
 
@@ -138,14 +138,14 @@ func (s *Server) dialSieve(domain, username, password string) (SieveClient, erro
 	c, err := managesieve.NewClient(conn, host)
 	if err != nil {
 		conn.Close()
-		return nil, sieveDown(err, RoundTripTimeout)
+		return nil, sieveDown(err, RoundTripTimeout, d.sieve.host, username)
 	}
 
 	if !d.sieve.insecure {
 		step()
 		if err := c.StartTLS(&tls.Config{ServerName: host}); err != nil {
 			c.Close()
-			return nil, sieveDown(fmt.Errorf("STARTTLS failed: %w", err), RoundTripTimeout)
+			return nil, sieveDown(fmt.Errorf("STARTTLS failed: %w", err), RoundTripTimeout, d.sieve.host, username)
 		}
 	}
 
@@ -159,13 +159,13 @@ func (s *Server) dialSieve(domain, username, password string) (SieveClient, erro
 	return &sieveClient{c}, nil
 }
 
-// sieveDown is a server that took no connection, or gave no answer within budget.
-func sieveDown(err error, budget time.Duration) error {
+// sieveDown is account's server at host that took no connection, or gave no answer within budget.
+func sieveDown(err error, budget time.Duration, host, account string) error {
 	var slow net.Error
 	if errors.As(err, &slow) && slow.Timeout() {
-		return UpstreamError{Service: "sieve", After: budget, cause: err}
+		return Unanswered("sieve", host, account, budget, err)
 	}
-	return UpstreamError{Service: "sieve", cause: err}
+	return Unanswered("sieve", host, account, 0, err)
 }
 
 // sieveClient adapts go.guido-berhoerster.org/managesieve to SieveClient.

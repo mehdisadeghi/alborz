@@ -2,6 +2,7 @@ package alborz
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -44,23 +45,53 @@ const (
 // UpstreamError is a server that did not answer, as distinct from alborz failing.
 type UpstreamError struct {
 	Service string
+	// Host and Account are the server and whose request it was, where the caller knew them.
+	Host, Account string
 	// After zero means the connection was refused or the host not found.
 	After time.Duration
 	cause error
 }
 
 func (err UpstreamError) Error() string {
-	if err.After == 0 {
-		return fmt.Sprintf("could not reach the %s server: %v", err.Service, err.cause)
+	at := err.Service + " server"
+	if err.Host != "" {
+		at += " " + err.Host
 	}
-	return fmt.Sprintf("%s server did not answer within %v: %v", err.Service, err.After, err.cause)
+	if err.Account != "" {
+		at += " for " + err.Account
+	}
+	if err.After == 0 {
+		return fmt.Sprintf("could not reach the %s: %v", at, err.cause)
+	}
+	return fmt.Sprintf("%s did not answer within %v: %v", at, err.After, err.cause)
 }
 
 func (err UpstreamError) Unwrap() error { return err.cause }
 
-// Unanswered is a server of service that took no connection, after zero, or gave no answer within after.
-func Unanswered(service string, after time.Duration, cause error) UpstreamError {
-	return UpstreamError{Service: service, After: after, cause: cause}
+// Why names what kept the answer away, "timeout", "refused", "noname", "certificate" or "closed", for a
+// reader to act on; "" when the cause is none of these.
+func (err UpstreamError) Why() string {
+	var name *net.DNSError
+	var slow net.Error
+	switch {
+	case errors.As(err.cause, new(*tls.CertificateVerificationError)):
+		return "certificate"
+	case errors.As(err.cause, &name) && name.IsNotFound:
+		return "noname"
+	case errors.Is(err.cause, syscall.ECONNREFUSED):
+		return "refused"
+	case err.After > 0, errors.Is(err.cause, context.DeadlineExceeded), errors.As(err.cause, &slow) && slow.Timeout():
+		return "timeout"
+	case errors.Is(err.cause, io.EOF), errors.Is(err.cause, io.ErrUnexpectedEOF), errors.Is(err.cause, syscall.ECONNRESET):
+		return "closed"
+	}
+	return ""
+}
+
+// Unanswered is account's server of service at host that took no connection, after zero, or gave no
+// answer within after.
+func Unanswered(service, host, account string, after time.Duration, cause error) UpstreamError {
+	return UpstreamError{Service: service, Host: host, Account: account, After: after, cause: cause}
 }
 
 // BaselineError says the mail server speaks neither IMAP4rev1 nor IMAP4rev2.
@@ -167,7 +198,7 @@ func (l *Login) WatchIMAP(onChange func(), onFlags func(seqNum uint32, flags []i
 	if err != nil || timedOut {
 		c.Close()
 		if timedOut {
-			return nil, UpstreamError{Service: "mail", After: RoundTripTimeout, cause: err}
+			return nil, UpstreamError{Service: "mail", Account: l.username, After: RoundTripTimeout, cause: err}
 		}
 		return nil, AuthError{err}
 	}
@@ -228,10 +259,10 @@ const (
 	IMAPScan
 )
 
-func waitError(err error, bound time.Duration) error {
+func (l *Login) waitError(err error, bound time.Duration) error {
 	switch {
 	case errors.Is(err, context.DeadlineExceeded):
-		return UpstreamError{Service: "mail", After: bound, cause: err}
+		return UpstreamError{Service: "mail", Account: l.username, After: bound, cause: err}
 	case errors.Is(err, ErrIMAPQueueFull):
 		return err
 	}
@@ -250,7 +281,7 @@ func (l *Login) DoIMAPWork(ctx context.Context, class IMAPClass, bound time.Dura
 	err = queue.acquire(waiting, l.Done(), class == IMAPBackground)
 	AddTiming(ctx, "imap_queue", start)
 	if err != nil {
-		return waitError(err, bound)
+		return l.waitError(err, bound)
 	}
 	defer queue.release()
 	// A gone reader is a cancellation; a queue timeout is reported as the server's.
@@ -272,7 +303,7 @@ func (l *Login) DoIMAPWork(ctx context.Context, class IMAPClass, bound time.Dura
 		}
 	}()
 	if err := ctx.Err(); err != nil {
-		return waitError(err, bound)
+		return l.waitError(err, bound)
 	}
 	start = time.Now()
 	defer func() { AddTiming(ctx, "imap_work", start) }()
@@ -299,7 +330,7 @@ func (l *Login) DoIMAPWork(ctx context.Context, class IMAPClass, bound time.Dura
 		if !stop() {
 			<-stopped
 			*conn = nil
-			err = waitError(ctx.Err(), bound)
+			err = l.waitError(ctx.Err(), bound)
 		}
 	}()
 	return f(c)
@@ -369,6 +400,10 @@ type idleTransfer struct {
 // DoSMTP executes an SMTP operation on this login; the client is valid only inside f.
 func (l *Login) DoSMTP(f func(*smtp.Client) error) error {
 	c, err := l.manager.dialSMTP(l.domain)
+	if down, ok := errors.AsType[UpstreamError](err); ok {
+		down.Account = l.username
+		return down
+	}
 	if err != nil {
 		return err
 	}
@@ -401,7 +436,7 @@ func (l *Login) DoSieve(f func(SieveClient) error) error {
 		err := f(c)
 		if !watchdog.Stop() {
 			timedOut = true
-			return UpstreamError{Service: "sieve", After: RoundTripTimeout, cause: errors.New("sieve command timed out")}
+			return UpstreamError{Service: "sieve", Account: l.username, After: RoundTripTimeout, cause: errors.New("sieve command timed out")}
 		}
 		return err
 	}
@@ -601,7 +636,7 @@ func (sm *loginManager) connectIMAPContext(ctx context.Context, dial dialIMAPFun
 		if _, ok := errors.AsType[UnknownDomainError](err); ok {
 			return nil, err
 		}
-		return nil, UpstreamError{Service: "mail", cause: err}
+		return nil, UpstreamError{Service: "mail", Account: username, cause: err}
 	}
 
 	stopped := make(chan struct{})
@@ -609,14 +644,14 @@ func (sm *loginManager) connectIMAPContext(ctx context.Context, dial dialIMAPFun
 	err = c.Login(username, password).Wait()
 	if !stop() {
 		<-stopped
-		return nil, UpstreamError{Service: "mail", After: within, cause: ctx.Err()}
+		return nil, UpstreamError{Service: "mail", Account: username, After: within, cause: ctx.Err()}
 	}
 	if err != nil {
 		c.Close()
 		if _, ok := errors.AsType[*imap.Error](err); ok {
 			return nil, AuthError{err}
 		}
-		return nil, UpstreamError{Service: "mail", cause: err}
+		return nil, UpstreamError{Service: "mail", Account: username, cause: err}
 	}
 	if caps := c.Caps(); !caps.Has(imap.CapIMAP4rev1) && !caps.Has(imap.CapIMAP4rev2) {
 		c.Logout()

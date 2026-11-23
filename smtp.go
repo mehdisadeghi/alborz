@@ -14,10 +14,8 @@ func (s *Server) dialSMTP(domain string) (*smtp.Client, error) {
 
 	var c *smtp.Client
 	var err error
-	kind := "SMTP"
 	switch {
 	case d.smtp.tls:
-		kind = "SMTPS"
 		c, err = smtp.DialTLS(d.smtp.host, nil)
 	case !d.smtp.insecure:
 		c, err = smtp.DialStartTLS(d.smtp.host, nil)
@@ -25,7 +23,7 @@ func (s *Server) dialSMTP(domain string) (*smtp.Client, error) {
 		c, err = smtp.Dial(d.smtp.host)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to %s server: %v", kind, err)
+		return nil, Unanswered("smtp", d.smtp.host, "", 0, err)
 	}
 
 	return c, nil

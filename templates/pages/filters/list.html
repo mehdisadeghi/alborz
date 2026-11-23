@@ -12,10 +12,10 @@
       {{ range .Groups }}
       {{ $label := $.GlobalData.AccountLabel .Account }}
       {{ $account := .Account }}
-      {{ with .Unreachable }}
+      {{ if .Unreachable }}
       <div class="alert" role="alert">
-        <div class="record-label"><strong>{{$.T "filters.unreachable"}}</strong>{{ if $.GlobalData.Unified }}<span class="row-meta">{{ template "account-label" (dict "label" $label "account" $account) }}</span>{{ end }}</div>
-        <p class="code">{{.}}</p>
+        <div class="record-label"><strong>{{ if .Unanswered }}{{.Unreachable}}{{ else }}{{$.T "filters.unreachable"}}{{ end }}</strong>{{ if $.GlobalData.Unified }}<span class="row-meta">{{ template "account-label" (dict "label" $label "account" $account) }}</span>{{ end }}</div>
+        {{ if not .Unanswered }}<p class="code">{{.Unreachable}}</p>{{ end }}
       </div>
       {{ end }}
       {{ end }}

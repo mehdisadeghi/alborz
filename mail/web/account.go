@@ -265,7 +265,11 @@ func (p *plugin) handleSettings(ctx *web.Context) error {
 	storage, err := settingsStorage(ctx)
 	if err != nil {
 		ctx.Logger().Printf("settings: listing what %s keeps: %v", ctx.Login.Username(), err)
-		ctx.Notify(web.Notice{Kind: web.NoticeWarning, Text: ctx.T("notice.noanswer")})
+		text := ctx.T("notice.noanswer")
+		if down, ok := errors.AsType[alborz.UpstreamError](err); ok {
+			text = ctx.Unanswered(down)
+		}
+		ctx.Notify(web.Notice{Kind: web.NoticeWarning, Text: text})
 		storage = SettingsStorage{}
 	}
 

@@ -42,7 +42,7 @@ func handlePassword(ctx *web.Context) error {
 		return render(http.StatusUnprocessableEntity, fmt.Sprintf(ctx.T("form.passwordrefused"), refusal.Text))
 	case errors.As(err, &upstream):
 		ctx.Logger().Printf("Password change for %q: %v", account, err)
-		return render(http.StatusBadGateway, ctx.T("form.passwordnoanswer"))
+		return render(http.StatusBadGateway, ctx.Unanswered(upstream))
 	case err != nil:
 		return err
 	}

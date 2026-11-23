@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
-	"net"
 	"net/url"
 	"strings"
 	"time"
@@ -48,25 +47,26 @@ const NoticeCooldown = 15 * time.Minute
 
 // Unreachable warns which accounts' servers did not answer, each said once per
 // session's notice cooldown, so a page's visits do not repeat it. kind names
-// the service as a reader calls it, and hosts names each account's server's
-// host when the caller knows it; what it does not know falls back to the
-// account's mail server's host.
-func (ctx *Context) Unreachable(kind string, accounts []string, hosts map[string]string) {
+// the service as a reader calls it, and troubles holds what kept each
+// account's server away when the caller knows it, for its host and why; a
+// host it does not name falls back to the account's mail server's host.
+func (ctx *Context) Unreachable(kind string, accounts []string, troubles map[string]error) {
 	// What an action said is never replaced by what a page came across.
 	if len(accounts) == 0 || ctx.NoticeWaiting() {
 		return
 	}
-	type said struct{ name, at string }
+	type said struct{ name, where string }
 	var told []said
 	for _, name := range accounts {
 		if !ctx.Session().OnceFor("unreachable:"+name, NoticeCooldown) {
 			continue
 		}
-		at, known := hosts[name]
-		if !known {
-			at = ctx.mailHost(name)
+		down, _ := errors.AsType[alborz.UpstreamError](troubles[name])
+		at := down.Host
+		if at == "" {
+			at = ctx.upstreamHost("mail", name)
 		}
-		told = append(told, said{name, at})
+		told = append(told, said{name, ctx.where(at, down.Why())})
 	}
 	if len(told) == 0 {
 		return
@@ -74,31 +74,54 @@ func (ctx *Context) Unreachable(kind string, accounts []string, hosts map[string
 	shown := make([]string, len(told))
 	linked := make([]string, len(told))
 	for i, s := range told {
-		at := ""
-		if s.at != "" {
-			at = fmt.Sprintf(" (%s)", s.at)
-		}
-		shown[i] = s.name + at
-		linked[i] = NoticeLink(s.name, ctx.Path("mail.account")+"?account="+QueryValue(s.name)) + at
+		shown[i] = isolated(s.name) + s.where
+		linked[i] = isolated(NoticeLink(s.name, ctx.Path("mail.account")+"?account="+QueryValue(s.name))) + template.HTMLEscapeString(s.where)
 	}
 	ctx.NotifyBackground(Notice{Kind: NoticeWarning,
 		Text:   ctx.Tf("notice.unreachable", len(told), kind, strings.Join(shown, ", ")),
 		Markup: template.HTML(ctx.Tf("notice.unreachable", len(told), kind, strings.Join(linked, ", ")))})
 }
 
-// mailHost names the account's mail server's host, as the server's upstreams
-// hold it; "" when it is not known.
-func (ctx *Context) mailHost(name string) string {
-	login := ctx.LoginFor(name)
-	if login == nil {
-		return ""
-	}
-	at := ctx.Server.UpstreamsFor(login.Domain()).IMAP
-	if host, _, err := net.SplitHostPort(at); err == nil {
-		return host
-	}
-	return at
+// upstreamHost names the host of the account's server for service, as the
+// server's upstreams hold it; "" when it is not known.
+func (ctx *Context) upstreamHost(service, account string) string {
+	_, domain, _ := strings.Cut(account, "@")
+	upstreams := ctx.Server.UpstreamsFor(domain)
+	return map[string]string{"mail": upstreams.IMAP, "sieve": upstreams.Sieve}[service]
 }
+
+// Unanswered says which server did not answer for which account, where it
+// is and why, with its identifiers isolated by character, as a notice's text
+// and a plain answer cannot hold a bdi.
+func (ctx *Context) Unanswered(err alborz.UpstreamError) string {
+	account, host := err.Account, err.Host
+	if account == "" && ctx.Login != nil {
+		account = ctx.Login.Username()
+	}
+	if host == "" {
+		host = ctx.upstreamHost(err.Service, account)
+	}
+	return ctx.Tf("upstream.noanswer", ctx.T("upstream."+err.Service), isolated(account)+ctx.where(host, err.Why()))
+}
+
+// where follows an account whose server did not answer: the server's host,
+// and why it did not answer where that is known.
+func (ctx *Context) where(host, why string) string {
+	if why != "" {
+		why = ctx.T("upstream." + why)
+	}
+	switch {
+	case host != "" && why != "":
+		return " (" + isolated(host) + ": " + why + ")"
+	case host != "":
+		return " (" + isolated(host) + ")"
+	case why != "":
+		return " (" + why + ")"
+	}
+	return ""
+}
+
+func isolated(s string) string { return "\u2066" + s + "\u2069" }
 
 // NoticeName marks a name inside a notice for the page to quote and truncate.
 func NoticeName(name string) string {

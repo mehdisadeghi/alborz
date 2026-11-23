@@ -41,6 +41,8 @@ type AccountFilters struct {
 	Explained  []web.Explained
 	// Unreachable is the filter server's refusal, shown on the page rather than as an error.
 	Unreachable string
+	// Unanswered says Unreachable is which server did not answer and why, not the server's words.
+	Unanswered bool
 }
 
 type FilterRenderData struct {
@@ -142,6 +144,9 @@ func handleListFilters(ctx *web.Context) error {
 			// An unreachable filter server is news about that server, not a fault here.
 			ctx.Logger().Printf("failed to list sieve scripts on %s: %v", group.Server, err)
 			group.Unreachable = err.Error()
+			if down, ok := errors.AsType[alborz.UpstreamError](err); ok {
+				group.Unreachable, group.Unanswered = ctx.Unanswered(down), true
+			}
 			unreachable++
 		}
 		data.Groups = append(data.Groups, group)

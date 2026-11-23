@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"strings"
 
+	"git.mehdix.org/alborz"
 	"git.mehdix.org/alborz/pim/dav"
 	"git.mehdix.org/alborz/web"
 )
@@ -127,11 +128,19 @@ func card(ctx *web.Context, p *dav.Provider, servers *web.Servers, title string,
 	if servers.Showing == web.ServerDAV {
 		endpoint, _ := url.Parse(src.Endpoint())
 		found, err := dav.Describe(ctx.Request().Context(), p.HTTPClient(ctx.Request().Context(), ctx.Login), endpoint)
-		// An unreachable server is said on the page, not failed over.
+		// An unreachable server is said on the page, not failed over, with why in the reader's words.
 		if err != nil {
+			why := err.Error()
+			if down, ok := errors.AsType[alborz.UpstreamError](err); ok {
+				ctx.Logger().Printf("servers: %v", err)
+				why = "—"
+				if down.Why() != "" {
+					why = ctx.T("upstream." + down.Why())
+				}
+			}
 			card.Rows = []map[string]any{
 				{"label": ctx.T("settings.serverhost"), "value": host},
-				{"label": ctx.T("settings.serverunreachable"), "value": err.Error()},
+				{"label": ctx.T("settings.serverunreachable"), "value": why},
 			}
 		} else {
 			card.Rows = []map[string]any{

@@ -26,15 +26,18 @@ func Pooled[C any](ctx *web.Context, p *dav.Provider, load func(context.Context,
 	var accounts []pim.Account[C]
 	var lastErr error
 	var down, refused []string
-	// answered counts servers that refused other than over the password.
+	// answered counts servers that refused other than over the password, and waits when a throttle asked to be asked again.
 	answered := map[string]int{}
+	waits := map[string]time.Time{}
 	// hosts is, per account, the host of its first server, as the notices name it.
 	hosts := map[string]string{}
+	// troubles is, per account down, what kept its server away.
+	troubles := map[string]error{}
 	fail := func(s *alborz.Login, err error) {
 		// A throttle names the server that answered and the status it gave.
 		var throttle *dav.ThrottledError
 		if errors.As(err, &throttle) {
-			hosts[s.Username()], answered[s.Username()] = throttle.Host, throttle.StatusCode
+			hosts[s.Username()], answered[s.Username()], waits[s.Username()] = throttle.Host, throttle.StatusCode, throttle.At
 			return
 		}
 		if _, ok := hosts[s.Username()]; !ok {
@@ -46,6 +49,10 @@ func Pooled[C any](ctx *web.Context, p *dav.Provider, load func(context.Context,
 		}
 		if !slices.Contains(down, s.Username()) {
 			down = append(down, s.Username())
+			if _, ok := errors.AsType[alborz.UpstreamError](err); !ok {
+				err = alborz.Unanswered("dav", hosts[s.Username()], s.Username(), 0, err)
+			}
+			troubles[s.Username()] = err
 		}
 	}
 	// A refusal stands until the reader changes something, so it is said once per browser.
@@ -131,6 +138,9 @@ func Pooled[C any](ctx *web.Context, p *dav.Provider, load func(context.Context,
 		status := fmt.Sprintf("%d %s", code, http.StatusText(code))
 		args := []any{p.Kind.Label, username, hosts[username], status}
 		key, action := "notice.davanswered", &web.NoticeAction{Label: ctx.T("settings.account"), Path: web.AccountURL(ctx.Path("mail.account"), username)}
+		if at := waits[username]; !at.IsZero() {
+			key, args = "notice.davwait", append(args, ctx.Dates().Clock(at))
+		}
 		// A 403 stays a permission answer, with the way to the password beside it.
 		if code == http.StatusForbidden {
 			key, args, action = "notice.davforbidden", []any{username, status}, &web.NoticeAction{Label: ctx.T("servers.dav"), Path: web.AccountURL(ctx.Path("pim.server"), username)}
@@ -139,7 +149,7 @@ func Pooled[C any](ctx *web.Context, p *dav.Provider, load func(context.Context,
 			Text:    fmt.Sprintf(ctx.T(key), args...),
 			Actions: []*web.NoticeAction{action}})
 	}
-	ctx.Unreachable(p.Kind.Label, down, hosts)
+	ctx.Unreachable(p.Kind.Label, down, troubles)
 	return accounts, nil
 }
 

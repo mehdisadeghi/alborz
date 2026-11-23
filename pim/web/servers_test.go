@@ -2,6 +2,7 @@ package web_test
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -79,5 +80,19 @@ func TestAStaleServerFormKeepsAnotherBrowsersSave(t *testing.T) {
 		if s.Default != "own" {
 			t.Errorf("the stale tab's default is gone: %+v", s)
 		}
+	}
+}
+
+// A DAV server that took no connection is said on its card in the reader's words, not alborz's.
+func TestAServerCardSaysWhyItDidNotAnswer(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	gone := ln.Addr().String()
+	ln.Close()
+	page := Alborz(t, Upstream(Domain, "caldav+insecure://"+gone+"/dav")).SignIn(t, User).Page(t, "pim.server")
+	if !Says(t, page, "upstream.refused") || strings.Contains(page, "dial tcp") {
+		t.Errorf("the card does not say why its server did not answer:\n%s", Between(page, T(t, "settings.serverunreachable"), "</dd>"))
 	}
 }

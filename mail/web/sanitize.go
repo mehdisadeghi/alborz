@@ -282,12 +282,7 @@ func (san *sanitizer) sanitizeNode(n *html.Node) {
 				attr.Val = san.sanitizeImageURL(attr.Val)
 			}
 			if strings.EqualFold(attr.Key, "style") {
-				// douceur reads an unterminated last value as empty and rejects ";;".
-				value := strings.TrimSpace(attr.Val)
-				if value != "" && !strings.HasSuffix(value, ";") {
-					value += ";"
-				}
-				decls, err := cssparser.ParseDeclarations(value)
+				decls, err := cssparser.ParseDeclarations(attr.Val)
 				if err != nil {
 					attr.Val = ""
 					continue

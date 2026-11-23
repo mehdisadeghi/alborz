@@ -50,6 +50,8 @@
 - A server that did not answer is named with its service, host and account and
   the cause: timed out, connection refused, name not found, certificate not
   accepted, connection closed, or the time it asked to wait until.
+- An inline style with an empty declaration, as in `color:red;;`, is kept; it
+  used to be dropped whole.
 
 ## [0.20.0] - 2026-10-31
 

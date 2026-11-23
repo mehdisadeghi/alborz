@@ -75,3 +75,17 @@ func TestAStyleSheetWithAStraySemicolonIsRead(t *testing.T) {
 		t.Fatal("the sheet was never read")
 	}
 }
+
+// Mail writes the last declaration of a style attribute with no ";" after it, and now and then two.
+func TestAnInlineStyleIsReadAsWritten(t *testing.T) {
+	san := sanitizer{}
+	out, err := san.sanitizeHTML([]byte(`<p style="font-weight:bold;;text-align:center">x</p>`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, kept := range []string{"font-weight: bold", "text-align: center"} {
+		if !strings.Contains(string(out), kept) {
+			t.Errorf("the style lost %q: %s", kept, out)
+		}
+	}
+}

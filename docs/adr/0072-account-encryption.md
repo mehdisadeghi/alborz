@@ -35,6 +35,11 @@ collections, published calendars and DAV clients.
    `alborz.keys/<keyed account>`: public key in the clear, private key
    sealed under the account key when encryption is on or the instance
    key when off.
+   A pair going under an account key it was not under is replaced; the
+   record of the new pair keeps the replaced one as retired until every
+   wrap to it is made again. The keyring MUST NOT give out a new pair,
+   or the account key it is sealed under, before its record is written;
+   where the write fails the account keeps the pair and key it had.
 5. The opened account key is held in memory while an account login is
    alive (including logins kept for push devices, ADR 74) and for
    5 minutes after a DAV client request whose mail password or unscoped

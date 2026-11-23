@@ -118,3 +118,47 @@ func TestANewKeyRetiresThePair(t *testing.T) {
 		t.Fatal("a wrap to the retired pair opens after the account settled")
 	}
 }
+
+type refusingWrites struct {
+	kv.DB
+	err error
+}
+
+func (d refusingWrites) Update(func(kv.Tx) error) error { return d.err }
+
+// A pair whose write failed is not the account's: nothing is wrapped to a key the file does not hold. The
+// next try writes one, and the pair it replaces stays retired in its record.
+func TestAPairIsTheAccountsOnceWritten(t *testing.T) {
+	r, db := ring(t)
+	first, second := bytes.Repeat([]byte{7}, seal.KeySize), bytes.Repeat([]byte{8}, seal.KeySize)
+	if _, err := r.Hold("a", first, true); err != nil {
+		t.Fatal(err)
+	}
+	was := r.ID("a")
+	w, _, _ := r.Wrap("a", []byte("k"), "i")
+	failed := errors.New("disk full")
+	r.db = refusingWrites{db, failed}
+	if _, err := r.Hold("a", second, true); !errors.Is(err, failed) {
+		t.Fatalf("Hold = %v, want %v", err, failed)
+	}
+	if own, _ := r.Own("a"); r.ID("a") != was || !bytes.Equal(own, first) || r.accounts["a"].holds != 1 {
+		t.Fatal("a pair that was not written took the account's place")
+	}
+	r.db = db
+	if err := r.Turn("a", second, true); err != nil {
+		t.Fatal(err)
+	}
+	again, err := New(db, r.root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := again.Hold("a", second, true); err != nil {
+		t.Fatal(err)
+	}
+	if again.ID("a") == was || again.ID("a") != r.ID("a") {
+		t.Fatal("read again, the file holds another pair than the ring gave out")
+	}
+	if _, ok := again.Unwrap(map[string]Wrap{"a": w}, "i"); !ok {
+		t.Fatal("read again, a wrap to the replaced pair does not open")
+	}
+}

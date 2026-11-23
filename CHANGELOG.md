@@ -80,6 +80,9 @@
 - An account key kept in alborz's own file that no longer reads signs the
   account in locked, as one kept on the mail server does, instead of counting
   as no key.
+- An account's new key pair is used only once it is written to the data file,
+  so a failed write leaves nothing sealed to a key that is lost at the next
+  start.
 
 ## [0.20.0] - 2026-10-31
 

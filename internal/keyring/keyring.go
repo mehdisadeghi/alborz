@@ -8,6 +8,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"maps"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -227,31 +229,53 @@ func (r *Ring) Hold(name string, own []byte, on bool) (release func(), err error
 func (r *Ring) Turn(name string, own []byte, on bool) error { return r.turn(name, own, on, false) }
 
 func (r *Ring) turn(name string, own []byte, on, hold bool) error {
+	return r.change(name, func(a *account) (bool, error) {
+		if own != nil {
+			if a.own != nil && *a.own != [seal.KeySize]byte(own) {
+				a.old = append(a.old, *a.own)
+			}
+			k := [seal.KeySize]byte(own)
+			a.own, a.keys = &k, nil
+		}
+		if hold {
+			a.holds++
+		}
+		a.on = on
+		return r.settle(a)
+	})
+}
+
+// change edits a copy of the account and puts it in the account's place once the pair it made, if any, is
+// written: until then, and where the write fails, the ring gives out the pair the file holds. mu is let go
+// for the write, so what a release or a lease did meanwhile is kept.
+func (r *Ring) change(name string, edit func(*account) (changed bool, err error)) error {
 	r.writing.Lock()
 	defer r.writing.Unlock()
 	r.mu.Lock()
+	defer r.mu.Unlock()
 	a := r.get(name)
-	if own != nil {
-		if a.own != nil && *a.own != [seal.KeySize]byte(own) {
-			a.old = append(a.old, *a.own)
-		}
-		k := [seal.KeySize]byte(own)
-		a.own, a.keys = &k, nil
-	}
-	if hold {
-		a.holds++
-	}
-	a.on = on
-	changed, err := r.settle(a)
-	var rec pairRecord
-	if changed {
-		rec = a.record()
-	}
-	r.mu.Unlock()
-	if err != nil || !changed {
+	next := *a
+	next.old, next.retired, next.keys = slices.Clone(a.old), slices.Clone(a.retired), maps.Clone(a.keys)
+	changed, err := edit(&next)
+	if err != nil {
 		return err
 	}
-	return r.write(name, rec)
+	if changed {
+		holds := a.holds
+		r.mu.Unlock()
+		err := r.write(name, next.record())
+		r.mu.Lock()
+		if err != nil {
+			return err
+		}
+		next.holds += a.holds - holds
+		if a.until.After(next.until) {
+			next.until = a.until
+		}
+	}
+	*a = next
+	r.expire(a)
+	return nil
 }
 
 // settle makes the account's pair, or seals its private key under the key its encryption asks for. A pair
@@ -319,6 +343,9 @@ func (r *Ring) write(name string, rec pairRecord) error {
 
 // Retire holds keys the account's own replaced, for opening what they sealed until it is sealed again.
 func (r *Ring) Retire(name string, keys ...[]byte) {
+	// Not while a change is being written, which would put its copy over this.
+	r.writing.Lock()
+	defer r.writing.Unlock()
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	a := r.get(name)
@@ -330,43 +357,24 @@ func (r *Ring) Retire(name string, keys ...[]byte) {
 
 // Settled forgets the retired keys and pairs once everything they opened is sealed again.
 func (r *Ring) Settled(name string) error {
-	r.writing.Lock()
-	defer r.writing.Unlock()
-	r.mu.Lock()
-	a := r.get(name)
-	a.old = nil
-	had := len(a.retired) > 0
-	a.retired = nil
-	var rec pairRecord
-	if had {
-		rec = a.record()
-	}
-	r.mu.Unlock()
-	if !had {
-		return nil
-	}
-	return r.write(name, rec)
+	return r.change(name, func(a *account) (bool, error) {
+		had := len(a.retired) > 0
+		a.old, a.retired = nil, nil
+		return had, nil
+	})
 }
 
 // Replace gives the account a new pair under own, nil for the instance's key, dropping the old: what it
 // opened is lost to the account. It is the reader's start over, when the key that sealed it is lost.
 func (r *Ring) Replace(name string, own []byte) error {
-	r.writing.Lock()
-	defer r.writing.Unlock()
-	r.mu.Lock()
-	a := r.get(name)
-	a.public, a.opened, a.retired, a.own, a.old, a.keys, a.on = nil, nil, nil, nil, nil, nil, own != nil
-	if own != nil {
-		k := [seal.KeySize]byte(own)
-		a.own = &k
-	}
-	_, err := r.settle(a)
-	rec := a.record()
-	r.mu.Unlock()
-	if err != nil {
-		return err
-	}
-	return r.write(name, rec)
+	return r.change(name, func(a *account) (bool, error) {
+		a.public, a.opened, a.retired, a.own, a.old, a.keys, a.on = nil, nil, nil, nil, nil, nil, own != nil
+		if own != nil {
+			k := [seal.KeySize]byte(own)
+			a.own = &k
+		}
+		return r.settle(a)
+	})
 }
 
 // Lease holds the own key for d past its last login, for a client that signs in on every request.

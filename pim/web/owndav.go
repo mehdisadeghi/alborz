@@ -193,9 +193,12 @@ func serveOwn(g *web.Group, srv *web.Server, st *store.Store) {
 		if access.keys != nil {
 			served = st.Holding(access.keys).Handler()
 		}
-		if access.readOnly && !slices.Contains(readMethods, r.Method) {
-			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
-			return nil
+		if access.readOnly {
+			if !slices.Contains(readMethods, r.Method) {
+				http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+				return nil
+			}
+			r = r.WithContext(store.ReadOnly(r.Context()))
 		}
 		served.ServeHTTP(w, r.WithContext(store.As(r.Context(), username)))
 		return nil

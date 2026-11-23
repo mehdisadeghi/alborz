@@ -42,6 +42,21 @@ func userOf(ctx context.Context) string {
 	return account
 }
 
+type readOnlyKey struct{}
+
+// ReadOnly is ctx for a request that changes nothing; each collection it reaches says so (ADR 107).
+func ReadOnly(ctx context.Context) context.Context {
+	return context.WithValue(ctx, readOnlyKey{}, true)
+}
+
+// lowered is may, read at most for a request that changes nothing.
+func lowered(ctx context.Context, may access) access {
+	if only, _ := ctx.Value(readOnlyKey{}).(bool); only && may > read {
+		return read
+	}
+	return may
+}
+
 type limitKey struct{}
 
 // Limited is ctx for a request that reaches only the collections named, each as LimitName names it, and
@@ -176,7 +191,7 @@ func (s *Store) reachAt(ctx context.Context, at place, kind Kind) (place, *Colle
 	if errors.Is(err, ErrNotFound) || (err == nil && (c.Kind != kind || !s.within(ctx, *c))) {
 		return at, nil, none, errNotFound
 	}
-	return at, c, may, err
+	return at, c, lowered(ctx, may), err
 }
 
 func (s *Store) object(ctx context.Context, p string, kind Kind) (*Object, error) {
@@ -249,7 +264,7 @@ func visible[T any](ctx context.Context, s *Store, kind Kind, convert func(strin
 		if !s.within(ctx, collection.Collection) {
 			continue
 		}
-		one, err := convert(account, collection.Collection, collection.may)
+		one, err := convert(account, collection.Collection, lowered(ctx, collection.may))
 		if err != nil {
 			return nil, err
 		}

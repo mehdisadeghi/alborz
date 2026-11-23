@@ -62,6 +62,9 @@
 - Marking a task done on its page, moving or emptying mail, New on a filters
   or settings list and a refused form return to the list they came from; a
   script can be saved from the merged filters list.
+- A read-only device password tells its client that it may not write, so the
+  client shows calendars and address books as read only instead of failing on
+  save.
 
 ## [0.20.0] - 2026-10-31
 

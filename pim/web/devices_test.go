@@ -51,6 +51,24 @@ func TestDevicePasswordsSignInDAVClients(t *testing.T) {
 	if got := as(phone, http.MethodPut, cal+"review.ics", Event("review", "Review")); got != http.StatusForbidden {
 		t.Errorf("a PUT with a read-only device password answered %d", got)
 	}
+	// A client is told what its password may do, not left to learn it from a refusal.
+	may := func(password string) string {
+		t.Helper()
+		req, err := http.NewRequest("PROPFIND", a.URL+cal, strings.NewReader(`<propfind xmlns="DAV:"><prop><current-user-privilege-set/></prop></propfind>`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.SetBasicAuth(User, password)
+		req.Header.Set("Depth", "0")
+		req.Header.Set("Content-Type", "application/xml")
+		return a.Client().Do(t, req).Text
+	}
+	if got := may(laptop); !strings.Contains(got, "write") {
+		t.Errorf("a device password is not told it may write: %s", got)
+	}
+	if got := may(phone); !strings.Contains(got, "read") || strings.Contains(got, "write") {
+		t.Errorf("a read-only device password is told it may write: %s", got)
+	}
 
 	devices, _, err := a.Server.Devices.List(User)
 	if err != nil || len(devices) != 2 {

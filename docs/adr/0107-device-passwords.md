@@ -55,7 +55,9 @@ mailbox and, under encryption (ADR 72), to the account's data.
    the request (`Ring.Lend`), as the mail password does (ADR 72). A
    scoped one MUST NOT open or hold it (ADR 109).
 10. A read-only device password MUST be refused with 403 for every
-    method other than GET, HEAD, OPTIONS, PROPFIND and REPORT.
+    method other than GET, HEAD, OPTIONS, PROPFIND and REPORT, and
+    every collection it reaches MUST report no write privilege
+    (`DAV:current-user-privilege-set`, RFC 3744 5.4).
 
 ## Consequences
 
@@ -71,11 +73,13 @@ mailbox and, under encryption (ADR 72), to the account's data.
 
 ## References
 
-- RFC 7617 (Basic), RFC 5869 (HKDF), RFC 4918 (WebDAV methods)
+- RFC 7617 (Basic), RFC 5869 (HKDF), RFC 4918 (WebDAV methods),
+  RFC 3744 (WebDAV access control)
 - ADR 24, ADR 30, ADR 51, ADR 59, ADR 70, ADR 72, ADR 102, ADR 109
 - `devices.go` (`Devices`, `DevicePassword`, `CreateDevicePassword`,
   `CheckDevicePassword`, `deviceTouch`), `internal/keyring/keyring.go`
   (`Lend`), `pim/web/owndav.go` (`davPasswords.authenticate`,
-  `readMethods`), `settings/web/devices.go`,
+  `readMethods`), `pim/store/paths.go` (`ReadOnly`),
+  `settings/web/devices.go`,
   `templates/pages/settings/devices.html`, `device-create.html`,
   `device.html`

@@ -50,6 +50,9 @@ func Run[C any](ctx *web.Context, a Action[C]) error {
 		return err
 	}
 	next := ctx.NextOr(ctx.URL(a.List))
+	if len(refs) == 0 {
+		return NothingSelected(ctx, next)
+	}
 	done := 0
 	for _, ref := range refs {
 		if err := a.Do(ctx, ref); err != nil {
@@ -74,6 +77,11 @@ func Run[C any](ctx *web.Context, a Action[C]) error {
 // Handler is Run for an action that is the same whatever the request.
 func Handler[C any](a Action[C]) func(*web.Context) error {
 	return func(ctx *web.Context) error { return Run(ctx, a) }
+}
+
+// NothingSelected answers a list's action sent with no row ticked.
+func NothingSelected(ctx *web.Context, next string) error {
+	return ctx.NotifyRedirect(web.Notice{Kind: web.NoticeWarning, Text: ctx.T("notice.noselection")}, next)
 }
 
 // NoticeHandler runs an action and reports how many objects it changed.

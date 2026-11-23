@@ -33,6 +33,7 @@ var (
 	script = flag.String("js", "", "file of JavaScript evaluated before each shot; its result is printed")
 	chrome = flag.String("chrome", "", "Chrome or chrome-headless-shell binary; default: found on PATH or in /Applications")
 	port   = flag.Int("port", 9233, "Chrome's remote debugging port")
+	plain  = flag.Bool("noscript", false, "load pages with scripting disabled; -js still runs, as DevTools does")
 )
 
 func TestPreview(t *testing.T) {
@@ -216,9 +217,13 @@ func (b browser) shot(t *testing.T, base, path string, cookie *http.Cookie, widt
 	cdp := devtools{ws: ws}
 	phone := width < 600
 	cdp.call(t, "Network.setCookie", map[string]any{"name": cookie.Name, "value": cookie.Value, "url": base, "path": "/"})
-	// A browser signs in through a page whose helpers.js writes its zone; signed in by cookie, the tab writes it here.
-	zone, _ := cdp.eval(t, "Intl.DateTimeFormat().resolvedOptions().timeZone").(string)
-	cdp.call(t, "Network.setCookie", map[string]any{"name": "alborz_tz", "value": zone, "url": base, "path": "/"})
+	if *plain {
+		cdp.call(t, "Emulation.setScriptExecutionDisabled", map[string]any{"value": true})
+	} else {
+		// A browser signs in through a page whose helpers.js writes its zone; signed in by cookie, the tab writes it here.
+		zone, _ := cdp.eval(t, "Intl.DateTimeFormat().resolvedOptions().timeZone").(string)
+		cdp.call(t, "Network.setCookie", map[string]any{"name": "alborz_tz", "value": zone, "url": base, "path": "/"})
+	}
 	cdp.call(t, "Emulation.setDeviceMetricsOverride", map[string]any{"width": width, "height": *height, "deviceScaleFactor": 1, "mobile": phone})
 	cdp.call(t, "Emulation.setTouchEmulationEnabled", map[string]any{"enabled": phone, "maxTouchPoints": 1})
 	cdp.call(t, "Page.navigate", map[string]any{"url": base + path})

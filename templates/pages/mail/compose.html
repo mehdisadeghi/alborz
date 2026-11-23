@@ -6,7 +6,7 @@
         <h1 class="visually-hidden">{{$.T "aside.compose"}}</h1>
         {{/* Enter in a field presses the form's first submit button: Send, never the signature's Apply. */}}
         <button type="submit" class="visually-hidden" id="send-default" tabindex="-1" aria-hidden="true">{{$.T "compose.send"}}</button>
-        {{ template "compose-state" (dict "message" .Message "uploads" .Uploads) }}
+        {{ template "compose-state" .Message }}
 
         <div class="headers">
           <label for="from">{{$.T "compose.from"}}</label>
@@ -68,13 +68,20 @@
             {{ template "attachment-checkbox" (dict "name" "attached_messages" "value" .Ref "label" .Name) }}
             {{end}}
             {{range .Uploads}}
-            {{ template "compose-upload" (dict "g" $ "id" .ID "remove" (url "mail.attachment.remove" .ID) "filename" .Filename "size" .SizeString) }}
+            {{ template "attachment-checkbox" (dict "name" "upload" "value" .ID "label" .Filename) }}
             {{end}}
             {{range .PartAttachments}}
             {{ template "attachment-checkbox" (dict "name" "prev_attachments" "value" .Node.PathString "label" .Filename) }}
             {{end}}
           </div>
-          <template id="upload-row" data-failed="{{$.T "compose.uploadfailed"}}">{{ template "compose-upload" (dict "g" $) }}</template>
+          {{/* The row the script fills for a file it uploads. */}}
+          <template id="upload-row" data-failed="{{$.T "compose.uploadfailed"}}"><div class="upload">
+            <span class="progress"></span>
+            <span class="filename"></span>
+            <span class="error"></span>
+            <span class="size"></span>
+            <button type="button" aria-label="{{$.T "compose.removeattachment"}}" title="{{$.T "compose.removeattachment"}}">&times;</button>
+          </div></template>
 
         </div>
 
@@ -103,7 +110,8 @@
             {{ template "focus-toggle" (dict "id" "write" "g" $) }}
           </div>
           <div class="editor body" hidden></div>
-          <input type="hidden" name="html" value="{{.Message.HTML}}">
+          {{/* Sent only while the script's editor is open: without it the text is what the reader gave. */}}
+          <input type="hidden" name="html" value="{{.Message.HTML}}" disabled>
           {{ with .Message.QuoteHTML }}<template id="quote-html"{{ if $.Message.QuoteRich }} data-open{{ end }}>{{.}}</template>{{ end }}
           <textarea name="text" class="body" dir="auto"{{ if eq $focus "body" }} autofocus{{ end }} aria-label="{{$.T "a11y.body"}}"
                     data-caret="{{ if .Message.QuoteBelow }}start{{ else }}end{{ end }}">{{.Message.Text}}</textarea>
@@ -142,17 +150,6 @@
           <a class="button-link button-quiet" href="{{.Back}}">{{$.T "common.cancel"}}</a>
         </div>
       </form>
-{{ end }}
-
-{{/* dict: g [id remove filename size]; without an id it is the row the script fills for a new upload. */}}
-{{ define "compose-upload" }}
-<div class="upload"{{ with .id }} data-uuid="{{.}}" data-remove="{{$.remove}}"{{ end }}>
-  <span class="progress"></span>
-  <span class="filename">{{.filename}}</span>
-  <span class="error"></span>
-  <span class="size">{{.size}}</span>
-  <button type="button" aria-label="{{.g.T "compose.removeattachment"}}" title="{{.g.T "compose.removeattachment"}}">&times;</button>
-</div>
 {{ end }}
 
 {{ define "scripts" }}

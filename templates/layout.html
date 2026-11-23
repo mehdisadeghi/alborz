@@ -61,7 +61,6 @@
     <section id="session-lock-screen" role="status" aria-live="polite" aria-labelledby="session-lock-title">
       <h1 id="session-lock-title">{{$.T "lock.title"}}</h1>
       <p id="session-lock-status">{{$.T "lock.checking"}}</p>
-      <noscript><p>{{$.T "passkeys.needsscript"}}</p></noscript>
       <button type="button" id="session-lock-retry">{{$.T "lock.retry"}}</button>
       <form method="post" action="{{url "auth.unlock.leave"}}" class="action-group" hx-boost="false">
         <button type="submit" class="button-link button-quiet">{{$.T "lock.leave"}}</button>

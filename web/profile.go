@@ -38,8 +38,14 @@ func (ctx *Context) Reading() alborz.Reading {
 	return r
 }
 
-// UserLocation resolves the reader's timezone.
+// UserLocation resolves the reader's timezone, UTC where neither the settings nor the browser name one.
 func UserLocation(ctx *Context) *time.Location {
+	loc, _ := userZone(ctx)
+	return loc
+}
+
+// userZone is the reader's timezone and whether the settings or the browser's script named it.
+func userZone(ctx *Context) (*time.Location, bool) {
 	tz := ctx.Reading().Timezone
 	if tz == "" {
 		if c, err := ctx.Cookie(timezoneCookieName); err == nil {
@@ -48,10 +54,10 @@ func UserLocation(ctx *Context) *time.Location {
 	}
 	if tz != "" {
 		if loc, err := time.LoadLocation(tz); err == nil {
-			return loc
+			return loc, true
 		}
 	}
-	return time.UTC
+	return time.UTC, false
 }
 
 // UpdateProfile has edit change the profile every account signed in holds, and the session takes the first

@@ -11,21 +11,6 @@ try {
 } catch {}
 
 
-// narrowBy hides the target's options and groups the controller's value rules out; a chosen one that hides falls back to the empty choice.
-const narrowBy = (controller, target, ruledOut) => {
-	const narrow = () => {
-		for (const el of target.querySelectorAll("optgroup, option")) {
-			el.hidden = ruledOut(el, controller.value);
-		}
-		const chosen = target.selectedOptions[0];
-		if (chosen && chosen.hidden) {
-			target.value = "";
-		}
-	};
-	controller.addEventListener("change", narrow);
-	narrow();
-};
-
 // On a touch screen a focused field puts a keyboard over half the page.
 const touch = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
 if (touch) {
@@ -54,14 +39,6 @@ const once = (el, key) => {
 const fits = new WeakMap();
 
 const enhance = () => {
-	// Set here because the page CSP allows no inline script.
-	const tz_input = document.getElementById("timezone");
-	if (tz_input && !tz_input.value) {
-		try {
-			tz_input.placeholder = Intl.DateTimeFormat().resolvedOptions().timeZone;
-		} catch {}
-	}
-
 	// A list is any form its rows' checkboxes name; its controls are disabled while nothing is ticked.
 	const check_all = document.getElementById("action-checkbox-all");
 	const bulk_forms = new Set(Array.prototype.map.call(
@@ -167,13 +144,17 @@ const enhance = () => {
 		validate();
 	}
 
-	// The secondary calendar never repeats the primary; without a script saving drops the repeat.
+	// CSS hides the secondary calendar's option the primary takes; a secondary already on it falls back to none, as saving would.
 	for (const secondary of document.querySelectorAll("select[data-excludes]")) {
 		const primary = secondary.form && secondary.form.elements[secondary.dataset.excludes];
 		if (!primary || !once(secondary, "excludes")) {
 			continue;
 		}
-		narrowBy(primary, secondary, (el, v) => el.value === v);
+		primary.addEventListener("change", () => {
+			if (secondary.value === primary.value) {
+				secondary.value = "";
+			}
+		});
 	}
 
 	// A destination picker opens on the collection last chosen, unless the objects are in it, and wears the chosen one's colour.
@@ -1124,17 +1105,14 @@ document.addEventListener("click", ev => {
 	starForm.requestSubmit();
 });
 
-// Picking the given colour again clears it, as pressing a lit star does.
+// The rows' shared menu marks the row's colour, whose pick clears it as pressing a lit star does; a star's own menu is drawn marked.
 document.addEventListener("beforetoggle", ev => {
-	const menu = ev.target;
-	if (!menu.classList || !menu.classList.contains("flag-colors")) {
+	if (ev.target.id !== "row-colors" || !starForm) {
 		return;
 	}
-	const owner = menu.id === "row-colors" ? starForm : menu.closest(".flag-split");
-	const split = owner && (owner.matches(".flag-split") ? owner : owner.querySelector(".flag-split"));
-	if (menu.id === "row-colors" && starForm) {
-		starForm.classList.toggle("star-open", ev.newState === "open");
-	}
+	const menu = ev.target;
+	starForm.classList.toggle("star-open", ev.newState === "open");
+	const split = starForm.querySelector(".flag-split");
 	if (ev.newState !== "open" || !split) {
 		return;
 	}

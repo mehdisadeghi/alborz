@@ -115,6 +115,7 @@ if (form && textarea && holder && toolbar && htmlInput && toggle && window.Squir
 	};
 
 	const open = html => {
+		htmlInput.disabled = false;
 		holder.hidden = false;
 		toolbar.classList.add("is-on");
 		textarea.hidden = true;
@@ -161,7 +162,7 @@ if (form && textarea && holder && toolbar && htmlInput && toggle && window.Squir
 		holder.hidden = true;
 		toolbar.classList.remove("is-on");
 		textarea.hidden = false;
-		htmlInput.value = "";
+		htmlInput.disabled = true;
 		toggle.setAttribute("aria-pressed", "false");
 	};
 

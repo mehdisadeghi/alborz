@@ -159,12 +159,6 @@ function removable(attachment) {
 	});
 }
 
-// A refused send renders what it held; those uploads are finished.
-for (const node of attachmentsNode.querySelectorAll(".upload[data-uuid]")) {
-	const attachment = { node: node, progress: 1.0, uuid: node.dataset.uuid, remove: node.dataset.remove };
-	attachments.push(attachment);
-	removable(attachment);
-}
 updateState();
 
 // The server renders the row, its labels translated; the script fills in the file.

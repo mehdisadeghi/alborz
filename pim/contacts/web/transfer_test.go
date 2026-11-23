@@ -550,3 +550,17 @@ func TestTheContactDestinationPickerOpensElsewhere(t *testing.T) {
 		}
 	}
 }
+
+// A list's action sent with no row ticked says so, as mail's do.
+func TestAnActionOnNoRowSaysSo(t *testing.T) {
+	a, c := SignedIn(t, User)
+	for _, route := range []string{"contacts.delete", "contacts.copy", "contacts.export"} {
+		resp := c.Post(t, route, url.Values{"next": {a.Path("contacts.list")}})
+		if resp.StatusCode != http.StatusFound {
+			t.Fatalf("%s with no row answered %s", route, resp.Status)
+		}
+		if bar := NoticeBar(c.Follow(t, resp.Header.Get("Location"))); !strings.Contains(bar, "Nothing selected.") {
+			t.Errorf("%s with no row says %q", route, bar)
+		}
+	}
+}

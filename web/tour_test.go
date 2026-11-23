@@ -1,6 +1,7 @@
 package web_test
 
 import (
+	"html"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -68,5 +69,27 @@ func TestTourAcknowledgementRejectsCrossOrigin(t *testing.T) {
 	login := a.Client().Post(t, "auth.login", url.Values{"username": {User}, "password": {Password}})
 	if !strings.Contains(login.Header.Get("Location"), "tour=") {
 		t.Fatal("a refused acknowledgement consumed the tour offer")
+	}
+}
+
+// Without script, closing the tour posts its acknowledgement and goes on at the page it was closed on.
+func TestClosingTheTourWithoutScriptAcknowledgesIt(t *testing.T) {
+	a := Alborz(t)
+	signIn := func() (*Client, string) {
+		c := a.Client()
+		return c, c.Post(t, "auth.login", url.Values{"username": {User}, "password": {Password}}).Header.Get("Location")
+	}
+	c, first := signIn()
+	page := c.Follow(t, first)
+	m := regexp.MustCompile(`<form method="post" action="([^"]+)" class="notice-dismiss tour-close">\s*<input type="hidden" name="next" value="([^"]*)">`).FindStringSubmatch(page)
+	if m == nil || html.UnescapeString(m[1]) != a.Path("core.tour.seen") {
+		t.Fatal("the tour has no close form that acknowledges it")
+	}
+	closed := c.PostTo(t, html.UnescapeString(m[1]), url.Values{"next": {html.UnescapeString(m[2])}})
+	if to := closed.Header.Get("Location"); closed.StatusCode != http.StatusFound || to == "" || strings.Contains(to, "tour=") {
+		t.Fatalf("closing the tour answered %s, to %q", closed.Status, to)
+	}
+	if _, again := signIn(); strings.Contains(again, "tour=") {
+		t.Errorf("a sign-in after closing the tour opened it again at %s", again)
 	}
 }

@@ -44,6 +44,19 @@
   margin: 0;
 }
 
+/* One button of each pair shows: the script's closes the dialog, the other posts (tour.html). */
+@media (scripting: enabled) {
+  .tour form > button:not([formmethod]) {
+    display: none;
+  }
+}
+
+@media (scripting: none) {
+  .tour form > button[formmethod="dialog"] {
+    display: none;
+  }
+}
+
 .tour-close {
   position: absolute;
   inset-block-start: var(--space-4);

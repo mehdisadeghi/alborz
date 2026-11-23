@@ -77,16 +77,19 @@ header nav .header-brand {
   display: none;
 }
 
-html[data-session-concealed] body > :not(#session-lock-screen) {
-  display: none !important;
-}
+/* Only a script can reveal a concealed page; without one the server's lock is the guard (ADR 95). */
+@media (scripting: enabled) {
+  html[data-session-concealed] body > :not(#session-lock-screen) {
+    display: none !important;
+  }
 
-html[data-session-concealed] #session-lock-screen {
-  display: block;
-  max-width: 32rem;
-  margin: 15vh auto;
-  padding: var(--space-6);
-  text-align: center;
+  html[data-session-concealed] #session-lock-screen {
+    display: block;
+    max-width: 32rem;
+    margin: 15vh auto;
+    padding: var(--space-6);
+    text-align: center;
+  }
 }
 
 header nav > a,

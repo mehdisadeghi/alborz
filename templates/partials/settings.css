@@ -167,6 +167,19 @@ main.settings form .field > button {
   display: flex; flex-wrap: wrap; gap: var(--space-2);
 }
 
+/* Swipes are the script's, and so are this browser's switches for them. */
+@media (scripting: none) {
+  #settings-gestures {
+    display: none;
+  }
+}
+
+/* The secondary calendar never repeats the primary. */
+form:has(#calendar > [value="gregorian"]:checked) #secondary > [value="gregorian"],
+form:has(#calendar > [value="shcal"]:checked) #secondary > [value="shcal"] {
+  display: none;
+}
+
 /* A device password for all collections asks for none of them. */
 form:has(#scope-all:checked) .device-scope {
   display: none;

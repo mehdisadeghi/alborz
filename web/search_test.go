@@ -276,3 +276,13 @@ func TestSearchFindsTheStarredInEverySection(t *testing.T) {
 		}
 	}
 }
+
+// The dialog's select and its menu both name the view; the select's heading sends nothing, so the view a menu row
+// sends is the only one, whether or not the script runs.
+func TestSearchDialogSendsOneView(t *testing.T) {
+	c := Alborz(t).SignIn(t, User)
+	views := Between(c.Page(t, "core.search"), `<select name="view" class="search-dialog-views"`, `</select>`)
+	if !strings.Contains(views, `<option value="" disabled selected>`) {
+		t.Fatalf("the dialog's view select sends a view of its own:\n%s", views)
+	}
+}

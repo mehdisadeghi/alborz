@@ -18,6 +18,17 @@
 
 ### Fixed
 
+- Without JavaScript, a session with a passkey shows its pages instead of
+  the lock screen; the server still answers every request with the lock once
+  the session locks.
+- Compose without JavaScript keeps the files chosen when the form comes back,
+  lets a held file be unticked, and sends the text typed into a reopened rich
+  draft rather than its old HTML.
+- Without JavaScript, the settings and the event form say that times are in
+  UTC, closing the tour keeps it from opening at every sign-in, the gesture
+  switches are hidden, the secondary calendar never offers the primary, and an
+  action on no ticked contact, task or event says so; a message's HTML body
+  shows when its script fails to load.
 - A draft written as another signed-in account reopens and is sent as that
   account, not as the account that keeps the draft.
 - An identity two signed-in accounts list stays with the account chosen in

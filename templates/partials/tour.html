@@ -11,11 +11,22 @@
     <div class="tour-actions">
       {{ with .Back }}<a class="button-link tour-back" href="{{ localhref .Href }}" data-stop="{{.Name}}">{{ $g.T "tour.back" }}</a>{{ end }}
       {{ with .Next }}<a class="button button-primary tour-next" href="{{ localhref .Href }}" data-stop="{{.Name}}">{{ $g.T "tour.next" }}</a>
-      {{ else }}<form method="dialog"><button class="button-primary tour-next">{{ $g.T "tour.done" }}</button></form>{{ end }}
+      {{ else }}{{ template "tour-dismiss" (dict "g" $g "class" "button-primary tour-next" "label" ($g.T "tour.done")) }}{{ end }}
     </div>
   </section>
   {{ end }}
-  <form method="dialog" class="notice-dismiss tour-close"><button title="{{$g.T "tour.close"}}" aria-label="{{$g.T "tour.close"}}">{{ template "icon" "x" }}</button></form>
+  {{ template "tour-dismiss" (dict "g" $g "form" "notice-dismiss tour-close" "label" ($g.T "tour.close") "icon" true) }}
 </dialog>
 {{ end }}
+{{ end }}
+
+{{/* dict: g label [form class icon]. Closing the tour acknowledges it. The script acknowledged it on showing it, so
+     its button only closes the dialog; without a script the other posts the acknowledgement (ADR 13). */}}
+{{ define "tour-dismiss" }}
+<form method="post" action="{{url "core.tour.seen"}}"{{ with .form }} class="{{.}}"{{ end }}>
+  <input type="hidden" name="next" value="{{.g.GlobalData.URL.RequestURI}}">
+  {{ range tuple "dialog" "" }}
+  <button{{ with . }} formmethod="{{.}}"{{ end }}{{ with $.class }} class="{{.}}"{{ end }}{{ if $.icon }} title="{{$.label}}" aria-label="{{$.label}}">{{ template "icon" "x" }}{{ else }}>{{$.label}}{{ end }}</button>
+  {{ end }}
+</form>
 {{ end }}

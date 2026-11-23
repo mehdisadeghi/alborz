@@ -1,4 +1,3 @@
-{{/* dict: message uploads. These fields keep compose identity and session uploads across submits. */}}
 {{/* dict: name value label. */}}
 {{ define "attachment-checkbox" }}
 <div class="upload">
@@ -9,9 +8,10 @@
 </div>
 {{ end }}
 
+{{/* The message's identity across submits, and the uploads the script adds to it. */}}
 {{ define "compose-state" }}
-<input type="hidden" name="message_id" value="{{.message.MessageID}}">
-<input type="hidden" name="in_reply_to" value="{{.message.InReplyTo}}">
-<input type="hidden" name="references" value="{{.message.References}}">
-<input type="hidden" id="attachment-uuids" name="attachment-uuids" value="{{range $i, $u := .uploads}}{{if $i}},{{end}}{{$u.ID}}{{end}}" />
+<input type="hidden" name="message_id" value="{{.MessageID}}">
+<input type="hidden" name="in_reply_to" value="{{.InReplyTo}}">
+<input type="hidden" name="references" value="{{.References}}">
+<input type="hidden" id="attachment-uuids" name="attachment-uuids" value="">
 {{ end }}

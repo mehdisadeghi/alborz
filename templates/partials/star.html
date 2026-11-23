@@ -53,13 +53,15 @@
 {{ end }}
 {{ end }}
 
-{{/* dict: colors clear [form action id row swap]. */}}
+{{/* dict: colors clear [current form action id row swap toggle]. A star's own menu marks its colour, whose pick
+     clears it as pressing the lit star does; the rows' shared menu is marked by helpers.js for the row it opens on. */}}
 {{ define "flag-colors-menu" }}
 <div class="overflow-menu flag-colors" popover id="{{ or .id "menu-flag" }}">
   {{ $d := . }}
   {{ range .colors }}
+  {{ $given := and $d.toggle (eq $d.current .Name) }}
   <button {{ if $d.row }}type="button"{{ else }}{{ with $d.form }}form="{{.}}"{{ end }}{{ with $d.action }} formaction="{{.}}"{{ if $d.swap }}{{ template "swap-main" . }}{{ end }}{{ end }}
-          name="color" value="{{.Name}}"{{ end }} data-color="{{.Name}}">
+          name="color" value="{{ if not $given }}{{.Name}}{{ end }}"{{ end }}{{ if $given }} class="is-current" aria-current="true"{{ end }} data-color="{{.Name}}">
     <span class="flag-star flag-{{.Name}}">&#9733;</span>{{.Label}}
   </button>
   {{ end }}

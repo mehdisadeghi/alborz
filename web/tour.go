@@ -133,6 +133,10 @@ func TourRoutes(g *Group) {
 				return err
 			}
 		}
+		// A browser without script posts it on closing the tour, and goes on where it closed it.
+		if next := ctx.NextOr(""); next != "" {
+			return ctx.QuietRedirect(next)
+		}
 		return ctx.NoContent(http.StatusNoContent)
 	})
 }

@@ -769,11 +769,11 @@ func TestShareOpensCompose(t *testing.T) {
 			t.Fatalf("compose lacks %q", want)
 		}
 	}
-	uuids := Between(page, `name="attachment-uuids" value="`, `"`)
-	if uuids == "" {
+	upload := Between(page, `name="upload" value="`, `"`)
+	if upload == "" {
 		t.Fatal("the shared file is not carried by the form")
 	}
-	sent := c.Upload(t, "mail.compose", url.Values{"to": {"eve@example.org"}, "subject": {"Trip notes"}, "text": {"See the plan."}, "attachment-uuids": {uuids}}, nil)
+	sent := c.Upload(t, "mail.compose", url.Values{"to": {"eve@example.org"}, "subject": {"Trip notes"}, "text": {"See the plan."}, "upload": {upload}}, nil)
 	if sent.StatusCode != http.StatusFound {
 		t.Fatalf("sending answered %s", sent.Status)
 	}

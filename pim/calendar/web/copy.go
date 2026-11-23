@@ -183,7 +183,7 @@ func (p *plugin) copySelected(s section) func(*web.Context) error {
 		}
 		next := ctx.NextOr(fallback)
 		if len(params["paths"]) == 0 {
-			return ctx.FoundRedirect(next)
+			return pimweb.NothingSelected(ctx, next)
 		}
 		// Validate account-qualified selections before showing or applying them.
 		refs, err := pimweb.Selected(ctx, paths, p.Client)

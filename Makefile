@@ -70,13 +70,13 @@ login-key:
 	openssl rand -base64 32
 
 # Screenshots of fixture pages in headless Chrome, e.g.
-# make shot ROUTE=calendar,settings WIDTH=1280,390 OUT=/tmp/shots
+# make shot ROUTE=calendar,settings WIDTH=1280,390 OUT=/tmp/shots; NOSCRIPT=1 turns scripting off.
 ROUTE ?= mail
 WIDTH ?= 1280,390
 HEIGHT ?= 900
 .PHONY: shot
 shot:
-	$(GO) test -tags preview -run TestPreview -count=1 -v ./tools/preview -args -route "$(ROUTE)" -width "$(WIDTH)" -height "$(HEIGHT)" $(if $(OUT),-out "$(OUT)") $(if $(JS),-js "$(JS)") $(if $(CHROME),-chrome "$(CHROME)")
+	$(GO) test -tags preview -run TestPreview -count=1 -v ./tools/preview -args -route "$(ROUTE)" -width "$(WIDTH)" -height "$(HEIGHT)" $(if $(OUT),-out "$(OUT)") $(if $(JS),-js "$(JS)") $(if $(NOSCRIPT),-noscript) $(if $(CHROME),-chrome "$(CHROME)")
 
 # Debian and Red Hat packages in dist/, e.g.
 # make packages NAME=alborz-minimal GOARCH=arm GOARM=7

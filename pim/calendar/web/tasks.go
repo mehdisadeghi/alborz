@@ -345,6 +345,9 @@ func (p *plugin) move(ctx *web.Context) error {
 	if err != nil {
 		return err
 	}
+	if len(params["paths"]) == 0 {
+		return pimweb.NothingSelected(ctx, ctx.NextOr(ctx.URL("calendar.tasks")))
+	}
 	page := func(status int, refusal string) error {
 		groups, err := p.writableGroups(ctx, calendar.SupportsTodo)
 		if err != nil {

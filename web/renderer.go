@@ -71,6 +71,8 @@ type GlobalRenderData struct {
 	Secondary string
 
 	Timezone *time.Location
+	// ZoneUnnamed says neither the settings nor the browser's script named the zone, so Timezone is UTC.
+	ZoneUnnamed bool
 
 	FirstDayOfWeek time.Weekday
 
@@ -299,6 +301,10 @@ func NewBaseRenderData(ctx *Context) *BaseRenderData {
 	}
 	global.Year = time.Now().Year()
 	global.Primary, global.Secondary, global.Timezone = reader.Primary, reader.Secondary, reader.Loc
+	if ctx.Login != nil {
+		_, named := userZone(ctx)
+		global.ZoneUnnamed = !named
+	}
 	global.Theme = ctx.Theme()
 	global.ThemeAsset = ctx.theme().Asset
 	global.AddonStyles = ctx.Server.addonStyles()

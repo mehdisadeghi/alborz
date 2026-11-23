@@ -1,6 +1,7 @@
 package web_test
 
 import (
+	"cmp"
 	"html"
 	"net/http"
 	"net/url"
@@ -279,5 +280,28 @@ func TestAStoredEntryPastALimitIsRead(t *testing.T) {
 	resp := Alborz(t, WithIMAP(srv)).SignIn(t, User).Get(t, "mail.account")
 	if resp.StatusCode != http.StatusOK || !strings.Contains(resp.Text, long) {
 		t.Errorf("the account page answered %s without the stored name", resp.Status)
+	}
+}
+
+// A zone neither the settings nor the browser's script named is UTC, and the pages say so where a zone is read.
+func TestAnUnnamedZoneIsShownAsUTC(t *testing.T) {
+	a := Alborz(t)
+	c := a.SignIn(t, User)
+	placeholder := regexp.MustCompile(`id="timezone"[^>]* placeholder="([^"]*)"`)
+	for _, zone := range []string{"", "Asia/Tehran"} {
+		if zone != "" {
+			u, err := url.Parse(a.URL)
+			if err != nil {
+				t.Fatal(err)
+			}
+			c.HTTP.Jar.SetCookies(u, []*http.Cookie{{Name: "alborz_tz", Value: zone, Path: "/"}})
+		}
+		m := placeholder.FindStringSubmatch(c.Page(t, "settings.profile"))
+		if want := cmp.Or(zone, "UTC"); m == nil || m[1] != want {
+			t.Errorf("browser zone %q: the empty timezone field reads %q, want %q", zone, m, want)
+		}
+		if said := strings.Contains(c.Page(t, "calendar.event.create"), "Times are in UTC."); said != (zone == "") {
+			t.Errorf("browser zone %q: the event form says its times are UTC: %v", zone, said)
+		}
 	}
 }

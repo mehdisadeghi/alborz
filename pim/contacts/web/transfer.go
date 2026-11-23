@@ -38,7 +38,7 @@ func (p *plugin) copyContacts(ctx *web.Context) error {
 	}
 	next := ctx.NextOr(ctx.URL("contacts.list"))
 	if len(refs) == 0 {
-		return ctx.FoundRedirect(next)
+		return pimweb.NothingSelected(ctx, next)
 	}
 	// A checked row represents one copy even if submitted more than once.
 	paths := make([]string, 0, len(refs))

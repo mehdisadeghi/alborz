@@ -30,7 +30,9 @@ images, and forwards sent only the plain text of an HTML message.
    An upload referenced by the HTML is not also sent as a file.
 5. A draft stores its images the same way. Reopening a draft points the
    editor at the draft's own parts; sending fetches them before the
-   draft is deleted.
+   draft is deleted. The form's `html` field is sent only while the
+   editor is open; without script the reopened draft is sent as the
+   text written in its text field.
 6. A reply quotes the original HTML with its images. A forward of an
    HTML message is written in the editor: separator, headers, then the
    original HTML under the same policy, images kept. Without script the
@@ -53,4 +55,5 @@ images, and forwards sent only the plain text of an HTML message.
   `mail/send.go` (`QuotedHTML`), `mail/web/images.go` (`localImage`,
   `imageSource`, `handleGetAttachment`, `shownTypes`),
   `mail/web/compose.go` (`forwardHTML`, `quotedHTML`),
-  `web/session.go` (`MaxAttachmentSize`), `templates/assets/editor.js`
+  `web/session.go` (`MaxAttachmentSize`), `templates/assets/editor.js`,
+  `templates/pages/mail/compose.html`

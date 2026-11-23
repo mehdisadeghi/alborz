@@ -14,3 +14,15 @@ iframe {
   height: 70vh;
   border: 0;
 }
+
+/* The frame arrives hidden for the script to show once sized; a script that never ran shows it unsized,
+   when the script itself would have given up. */
+#email-frame {
+  animation: frame-shown 0s 5s forwards;
+}
+
+@keyframes frame-shown {
+  to {
+    visibility: visible;
+  }
+}

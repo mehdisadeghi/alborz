@@ -180,10 +180,6 @@ type FormAttachment struct {
 	ID          string
 }
 
-func (att *FormAttachment) SizeString() string {
-	return FormatSize(att.Body.Size())
-}
-
 func (att *FormAttachment) WriteTo(w io.Writer) (int64, error) { return io.Copy(w, att.Body.Open()) }
 
 func (att *FormAttachment) MIMEType() string {

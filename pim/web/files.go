@@ -68,7 +68,7 @@ func HandleExport[C files](client func(context.Context, *alborz.Login) (C, error
 		}
 		empty := func() error { return ctx.FoundRedirect(ctx.NextOr(ctx.URL(list))) }
 		if len(refs) == 0 {
-			return empty()
+			return NothingSelected(ctx, ctx.NextOr(ctx.URL(list)))
 		}
 		var objects [][]byte
 		for _, r := range dav.Across(ctx.Request().Context(), refs, func(ref pim.Ref[C]) string { return ref.Account }, func(ctx context.Context, ref pim.Ref[C]) ([]byte, error) {

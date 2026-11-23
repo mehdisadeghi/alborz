@@ -1176,3 +1176,22 @@ func TestASortLinkKeepsTheRestOfTheList(t *testing.T) {
 		}
 	}
 }
+
+// A star's own colours menu marks its colour, whose pick clears it as pressing the lit star does.
+func TestAStarsMenuMarksItsColour(t *testing.T) {
+	a := Alborz(t)
+	uid := a.IMAP.Append(t, "INBOX", "From: <eve@example.org>\r\nTo: <"+User+">\r\nSubject: Starred\r\n\r\nBody.\r\n")
+	c := a.SignIn(t, User)
+	here := a.Path("mail.message", "INBOX", uid)
+	c.Post(t, "mail.messages.flag", url.Values{"uids": {fmt.Sprint(uid)}, "color": {"red"}, "next": {here}}, "INBOX")
+	menu := Between(c.Follow(t, here), `id="menu-flag"`, `</div>`)
+	button := func(color string) string {
+		return regexp.MustCompile(`<button[^>]*data-color="` + color + `">`).FindString(menu)
+	}
+	if red := button("red"); !strings.Contains(red, `value=""`) || !strings.Contains(red, `aria-current="true"`) {
+		t.Errorf("the given colour's row neither clears nor is marked: %s", red)
+	}
+	if blue := button("blue"); !strings.Contains(blue, `value="blue"`) || strings.Contains(blue, "aria-current") {
+		t.Errorf("another colour's row: %s", blue)
+	}
+}

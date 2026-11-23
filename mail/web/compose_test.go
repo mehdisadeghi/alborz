@@ -386,12 +386,12 @@ func TestRefusedSendKeepsItsUploads(t *testing.T) {
 	if resp.StatusCode != http.StatusUnprocessableEntity {
 		t.Fatalf("a refused recipient was answered with %s", resp.Status)
 	}
-	kept := Between(resp.Text, `data-uuid="`, `"`)
+	kept := Between(resp.Text, `name="upload" value="`, `"`)
 	if kept != uploads[0].ID {
 		t.Fatalf("the refused form holds upload %q, want %q", kept, uploads[0].ID)
 	}
 
-	c.Send(t, resp.Text, url.Values{"subject": {"kept"}, "attachment-uuids": {kept}}, "mail.compose")
+	c.Send(t, resp.Text, url.Values{"subject": {"kept"}, "upload": {kept}}, "mail.compose")
 	got := smtp.Last()
 	if !strings.Contains(got, "Subject: kept") {
 		t.Fatalf("the retry was not sent:\n%s", headOf(got))
@@ -412,8 +412,59 @@ func TestSignatureChangeKeepsItsUploads(t *testing.T) {
 	resp = c.Compose(t, c.Page(t, "mail.compose"), url.Values{
 		"signature_apply": {"1"}, "attachment-uuids": {uploads[0].ID}, "text": {"Unsent body."},
 	}, "mail.compose")
-	if resp.StatusCode != http.StatusOK || !strings.Contains(resp.Text, `data-uuid="`+uploads[0].ID+`"`) || !strings.Contains(resp.Text, "Unsent body.") {
+	if resp.StatusCode != http.StatusOK || !strings.Contains(resp.Text, `name="upload" value="`+uploads[0].ID+`"`) || !strings.Contains(resp.Text, "Unsent body.") {
 		t.Fatalf("signature change lost the compose state: %s", resp.Status)
+	}
+}
+
+// A file a form carried without the script's upload comes back held when the form is refused, its fields as typed.
+func TestRefusedFormKeepsTheFilesItCarried(t *testing.T) {
+	smtp := SMTP(t)
+	c := Alborz(t, WithSMTP(smtp)).SignIn(t, User)
+	mid := html.UnescapeString(Between(c.Page(t, "mail.compose"), `name="message_id" value="`, `"`))
+	resp := c.Upload(t, "mail.compose", url.Values{"message_id": {mid}, "to": {"eve@"}, "subject": {"Plan"}, "text": {"Body."}},
+		[]File{{Field: "attachments", Name: "plan.txt", Type: "text/plain", Body: strings.NewReader("Day one.")}})
+	if resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("an unparsable address was answered with %s", resp.Status)
+	}
+	for _, want := range []string{`value="eve@"`, `value="Plan"`, "plan.txt"} {
+		if !strings.Contains(resp.Text, want) {
+			t.Fatalf("the refused form lacks %s", want)
+		}
+	}
+	held := Between(resp.Text, `name="upload" value="`, `"`)
+	if held == "" {
+		t.Fatal("the refused form does not hold the file it carried")
+	}
+	c.Send(t, resp.Text, url.Values{"subject": {"Plan"}, "upload": {held}}, "mail.compose")
+	if got := smtp.Last(); !strings.Contains(got, "plan.txt") {
+		t.Fatalf("the retry left without the file:\n%s", headOf(got))
+	}
+}
+
+// The HTML a rich draft reopens with is sent only by the script's editor; a browser without it sends the text typed.
+func TestRichDraftEditedWithoutScriptSendsTheText(t *testing.T) {
+	smtp := SMTP(t)
+	c := Alborz(t, WithSMTP(smtp)).SignIn(t, User)
+	c.Send(t, c.Page(t, "mail.compose"), url.Values{"save_as_draft": {"1"}, "html": {"<p>Rich words</p>"}, "text": {"Rich words"}}, "mail.compose")
+	drafts := MessageUIDs(c.Page(t, "mail.mailbox", "Drafts"))
+	if len(drafts) != 1 {
+		t.Fatalf("want one draft, found %d", len(drafts))
+	}
+	edit := []any{"Drafts", drafts[0], url.Values{"part": {"1"}}}
+	page := c.Page(t, "mail.message.edit", edit...)
+	field := regexp.MustCompile(`<input type="hidden" name="html" value="([^"]*)"( disabled)?>`).FindStringSubmatch(page)
+	if field == nil || !strings.Contains(html.UnescapeString(field[1]), "Rich words") {
+		t.Fatalf("the draft reopens without its HTML: %q", field)
+	}
+	// As a browser without script submits the form: an enabled field is sent.
+	typed := url.Values{"text": {"Typed without script."}}
+	if field[2] == "" {
+		typed.Set("html", html.UnescapeString(field[1]))
+	}
+	c.Send(t, page, typed, "mail.message.edit", edit...)
+	if got := smtp.Last(); !strings.Contains(got, "Typed without script.") || strings.Contains(got, "Rich words") {
+		t.Fatalf("the sent message is not the text typed:\n%s", got)
 	}
 }
 

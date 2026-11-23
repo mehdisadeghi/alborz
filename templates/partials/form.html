@@ -24,6 +24,8 @@
   {{ if .time }}{{ $example = .g.GlobalData.DateTimeExample .value }}{{ else }}{{ $example = .g.GlobalData.DateExample .value }}{{ end }}
   {{ if .hint }}{{ if .time }}{{ $hint = .g.T "form.datetimehint" }}{{ else }}{{ $hint = .g.T "form.datehint" }}{{ end }}{{ end }}
 {{ end }}
+{{/* A time typed where neither the settings nor the browser's script named the zone is read as UTC. */}}
+{{ if and .time .hint .g.GlobalData.ZoneUnnamed }}{{ $hint = print (.g.T "form.timesutc") (and $hint " ") $hint }}{{ end }}
 {{ template "field" (dict "class" .class "label" .label "name" .name "type" $type "value" .value.Value "placeholder" $example "hint" $hint "example" $example "dir" "ltr") }}
 <input type="hidden" name="{{.name}}-calendar" value="{{.value.Calendar}}">
 {{ end }}

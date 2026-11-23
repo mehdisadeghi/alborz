@@ -297,6 +297,7 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *mail.OutgoingMessage, opti
 		}
 		// A server's refusal comes back on the form; uploads stay with the session until the message has left.
 		var uploads []string
+		unparsed := false
 		submit := func(f func() error) error {
 			err := f()
 			if errors.Is(err, mail.ErrSentMailboxMissing) {
@@ -327,9 +328,11 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *mail.OutgoingMessage, opti
 			name string
 			into *[]string
 		}{{"to", &msg.To}, {"cc", &msg.Cc}, {"bcc", &msg.Bcc}, {"reply_to", &msg.ReplyTo}} {
-			addresses, err := mail.ParseAddressList(ctx.FormValue(field.name))
+			typed := ctx.FormValue(field.name)
+			addresses, err := mail.ParseAddressList(typed)
 			if err != nil {
-				return render(http.StatusUnprocessableEntity, ctx.FormValue("signature"), ctx.T("form.recipientinvalid"))
+				// Refused once the rest of the form is read, so the form comes back whole.
+				unparsed, addresses = true, []string{typed}
 			}
 			*field.into = addresses
 		}
@@ -399,22 +402,31 @@ func (p *plugin) handleCompose(ctx *web.Context, msg *mail.OutgoingMessage, opti
 			return fmt.Errorf("previous attachments specified but no original message available")
 		}
 
-		for _, f := range form.File["attachments"] {
-			msg.Attachments = append(msg.Attachments, formAttachment(f, ""))
+		// The uploads the form holds and still ticks, those the script added, and the files the form carried
+		// itself, which the session takes too so that a refused form comes back with them.
+		ids := form.Value["upload"]
+		for id := range strings.SplitSeq(ctx.FormValue("attachment-uuids"), ",") {
+			if id != "" {
+				ids = append(ids, id)
+			}
 		}
-
-		uuids := ctx.FormValue("attachment-uuids")
-		for uuid := range strings.SplitSeq(uuids, ",") {
-			if uuid == "" {
-				continue
-			}
-
-			attachment := ctx.PeekAttachment(uuid)
+		err = putAttachments(ctx, form.File["attachments"], func(id string) { ids = append(ids, id) })
+		delete(form.File, "attachments")
+		for _, id := range ids {
+			attachment := ctx.PeekAttachment(id)
 			if attachment == nil {
-				return fmt.Errorf("unable to retrieve message attachment %s from session", uuid)
+				return fmt.Errorf("unable to retrieve message attachment %s from session", id)
 			}
-			msg.Attachments = append(msg.Attachments, formAttachment(attachment, uuid))
-			uploads = append(uploads, uuid)
+			msg.Attachments = append(msg.Attachments, formAttachment(attachment, id))
+			uploads = append(uploads, id)
+		}
+		if err == web.ErrAttachmentCacheSize {
+			return render(http.StatusUnprocessableEntity, ctx.FormValue("signature"), ctx.T("attach.toolarge"))
+		} else if err != nil {
+			return err
+		}
+		if unparsed {
+			return render(http.StatusUnprocessableEntity, ctx.FormValue("signature"), ctx.T("form.recipientinvalid"))
 		}
 
 		if msg.HTML != "" {

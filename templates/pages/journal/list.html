@@ -5,7 +5,7 @@
 {{ end }}
 
 {{ define "before-main" }}
-    {{ template "pim-list-before" (dict "select" "journal-form" "refresh" (url "calendar.journal.refresh")) }}
+    {{ template "pim-list-before" (dict "g" $ "select" "journal-form" "refresh" (url "calendar.journal.refresh")) }}
 {{ end }}
 
 {{ define "main-class" }} class="journal-list"{{ end }}
@@ -18,7 +18,7 @@
           {{ template "pim-copy-menu" (dict "g" $ "form" "journal-form" "action" (url "calendar.journal.copy") "refresh" true) }}
         {{ template "toolbar-end" }}
             {{ template "pim-list-controls" (dict
-               "search" (dict "query" .Query "placeholder" ($.T "journal.searchph") "button" ($.T "mailbox.search") "disabled" (and (not .Entries) (not .Query)))
+               "search" (dict "g" $ "query" .Query "placeholder" ($.T "journal.searchph") "button" ($.T "mailbox.search") "disabled" (and (not .Entries) (not .Query)))
                "pager" (dict "g" $ "pager" .Pager)
                "filter" (dict "id" "menu-filter" "icon" "list-filter" "title" ($.T "filter.menu") "rows" .FilterRows "priority" 25 "class" "filter-overflow")
                "sort" (dict "g" $ "s" .Sorting "disabled" (not .Entries) "wide" true "rows" (tuple

@@ -3,7 +3,7 @@
 {{ define "main" }}
         {{ template "toolbar-head" (dict "g" .) }}
         {{ template "toolbar-end" }}
-            {{ template "toolbar-search" (dict "account" $.GlobalData.URLAccount "query" .Query "keep" (dict "view" .View) "placeholder" ($.T "search.placeholder") "button" ($.T "mailbox.search")) }}
+            {{ template "toolbar-search" (dict "g" $ "query" .Query "placeholder" ($.T "search.placeholder") "button" ($.T "mailbox.search")) }}
             {{ template "filter-menu" (dict "id" "menu-filter" "icon" "list-filter" "title" ($.T "filter.menu") "rows" .FilterRows "priority" 25 "class" "filter-overflow") }}
         {{ template "toolbar-foot" }}
 

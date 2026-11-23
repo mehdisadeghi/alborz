@@ -52,6 +52,9 @@
   accepted, connection closed, or the time it asked to wait until.
 - An inline style with an empty declaration, as in `color:red;;`, is kept; it
   used to be dropped whole.
+- Actions on tasks, journal, contacts and the agenda return to the list as it
+  was narrowed: collection, account, view, sort and page, also after the rail
+  or a menu redraws the list; a search keeps the rest of the list's address.
 
 ## [0.20.0] - 2026-10-31
 

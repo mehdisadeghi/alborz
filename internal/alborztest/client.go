@@ -125,6 +125,23 @@ func (c *Client) Follow(t *testing.T, path string) string {
 	return ""
 }
 
+// Swap is the answer to a link that swaps path into main, as htmx asks for it (ADR 13).
+func (c *Client) Swap(t *testing.T, path string) *Response {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodGet, c.app.URL+path, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, value := range map[string]string{"HX-Request": "true", "HX-Boosted": "true", "HX-Target": "main"} {
+		req.Header.Set(name, value)
+	}
+	resp := c.Do(t, req)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("swapping %s into main answered %s", path, resp.Status)
+	}
+	return resp
+}
+
 // Post sends form to the named route.
 func (c *Client) Post(t *testing.T, route string, form url.Values, args ...any) *Response {
 	t.Helper()

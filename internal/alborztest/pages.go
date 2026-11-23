@@ -163,3 +163,75 @@ func PagerSteps(t *testing.T, page string) []string {
 	}
 	return steps
 }
+
+var (
+	mainBlock  = regexp.MustCompile(`(?s)<main\b[^>]*>(.*)</main>`)
+	outOfBand  = regexp.MustCompile(`<\w+\b[^>]*\bid="([^"]+)"[^>]*\bhx-swap-oob=`)
+	nextField  = regexp.MustCompile(`<input type="hidden" (?:id="[^"]*" )?name="next" value="([^"]*)"`)
+	linkTarget = regexp.MustCompile(`<a\b[^>]*\bhref="([^"]+)"`)
+)
+
+// Swapped is the page a swap into main leaves of before: main is the swap's, what the swap carries out of
+// band takes the place of the element of its id, and the rest is as it was (ADR 13).
+func Swapped(before, swap string) string {
+	for _, m := range outOfBand.FindAllStringSubmatch(swap, -1) {
+		before = withoutElement(before, m[1])
+	}
+	return mainBlock.ReplaceAllLiteralString(before, "<main>"+swap+"</main>")
+}
+
+// withoutElement is page without the element of the id, its end found by counting its kind.
+func withoutElement(page, id string) string {
+	at := strings.Index(page, ` id="`+id+`"`)
+	if at < 0 {
+		return page
+	}
+	start := strings.LastIndexByte(page[:at], '<')
+	tag, _, _ := strings.Cut(page[start+1:at], " ")
+	if tag == "input" {
+		return page[:start] + page[at+strings.IndexByte(page[at:], '>')+1:]
+	}
+	open, end := 0, start
+	for {
+		next := strings.IndexByte(page[end:], '<')
+		if next < 0 {
+			return page
+		}
+		end += next
+		switch rest := page[end:]; {
+		case strings.HasPrefix(rest, "</"+tag+">"):
+			open--
+			end += len("</" + tag + ">")
+		case strings.HasPrefix(rest, "<"+tag+" "), strings.HasPrefix(rest, "<"+tag+">"):
+			open++
+			end++
+		default:
+			end++
+		}
+		if open == 0 {
+			return page[:start] + page[end:]
+		}
+	}
+}
+
+// Returns are the addresses a page's forms and links name to come back to, their next, each without its fragment.
+func Returns(page string) []string {
+	var out []string
+	add := func(raw string) {
+		if u, err := url.Parse(raw); err == nil {
+			u.Fragment = ""
+			out = append(out, u.String())
+		}
+	}
+	for _, m := range nextField.FindAllStringSubmatch(page, -1) {
+		add(html.UnescapeString(m[1]))
+	}
+	for _, m := range linkTarget.FindAllStringSubmatch(page, -1) {
+		if u, err := url.Parse(html.UnescapeString(m[1])); err == nil {
+			for _, next := range u.Query()["next"] {
+				add(next)
+			}
+		}
+	}
+	return out
+}

@@ -91,10 +91,7 @@
     {{ end }}
 
 {{ template "toolbar-end" }}
-  {{/* What the URL says, not what the page settled on. */}}
-  {{ $q := $.GlobalData.URL.Query }}
-  {{ $keep := dict "sort" ($q.Get "sort") "dir" ($q.Get "dir") "view" ($q.Get "view") "ipp" ($q.Get "ipp") "all" ($q.Get "all") }}
-  {{ template "toolbar-search" (dict "account" $.GlobalData.URLAccount "query" .Query "placeholder" ($.T "mailbox.searchph") "button" ($.T "mailbox.search") "disabled" $empty "target" "main" "action" $.GlobalData.URL.EscapedPath "keep" $keep) }}
+  {{ template "toolbar-search" (dict "g" $ "query" .Query "placeholder" ($.T "mailbox.searchph") "button" ($.T "mailbox.search") "disabled" $empty "target" "main" "action" $.GlobalData.URL.EscapedPath) }}
 
   {{ template "list-pager" (dict "g" $ "pager" .Pager) }}
 

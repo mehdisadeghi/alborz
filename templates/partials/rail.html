@@ -68,7 +68,7 @@
   {{ with .categories }}{{ template "rail-filter-list" . }}{{ end }}
   {{ with .invitations }}
   {{ $inv := . }}
-  <ul class="rail-views">
+  <ul id="rail-invitations" class="rail-views"{{ if $.g.GlobalData.Swap }} hx-swap-oob="true"{{ end }}>
     <li class="folder-li">
       <details class="folder-branch" data-rail-key="invitations" open>
         <summary>{{$.g.T "share.invitations"}}</summary>
@@ -94,7 +94,7 @@
   </ul>
   {{ end }}
   {{/* The actions follow every item, as on mail's rail. */}}
-  {{ range tuple .new (and .groups .groups.new) .follow .import }}{{ if and . (not .hidden) }}<a href="{{.href}}" class="aside-create{{ if .active }} active{{ end }}">{{.label}}</a>{{ end }}{{ end }}
+  {{ range $i, $a := tuple .new (and .groups .groups.new) .follow .import }}{{ if and $a (not $a.hidden) }}<a id="rail-create-{{$i}}" href="{{$a.href}}" class="aside-create{{ if $a.active }} active{{ end }}"{{ if $.g.GlobalData.Swap }} hx-swap-oob="true"{{ end }}>{{$a.label}}</a>{{ end }}{{ end }}
   <a href="{{url "auth.login"}}?add=1" class="aside-create rail-mobile rail-add-account">{{.g.T "nav.addaccount"}}</a>
   <div class="rail-mobile rail-mobile-footer">
     <a href="{{url "settings.profile"}}"{{ if eq (index .g.GlobalData.Path 0) "settings" }} class="active" aria-current="page"{{ end }}>{{.g.T "nav.settings"}}</a>
@@ -229,8 +229,14 @@
 <aside id="page-rail" data-tour="rail" data-mail-sidebar="{{url "mail.sidebar"}}" data-unread="{{.Unread}}" data-importing="{{$.T "folder.dropimporting"}}" data-importing-many="{{$.T "folder.dropimportingmany"}}" data-importing-adding="{{$.T "folder.dropadding"}}" data-importing-none="{{$.T "folder.dropnomail"}}" data-importing-failed="{{$.T "folder.dropfailed"}}" data-importing-where="{{$.T "folder.dropwhere"}}" data-importing-which="{{$.T "folder.dropwhich"}}" data-live-arrived="{{$.T "list.mailarrived"}}" data-live-show="{{$.T "list.showarrived"}}">
 {{ template "scope-rail" (dict "g" $ "kind" "mail" "path" (url "mail.mailbox" "INBOX") "urlaccount" .GlobalData.Scope "accounts" .GlobalData.Accounts "data" . "new" (dict "href" (url "mail.mailbox.create") "label" ($.T "aside.newfolder") "active" (eq .GlobalData.URL.Path (url "mail.mailbox.create"))) "import" (dict "href" (url "mail.import") "label" ($.T "aside.import") "active" (eq .GlobalData.URL.Path (url "mail.import")))) }}
 </aside>
+{{ else if gt (len .GlobalData.Accounts) 1 }}
+{{/* A swap into main keeps the rail, all but where its merged ticks return to. */}}
+{{ range .GlobalData.Accounts }}{{ template "merged-next" (dict "account" .Username "g" $.GlobalData "oob" true) }}{{ end }}
 {{ end }}
 {{ end }}
+
+{{/* dict: account g [oob]. */}}
+{{ define "merged-next" }}<input type="hidden" id="merged-next-{{.account}}" name="next" value="{{.g.URL.RequestURI}}"{{ if .oob }} hx-swap-oob="true"{{ end }}>{{ end }}
 
 {{ define "rail-mail-single" }}
 {{ $view := .ListView }}
@@ -278,7 +284,7 @@
 {{/* A tick redraws these rows, the merged counts and the list in place (ADR 80); its links keep their own targets.
      A second tick replaces the first's request, as on the DAV rails. */}}
 <form id="merged-{{$.account}}" class="aside-filter" method="post" action="{{url "mail.merged"}}{{ account "?" $.account }}" hx-post="{{url "mail.merged"}}{{ account "?" $.account }}" hx-target="this" hx-select="form[id='merged-{{$.account}}']" hx-select-oob="#main,#merged-roles" hx-swap="outerHTML show:none" hx-sync="this:replace" hx-disinherit="*">
-<input type="hidden" name="next" value="{{$d.GlobalData.URL.RequestURI}}">
+{{ template "merged-next" (dict "account" $.account "g" $d.GlobalData) }}
 <ul{{ template "list-swap" $d }}>
   {{ template "mbox-list" (tuple .Categorized $q (eq $d.GlobalData.Scope $.account) $view $active $d.GlobalData) }}
 </ul>

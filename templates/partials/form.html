@@ -128,7 +128,8 @@
 {{ define "shown-field" }}{{ template "hidden-field" (dict "name" "shown" "value" .) }}{{ end }}
 {{ define "next-field" }}{{ template "hidden-field" (dict "name" "next" "value" .) }}{{ end }}
 
+{{/* dict: g select refresh. */}}
 {{ define "pim-list-before" }}
-  {{ template "next-form" (dict "id" .select "next" $.GlobalData.URL.RequestURI) }}
-  {{ template "next-form" (dict "id" "refresh-form" "action" .refresh "next" $.GlobalData.URL.RequestURI) }}
+  {{ template "next-form" (dict "id" .select "next" .g.GlobalData.URL.RequestURI) }}
+  {{ template "next-form" (dict "id" "refresh-form" "action" .refresh "next" .g.GlobalData.URL.RequestURI) }}
 {{ end }}

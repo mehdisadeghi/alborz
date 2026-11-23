@@ -84,7 +84,7 @@
   {{ if .GlobalData.LoggedIn }}<label for="sidebar" class="sidebar-backdrop" aria-hidden="true"></label>{{ end }}
   {{ block "rail" . }}{{ template "page-rail" . }}{{ end }}
   <div class="container">
-    {{ block "before-main" . }}{{ end }}
+    {{ template "before-main-slot" . }}
     <main id="main" tabindex="-1"{{ block "main-class" . }} class="list"{{ end }}>
 {{ template "swipe-preferences" . }}
 {{ block "main" . }}{{ end }}
@@ -101,6 +101,9 @@
 {{ template "main" . }}
 </main>{{ end }}
 
-{{/* A swap into main: the page's main block, and out of band what of its rail the swap moves and its notices (ADR 13). */}}
+{{/* The forms a page keeps outside main for its buttons to name; they carry the address main shows, so a swap into main brings them out of band. */}}
+{{ define "before-main-slot" }}<div id="before-main"{{ if .GlobalData.Swap }} hx-swap-oob="true"{{ end }}>{{ block "before-main" . }}{{ end }}</div>{{ end }}
+
+{{/* A swap into main: the page's main block, and out of band what of its rail the swap moves, what outside main names the page's address and its notices (ADR 13). */}}
 {{ define "swipe-preferences" }}<span id="swipe-preferences" hidden data-swipes="{{.GlobalData.Swipes}}"></span>{{ end }}
-{{ define "swap" }}<template id="main-class"{{ template "main-class" . }}></template>{{ template "swipe-preferences" . }}{{ template "main" . }}{{ template "account-popovers" . }}{{ template "rail" . }}{{ template "notices" (dict "g" . "oob" true) }}{{ end }}
+{{ define "swap" }}<template id="main-class"{{ template "main-class" . }}></template>{{ template "swipe-preferences" . }}{{ template "main" . }}{{ template "account-popovers" . }}{{ template "rail" . }}{{ template "before-main-slot" . }}{{ if .GlobalData.LoggedIn }}{{ template "language-menu" . }}{{ end }}{{ template "notices" (dict "g" . "oob" true) }}{{ end }}

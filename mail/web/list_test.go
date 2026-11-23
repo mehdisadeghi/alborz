@@ -842,6 +842,22 @@ func TestTwoQuickMergedTicksBothHold(t *testing.T) {
 	}
 }
 
+// A swap into main leaves the rail in place; what on the page names where to come back to names the list the swap shows.
+func TestASwapLeavesNoWayBackToTheListBefore(t *testing.T) {
+	a := Alborz(t, WithIMAP(IMAP(t, Metadata())))
+	c := bothAccounts(t, a)
+	before := c.Page(t, "mail.mailbox", "INBOX")
+	if !strings.Contains(before, `id="merged-next-`+User+`"`) {
+		t.Fatal("the merged inbox has no merged-view ticks")
+	}
+	sent := a.Path("mail.mailbox", "Sent", url.Values{"view": {"unread"}})
+	for _, next := range Returns(Swapped(before, c.Swap(t, sent).Text)) {
+		if next != sent {
+			t.Errorf("the page returns to %q, not to the list it shows, %q", next, sent)
+		}
+	}
+}
+
 // A signature added while the account form saves survives it, and so does the form's name.
 func TestASignatureAndTheAccountFormSavedTogetherBothHold(t *testing.T) {
 	a := Alborz(t, WithIMAP(IMAP(t, Metadata())))

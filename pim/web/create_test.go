@@ -51,7 +51,7 @@ func TestANewCollectionShowsWhereTheReaderLands(t *testing.T) {
 			open := func(scope url.Values) (list, form string) {
 				t.Helper()
 				list = a.Path(k.list, scope)
-				link := regexp.MustCompile(`<a href="([^"]+)" class="aside-create[^"]*">` + regexp.QuoteMeta(T(t, k.link)) + `</a>`).FindStringSubmatch(c.Follow(t, list))
+				link := regexp.MustCompile(`<a id="[^"]*" href="([^"]+)" class="aside-create[^"]*">` + regexp.QuoteMeta(T(t, k.link)) + `</a>`).FindStringSubmatch(c.Follow(t, list))
 				if link == nil {
 					t.Fatalf("the rail of %s has no link to the form", list)
 				}

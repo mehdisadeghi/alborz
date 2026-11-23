@@ -13,7 +13,7 @@
     {{ template "pim-copy-menu" (dict "g" $ "form" "address-book-form" "action" (url "contacts.copy") "refresh" true) }}
 {{ template "toolbar-end" }}
   {{ template "pim-list-controls" (dict
-     "search" (dict "account" $.GlobalData.URLAccount "query" .Query "placeholder" ($.T "contacts.searchph") "button" ($.T "mailbox.search") "disabled" (and (not .AddressObjects) (not .Query)))
+     "search" (dict "g" $ "query" .Query "placeholder" ($.T "contacts.searchph") "button" ($.T "mailbox.search") "disabled" (and (not .AddressObjects) (not .Query)))
      "pager" (dict "g" $ "pager" .Pager)
      "filter" (dict "id" "menu-filter" "icon" "list-filter" "title" ($.T "filter.menu") "rows" .FilterRows "priority" 25 "class" "filter-overflow")
      "sort" (dict "g" $ "s" .Sorting "disabled" (not .AddressObjects) "rows" (tuple

@@ -36,7 +36,10 @@ must continue working without JavaScript.
      text size).
 7. Fragments (`Partial`, `PartialFor`) are used only for single-row
    marks, list swaps into `#main` under an unchanged toolbar or rail
-   (carrying notices and rail tick updates out of band), and lazy pieces
+   (carrying out of band notices, rail tick updates and whatever outside
+   `#main` names the page's address: the `before-main` forms, the
+   language menu, the rail's links and forms that return to it), and
+   lazy pieces
    (signature verification, status bar, month weather, a message's
    place and thread).
    - A full page MAY leave a lazy piece to its fragment only when the
@@ -64,7 +67,9 @@ must continue working without JavaScript.
 
 - CSP Level 3 (`unsafe-eval`); Media Queries Level 5 (`scripting`)
 - ADR 4, ADR 14
-- `templates/layout.html`, `templates/assets/helpers.js`,
+- `templates/layout.html` (`swap`, `before-main-slot`),
+  `templates/partials/nav.html` (`language-menu`),
+  `templates/partials/rail.html` (`merged-next`), `templates/assets/helpers.js`,
   `templates/partials/toolbar.html` (`swaps`, `swap-main`),
   `web/htmx.go` (`Partial`,
   `PartialFor`, `Scripted`), `mail/web/navigation.go`

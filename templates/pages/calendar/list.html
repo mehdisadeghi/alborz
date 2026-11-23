@@ -5,7 +5,7 @@
 {{ end }}
 
 {{ define "before-main" }}
-    {{ template "pim-list-before" (dict "select" "events-form" "refresh" (printf "%s%s" (url "calendar.refresh") $.GlobalData.AccountQuery)) }}
+    {{ template "pim-list-before" (dict "g" $ "select" "events-form" "refresh" (printf "%s%s" (url "calendar.refresh") $.GlobalData.AccountQuery)) }}
 {{ end }}
 
 

@@ -8,7 +8,7 @@
 {{ end }}
 
 {{ define "before-main" }}
-    {{ template "pim-list-before" (dict "select" "address-book-form" "refresh" (url "contacts.refresh")) }}
+    {{ template "pim-list-before" (dict "g" $ "select" "address-book-form" "refresh" (url "contacts.refresh")) }}
 {{ end }}
 
 {{ define "main-class" }} class="contact-list"{{ end }}

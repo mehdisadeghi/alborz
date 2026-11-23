@@ -49,10 +49,10 @@
 
 {{/* dict: placeholder button [account all query disabled target action]. target needs action, the path without a query:
      an empty hx-get falls back to location.href, whose old query values would be appended to the form's. */}}
+{{/* dict: g query placeholder button [disabled action target]. A search keeps the rest of the address it is made from and starts at the first page. */}}
 {{ define "toolbar-search" }}
 <form method="get" class="actions-search{{ if .disabled }} is-disabled{{ end }}"{{ with .action }} action="{{.}}"{{ end }}{{ if and .target .action }} hx-get="{{ .action }}" hx-target="#{{.target}}" hx-swap="innerHTML show:window:top" hx-replace-url="true"{{ end }}>
-  {{ with .account }}<input type="hidden" name="account" value="{{.}}">{{ end }}
-  {{ range $name, $value := .keep }}{{ with $value }}<input type="hidden" name="{{$name}}" value="{{.}}">{{ end }}{{ end }}
+  {{ range $name, $values := .g.GlobalData.URL.Query }}{{ if not (eq $name "query" "page") }}{{ range $values }}<input type="hidden" name="{{$name}}" value="{{.}}">{{ end }}{{ end }}{{ end }}
   <input type="text" name="query" dir="auto" value="{{.query}}" placeholder="{{.placeholder}}" aria-label="{{.placeholder}}"{{ if .disabled }} disabled{{ end }}>
   <button{{ if .disabled }} disabled{{ end }}>{{.button}}</button>
 </form>

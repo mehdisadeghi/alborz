@@ -148,7 +148,7 @@
 {{/* The languages, each a whole page: lang and dir are the root's. Signed out the URL carries the choice (?lang=). */}}
 {{ define "language-menu" }}
 {{ $in := .GlobalData.LoggedIn }}
-<form{{ if $in }} method="post" action="{{url "settings.language"}}"{{ end }} hx-boost="false" class="nav-language">
+<form id="nav-language"{{ if $in }} method="post" action="{{url "settings.language"}}"{{ end }} hx-boost="false" class="nav-language"{{ if .GlobalData.Swap }} hx-swap-oob="true"{{ end }}>
   {{ if $in }}<input type="hidden" name="next" value="{{.GlobalData.URL.RequestURI}}">{{ else }}{{ range $k, $vs := .GlobalData.URL.Query }}{{ if ne $k "lang" }}{{ range $vs }}<input type="hidden" name="{{$k}}" value="{{.}}">{{ end }}{{ end }}{{ end }}{{ end }}
   {{ template "filter-menu" (dict "id" "menu-language" "icon" "globe" "title" (.T "settings.language") "rows" .GlobalData.Languages "name" (or (and $in "language") "lang")) }}
 </form>
